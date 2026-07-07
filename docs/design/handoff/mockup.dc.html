@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background: #0a0a0b; font-family: Inter, sans-serif; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+    @keyframes blink { 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
+  </style>
+</helmet>
+
+<div style="display:flex; flex-wrap:wrap; align-items:flex-start; gap:56px; padding:56px;">
+
+  <section id="1a" style="position:relative;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+      <a href="#1a" style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:6px; background:#e0863f; color:#161513; font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; text-decoration:none;">1a</a>
+      <span style="color:#e8e6e1; font-family:Inter,sans-serif; font-size:15px; font-weight:600;">Terminal — ámbar</span>
+    </div>
+
+    <div style="width:1440px; height:860px; display:flex; flex-direction:column; background:#161513; border-radius:10px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,0.55); border:1px solid #332f28; position:relative;">
+
+      <div style="height:30px; flex-shrink:0; display:flex; align-items:center; padding:0 14px; background:#131210; border-bottom:1px solid #2a2721;">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#75705f;">claude-code — Refactor auth flow</span>
+      </div>
+
+      <div style="flex:1; display:flex; min-height:0;">
+
+        <div style="width:272px; flex-shrink:0; display:flex; flex-direction:column; background:#1c1a17; border-right:1px solid #2a2721; min-height:0;">
+
+          <div style="flex-shrink:0; display:flex; flex-direction:column; gap:5px; padding:10px 10px; max-height:168px; overflow-y:auto; border-bottom:1px solid #2a2721;">
+            <div style="font-family:Inter,sans-serif; font-size:10px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.05em; padding:2px 4px 3px;">Repos</div>
+            <sc-for list="{{ aReposView }}" as="repo" hint-placeholder-count="3">
+              <div onClick="{{ repo.onClick }}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 9px; border-radius:6px; cursor:pointer; border:1px solid #332f28;" style-hover="background:#242019;">
+                <span style="font-family:Inter,sans-serif; font-size:12px; font-weight:600; color:#e8e6e1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ repo.name }}</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#e0863f; white-space:nowrap; flex-shrink:0;">{{ repo.branch }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="flex:1; overflow-y:auto; padding:8px 8px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:2px 6px 8px;">
+              <span style="font-family:Inter,sans-serif; font-size:10px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.05em;">Sesiones</span>
+              <span onClick="{{ aOnAddSession }}" style="display:flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:5px; cursor:pointer; color:#9c9488;" style-hover="background:#242019;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </span>
+            </div>
+            <sc-for list="{{ aParentsView }}" as="n" hint-placeholder-count="4">
+              <sc-if value="{{ n.isRow }}">
+                <div style="padding-left:{{ n.indent }}px; margin-top:{{ n.mt }}px;">
+                  <div onClick="{{ n.onSelect }}" style="display:flex; align-items:center; gap:6px; padding:6px 6px 6px 8px; border-radius:6px; cursor:pointer; background:{{ n.rowBg }}; border-left:2px solid {{ n.activeBorder }};" style-hover="background:#242019;">
+                    <sc-if value="{{ n.hasChildren }}">
+                      <span onClick="{{ n.onToggle }}" style="width:14px; height:14px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#75705f; cursor:pointer; transform:{{ n.chevron }};">▸</span>
+                    </sc-if>
+                    <sc-if value="{{ !n.hasChildren }}">
+                      <span style="width:14px; height:14px; flex-shrink:0;"></span>
+                    </sc-if>
+                    <span style="width:7px; height:7px; border-radius:50%; flex-shrink:0; background:{{ n.statusColor }};"></span>
+                    <sc-if value="{{ n.isEditing }}">
+                      <input value="{{ aEditingValue }}" onChange="{{ aOnEditingChange }}" onKeyDown="{{ aOnEditingKeyDown }}" onBlur="{{ aOnEditingBlur }}" autoFocus="{{ true }}" style="flex:1; min-width:0; background:#242019; border:1px solid #e0863f; border-radius:4px; color:#f0ece4; font-family:Inter,sans-serif; font-size:12.5px; padding:2px 6px;" />
+                    </sc-if>
+                    <sc-if value="{{ !n.isEditing }}">
+                      <span onDoubleClick="{{ n.onStartEdit }}" style="flex:1; min-width:0; font-family:Inter,sans-serif; font-size:12.5px; font-weight:600; color:#f0ece4; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ n.name }}</span>
+                    </sc-if>
+                    <sc-if value="{{ n.hasRole }}">
+                      <span style="font-family:Inter,sans-serif; font-size:9px; font-weight:600; color:#e0863f; background:#2e2820; padding:1px 6px; border-radius:4px; flex-shrink:0;">{{ n.role }}</span>
+                    </sc-if>
+                    <span onClick="{{ n.onAddChild }}" style="width:16px; height:16px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#75705f; cursor:pointer;" style-hover="color:#e0863f;">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    </span>
+                  </div>
+                  <div style="padding-left:34px; margin-bottom:2px;">
+                    <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#e0863f;">{{ n.branch }}</span>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ n.isAdd }}">
+                <div onClick="{{ n.onAdd }}" style="padding-left:{{ n.indent }}px; margin:2px 0 4px;">
+                  <div style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:6px; cursor:pointer; color:#75705f; border:1px dashed #332f28;" style-hover="background:#242019;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span style="font-family:Inter,sans-serif; font-size:11px;">Agregar sesión hija</span>
+                  </div>
+                </div>
+              </sc-if>
+            </sc-for>
+          </div>
+
+          <div style="border-top:1px solid #2a2721; padding:6px 6px;">
+            <sc-for list="{{ aHelperItems }}" as="h" hint-placeholder-count="8">
+              <div onClick="{{ h.onClick }}" style="display:flex; align-items:center; gap:9px; padding:6px 8px; border-radius:6px; cursor:pointer;" style-hover="background:#242019;">
+                <span style="color:#9c9488; display:flex;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle></svg>
+                </span>
+                <span style="flex:1; font-family:Inter,sans-serif; font-size:12px; color:#cfc9bd;">{{ h.label }}</span>
+                <sc-if value="{{ h.count }}">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#75705f;">{{ h.count }}</span>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="width:40px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:4px; padding-top:10px; background:#1c1a17; border-right:1px solid #2a2721;">
+          <div onClick="{{ aOnSetPanelSearch }}" style="width:30px; height:30px; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:{{ aSearchNavColor }}; background:{{ aSearchNavBg }};" style-hover="background:#242019;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </div>
+          <div onClick="{{ aOnSetPanelChanges }}" style="width:30px; height:30px; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:{{ aChangesNavColor }}; background:{{ aChangesNavBg }};" style-hover="background:#242019;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="13" y2="17"></line></svg>
+          </div>
+          <div onClick="{{ aOnSetPanelGraphite }}" style="width:30px; height:30px; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:{{ aGraphiteNavColor }}; background:{{ aGraphiteNavBg }};" style-hover="background:#242019;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+          </div>
+          <div onClick="{{ aOnSetPanelTasks }}" style="width:30px; height:30px; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:{{ aTasksNavColor }}; background:{{ aTasksNavBg }};" style-hover="background:#242019;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+          </div>
+          <div onClick="{{ aOnSetPanelTerminal }}" style="width:30px; height:30px; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:{{ aTerminalNavColor }}; background:{{ aTerminalNavBg }};" style-hover="background:#242019;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+          </div>
+          <div onClick="{{ aOnSetPanelNotion }}" style="width:30px; height:30px; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:{{ aNotionNavColor }}; background:{{ aNotionNavBg }};" style-hover="background:#242019;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+          </div>
+        </div>
+
+        <div style="width:264px; flex-shrink:0; background:#1c1a17; border-right:1px solid #2a2721; overflow-y:auto;">
+          <sc-if value="{{ aIsPanelSearch }}">
+            <div style="padding:12px;">
+              <input value="{{ aSearchQuery }}" onChange="{{ aOnSearchChange }}" placeholder="Buscar archivos, sesiones, tareas" style="width:100%; box-sizing:border-box; background:#131210; border:1px solid #332f28; border-radius:6px; color:#e8e6e1; font-family:Inter,sans-serif; font-size:12.5px; padding:7px 9px;" />
+              <div style="margin-top:14px; font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em;">Recientes</div>
+              <sc-for list="{{ aChangedFiles }}" as="f" hint-placeholder-count="3">
+                <div onClick="{{ f.onOpen }}" style="padding:7px 6px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#cfc9bd; cursor:pointer; border-radius:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" style-hover="background:#242019;">{{ f.path }}</div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ aIsPanelChanges }}">
+            <div style="padding:12px;">
+              <div style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Archivos modificados</div>
+              <sc-for list="{{ aChangedFiles }}" as="f" hint-placeholder-count="4">
+                <div onClick="{{ f.onOpen }}" style="display:flex; align-items:center; gap:6px; padding:6px; border-radius:5px; cursor:pointer;" style-hover="background:#242019;">
+                  <span style="flex:1; min-width:0; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#cfc9bd; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ f.path }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#7fb069;">+{{ f.added }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#c96a4e;">-{{ f.removed }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ aIsPanelGraphite }}">
+            <div style="padding:14px 12px;">
+              <div style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px;">Stack de branches</div>
+              <sc-for list="{{ aGraphiteStack }}" as="g" hint-placeholder-count="4">
+                <div style="margin-bottom:2px;">
+                  <div onClick="{{ g.onToggle }}" style="display:flex; align-items:center; gap:9px; padding:7px 6px; border-radius:6px; cursor:pointer;" style-hover="background:#242019;">
+                    <span style="width:12px; height:12px; border-radius:50%; flex-shrink:0; background:#161513; border:2px solid {{ g.dotColor }};"></span>
+                    <span style="flex:1; min-width:0; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:{{ g.textColor }}; font-weight:{{ g.weight }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ g.name }}</span>
+                    <sc-if value="{{ g.current }}">
+                      <span style="font-family:Inter,sans-serif; font-size:9px; font-weight:600; color:#e0863f; text-transform:uppercase; letter-spacing:0.04em; flex-shrink:0;">actual</span>
+                    </sc-if>
+                    <span onClick="{{ g.onOpen }}" style="display:flex; color:#75705f; flex-shrink:0;" style-hover="color:#e0863f;">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    </span>
+                  </div>
+                  <sc-if value="{{ g.isExpanded }}">
+                    <div style="margin-left:5px; padding-left:14px; border-left:1px solid #332f28;">
+                      <sc-for list="{{ g.commits }}" as="cm" hint-placeholder-count="2">
+                        <div style="margin:2px 0;">
+                          <div onClick="{{ cm.onToggle }}" style="display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:5px; cursor:pointer;" style-hover="background:#242019;">
+                            <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#e0863f; flex-shrink:0;">{{ cm.hash }}</span>
+                            <span style="flex:1; min-width:0; font-family:Inter,sans-serif; font-size:11px; color:#cfc9bd; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ cm.message }}</span>
+                          </div>
+                          <sc-if value="{{ cm.isExpanded }}">
+                            <div style="padding-left:16px; padding-bottom:4px;">
+                              <sc-for list="{{ cm.files }}" as="fl" hint-placeholder-count="1">
+                                <div style="display:flex; align-items:center; gap:6px; padding:3px 6px;">
+                                  <span style="flex:1; min-width:0; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#9c9488; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ fl.path }}</span>
+                                  <span style="font-family:'JetBrains Mono',monospace; font-size:9.5px; color:#7fb069;">+{{ fl.added }}</span>
+                                  <span style="font-family:'JetBrains Mono',monospace; font-size:9.5px; color:#c96a4e;">-{{ fl.removed }}</span>
+                                </div>
+                              </sc-for>
+                            </div>
+                          </sc-if>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ aIsPanelTasks }}">
+            <div style="padding:12px;">
+              <div style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Tareas</div>
+              <sc-for list="{{ aTasks }}" as="t" hint-placeholder-count="3">
+                <div onClick="{{ t.onOpen }}" style="padding:8px 8px; border-radius:6px; cursor:pointer; margin-bottom:4px;" style-hover="background:#242019;">
+                  <div style="font-family:Inter,sans-serif; font-size:12px; font-weight:600; color:#e8e6e1; margin-bottom:3px;">{{ t.title }}</div>
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#75705f;">{{ t.file }}</span>
+                    <span style="font-family:Inter,sans-serif; font-size:10px; color:#e0863f;">{{ t.status }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ aIsPanelTerminal }}">
+            <div style="padding:12px;">
+              <div style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Terminales</div>
+              <div style="padding:8px 10px; background:#211e1a; border:1px solid #332f28; border-radius:6px; margin-bottom:10px;">
+                <div style="font-family:Inter,sans-serif; font-size:12px; font-weight:600; color:#e8e6e1;">{{ aSelectedSessionName }}</div>
+                <div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#e0863f; margin-top:2px;">{{ aSelectedSessionDir }}</div>
+              </div>
+              <sc-for list="{{ aSelectedSessionTerminals }}" as="tm" hint-placeholder-count="2">
+                <div onClick="{{ tm.onClick }}" style="display:flex; align-items:center; gap:9px; padding:8px; border-radius:6px; cursor:pointer;" style-hover="background:#242019;">
+                  <span style="color:#9c9488; display:flex;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                  </span>
+                  <span style="flex:1; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#cfc9bd;">{{ tm.label }}</span>
+                  <sc-if value="{{ tm.proc }}">
+                    <span style="width:6px; height:6px; border-radius:50%; background:#7fb069; flex-shrink:0;"></span>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ aIsPanelNotion }}">
+            <div style="padding:12px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <span style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em;">Notion</span>
+                <span onClick="{{ aOnAddPage }}" style="display:flex; align-items:center; gap:4px; padding:3px 7px; border-radius:5px; cursor:pointer; color:#e0863f; font-family:Inter,sans-serif; font-size:11px; font-weight:600;" style-hover="background:#242019;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  Nueva
+                </span>
+              </div>
+              <sc-for list="{{ aPagesView }}" as="pg" hint-placeholder-count="3">
+                <div onClick="{{ pg.onOpen }}" style="display:flex; align-items:flex-start; gap:8px; padding:8px; border-radius:6px; cursor:pointer; margin-bottom:2px;" style-hover="background:#242019;">
+                  <span style="color:#9c9488; display:flex; margin-top:1px; flex-shrink:0;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                  </span>
+                  <div style="flex:1; min-width:0;">
+                    <div style="font-family:Inter,sans-serif; font-size:12px; font-weight:600; color:#e8e6e1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ pg.title }}</div>
+                    <div style="font-family:Inter,sans-serif; font-size:10.5px; color:#75705f; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ pg.preview }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column; min-width:0; background:#171512;">
+          <div style="display:flex; align-items:center; height:36px; flex-shrink:0; border-bottom:1px solid #2a2721; padding:0 4px; overflow-x:auto;">
+            <div onClick="{{ aOnSetTabChat }}" style="height:100%; display:flex; align-items:center; padding:0 14px; font-family:Inter,sans-serif; font-size:12.5px; cursor:pointer; color:{{ aChatTabColor }}; border-bottom:2px solid {{ aChatTabColor }};">Chat</div>
+            <sc-for list="{{ aOpenTabsView }}" as="t" hint-placeholder-count="0">
+              <div onClick="{{ t.onSelect }}" style="height:100%; display:flex; align-items:center; gap:8px; padding:0 12px; font-family:'JetBrains Mono',monospace; font-size:11.5px; cursor:pointer; white-space:nowrap; color:{{ t.isActive }}; border-bottom:2px solid {{ t.isActive }};" style-hover="background:#201e1a;">
+                <span>{{ t.label }}</span>
+                <span onClick="{{ t.onClose }}" style="color:#75705f; font-size:13px;">×</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ aIsChatActive }}">
+            <div style="flex:1; overflow-y:auto; padding:20px 24px; display:flex; flex-direction:column; gap:16px;">
+              <sc-for list="{{ aChatThread }}" as="m" hint-placeholder-count="4">
+                <div style="max-width:{{ m.maxW }}; align-self:{{ m.align }}; display:flex; flex-direction:column; gap:8px;">
+                  <sc-if value="{{ m.hasText }}">
+                    <div style="padding:10px 14px; border-radius:12px; font-family:Inter,sans-serif; font-size:13px; line-height:1.55; color:{{ m.textColor }}; background:{{ m.bubbleBg }}; white-space:pre-wrap;">{{ m.text }}</div>
+                  </sc-if>
+                  <sc-if value="{{ m.hasTools }}">
+                    <div style="display:flex; flex-direction:column; gap:5px;">
+                      <sc-for list="{{ m.tools }}" as="tl" hint-placeholder-count="2">
+                        <div style="display:flex; align-items:center; gap:8px; padding:5px 10px; background:#1a1714; border-radius:7px;">
+                          <span style="width:5px; height:5px; border-radius:50%; background:#a5703c; flex-shrink:0;"></span>
+                          <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; font-weight:500; color:#bd925f;">{{ tl.name }}</span>
+                          <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#9c9488; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ tl.detail }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ m.hasEdits }}">
+                    <div style="display:flex; flex-direction:column; gap:5px;">
+                      <sc-for list="{{ m.edits }}" as="ed" hint-placeholder-count="1">
+                        <div style="display:flex; align-items:center; gap:8px; padding:5px 10px; background:#1a1714; border-radius:7px;">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#857e70" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+                          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:500; color:#b8b2a6;">Edit</span>
+                          <span style="flex:1; min-width:0; font-family:'JetBrains Mono',monospace; font-size:11px; color:#9c9488; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ ed.path }}</span>
+                          <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#7fb069;">+{{ ed.added }}</span>
+                          <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#c96a4e;">-{{ ed.removed }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ m.hasTokens }}">
+                    <div style="display:flex; align-items:center; gap:5px; padding-left:2px;">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#75705f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+                      <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#75705f;">{{ m.tokens }} tokens</span>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div style="flex-shrink:0; padding:14px 20px 18px; border-top:1px solid #2a2721;">
+              <div style="display:flex; align-items:flex-end; gap:8px; background:#1f1c18; border:1px solid #3a352c; border-radius:12px; padding:8px 8px 8px 14px;">
+                <input value="{{ aChatDraft }}" onChange="{{ aOnChatDraftChange }}" placeholder="Escribe un mensaje al agente…" style="flex:1; background:transparent; border:none; outline:none; color:#f0ece4; font-family:Inter,sans-serif; font-size:13px; padding:6px 0;" />
+                <div onClick="{{ aOnSendChat }}" style="width:30px; height:30px; border-radius:8px; background:#e0863f; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;" style-hover="background:#eb954f;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#161513"><path d="M2 21l21-9L2 3v7l15 2-15 2z"></path></svg>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ aIsTerminalActive }}">
+            <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+              <div style="flex-shrink:0; display:flex; align-items:center; gap:10px; padding:11px 16px; border-bottom:1px solid #2a2721;">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#75705f;">{{ aTerminalDir }}</span>
+                <div style="position:relative;">
+                  <div onClick="{{ aOnToggleBranchPicker }}" style="display:flex; align-items:center; gap:7px; padding:5px 10px; border:1px solid #332f28; border-radius:6px; cursor:pointer; background:#131210;" style-hover="background:#242019;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e0863f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
+                    <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#e0863f;">{{ aSelectedBranch }}</span>
+                    <span style="color:#75705f; font-size:10px;">▾</span>
+                  </div>
+                  <sc-if value="{{ aBranchPickerOpen }}">
+                    <div style="position:absolute; top:calc(100% + 6px); left:0; width:280px; background:#1c1a17; border:1px solid #3a352c; border-radius:8px; padding:8px; z-index:8; box-shadow:0 12px 32px rgba(0,0,0,0.55);">
+                      <input value="{{ aBranchQuery }}" onChange="{{ aOnBranchQueryChange }}" placeholder="Buscar branch…" autoFocus="{{ true }}" style="width:100%; box-sizing:border-box; background:#131210; border:1px solid #332f28; border-radius:6px; color:#e8e6e1; font-family:'JetBrains Mono',monospace; font-size:11.5px; padding:6px 8px;" />
+                      <div style="margin-top:6px; max-height:220px; overflow-y:auto;">
+                        <sc-for list="{{ aBranchList }}" as="b" hint-placeholder-count="4">
+                          <div onClick="{{ b.onSelect }}" style="display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:5px; cursor:pointer;" style-hover="background:#242019;">
+                            <span style="width:6px; height:6px; border-radius:50%; flex-shrink:0; background:{{ b.dot }};"></span>
+                            <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:{{ b.color }};">{{ b.name }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+              <div style="flex:1; overflow-y:auto; padding:14px 18px; background:#0f0e0c;">
+                <sc-for list="{{ aTerminalLines }}" as="l" hint-placeholder-count="6">
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:12.5px; line-height:1.75; white-space:pre-wrap; color:{{ l.color }};">{{ l.text }}</div>
+                </sc-for>
+                <div style="font-family:'JetBrains Mono',monospace; font-size:12.5px; line-height:1.75; color:#f0ece4;">$ <span style="display:inline-block; width:8px; height:15px; background:#e0863f; vertical-align:middle; animation:blink 1.1s step-end infinite;"></span></div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ aIsBranchActive }}">
+            <div style="flex:1; overflow-y:auto; padding:24px 28px;">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e0863f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:600; color:#f0ece4;">{{ aActiveBranchDetail.name }}</span>
+              </div>
+              <div style="font-family:Inter,sans-serif; font-size:13px; line-height:1.5; color:#9c9488; margin-bottom:20px;">{{ aActiveBranchDetail.description }}</div>
+              <div style="font-family:Inter,sans-serif; font-size:12px; font-weight:700; color:#e0863f; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px;">Commits</div>
+              <sc-for list="{{ aActiveBranchDetail.commits }}" as="cm" hint-placeholder-count="2">
+                <div style="border:1px solid #2a2721; border-radius:8px; padding:12px 14px; margin-bottom:10px; background:#1c1a17;">
+                  <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#e0863f;">{{ cm.hash }}</span>
+                    <span style="font-family:Inter,sans-serif; font-size:13px; color:#f0ece4;">{{ cm.message }}</span>
+                  </div>
+                  <sc-for list="{{ cm.files }}" as="fl" hint-placeholder-count="1">
+                    <div style="display:flex; align-items:center; gap:8px; padding:3px 0;">
+                      <span style="flex:1; min-width:0; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#9c9488; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ fl.path }}</span>
+                      <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#7fb069;">+{{ fl.added }}</span>
+                      <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#c96a4e;">-{{ fl.removed }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ aIsFileActive }}">
+            <div style="flex:1; overflow-y:auto; padding:16px 0;">
+              <div style="padding:0 20px 12px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#9c9488;">{{ aActiveFileName }}</div>
+              <sc-for list="{{ aActiveDiffLines }}" as="l" hint-placeholder-count="5">
+                <div style="padding:2px 20px; font-family:'JetBrains Mono',monospace; font-size:12.5px; line-height:1.6; white-space:pre; background:{{ l.bg }}; color:{{ l.color }};">{{ l.text }}</div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ aIsTaskActive }}">
+            <div style="flex:1; overflow-y:auto; padding:24px 28px;">
+              <div style="font-family:Inter,sans-serif; font-size:19px; font-weight:700; color:#f0ece4; margin-bottom:16px;">{{ aActiveTaskContent.title }}</div>
+              <sc-for list="{{ aActiveTaskContent.sections }}" as="sec" hint-placeholder-count="2">
+                <div style="margin-bottom:16px;">
+                  <div style="font-family:Inter,sans-serif; font-size:12px; font-weight:700; color:#e0863f; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;">{{ sec.heading }}</div>
+                  <sc-for list="{{ sec.bullets }}" as="b" hint-placeholder-count="2">
+                    <div style="display:flex; gap:8px; margin-bottom:6px;">
+                      <span style="color:#75705f;">—</span>
+                      <span style="font-family:Inter,sans-serif; font-size:13.5px; line-height:1.5; color:#dcd7cd;">{{ b }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ aIsPageActive }}">
+            <div style="flex:1; overflow-y:auto; padding:30px 40px; display:flex; flex-direction:column;">
+              <input value="{{ aActivePageTitle }}" onChange="{{ aOnPageTitleChange }}" placeholder="Sin título" style="border:none; outline:none; background:transparent; color:#f0ece4; font-family:Inter,sans-serif; font-size:26px; font-weight:700; margin-bottom:14px; width:100%; box-sizing:border-box;" />
+              <textarea value="{{ aActivePageContent }}" onChange="{{ aOnPageContentChange }}" placeholder="Escribe algo…" style="flex:1; min-height:420px; border:none; outline:none; background:transparent; color:#dcd7cd; font-family:Inter,sans-serif; font-size:14px; line-height:1.75; resize:none; width:100%; box-sizing:border-box;"></textarea>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <sc-if value="{{ aHelperModal }}">
+        <div style="position:absolute; inset:0; background:rgba(8,7,6,0.62); display:flex; align-items:center; justify-content:center; z-index:20;" onClick="{{ aHelperModal.onClose }}">
+          <div onClick="{{ aStopProp }}" style="width:760px; height:540px; display:flex; background:#1c1a17; border:1px solid #3a352c; border-radius:12px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,0.6);">
+            <div style="width:212px; flex-shrink:0; background:#171512; border-right:1px solid #2a2721; padding:16px 10px; overflow-y:auto;">
+              <div style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.05em; padding:4px 8px 12px;">Customizations</div>
+              <sc-for list="{{ aHelperModal.navItems }}" as="n" hint-placeholder-count="8">
+                <div onClick="{{ n.onSelect }}" style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:7px; cursor:pointer; margin-bottom:2px; color:{{ n.navColor }}; background:{{ n.navBg }};" style-hover="background:#242019;">
+                  <span style="display:flex; color:inherit;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle></svg>
+                  </span>
+                  <span style="flex:1; font-family:Inter,sans-serif; font-size:12.5px;">{{ n.label }}</span>
+                  <sc-if value="{{ n.count }}">
+                    <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#75705f;">{{ n.count }}</span>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+              <div style="display:flex; align-items:flex-start; justify-content:space-between; padding:22px 24px 6px;">
+                <div>
+                  <div style="font-family:Inter,sans-serif; font-size:18px; font-weight:700; color:#f0ece4;">{{ aHelperModal.title }}</div>
+                  <div style="font-family:Inter,sans-serif; font-size:12.5px; color:#9c9488; margin-top:4px;">{{ aHelperModal.desc }}</div>
+                </div>
+                <span onClick="{{ aHelperModal.onClose }}" style="cursor:pointer; color:#75705f; font-size:20px; line-height:1;">×</span>
+              </div>
+              <div style="flex:1; overflow-y:auto; padding:14px 24px 24px;">
+                <sc-for list="{{ aHelperModal.rows }}" as="row" hint-placeholder-count="3">
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding:11px 14px; background:#171512; border:1px solid #2a2721; border-radius:8px; margin-bottom:8px;" style-hover="background:#211e1a;">
+                    <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; color:#dcd7cd;">{{ row }}</span>
+                    <span style="width:32px; height:18px; border-radius:9px; background:#3a352c; position:relative; flex-shrink:0;"><span style="position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#e0863f;"></span></span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ aNewSessionOpen }}">
+        <div style="position:absolute; inset:0; background:rgba(8,7,6,0.62); display:flex; align-items:center; justify-content:center; z-index:22;" onClick="{{ aOnCloseNewSession }}">
+          <div onClick="{{ aStopProp }}" style="width:440px; background:#1c1a17; border:1px solid #3a352c; border-radius:12px; padding:22px; box-shadow:0 30px 80px rgba(0,0,0,0.6);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+              <div style="font-family:Inter,sans-serif; font-size:17px; font-weight:700; color:#f0ece4;">Nueva sesión</div>
+              <span onClick="{{ aOnCloseNewSession }}" style="cursor:pointer; color:#75705f; font-size:20px; line-height:1;">×</span>
+            </div>
+            <div style="font-family:Inter,sans-serif; font-size:12.5px; color:#9c9488; margin-bottom:18px;">Configura la sesión de agente.</div>
+
+            <div style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Nombre</div>
+            <input value="{{ aNsName }}" onChange="{{ aOnNsName }}" placeholder="Ej. Fix login crash" autoFocus="{{ true }}" style="width:100%; box-sizing:border-box; background:#131210; border:1px solid #332f28; border-radius:6px; color:#f0ece4; font-family:Inter,sans-serif; font-size:13px; padding:8px 10px; margin-bottom:16px;" />
+
+            <div style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Descripción <span style="text-transform:none; font-weight:400; color:#5f5a4f;">(opcional)</span></div>
+            <textarea value="{{ aNsDescription }}" onChange="{{ aOnNsDescription }}" placeholder="Qué debe lograr esta sesión…" style="width:100%; box-sizing:border-box; min-height:56px; resize:none; background:#131210; border:1px solid #332f28; border-radius:6px; color:#f0ece4; font-family:Inter,sans-serif; font-size:13px; line-height:1.5; padding:8px 10px; margin-bottom:16px;"></textarea>
+
+            <div style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Ubicación</div>
+            <div style="display:flex; gap:8px; margin-bottom:16px;">
+              <div onClick="{{ aOnNsSetRepo }}" style="flex:1; text-align:center; padding:8px; border-radius:6px; cursor:pointer; font-family:Inter,sans-serif; font-size:12.5px; font-weight:600; color:{{ aNsRepoColor }}; background:{{ aNsRepoBg }}; border:1px solid {{ aNsRepoBorder }};">Repositorio</div>
+              <div onClick="{{ aOnNsSetDir }}" style="flex:1; text-align:center; padding:8px; border-radius:6px; cursor:pointer; font-family:Inter,sans-serif; font-size:12.5px; font-weight:600; color:{{ aNsDirColor }}; background:{{ aNsDirBg }}; border:1px solid {{ aNsDirBorder }};">Directorio</div>
+            </div>
+
+            <sc-if value="{{ aNsIsRepo }}">
+              <div style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Repositorio</div>
+              <select value="{{ aNsRepoId }}" onChange="{{ aOnNsRepo }}" style="width:100%; box-sizing:border-box; background:#131210; border:1px solid #332f28; border-radius:6px; color:#f0ece4; font-family:Inter,sans-serif; font-size:13px; padding:8px 10px; margin-bottom:16px;">
+                <sc-for list="{{ aNsRepoOptions }}" as="o" hint-placeholder-count="2">
+                  <option value="{{ o.value }}">{{ o.label }}</option>
+                </sc-for>
+              </select>
+            </sc-if>
+            <sc-if value="{{ !aNsIsRepo }}">
+              <div style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Directorio</div>
+              <input value="{{ aNsDir }}" onChange="{{ aOnNsDir }}" placeholder="~/ruta/al/proyecto" style="width:100%; box-sizing:border-box; background:#131210; border:1px solid #332f28; border-radius:6px; color:#f0ece4; font-family:'JetBrains Mono',monospace; font-size:12px; padding:8px 10px; margin-bottom:16px;" />
+            </sc-if>
+
+            <div style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Rol <span style="text-transform:none; font-weight:400; color:#5f5a4f;">(opcional)</span></div>
+            <select value="{{ aNsRole }}" onChange="{{ aOnNsRole }}" style="width:100%; box-sizing:border-box; background:#131210; border:1px solid #332f28; border-radius:6px; color:#f0ece4; font-family:Inter,sans-serif; font-size:13px; padding:8px 10px; margin-bottom:16px;">
+              <sc-for list="{{ aNsRoleOptions }}" as="o" hint-placeholder-count="3">
+                <option value="{{ o.value }}">{{ o.label }}</option>
+              </sc-for>
+            </select>
+
+            <div style="font-family:Inter,sans-serif; font-size:11px; font-weight:600; color:#75705f; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Branch <span style="text-transform:none; font-weight:400; color:#5f5a4f;">(opcional)</span></div>
+            <input value="{{ aNsBranch }}" onChange="{{ aOnNsBranch }}" placeholder="En blanco = branch/worktree nuevo" style="width:100%; box-sizing:border-box; background:#131210; border:1px solid #332f28; border-radius:6px; color:#f0ece4; font-family:'JetBrains Mono',monospace; font-size:12px; padding:8px 10px; margin-bottom:22px;" />
+
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+              <div onClick="{{ aOnCloseNewSession }}" style="padding:8px 16px; border-radius:6px; cursor:pointer; font-family:Inter,sans-serif; font-size:13px; color:#cfc9bd;" style-hover="background:#242019;">Cancelar</div>
+              <div onClick="{{ aOnCreateSession }}" style="padding:8px 18px; border-radius:6px; cursor:pointer; font-family:Inter,sans-serif; font-size:13px; font-weight:600; color:#161513; background:#e0863f;" style-hover="background:#eb954f;">Crear sesión</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </section>
+
+  <section id="1b" style="position:relative;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+      <a href="#1b" style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:#8b7bf0; color:#14151f; font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; text-decoration:none;">1b</a>
+      <span style="color:#eef0fb; font-family:Manrope,sans-serif; font-size:15px; font-weight:700;">Studio — índigo</span>
+    </div>
+
+    <div style="width:1440px; height:860px; display:flex; flex-direction:column; background:#181924; border-radius:18px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,0.55); border:1px solid #33344a; position:relative;">
+
+      <div style="height:32px; flex-shrink:0; display:flex; align-items:center; padding:0 16px; background:#14151f; border-bottom:1px solid #2a2b3d;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7274a0;">claude-code — Refactor auth flow</span>
+      </div>
+
+      <div style="flex:1; display:flex; min-height:0;">
+
+        <div style="width:288px; flex-shrink:0; display:flex; flex-direction:column; background:#1e1f2c; border-right:1px solid #2a2b3d; min-height:0;">
+
+          <div style="flex-shrink:0; display:flex; flex-direction:column; gap:6px; padding:12px 12px; max-height:180px; overflow-y:auto; border-bottom:1px solid #2a2b3d;">
+            <div style="font-family:Manrope,sans-serif; font-size:10px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.05em; padding:2px 4px 2px;">Repos</div>
+            <sc-for list="{{ bReposView }}" as="repo" hint-placeholder-count="3">
+              <div onClick="{{ repo.onClick }}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 12px; border-radius:12px; cursor:pointer; background:#232435;" style-hover="background:#282a3d;">
+                <span style="font-family:Manrope,sans-serif; font-size:12px; font-weight:700; color:#eef0fb; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ repo.name }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#8b7bf0; white-space:nowrap; flex-shrink:0;">{{ repo.branch }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="flex:1; overflow-y:auto; padding:10px 10px; display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:0 4px 2px;">
+              <span style="font-family:Manrope,sans-serif; font-size:10px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.05em;">Sesiones</span>
+              <span onClick="{{ bOnAddSession }}" style="display:flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:7px; cursor:pointer; color:#7274a0;" style-hover="background:#232435;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </span>
+            </div>
+            <sc-for list="{{ bParentsView }}" as="n" hint-placeholder-count="4">
+              <sc-if value="{{ n.isRow }}">
+                <div style="padding-left:{{ n.indent }}px; margin-top:{{ n.mt }}px;">
+                  <div onClick="{{ n.onSelect }}" style="background:{{ n.rowBg }}; border:1px solid {{ n.activeBorder }}; border-radius:12px; padding:8px 10px; cursor:pointer;" style-hover="background:#232435;">
+                    <div style="display:flex; align-items:center; gap:7px;">
+                      <sc-if value="{{ n.hasChildren }}">
+                        <span onClick="{{ n.onToggle }}" style="width:14px; height:14px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#7274a0; cursor:pointer; transform:{{ n.chevron }};">▸</span>
+                      </sc-if>
+                      <sc-if value="{{ !n.hasChildren }}">
+                        <span style="width:14px; height:14px; flex-shrink:0;"></span>
+                      </sc-if>
+                      <span style="width:7px; height:7px; border-radius:50%; flex-shrink:0; background:{{ n.statusColor }};"></span>
+                      <sc-if value="{{ n.isEditing }}">
+                        <input value="{{ bEditingValue }}" onChange="{{ bOnEditingChange }}" onKeyDown="{{ bOnEditingKeyDown }}" onBlur="{{ bOnEditingBlur }}" autoFocus="{{ true }}" style="flex:1; min-width:0; background:#181924; border:1px solid #8b7bf0; border-radius:6px; color:#eef0fb; font-family:Manrope,sans-serif; font-size:12.5px; padding:3px 7px;" />
+                      </sc-if>
+                      <sc-if value="{{ !n.isEditing }}">
+                        <span onDoubleClick="{{ n.onStartEdit }}" style="flex:1; min-width:0; font-family:Manrope,sans-serif; font-size:12.5px; font-weight:700; color:#eef0fb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ n.name }}</span>
+                      </sc-if>
+                      <sc-if value="{{ n.hasRole }}">
+                        <span style="font-family:Manrope,sans-serif; font-size:9px; font-weight:700; color:#8b7bf0; background:#2c2d44; padding:1px 7px; border-radius:6px; flex-shrink:0;">{{ n.role }}</span>
+                      </sc-if>
+                      <span onClick="{{ n.onAddChild }}" style="width:18px; height:18px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#7274a0; cursor:pointer;" style-hover="color:#8b7bf0;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                      </span>
+                    </div>
+                    <div style="padding-left:34px; margin-top:3px;">
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#8b7bf0;">{{ n.branch }}</span>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ n.isAdd }}">
+                <div onClick="{{ n.onAdd }}" style="padding-left:{{ n.indent }}px; margin:2px 0 4px;">
+                  <div style="display:flex; align-items:center; gap:7px; padding:7px 10px; border-radius:12px; cursor:pointer; color:#7274a0; border:1px dashed #33344a;" style-hover="background:#232435;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span style="font-family:Manrope,sans-serif; font-size:11px; font-weight:600;">Agregar sesión hija</span>
+                  </div>
+                </div>
+              </sc-if>
+            </sc-for>
+          </div>
+
+          <div style="border-top:1px solid #2a2b3d; padding:10px 8px;">
+            <sc-for list="{{ bHelperItems }}" as="h" hint-placeholder-count="8">
+              <div onClick="{{ h.onClick }}" style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:10px; cursor:pointer;" style-hover="background:#232435;">
+                <span style="color:#7274a0; display:flex;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle></svg>
+                </span>
+                <span style="flex:1; font-family:Manrope,sans-serif; font-size:12px; font-weight:500; color:#c3c5e0;">{{ h.label }}</span>
+                <sc-if value="{{ h.count }}">
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#7274a0;">{{ h.count }}</span>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="width:44px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:6px; padding-top:12px; background:#1e1f2c; border-right:1px solid #2a2b3d;">
+          <div onClick="{{ bOnSetPanelSearch }}" style="width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:{{ bSearchNavColor }}; background:{{ bSearchNavBg }};" style-hover="background:#232435;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </div>
+          <div onClick="{{ bOnSetPanelChanges }}" style="width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:{{ bChangesNavColor }}; background:{{ bChangesNavBg }};" style-hover="background:#232435;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="13" y2="17"></line></svg>
+          </div>
+          <div onClick="{{ bOnSetPanelGraphite }}" style="width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:{{ bGraphiteNavColor }}; background:{{ bGraphiteNavBg }};" style-hover="background:#232435;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+          </div>
+          <div onClick="{{ bOnSetPanelTasks }}" style="width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:{{ bTasksNavColor }}; background:{{ bTasksNavBg }};" style-hover="background:#232435;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+          </div>
+          <div onClick="{{ bOnSetPanelTerminal }}" style="width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:{{ bTerminalNavColor }}; background:{{ bTerminalNavBg }};" style-hover="background:#232435;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+          </div>
+          <div onClick="{{ bOnSetPanelNotion }}" style="width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:{{ bNotionNavColor }}; background:{{ bNotionNavBg }};" style-hover="background:#232435;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+          </div>
+        </div>
+
+        <div style="width:272px; flex-shrink:0; background:#1e1f2c; border-right:1px solid #2a2b3d; overflow-y:auto;">
+          <sc-if value="{{ bIsPanelSearch }}">
+            <div style="padding:14px;">
+              <input value="{{ bSearchQuery }}" onChange="{{ bOnSearchChange }}" placeholder="Buscar archivos, sesiones, tareas" style="width:100%; box-sizing:border-box; background:#14151f; border:1px solid #33344a; border-radius:10px; color:#eef0fb; font-family:Manrope,sans-serif; font-size:12.5px; padding:8px 10px;" />
+              <div style="margin-top:16px; font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em;">Recientes</div>
+              <sc-for list="{{ bChangedFiles }}" as="f" hint-placeholder-count="3">
+                <div onClick="{{ f.onOpen }}" style="padding:8px 8px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#c3c5e0; cursor:pointer; border-radius:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" style-hover="background:#232435;">{{ f.path }}</div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ bIsPanelChanges }}">
+            <div style="padding:14px;">
+              <div style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px;">Archivos modificados</div>
+              <sc-for list="{{ bChangedFiles }}" as="f" hint-placeholder-count="4">
+                <div onClick="{{ f.onOpen }}" style="display:flex; align-items:center; gap:6px; padding:8px; border-radius:9px; cursor:pointer;" style-hover="background:#232435;">
+                  <span style="flex:1; min-width:0; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#c3c5e0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ f.path }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#5fd0a0;">+{{ f.added }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#e0708a;">-{{ f.removed }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ bIsPanelGraphite }}">
+            <div style="padding:16px 14px;">
+              <div style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:12px;">Stack de branches</div>
+              <sc-for list="{{ bGraphiteStack }}" as="g" hint-placeholder-count="4">
+                <div style="margin-bottom:2px;">
+                  <div onClick="{{ g.onToggle }}" style="display:flex; align-items:center; gap:10px; padding:8px 6px; border-radius:8px; cursor:pointer;" style-hover="background:#232435;">
+                    <span style="width:14px; height:14px; border-radius:50%; flex-shrink:0; background:#181924; border:2px solid {{ g.dotColor }};"></span>
+                    <span style="flex:1; min-width:0; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:{{ g.textColor }}; font-weight:{{ g.weight }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ g.name }}</span>
+                    <sc-if value="{{ g.current }}">
+                      <span style="font-family:Manrope,sans-serif; font-size:9px; font-weight:700; color:#8b7bf0; text-transform:uppercase; letter-spacing:0.04em; flex-shrink:0;">actual</span>
+                    </sc-if>
+                    <span onClick="{{ g.onOpen }}" style="display:flex; color:#7274a0; flex-shrink:0;" style-hover="color:#8b7bf0;">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    </span>
+                  </div>
+                  <sc-if value="{{ g.isExpanded }}">
+                    <div style="margin-left:6px; padding-left:16px; border-left:1px solid #33344a;">
+                      <sc-for list="{{ g.commits }}" as="cm" hint-placeholder-count="2">
+                        <div style="margin:3px 0;">
+                          <div onClick="{{ cm.onToggle }}" style="display:flex; align-items:center; gap:8px; padding:6px 7px; border-radius:8px; cursor:pointer;" style-hover="background:#232435;">
+                            <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#8b7bf0; flex-shrink:0;">{{ cm.hash }}</span>
+                            <span style="flex:1; min-width:0; font-family:Manrope,sans-serif; font-size:11px; color:#c3c5e0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ cm.message }}</span>
+                          </div>
+                          <sc-if value="{{ cm.isExpanded }}">
+                            <div style="padding-left:16px; padding-bottom:4px;">
+                              <sc-for list="{{ cm.files }}" as="fl" hint-placeholder-count="1">
+                                <div style="display:flex; align-items:center; gap:6px; padding:3px 7px;">
+                                  <span style="flex:1; min-width:0; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#9294b3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ fl.path }}</span>
+                                  <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#5fd0a0;">+{{ fl.added }}</span>
+                                  <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#e0708a;">-{{ fl.removed }}</span>
+                                </div>
+                              </sc-for>
+                            </div>
+                          </sc-if>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ bIsPanelTasks }}">
+            <div style="padding:14px;">
+              <div style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px;">Tareas</div>
+              <sc-for list="{{ bTasks }}" as="t" hint-placeholder-count="3">
+                <div onClick="{{ t.onOpen }}" style="padding:10px 10px; border-radius:12px; cursor:pointer; margin-bottom:6px; background:#232435;" style-hover="background:#282a3d;">
+                  <div style="font-family:Manrope,sans-serif; font-size:12px; font-weight:700; color:#eef0fb; margin-bottom:4px;">{{ t.title }}</div>
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#7274a0;">{{ t.file }}</span>
+                    <span style="font-family:Manrope,sans-serif; font-size:10px; font-weight:600; color:#8b7bf0;">{{ t.status }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ bIsPanelTerminal }}">
+            <div style="padding:14px;">
+              <div style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px;">Terminales</div>
+              <div style="padding:10px 12px; background:#232435; border:1px solid #33344a; border-radius:12px; margin-bottom:10px;">
+                <div style="font-family:Manrope,sans-serif; font-size:12px; font-weight:700; color:#eef0fb;">{{ bSelectedSessionName }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#8b7bf0; margin-top:2px;">{{ bSelectedSessionDir }}</div>
+              </div>
+              <sc-for list="{{ bSelectedSessionTerminals }}" as="tm" hint-placeholder-count="2">
+                <div onClick="{{ tm.onClick }}" style="display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:12px; cursor:pointer; margin-bottom:6px; background:#232435;" style-hover="background:#282a3d;">
+                  <span style="color:#7274a0; display:flex;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                  </span>
+                  <span style="flex:1; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#c3c5e0;">{{ tm.label }}</span>
+                  <sc-if value="{{ tm.proc }}">
+                    <span style="width:6px; height:6px; border-radius:50%; background:#5fd0a0; flex-shrink:0;"></span>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ bIsPanelNotion }}">
+            <div style="padding:14px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+                <span style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em;">Notion</span>
+                <span onClick="{{ bOnAddPage }}" style="display:flex; align-items:center; gap:5px; padding:4px 9px; border-radius:8px; cursor:pointer; color:#8b7bf0; font-family:Manrope,sans-serif; font-size:11px; font-weight:700;" style-hover="background:#232435;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  Nueva
+                </span>
+              </div>
+              <sc-for list="{{ bPagesView }}" as="pg" hint-placeholder-count="3">
+                <div onClick="{{ pg.onOpen }}" style="display:flex; align-items:flex-start; gap:9px; padding:9px 10px; border-radius:12px; cursor:pointer; margin-bottom:6px; background:#232435;" style-hover="background:#282a3d;">
+                  <span style="color:#7274a0; display:flex; margin-top:1px; flex-shrink:0;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                  </span>
+                  <div style="flex:1; min-width:0;">
+                    <div style="font-family:Manrope,sans-serif; font-size:12px; font-weight:700; color:#eef0fb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ pg.title }}</div>
+                    <div style="font-family:Manrope,sans-serif; font-size:10.5px; color:#7274a0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ pg.preview }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column; min-width:0; background:#181924;">
+          <div style="display:flex; align-items:center; height:40px; flex-shrink:0; border-bottom:1px solid #2a2b3d; padding:0 6px; gap:2px; overflow-x:auto;">
+            <div onClick="{{ bOnSetTabChat }}" style="height:70%; display:flex; align-items:center; padding:0 16px; font-family:Manrope,sans-serif; font-weight:600; font-size:12.5px; cursor:pointer; border-radius:9px; color:{{ bChatTabColor }}; background:{{ bChatTabBg }};">Chat</div>
+            <sc-for list="{{ bOpenTabsView }}" as="t" hint-placeholder-count="0">
+              <div onClick="{{ t.onSelect }}" style="height:70%; display:flex; align-items:center; gap:8px; padding:0 14px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; cursor:pointer; border-radius:9px; white-space:nowrap; color:{{ t.isActive }}; background:{{ t.isActiveBg }};" style-hover="background:#232435;">
+                <span>{{ t.label }}</span>
+                <span onClick="{{ t.onClose }}" style="color:#7274a0; font-size:13px;">×</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ bIsChatActive }}">
+            <div style="flex:1; overflow-y:auto; padding:22px 26px; display:flex; flex-direction:column; gap:18px;">
+              <sc-for list="{{ bChatThread }}" as="m" hint-placeholder-count="4">
+                <div style="max-width:{{ m.maxW }}; align-self:{{ m.align }}; display:flex; flex-direction:column; gap:9px;">
+                  <sc-if value="{{ m.hasText }}">
+                    <div style="padding:11px 15px; border-radius:16px; font-family:Manrope,sans-serif; font-size:13px; line-height:1.6; color:{{ m.textColor }}; background:{{ m.bubbleBg }}; white-space:pre-wrap;">{{ m.text }}</div>
+                  </sc-if>
+                  <sc-if value="{{ m.hasTools }}">
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                      <sc-for list="{{ m.tools }}" as="tl" hint-placeholder-count="2">
+                        <div style="display:flex; align-items:center; gap:9px; padding:6px 12px; background:#1b1c28; border-radius:11px;">
+                          <span style="width:5px; height:5px; border-radius:50%; background:#6a63a0; flex-shrink:0;"></span>
+                          <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:500; color:#8079b8;">{{ tl.name }}</span>
+                          <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#9294b3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ tl.detail }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ m.hasEdits }}">
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                      <sc-for list="{{ m.edits }}" as="ed" hint-placeholder-count="1">
+                        <div style="display:flex; align-items:center; gap:9px; padding:6px 12px; background:#1b1c28; border-radius:11px;">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7274a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+                          <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:500; color:#a9abc8;">Edit</span>
+                          <span style="flex:1; min-width:0; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#9294b3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ ed.path }}</span>
+                          <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#5fd0a0;">+{{ ed.added }}</span>
+                          <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#e0708a;">-{{ ed.removed }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ m.hasTokens }}">
+                    <div style="display:flex; align-items:center; gap:6px; padding-left:2px;">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7274a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#7274a0;">{{ m.tokens }} tokens</span>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div style="flex-shrink:0; padding:16px 22px 20px; border-top:1px solid #2a2b3d;">
+              <div style="display:flex; align-items:flex-end; gap:8px; background:#232435; border:1px solid #33344a; border-radius:18px; padding:9px 9px 9px 16px;">
+                <input value="{{ bChatDraft }}" onChange="{{ bOnChatDraftChange }}" placeholder="Escribe un mensaje al agente…" style="flex:1; background:transparent; border:none; outline:none; color:#eef0fb; font-family:Manrope,sans-serif; font-size:13px; padding:6px 0;" />
+                <div onClick="{{ bOnSendChat }}" style="width:32px; height:32px; border-radius:50%; background:#8b7bf0; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;" style-hover="background:#9d8ff5;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#14151f"><path d="M2 21l21-9L2 3v7l15 2-15 2z"></path></svg>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ bIsTerminalActive }}">
+            <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+              <div style="flex-shrink:0; display:flex; align-items:center; gap:10px; padding:12px 18px; border-bottom:1px solid #2a2b3d;">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7274a0;">{{ bTerminalDir }}</span>
+                <div style="position:relative;">
+                  <div onClick="{{ bOnToggleBranchPicker }}" style="display:flex; align-items:center; gap:7px; padding:6px 11px; border:1px solid #33344a; border-radius:10px; cursor:pointer; background:#14151f;" style-hover="background:#232435;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8b7bf0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#8b7bf0;">{{ bSelectedBranch }}</span>
+                    <span style="color:#7274a0; font-size:10px;">▾</span>
+                  </div>
+                  <sc-if value="{{ bBranchPickerOpen }}">
+                    <div style="position:absolute; top:calc(100% + 6px); left:0; width:290px; background:#1e1f2c; border:1px solid #33344a; border-radius:12px; padding:9px; z-index:8; box-shadow:0 14px 36px rgba(0,0,0,0.55);">
+                      <input value="{{ bBranchQuery }}" onChange="{{ bOnBranchQueryChange }}" placeholder="Buscar branch…" autoFocus="{{ true }}" style="width:100%; box-sizing:border-box; background:#14151f; border:1px solid #33344a; border-radius:8px; color:#eef0fb; font-family:'IBM Plex Mono',monospace; font-size:11.5px; padding:7px 9px;" />
+                      <div style="margin-top:7px; max-height:220px; overflow-y:auto;">
+                        <sc-for list="{{ bBranchList }}" as="b" hint-placeholder-count="4">
+                          <div onClick="{{ b.onSelect }}" style="display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:8px; cursor:pointer;" style-hover="background:#232435;">
+                            <span style="width:6px; height:6px; border-radius:50%; flex-shrink:0; background:{{ b.dot }};"></span>
+                            <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:{{ b.color }};">{{ b.name }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+              <div style="flex:1; overflow-y:auto; padding:16px 20px; background:#12131c;">
+                <sc-for list="{{ bTerminalLines }}" as="l" hint-placeholder-count="6">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; line-height:1.8; white-space:pre-wrap; color:{{ l.color }};">{{ l.text }}</div>
+                </sc-for>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; line-height:1.8; color:#eef0fb;">$ <span style="display:inline-block; width:8px; height:15px; background:#8b7bf0; vertical-align:middle; animation:blink 1.1s step-end infinite;"></span></div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ bIsBranchActive }}">
+            <div style="flex:1; overflow-y:auto; padding:26px 30px;">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b7bf0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:600; color:#eef0fb;">{{ bActiveBranchDetail.name }}</span>
+              </div>
+              <div style="font-family:Manrope,sans-serif; font-size:13px; line-height:1.55; color:#9294b3; margin-bottom:22px;">{{ bActiveBranchDetail.description }}</div>
+              <div style="font-family:Manrope,sans-serif; font-size:12px; font-weight:700; color:#8b7bf0; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px;">Commits</div>
+              <sc-for list="{{ bActiveBranchDetail.commits }}" as="cm" hint-placeholder-count="2">
+                <div style="border:1px solid #2a2b3d; border-radius:14px; padding:14px 16px; margin-bottom:10px; background:#1e1f2c;">
+                  <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#8b7bf0;">{{ cm.hash }}</span>
+                    <span style="font-family:Manrope,sans-serif; font-size:13px; color:#eef0fb;">{{ cm.message }}</span>
+                  </div>
+                  <sc-for list="{{ cm.files }}" as="fl" hint-placeholder-count="1">
+                    <div style="display:flex; align-items:center; gap:8px; padding:3px 0;">
+                      <span style="flex:1; min-width:0; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#9294b3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ fl.path }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#5fd0a0;">+{{ fl.added }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#e0708a;">-{{ fl.removed }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ bIsFileActive }}">
+            <div style="flex:1; overflow-y:auto; padding:18px 0;">
+              <div style="padding:0 22px 12px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:#9294b3;">{{ bActiveFileName }}</div>
+              <sc-for list="{{ bActiveDiffLines }}" as="l" hint-placeholder-count="5">
+                <div style="padding:3px 22px; font-family:'IBM Plex Mono',monospace; font-size:12.5px; line-height:1.65; white-space:pre; background:{{ l.bg }}; color:{{ l.color }};">{{ l.text }}</div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ bIsTaskActive }}">
+            <div style="flex:1; overflow-y:auto; padding:26px 30px;">
+              <div style="font-family:Manrope,sans-serif; font-size:19px; font-weight:700; color:#eef0fb; margin-bottom:18px;">{{ bActiveTaskContent.title }}</div>
+              <sc-for list="{{ bActiveTaskContent.sections }}" as="sec" hint-placeholder-count="2">
+                <div style="margin-bottom:18px;">
+                  <div style="font-family:Manrope,sans-serif; font-size:12px; font-weight:700; color:#8b7bf0; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:9px;">{{ sec.heading }}</div>
+                  <sc-for list="{{ sec.bullets }}" as="b" hint-placeholder-count="2">
+                    <div style="display:flex; gap:9px; margin-bottom:7px;">
+                      <span style="color:#7274a0;">—</span>
+                      <span style="font-family:Manrope,sans-serif; font-size:13.5px; line-height:1.55; color:#d6d7ec;">{{ b }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ bIsPageActive }}">
+            <div style="flex:1; overflow-y:auto; padding:32px 44px; display:flex; flex-direction:column;">
+              <input value="{{ bActivePageTitle }}" onChange="{{ bOnPageTitleChange }}" placeholder="Sin título" style="border:none; outline:none; background:transparent; color:#eef0fb; font-family:Manrope,sans-serif; font-size:27px; font-weight:700; margin-bottom:16px; width:100%; box-sizing:border-box;" />
+              <textarea value="{{ bActivePageContent }}" onChange="{{ bOnPageContentChange }}" placeholder="Escribe algo…" style="flex:1; min-height:420px; border:none; outline:none; background:transparent; color:#d6d7ec; font-family:Manrope,sans-serif; font-size:14px; line-height:1.8; resize:none; width:100%; box-sizing:border-box;"></textarea>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <sc-if value="{{ bHelperModal }}">
+        <div style="position:absolute; inset:0; background:rgba(5,5,10,0.62); display:flex; align-items:center; justify-content:center; z-index:20;" onClick="{{ bHelperModal.onClose }}">
+          <div onClick="{{ bStopProp }}" style="width:760px; height:540px; display:flex; background:#1e1f2c; border:1px solid #33344a; border-radius:18px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,0.6);">
+            <div style="width:212px; flex-shrink:0; background:#181924; border-right:1px solid #2a2b3d; padding:18px 10px; overflow-y:auto;">
+              <div style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.05em; padding:4px 8px 12px;">Customizations</div>
+              <sc-for list="{{ bHelperModal.navItems }}" as="n" hint-placeholder-count="8">
+                <div onClick="{{ n.onSelect }}" style="display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:10px; cursor:pointer; margin-bottom:3px; color:{{ n.navColor }}; background:{{ n.navBg }};" style-hover="background:#232435;">
+                  <span style="display:flex; color:inherit;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle></svg>
+                  </span>
+                  <span style="flex:1; font-family:Manrope,sans-serif; font-size:12.5px; font-weight:600;">{{ n.label }}</span>
+                  <sc-if value="{{ n.count }}">
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#7274a0;">{{ n.count }}</span>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+              <div style="display:flex; align-items:flex-start; justify-content:space-between; padding:24px 26px 6px;">
+                <div>
+                  <div style="font-family:Manrope,sans-serif; font-size:18px; font-weight:700; color:#eef0fb;">{{ bHelperModal.title }}</div>
+                  <div style="font-family:Manrope,sans-serif; font-size:12.5px; color:#9294b3; margin-top:4px;">{{ bHelperModal.desc }}</div>
+                </div>
+                <span onClick="{{ bHelperModal.onClose }}" style="cursor:pointer; color:#7274a0; font-size:20px; line-height:1;">×</span>
+              </div>
+              <div style="flex:1; overflow-y:auto; padding:14px 26px 26px;">
+                <sc-for list="{{ bHelperModal.rows }}" as="row" hint-placeholder-count="3">
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 15px; background:#181924; border:1px solid #2a2b3d; border-radius:12px; margin-bottom:8px;" style-hover="background:#20212f;">
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#d6d7ec;">{{ row }}</span>
+                    <span style="width:32px; height:18px; border-radius:9px; background:#33344a; position:relative; flex-shrink:0;"><span style="position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#8b7bf0;"></span></span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ bNewSessionOpen }}">
+        <div style="position:absolute; inset:0; background:rgba(5,5,10,0.62); display:flex; align-items:center; justify-content:center; z-index:22;" onClick="{{ bOnCloseNewSession }}">
+          <div onClick="{{ bStopProp }}" style="width:460px; background:#1e1f2c; border:1px solid #33344a; border-radius:18px; padding:24px; box-shadow:0 30px 80px rgba(0,0,0,0.6);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+              <div style="font-family:Manrope,sans-serif; font-size:17px; font-weight:700; color:#eef0fb;">Nueva sesión</div>
+              <span onClick="{{ bOnCloseNewSession }}" style="cursor:pointer; color:#7274a0; font-size:20px; line-height:1;">×</span>
+            </div>
+            <div style="font-family:Manrope,sans-serif; font-size:12.5px; color:#9294b3; margin-bottom:20px;">Configura la sesión de agente.</div>
+
+            <div style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Nombre</div>
+            <input value="{{ bNsName }}" onChange="{{ bOnNsName }}" placeholder="Ej. Fix login crash" autoFocus="{{ true }}" style="width:100%; box-sizing:border-box; background:#14151f; border:1px solid #33344a; border-radius:10px; color:#eef0fb; font-family:Manrope,sans-serif; font-size:13px; padding:9px 11px; margin-bottom:16px;" />
+
+            <div style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Descripción <span style="text-transform:none; font-weight:400; color:#5c5e7c;">(opcional)</span></div>
+            <textarea value="{{ bNsDescription }}" onChange="{{ bOnNsDescription }}" placeholder="Qué debe lograr esta sesión…" style="width:100%; box-sizing:border-box; min-height:58px; resize:none; background:#14151f; border:1px solid #33344a; border-radius:10px; color:#eef0fb; font-family:Manrope,sans-serif; font-size:13px; line-height:1.5; padding:9px 11px; margin-bottom:16px;"></textarea>
+
+            <div style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Ubicación</div>
+            <div style="display:flex; gap:8px; margin-bottom:16px;">
+              <div onClick="{{ bOnNsSetRepo }}" style="flex:1; text-align:center; padding:9px; border-radius:10px; cursor:pointer; font-family:Manrope,sans-serif; font-size:12.5px; font-weight:700; color:{{ bNsRepoColor }}; background:{{ bNsRepoBg }}; border:1px solid {{ bNsRepoBorder }};">Repositorio</div>
+              <div onClick="{{ bOnNsSetDir }}" style="flex:1; text-align:center; padding:9px; border-radius:10px; cursor:pointer; font-family:Manrope,sans-serif; font-size:12.5px; font-weight:700; color:{{ bNsDirColor }}; background:{{ bNsDirBg }}; border:1px solid {{ bNsDirBorder }};">Directorio</div>
+            </div>
+
+            <sc-if value="{{ bNsIsRepo }}">
+              <div style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Repositorio</div>
+              <select value="{{ bNsRepoId }}" onChange="{{ bOnNsRepo }}" style="width:100%; box-sizing:border-box; background:#14151f; border:1px solid #33344a; border-radius:10px; color:#eef0fb; font-family:Manrope,sans-serif; font-size:13px; padding:9px 11px; margin-bottom:16px;">
+                <sc-for list="{{ bNsRepoOptions }}" as="o" hint-placeholder-count="2">
+                  <option value="{{ o.value }}">{{ o.label }}</option>
+                </sc-for>
+              </select>
+            </sc-if>
+            <sc-if value="{{ !bNsIsRepo }}">
+              <div style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Directorio</div>
+              <input value="{{ bNsDir }}" onChange="{{ bOnNsDir }}" placeholder="~/ruta/al/proyecto" style="width:100%; box-sizing:border-box; background:#14151f; border:1px solid #33344a; border-radius:10px; color:#eef0fb; font-family:'IBM Plex Mono',monospace; font-size:12px; padding:9px 11px; margin-bottom:16px;" />
+            </sc-if>
+
+            <div style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Rol <span style="text-transform:none; font-weight:400; color:#5c5e7c;">(opcional)</span></div>
+            <select value="{{ bNsRole }}" onChange="{{ bOnNsRole }}" style="width:100%; box-sizing:border-box; background:#14151f; border:1px solid #33344a; border-radius:10px; color:#eef0fb; font-family:Manrope,sans-serif; font-size:13px; padding:9px 11px; margin-bottom:16px;">
+              <sc-for list="{{ bNsRoleOptions }}" as="o" hint-placeholder-count="3">
+                <option value="{{ o.value }}">{{ o.label }}</option>
+              </sc-for>
+            </select>
+
+            <div style="font-family:Manrope,sans-serif; font-size:11px; font-weight:700; color:#7274a0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Branch <span style="text-transform:none; font-weight:400; color:#5c5e7c;">(opcional)</span></div>
+            <input value="{{ bNsBranch }}" onChange="{{ bOnNsBranch }}" placeholder="En blanco = branch/worktree nuevo" style="width:100%; box-sizing:border-box; background:#14151f; border:1px solid #33344a; border-radius:10px; color:#eef0fb; font-family:'IBM Plex Mono',monospace; font-size:12px; padding:9px 11px; margin-bottom:24px;" />
+
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+              <div onClick="{{ bOnCloseNewSession }}" style="padding:9px 16px; border-radius:10px; cursor:pointer; font-family:Manrope,sans-serif; font-size:13px; font-weight:600; color:#c3c5e0;" style-hover="background:#232435;">Cancelar</div>
+              <div onClick="{{ bOnCreateSession }}" style="padding:9px 18px; border-radius:10px; cursor:pointer; font-family:Manrope,sans-serif; font-size:13px; font-weight:700; color:#14151f; background:#8b7bf0;" style-hover="background:#9d8ff5;">Crear sesión</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </section>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      a: this.makeInitialState(),
+      b: this.makeInitialState(),
+    };
+  }
+
+  makeInitialState() {
+    return {
+      activeSessionId: 's1a',
+      sessions: [
+        { id: 's1', name: 'Refactor auth flow', repoId: 'r1', branch: 'feature/auth-refactor', status: 'running', expanded: true, dir: '~/web-app', terminals: ['zsh', 'npm run dev'], children: [
+          { id: 's1a', name: 'Add token refresh tests', branch: 'feature/auth-refactor-tests', status: '#7fb069', dir: '~/web-app/.wt/auth-tests', terminals: ['zsh', 'vitest --watch'] },
+          { id: 's1b', name: 'Update login UI', branch: 'feature/auth-refactor-ui', status: '#7d7568', dir: '~/web-app/.wt/auth-ui', terminals: ['zsh'] },
+        ]},
+        { id: 's2', name: 'Migrate API to v2', repoId: 'r2', branch: 'main', status: 'idle', expanded: false, dir: '~/api-service', terminals: ['zsh'], children: [
+          { id: 's2a', name: 'Write migration script', branch: 'migrate-v2-script', status: '#6b8fbf', dir: '~/api-service/.wt/migrate', terminals: ['zsh', 'node migrate.js'] },
+        ]},
+        { id: 's3', name: 'Fix deploy script', repoId: 'r3', branch: 'fix/deploy-script', status: 'running', expanded: false, dir: '~/infra', terminals: ['zsh'], children: [] },
+      ],
+      editingSessionId: null,
+      editingValue: '',
+      activeSidebarPanel: 'changes',
+      searchQuery: '',
+      openTabs: [],
+      activeTabId: 'chat',
+      helperModalKey: null,
+      chatDraft: '',
+      selectedBranches: {},
+      branchPickerOpen: false,
+      branchQuery: '',
+      expandedBranches: {},
+      expandedCommits: {},
+      pages: [
+        { id: 'p1', title: 'Auth refactor notes', content: 'Approach for silent token refresh:\n\n- Add a response interceptor on 401\n- Retry the request once after refreshing\n- Fall back to the login screen if refresh fails\n\nOpen question: how long should the refresh token live?' },
+        { id: 'p2', title: 'API v2 migration plan', content: 'Move /api/v1 routes to /api/v2 with backward-compatible shims.\n\n1. Write the migration script\n2. Add v2 handlers\n3. Deprecate v1 with warning headers' },
+        { id: 'p3', title: 'Standup — 2026-07-07', content: 'Yesterday: wired the refresh interceptor.\nToday: update login UI + tests.\nBlockers: none.' },
+      ],
+      newSessionOpen: false,
+      newSessionForm: { name: '', description: '', role: '', kind: 'repo', repoId: 'r1', dir: '~/', parentId: null, branch: '' },
+    };
+  }
+
+  updateVariant(key, patch) {
+    this.setState(s => ({ [key]: { ...s[key], ...(typeof patch === 'function' ? patch(s[key]) : patch) } }));
+  }
+
+  mapTree(nodes, id, fn) {
+    return nodes.map(n => n.id === id ? fn(n) : { ...n, children: this.mapTree(n.children || [], id, fn) });
+  }
+
+  toggleExpand(key, sessionId, e) {
+    if (e) e.stopPropagation();
+    this.updateVariant(key, s => ({ sessions: this.mapTree(s.sessions, sessionId, n => ({ ...n, expanded: !n.expanded })) }));
+  }
+
+  selectSession(key, sessionId) {
+    this.updateVariant(key, { activeSessionId: sessionId });
+  }
+
+  startEditing(key, sessionId, currentName, e) {
+    if (e) e.stopPropagation();
+    this.updateVariant(key, { editingSessionId: sessionId, editingValue: currentName });
+  }
+
+  updateEditingValue(key, value) {
+    this.updateVariant(key, { editingValue: value });
+  }
+
+  commitEditing(key) {
+    this.updateVariant(key, s => {
+      const val = (s.editingValue || '').trim();
+      if (!val) return { editingSessionId: null, editingValue: '' };
+      return { sessions: this.mapTree(s.sessions, s.editingSessionId, n => ({ ...n, name: val })), editingSessionId: null, editingValue: '' };
+    });
+  }
+
+  cancelEditing(key) {
+    this.updateVariant(key, { editingSessionId: null, editingValue: '' });
+  }
+
+  handleEditKeyDown(key, e) {
+    if (e.key === 'Enter') this.commitEditing(key);
+    if (e.key === 'Escape') this.cancelEditing(key);
+  }
+
+  setSidebarPanel(key, panel) {
+    this.updateVariant(key, { activeSidebarPanel: panel });
+  }
+
+  setSearchQuery(key, value) {
+    this.updateVariant(key, { searchQuery: value });
+  }
+
+  openFileTab(key, path) {
+    this.updateVariant(key, s => {
+      const tabId = 'file:' + path;
+      const exists = s.openTabs.some(t => t.id === tabId);
+      const openTabs = exists ? s.openTabs : [...s.openTabs, { id: tabId, type: 'file', label: path.split('/').pop(), refId: path }];
+      return { openTabs, activeTabId: tabId };
+    });
+  }
+
+  openTaskTab(key, task) {
+    this.updateVariant(key, s => {
+      const tabId = 'task:' + task.id;
+      const exists = s.openTabs.some(t => t.id === tabId);
+      const openTabs = exists ? s.openTabs : [...s.openTabs, { id: tabId, type: 'task', label: task.file, refId: task.id }];
+      return { openTabs, activeTabId: tabId };
+    });
+  }
+
+  openBranchTab(key, branchName, e) {
+    if (e) e.stopPropagation();
+    this.updateVariant(key, s => {
+      const tabId = 'branch:' + branchName;
+      const exists = s.openTabs.some(t => t.id === tabId);
+      const openTabs = exists ? s.openTabs : [...s.openTabs, { id: tabId, type: 'branch', label: branchName.split('/').pop(), refId: branchName }];
+      return { openTabs, activeTabId: tabId };
+    });
+  }
+
+  openTerminal(key, desc) {
+    this.updateVariant(key, s => {
+      const exists = s.openTabs.some(t => t.id === desc.tabId);
+      const tab = { id: desc.tabId, type: 'terminal', label: desc.label, dir: desc.dir, branch: desc.branch, repoId: desc.repoId };
+      const openTabs = exists ? s.openTabs : [...s.openTabs, tab];
+      const selectedBranches = s.selectedBranches[desc.tabId] ? s.selectedBranches : { ...s.selectedBranches, [desc.tabId]: desc.branch };
+      return { openTabs, activeTabId: desc.tabId, selectedBranches, branchPickerOpen: false, branchQuery: '' };
+    });
+  }
+
+  toggleBranchPicker(key) {
+    this.updateVariant(key, s => ({ branchPickerOpen: !s.branchPickerOpen, branchQuery: '' }));
+  }
+
+  setBranchQuery(key, value) {
+    this.updateVariant(key, { branchQuery: value });
+  }
+
+  selectBranch(key, tabId, branch) {
+    this.updateVariant(key, s => ({
+      selectedBranches: { ...s.selectedBranches, [tabId]: branch },
+      branchPickerOpen: false,
+      branchQuery: '',
+    }));
+  }
+
+  toggleBranchExpand(key, name) {
+    this.updateVariant(key, s => ({ expandedBranches: { ...s.expandedBranches, [name]: !s.expandedBranches[name] } }));
+  }
+
+  toggleCommitExpand(key, hash) {
+    this.updateVariant(key, s => ({ expandedCommits: { ...s.expandedCommits, [hash]: !s.expandedCommits[hash] } }));
+  }
+
+  setActiveTab(key, tabId) {
+    this.updateVariant(key, { activeTabId: tabId });
+  }
+
+  closeTab(key, tabId, e) {
+    if (e) e.stopPropagation();
+    this.updateVariant(key, s => {
+      const openTabs = s.openTabs.filter(t => t.id !== tabId);
+      let activeTabId = s.activeTabId;
+      if (activeTabId === tabId) {
+        activeTabId = openTabs.length ? openTabs[openTabs.length - 1].id : 'chat';
+      }
+      return { openTabs, activeTabId };
+    });
+  }
+
+  openHelperModal(key, helperKey) {
+    this.updateVariant(key, { helperModalKey: helperKey });
+  }
+
+  closeHelperModal(key) {
+    this.updateVariant(key, { helperModalKey: null });
+  }
+
+  openPageTab(key, page) {
+    this.updateVariant(key, s => {
+      const tabId = 'page:' + page.id;
+      const exists = s.openTabs.some(t => t.id === tabId);
+      const openTabs = exists ? s.openTabs : [...s.openTabs, { id: tabId, type: 'page', label: page.title, refId: page.id }];
+      return { openTabs, activeTabId: tabId };
+    });
+  }
+
+  addPage(key) {
+    this.updateVariant(key, s => {
+      const id = 'p' + (Date.now() % 100000);
+      const page = { id, title: 'Untitled', content: '' };
+      const tabId = 'page:' + id;
+      return {
+        pages: [...s.pages, page],
+        openTabs: [...s.openTabs, { id: tabId, type: 'page', label: page.title, refId: id }],
+        activeTabId: tabId,
+      };
+    });
+  }
+
+  updatePageField(key, pageId, field, value) {
+    this.updateVariant(key, s => ({
+      pages: s.pages.map(p => p.id === pageId ? { ...p, [field]: value } : p),
+      openTabs: field === 'title' ? s.openTabs.map(t => t.id === 'page:' + pageId ? { ...t, label: value || 'Untitled' } : t) : s.openTabs,
+    }));
+  }
+
+  openNewSessionModal(key, parentId) {
+    this.updateVariant(key, s => ({
+      newSessionOpen: true,
+      newSessionForm: { name: '', description: '', role: '', kind: 'repo', repoId: 'r1', dir: '~/', parentId: parentId || null, branch: '' },
+    }));
+  }
+
+  closeNewSessionModal(key) {
+    this.updateVariant(key, { newSessionOpen: false });
+  }
+
+  updateNewSessionForm(key, field, value) {
+    this.updateVariant(key, s => ({ newSessionForm: { ...s.newSessionForm, [field]: value } }));
+  }
+
+  setNsKind(key, kind) { this.updateNewSessionForm(key, 'kind', kind); }
+
+  createSession(key) {
+    this.updateVariant(key, s => {
+      const f = s.newSessionForm;
+      const name = (f.name || '').trim();
+      if (!name) return {};
+      const id = 's' + (Date.now() % 100000);
+      const slug = name.toLowerCase().replace(/\s+/g, '-');
+      let dir, repoId;
+      if (f.kind === 'repo') {
+        const repo = this.getRepos().find(r => r.id === f.repoId) || { id: f.repoId, name: 'repo' };
+        repoId = repo.id;
+        dir = f.parentId ? ('~/' + repo.name + '/.wt/' + slug) : ('~/' + repo.name);
+      } else {
+        repoId = undefined;
+        dir = (f.dir || '~/').replace(/\/+$/, '') + '/' + slug;
+      }
+      const node = { id, name, description: f.description, role: f.role, kind: f.kind, repoId, branch: f.branch || (f.parentId ? slug + '-wt' : ''), status: 'idle', expanded: false, dir, terminals: ['zsh'], children: [] };
+      const sessions = f.parentId
+        ? this.mapTree(s.sessions, f.parentId, p => ({ ...p, expanded: true, children: [...(p.children || []), node] }))
+        : [...s.sessions, node];
+      return { sessions, activeSessionId: id, newSessionOpen: false };
+    });
+  }
+
+  setChatDraft(key, value) {
+    this.updateVariant(key, { chatDraft: value });
+  }
+
+  sendChatMessage(key) {
+    this.updateVariant(key, s => (s.chatDraft && s.chatDraft.trim()) ? { chatDraft: '' } : {});
+  }
+
+  getRepos() {
+    return [
+      { id: 'r1', name: 'web-app', branch: 'feature/parallel-sessions', branches: ['main', 'develop', 'feature/parallel-sessions', 'feature/auth-refactor', 'feature/auth-refactor-tests', 'feature/auth-refactor-ui', 'hotfix/login-crash'] },
+      { id: 'r2', name: 'api-service', branch: 'main', branches: ['main', 'develop', 'migrate-v2-script', 'release/2.0', 'feature/rate-limit'] },
+      { id: 'r3', name: 'infra', branch: 'fix/deploy-script', branches: ['main', 'fix/deploy-script', 'staging', 'feature/terraform-modules'] },
+    ];
+  }
+
+  getChangedFiles() {
+    return [
+      { path: 'src/auth/token.ts', added: 42, removed: 10 },
+      { path: 'src/auth/login.tsx', added: 18, removed: 4 },
+      { path: 'src/components/Button.tsx', added: 3, removed: 1 },
+    ];
+  }
+
+  getGraphiteStack() {
+    return [
+      { name: 'feature/auth-refactor-ui', current: false },
+      { name: 'feature/auth-refactor-tests', current: true },
+      { name: 'feature/auth-refactor', current: false },
+      { name: 'develop', current: false },
+      { name: 'main', current: false },
+    ];
+  }
+
+  getBranchCommits() {
+    return {
+      'feature/auth-refactor-ui': [
+        { hash: '5e4d3c2', message: 'Add subtle session-extended toast', files: [{ path: 'src/auth/login.tsx', added: 18, removed: 4 }] },
+        { hash: 'b7a6f50', message: 'Style toast for dark mode', files: [{ path: 'src/components/Toast.tsx', added: 12, removed: 2 }] },
+      ],
+      'feature/auth-refactor-tests': [
+        { hash: 'a1b2c3d', message: 'Add token refresh test cases', files: [{ path: 'src/auth/token.test.ts', added: 64, removed: 0 }] },
+        { hash: '9f8e7d6', message: 'Mock expired token scenario', files: [{ path: 'src/auth/__mocks__/token.ts', added: 22, removed: 2 }] },
+      ],
+      'feature/auth-refactor': [
+        { hash: '3c2b1a0', message: 'Add silent refresh in getAccessToken', files: [{ path: 'src/auth/token.ts', added: 42, removed: 10 }] },
+        { hash: '7d6c5b4', message: 'Wire refresh interceptor', files: [{ path: 'src/auth/client.ts', added: 18, removed: 3 }] },
+      ],
+      'develop': [
+        { hash: '0a1b2c3', message: 'Merge release/1.9', files: [{ path: 'CHANGELOG.md', added: 30, removed: 0 }] },
+      ],
+      'main': [
+        { hash: 'f0e1d2c', message: 'Release 1.9.0', files: [{ path: 'package.json', added: 1, removed: 1 }] },
+      ],
+    };
+  }
+
+  getBranchDescription(name) {
+    const d = {
+      'feature/auth-refactor-ui': 'Subtle "session extended" toast in the login flow. Stacked on feature/auth-refactor.',
+      'feature/auth-refactor-tests': 'Test coverage for the silent token refresh path. Stacked on feature/auth-refactor.',
+      'feature/auth-refactor': 'Adds silent token refresh to the auth client. Stacked on develop.',
+      'develop': 'Integration branch for the next release.',
+      'main': 'Production branch.',
+    };
+    return d[name] || ('Branch ' + name);
+  }
+
+  getTasks() {
+    return [
+      { id: 't1', file: '001-auth-refactor.md', title: 'Refactor auth flow', status: 'in-progress' },
+      { id: 't2', file: '002-migration-plan.md', title: 'Migrate API to v2', status: 'todo' },
+      { id: 't3', file: '003-deploy-fixes.md', title: 'Fix deploy script', status: 'todo' },
+    ];
+  }
+
+  getDiffContent(path, palette) {
+    const diffs = {
+      'src/auth/token.ts': [
+        { type: 'ctx', text: 'export async function getAccessToken() {' },
+        { type: 'del', text: '  return localStorage.getItem("token");' },
+        { type: 'add', text: '  const token = localStorage.getItem("token");' },
+        { type: 'add', text: '  if (isExpired(token)) return refreshToken();' },
+        { type: 'add', text: '  return token;' },
+        { type: 'ctx', text: '}' },
+      ],
+      'src/auth/login.tsx': [
+        { type: 'ctx', text: '  await login(email, password);' },
+        { type: 'add', text: '  toast.show("Session extended", { subtle: true });' },
+        { type: 'ctx', text: '  navigate("/dashboard");' },
+      ],
+      'src/components/Button.tsx': [
+        { type: 'ctx', text: '  disabled={loading}' },
+        { type: 'del', text: '  className="btn"' },
+        { type: 'add', text: '  className={cx("btn", variant)}' },
+      ],
+    };
+    const lines = diffs[path] || [];
+    return lines.map(l => ({
+      text: l.text,
+      type: l.type === 'add' ? palette.addBg : l.type === 'del' ? palette.delBg : 'transparent',
+    }));
+  }
+
+  getTerminalLines(dir, branch, palette) {
+    const raw = [
+      { text: dir + ' on ' + branch, kind: 'path' },
+      { text: '$ git status', kind: 'cmd' },
+      { text: 'On branch ' + branch, kind: 'out' },
+      { text: 'nothing to commit, working tree clean', kind: 'out' },
+      { text: '$ npm test', kind: 'cmd' },
+      { text: '✓ 42 passing (1.2s)', kind: 'ok' },
+    ];
+    const color = (k) => k === 'path' ? palette.termPath : k === 'ok' ? palette.termOk : k === 'out' ? palette.termOut : palette.termCmd;
+    return raw.map(l => ({ text: l.text, color: color(l.kind) }));
+  }
+
+  getTaskContent(taskId) {
+    const tasks = {
+      t1: { title: 'Refactor auth flow', sections: [
+        { heading: 'Goal', bullets: ['Support silent token refresh without breaking existing login tests.'] },
+        { heading: 'Steps', bullets: ['Add refresh check in getAccessToken()', 'Add refreshToken() with retry', 'Update login UI with subtle toast', 'Run full auth test suite'] },
+      ]},
+      t2: { title: 'Migrate API to v2', sections: [
+        { heading: 'Goal', bullets: ['Move all /api/v1 routes to /api/v2 with backward-compatible shims.'] },
+        { heading: 'Steps', bullets: ['Write migration script', 'Add v2 route handlers', 'Deprecate v1 with warning headers'] },
+      ]},
+      t3: { title: 'Fix deploy script', sections: [
+        { heading: 'Goal', bullets: ['Deploy script fails silently when env vars are missing.'] },
+        { heading: 'Steps', bullets: ['Add validation for required env vars', 'Fail fast with clear error', 'Add deploy smoke test'] },
+      ]},
+    };
+    return tasks[taskId];
+  }
+
+  getChatThread() {
+    return [
+      { role: 'user', text: 'Refactor the auth flow to support silent token refresh without breaking the existing login tests.' },
+      { role: 'agent', text: 'I\u2019ll review the auth code first, then add a refresh interceptor and re-run the suite.',
+        tools: [
+          { name: 'Read', detail: 'src/auth/token.ts' },
+          { name: 'Read', detail: 'src/auth/login.tsx' },
+          { name: 'Grep', detail: '"refreshToken"' },
+        ], tokens: '1,820' },
+      { role: 'agent', text: 'Adding silent refresh in getAccessToken() and wiring the interceptor.',
+        edits: [
+          { path: 'src/auth/token.ts', added: 42, removed: 10 },
+          { path: 'src/auth/client.ts', added: 18, removed: 3 },
+        ],
+        tools: [ { name: 'Bash', detail: 'npm test' } ], tokens: '3,240' },
+      { role: 'agent', text: 'Tests pass — 42 passing (1.2s). Want the login UI to show a subtle "session extended" toast?',
+        tokens: '640' },
+      { role: 'user', text: 'Yes, keep it subtle.' },
+      { role: 'agent', text: 'Done. Added a low-emphasis toast on the successful-refresh path.',
+        edits: [ { path: 'src/auth/login.tsx', added: 6, removed: 0 } ], tokens: '910' },
+    ].map(m => ({
+      isUser: m.role === 'user',
+      align: m.role === 'user' ? 'flex-end' : 'flex-start',
+      text: m.text || '',
+      hasText: !!m.text,
+      tools: m.tools || [],
+      hasTools: !!(m.tools && m.tools.length),
+      edits: m.edits || [],
+      hasEdits: !!(m.edits && m.edits.length),
+      tokens: m.tokens || '',
+      hasTokens: !!m.tokens,
+    }));
+  }
+
+  getHelperItemsRaw() {
+    return [
+      { key: 'overview', label: 'Overview' },
+      { key: 'agents', label: 'Agents' },
+      { key: 'skills', label: 'Skills' },
+      { key: 'instructions', label: 'Instructions' },
+      { key: 'hooks', label: 'Hooks' },
+      { key: 'mcp', label: 'MCP Servers', count: 2 },
+      { key: 'plugins', label: 'Plugins' },
+      { key: 'tools', label: 'Tools', count: 12 },
+    ];
+  }
+
+  getHelperModalData(key) {
+    const data = {
+      overview: { title: 'Overview', desc: 'Workspace-wide summary of active configuration.', rows: [] },
+      agents: { title: 'Agents', desc: 'Agents available to sessions in this workspace.', rows: ['Default Agent', 'Code Reviewer', 'Test Writer'] },
+      skills: { title: 'Skills', desc: 'Reusable skills sessions can invoke.', rows: ['Make a deck', 'Create design system', 'Save as PDF'] },
+      instructions: { title: 'Instructions', desc: 'Project-level CLAUDE.md instructions.', rows: ['Use tabs, not spaces', 'Always run lint before commit'] },
+      hooks: { title: 'Hooks', desc: 'Lifecycle hooks that run automatically.', rows: ['pre-commit: lint', 'post-edit: format'] },
+      mcp: { title: 'MCP Servers', desc: 'Connected MCP servers.', rows: ['github', 'linear'] },
+      plugins: { title: 'Plugins', desc: 'Installed plugins.', rows: [] },
+      tools: { title: 'Tools', desc: 'Tools available to the agent.', rows: ['bash', 'read', 'write', 'edit', 'grep', 'glob', 'webSearch', 'webFetch', 'task', 'todoWrite', 'notebookEdit', 'multiEdit'] },
+    };
+    return data[key];
+  }
+
+  findSelectedSession(s) {
+    const walk = (nodes) => {
+      for (const n of nodes) {
+        if (n.id === s.activeSessionId) return n;
+        const f = walk(n.children || []);
+        if (f) return f;
+      }
+      return null;
+    };
+    const found = walk(s.sessions) || s.sessions[0];
+    return { id: found.id, name: found.name, dir: found.dir, branch: found.branch, repoId: found.repoId, terminals: found.terminals };
+  }
+
+  buildView(key, palette) {
+    const s = this.state[key];
+    const repos = this.getRepos();
+
+    const statusColorOf = (st) => st === 'running' ? '#7fb069' : st === 'done' ? '#6b8fbf' : st === 'idle' ? '#7d7568' : (st && st[0] === '#' ? st : '#7d7568');
+    const flat = [];
+    let firstTop = true;
+    const walkTree = (nodes, depth) => {
+      nodes.forEach(n => {
+        const active = s.activeSessionId === n.id;
+        const kids = n.children || [];
+        flat.push({
+          isRow: true, isAdd: false,
+          id: n.id, name: n.name, branch: n.branch || '', role: n.role || '', hasRole: !!n.role,
+          statusColor: statusColorOf(n.status),
+          depth: depth, indent: depth * 16, mt: (depth === 0 && !firstTop) ? 12 : 2,
+          isExpanded: !!n.expanded, hasChildren: kids.length > 0,
+          chevron: n.expanded ? 'rotate(90deg)' : 'none',
+          tag: depth === 0 ? 'parent' : 'child',
+          isEditing: s.editingSessionId === n.id,
+          rowBg: active ? palette.sessionActiveBg : 'transparent',
+          activeBorder: active ? palette.sessionActiveBorder : 'transparent',
+          onSelect: () => this.selectSession(key, n.id),
+          onToggle: (e) => this.toggleExpand(key, n.id, e),
+          onStartEdit: (e) => this.startEditing(key, n.id, n.name, e),
+          onAddChild: (e) => { if (e) e.stopPropagation(); this.openNewSessionModal(key, n.id); },
+        });
+        if (depth === 0) firstTop = false;
+        if (n.expanded) {
+          walkTree(kids, depth + 1);
+          flat.push({ isRow: false, isAdd: true, depth: depth + 1, indent: (depth + 1) * 16, onAdd: () => this.openNewSessionModal(key, n.id) });
+        }
+      });
+    };
+    walkTree(s.sessions, 0);
+
+    const reposView = repos.map(r => ({
+      id: r.id,
+      name: r.name,
+      branch: r.branch,
+      onClick: () => this.openTerminal(key, { tabId: 'term:repo:' + r.id, label: r.name, dir: '~/' + r.name, branch: r.branch, repoId: r.id }),
+    }));
+
+    const sel = this.findSelectedSession(s);
+    const selectedSessionTerminals = (sel.terminals || []).map(name => ({
+      label: name,
+      proc: name !== 'zsh',
+      onClick: () => this.openTerminal(key, { tabId: 'term:' + sel.id + ':' + name, label: name, dir: sel.dir, branch: sel.branch, repoId: sel.repoId }),
+    }));
+
+    const helperItems = this.getHelperItemsRaw().map(h => ({ ...h, onClick: () => this.openHelperModal(key, h.key) }));
+    const changedFiles = this.getChangedFiles().map(f => ({ ...f, onOpen: () => this.openFileTab(key, f.path) }));
+    const tasks = this.getTasks().map(t => ({ ...t, onOpen: () => this.openTaskTab(key, t) }));
+
+    const branchCommits = this.getBranchCommits();
+    const graphiteStack = this.getGraphiteStack().map(g => {
+      const commitsRaw = branchCommits[g.name] || [];
+      return {
+        name: g.name,
+        current: g.current,
+        dotColor: g.current ? palette.navActiveColor : palette.graphiteDot,
+        textColor: g.current ? palette.tabActiveColorSolid : palette.graphiteText,
+        weight: g.current ? '600' : '400',
+        isExpanded: !!s.expandedBranches[g.name],
+        onToggle: () => this.toggleBranchExpand(key, g.name),
+        onOpen: (e) => this.openBranchTab(key, g.name, e),
+        commits: commitsRaw.map(cm => ({
+          hash: cm.hash,
+          message: cm.message,
+          isExpanded: !!s.expandedCommits[cm.hash],
+          onToggle: () => this.toggleCommitExpand(key, cm.hash),
+          files: cm.files.map(f => ({ path: f.path, added: f.added, removed: f.removed })),
+        })),
+      };
+    });
+
+    const chatThread = this.getChatThread();
+
+    const openTabsView = s.openTabs.map(t => ({
+      ...t,
+      isActive: s.activeTabId === t.id ? palette.tabActiveColor : palette.tabInactiveColor,
+      isActiveBg: s.activeTabId === t.id ? palette.tabActiveBg : 'transparent',
+      onSelect: () => this.setActiveTab(key, t.id),
+      onClose: (e) => this.closeTab(key, t.id, e),
+    }));
+
+    const pagesView = s.pages.map(pg => ({
+      id: pg.id,
+      title: pg.title || 'Untitled',
+      preview: (pg.content || '').split('\n')[0].slice(0, 40) || 'Empty page',
+      onOpen: () => this.openPageTab(key, pg),
+    }));
+
+    const activeTab = s.openTabs.find(t => t.id === s.activeTabId);
+    const isChatActive = s.activeTabId === 'chat';
+    const isFileActive = !!activeTab && activeTab.type === 'file';
+    const isTaskActive = !!activeTab && activeTab.type === 'task';
+    const isTerminalActive = !!activeTab && activeTab.type === 'terminal';
+    const isBranchActive = !!activeTab && activeTab.type === 'branch';
+    const isPageActive = !!activeTab && activeTab.type === 'page';
+    const activePage = isPageActive ? s.pages.find(pg => pg.id === activeTab.refId) : null;
+
+    const f = s.newSessionForm;
+    const nsRepoOptions = repos.map(r => ({ value: r.id, label: r.name, selected: r.id === f.repoId }));
+    const nsParentOptions = s.sessions.map(p => ({ value: p.id, label: p.name, selected: p.id === f.parentId }));
+    const nsBranchList = (repos.find(r => r.id === f.repoId) || { branches: [] }).branches.map(b => ({ value: b, label: b }));
+
+    const diffTextColor = (bg) => bg === palette.addBg ? palette.addText : bg === palette.delBg ? palette.delText : palette.ctxText;
+    const activeDiffLines = isFileActive ? this.getDiffContent(activeTab.refId, palette).map(l => ({
+      text: l.text,
+      bg: l.type,
+      color: diffTextColor(l.type),
+    })) : [];
+
+    let terminalDir = '', selectedBranch = '', branchList = [], terminalLines = [];
+    if (isTerminalActive) {
+      terminalDir = activeTab.dir;
+      selectedBranch = s.selectedBranches[activeTab.id] || activeTab.branch;
+      const repo = repos.find(r => r.id === activeTab.repoId);
+      const branches = repo ? repo.branches : [activeTab.branch];
+      const q = (s.branchQuery || '').toLowerCase();
+      branchList = branches.filter(b => b.toLowerCase().includes(q)).map(b => ({
+        name: b,
+        dot: b === selectedBranch ? palette.navActiveColor : palette.graphiteDot,
+        color: b === selectedBranch ? palette.navActiveColor : palette.graphiteText,
+        onSelect: () => this.selectBranch(key, activeTab.id, b),
+      }));
+      terminalLines = this.getTerminalLines(terminalDir, selectedBranch, palette);
+    }
+
+    let activeBranchDetail = null;
+    if (isBranchActive) {
+      const name = activeTab.refId;
+      activeBranchDetail = {
+        name,
+        description: this.getBranchDescription(name),
+        commits: (branchCommits[name] || []).map(cm => ({ hash: cm.hash, message: cm.message, files: cm.files.map(f => ({ ...f })) })),
+      };
+    }
+
+    const helperModal = s.helperModalKey ? {
+      ...this.getHelperModalData(s.helperModalKey),
+      onClose: () => this.closeHelperModal(key),
+      navItems: this.getHelperItemsRaw().map(h => ({
+        ...h,
+        navColor: h.key === s.helperModalKey ? palette.navActiveColor : palette.navMutedColor,
+        navBg: h.key === s.helperModalKey ? palette.navActiveBg : 'transparent',
+        onSelect: () => this.openHelperModal(key, h.key),
+      })),
+    } : null;
+
+    return {
+      reposView,
+      parentsView: flat,
+      helperItems,
+      changedFiles,
+      tasks,
+      graphiteStack,
+      chatThread,
+      openTabsView,
+      pagesView,
+      onAddPage: () => this.addPage(key),
+      isPageActive,
+      activePageTitle: activePage ? activePage.title : '',
+      activePageContent: activePage ? activePage.content : '',
+      onPageTitleChange: (e) => activePage && this.updatePageField(key, activePage.id, 'title', e.target.value),
+      onPageContentChange: (e) => activePage && this.updatePageField(key, activePage.id, 'content', e.target.value),
+      onAddSession: () => this.openNewSessionModal(key),
+      newSessionOpen: s.newSessionOpen,
+      onCloseNewSession: () => this.closeNewSessionModal(key),
+      onCreateSession: () => this.createSession(key),
+      nsName: f.name,
+      nsDescription: f.description,
+      nsRole: f.role,
+      onNsDescription: (e) => this.updateNewSessionForm(key, 'description', e.target.value),
+      onNsRole: (e) => this.updateNewSessionForm(key, 'role', e.target.value),
+      nsRoleOptions: [
+        { value: '', label: 'Sin rol' },
+        { value: 'Revisor', label: 'Revisor' },
+        { value: 'Arquitecto', label: 'Arquitecto' },
+        { value: 'Diseñador', label: 'Diseñador' },
+        { value: 'Lector', label: 'Lector' },
+      ],
+      nsKind: f.kind,
+      nsBranch: f.branch,
+      nsIsRepo: f.kind === 'repo',
+      nsIsChild: !!f.parentId,
+      nsDir: f.dir,
+      nsRepoId: f.repoId,
+      nsRepoOptions,
+      onNsDir: (e) => this.updateNewSessionForm(key, 'dir', e.target.value),
+      onNsSetDir: () => this.setNsKind(key, 'dir'),
+      onNsSetRepo: () => this.setNsKind(key, 'repo'),
+      nsRepoColor: f.kind === 'repo' ? palette.onAccent : palette.navMutedColor,
+      nsRepoBg: f.kind === 'repo' ? palette.navActiveColor : 'transparent',
+      nsRepoBorder: f.kind === 'repo' ? palette.navActiveColor : palette.ctrlBorder,
+      nsDirColor: f.kind === 'dir' ? palette.onAccent : palette.navMutedColor,
+      nsDirBg: f.kind === 'dir' ? palette.navActiveColor : 'transparent',
+      nsDirBorder: f.kind === 'dir' ? palette.navActiveColor : palette.ctrlBorder,
+      onNsName: (e) => this.updateNewSessionForm(key, 'name', e.target.value),
+      onNsRepo: (e) => this.updateNewSessionForm(key, 'repoId', e.target.value),
+      onNsSetParent: () => this.updateNewSessionForm(key, 'type', 'parent'),
+      onNsSetChild: () => this.updateNewSessionForm(key, 'type', 'child'),
+      onNsParent: (e) => this.updateNewSessionForm(key, 'parentId', e.target.value),
+      onNsBranch: (e) => this.updateNewSessionForm(key, 'branch', e.target.value),
+      isPanelNotion: s.activeSidebarPanel === 'notion',
+      notionNavColor: s.activeSidebarPanel === 'notion' ? palette.navActiveColor : palette.navInactiveColor,
+      notionNavBg: s.activeSidebarPanel === 'notion' ? palette.navActiveBg : 'transparent',
+      onSetPanelNotion: () => this.setSidebarPanel(key, 'notion'),
+      selectedSessionName: sel.name,
+      selectedSessionDir: sel.dir,
+      selectedSessionTerminals,
+      isChatActive,
+      chatTabColor: isChatActive ? palette.tabActiveColor : palette.tabInactiveColor,
+      chatTabBg: isChatActive ? palette.tabActiveBg : 'transparent',
+      isFileActive,
+      isTaskActive,
+      isTerminalActive,
+      isBranchActive,
+      terminalDir,
+      selectedBranch,
+      branchList,
+      terminalLines,
+      activeBranchDetail: activeBranchDetail || { name: '', description: '', commits: [] },
+      branchPickerOpen: s.branchPickerOpen,
+      onToggleBranchPicker: () => this.toggleBranchPicker(key),
+      branchQuery: s.branchQuery,
+      onBranchQueryChange: (e) => this.setBranchQuery(key, e.target.value),
+      activeDiffLines,
+      activeFileName: isFileActive ? activeTab.label : '',
+      activeTaskContent: isTaskActive ? this.getTaskContent(activeTab.refId) : null,
+      helperModal,
+      isPanelSearch: s.activeSidebarPanel === 'search',
+      searchNavColor: s.activeSidebarPanel === 'search' ? palette.navActiveColor : palette.navInactiveColor,
+      searchNavBg: s.activeSidebarPanel === 'search' ? palette.navActiveBg : 'transparent',
+      isPanelChanges: s.activeSidebarPanel === 'changes',
+      changesNavColor: s.activeSidebarPanel === 'changes' ? palette.navActiveColor : palette.navInactiveColor,
+      changesNavBg: s.activeSidebarPanel === 'changes' ? palette.navActiveBg : 'transparent',
+      isPanelGraphite: s.activeSidebarPanel === 'graphite',
+      graphiteNavColor: s.activeSidebarPanel === 'graphite' ? palette.navActiveColor : palette.navInactiveColor,
+      graphiteNavBg: s.activeSidebarPanel === 'graphite' ? palette.navActiveBg : 'transparent',
+      isPanelTasks: s.activeSidebarPanel === 'tasks',
+      tasksNavColor: s.activeSidebarPanel === 'tasks' ? palette.navActiveColor : palette.navInactiveColor,
+      tasksNavBg: s.activeSidebarPanel === 'tasks' ? palette.navActiveBg : 'transparent',
+      isPanelTerminal: s.activeSidebarPanel === 'terminal',
+      terminalNavColor: s.activeSidebarPanel === 'terminal' ? palette.navActiveColor : palette.navInactiveColor,
+      terminalNavBg: s.activeSidebarPanel === 'terminal' ? palette.navActiveBg : 'transparent',
+      searchQuery: s.searchQuery,
+      onSearchChange: (e) => this.setSearchQuery(key, e.target.value),
+      onSetPanelSearch: () => this.setSidebarPanel(key, 'search'),
+      onSetPanelChanges: () => this.setSidebarPanel(key, 'changes'),
+      onSetPanelGraphite: () => this.setSidebarPanel(key, 'graphite'),
+      onSetPanelTasks: () => this.setSidebarPanel(key, 'tasks'),
+      onSetPanelTerminal: () => this.setSidebarPanel(key, 'terminal'),
+      onSetTabChat: () => this.setActiveTab(key, 'chat'),
+      editingValue: s.editingValue,
+      onEditingChange: (e) => this.updateEditingValue(key, e.target.value),
+      onEditingKeyDown: (e) => this.handleEditKeyDown(key, e),
+      onEditingBlur: () => this.commitEditing(key),
+      chatDraft: s.chatDraft,
+      onChatDraftChange: (e) => this.setChatDraft(key, e.target.value),
+      onSendChat: () => this.sendChatMessage(key),
+      stopProp: (e) => e.stopPropagation(),
+    };
+  }
+
+  renderVals() {
+    const paletteA = {
+      addBg: 'rgba(127,176,105,0.14)', delBg: 'rgba(201,106,78,0.14)',
+      addText: '#9fcf87', delText: '#d89a89', ctxText: '#cfc9bd',
+      tabActiveColor: '#e0863f', tabActiveColorSolid: '#f0ece4', tabInactiveColor: '#9c9488', tabActiveBg: 'transparent',
+      navActiveColor: '#e0863f', navInactiveColor: '#75705f', navActiveBg: '#242019', navMutedColor: '#cfc9bd',
+      graphiteDot: '#5a544a', graphiteText: '#cfc9bd',
+      termPath: '#e0863f', termCmd: '#f0ece4', termOut: '#9c9488', termOk: '#7fb069',
+      sessionActiveBg: '#2e2820', sessionActiveBorder: '#e0863f', parentDefaultBg: 'transparent', childDefaultBg: 'transparent',
+      onAccent: '#161513', ctrlBorder: '#332f28',
+    };
+    const paletteB = {
+      addBg: 'rgba(95,208,160,0.14)', delBg: 'rgba(224,112,138,0.14)',
+      addText: '#8fe0bd', delText: '#e0a3b6', ctxText: '#d6d7ec',
+      tabActiveColor: '#eef0fb', tabActiveColorSolid: '#eef0fb', tabInactiveColor: '#9294b3', tabActiveBg: '#2c2d40',
+      navActiveColor: '#8b7bf0', navInactiveColor: '#7274a0', navActiveBg: '#2c2d40', navMutedColor: '#c3c5e0',
+      graphiteDot: '#4a4c66', graphiteText: '#c3c5e0',
+      termPath: '#8b7bf0', termCmd: '#eef0fb', termOut: '#9294b3', termOk: '#5fd0a0',
+      sessionActiveBg: '#2c2d44', sessionActiveBorder: '#8b7bf0', parentDefaultBg: '#232435', childDefaultBg: '#1e1f2c',
+      onAccent: '#14151f', ctrlBorder: '#33344a',
+    };
+
+    const a = this.buildView('a', paletteA);
+    const b = this.buildView('b', paletteB);
+
+    a.chatThread = a.chatThread.map(m => ({ ...m, bubbleBg: m.isUser ? '#e0863f' : '#211e1a', textColor: m.isUser ? '#161513' : '#f0ece4', maxW: m.isUser ? '70%' : '82%' }));
+    b.chatThread = b.chatThread.map(m => ({ ...m, bubbleBg: m.isUser ? '#8b7bf0' : '#20212f', textColor: m.isUser ? '#14151f' : '#eef0fb', maxW: m.isUser ? '68%' : '82%' }));
+
+    const prefix = (obj, p) => {
+      const out = {};
+      for (const k in obj) out[p + k.charAt(0).toUpperCase() + k.slice(1)] = obj[k];
+      return out;
+    };
+
+    return {
+      ...prefix(a, 'a'),
+      ...prefix(b, 'b'),
+      aStopProp: a.stopProp,
+      bStopProp: b.stopProp,
+    };
+  }
+}
+
+</script>
+</body>
+</html>
