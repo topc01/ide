@@ -3,6 +3,7 @@
   --agent-bubble: #211e1a; --border: #332f28; --border-soft: #2a2721;
   --text-primary: #f0ece4; --text-secondary: #cfc9bd; --text-muted: #75705f;
   --accent: #e0863f; --accent-hover: #eb954f; --on-accent: #161513; --selected-bg: #2e2820;
+  --status-running: #7fb069; --status-idle: #7d7568; --status-done: #6b8fbf;
   --radius: 8px;
   font-family: Inter, system-ui, sans-serif; font-size: 13px;
 }

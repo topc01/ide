@@ -13,6 +13,7 @@ const VARS: Record<string, keyof typeof tokens> = {
   "--text-secondary": "textSecondary", "--text-muted": "textMuted",
   "--accent": "accent", "--accent-hover": "accentHover", "--on-accent": "onAccent",
   "--selected-bg": "selectedBg",
+  "--status-running": "statusRunning", "--status-idle": "statusIdle", "--status-done": "statusDone",
 };
 
 export function applyTheme(root: HTMLElement): void {
