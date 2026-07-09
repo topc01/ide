@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
-vi.mock("./transport/rest", () => ({ getRepos: vi.fn().mockResolvedValue([]) }));
 vi.mock("./transport/wsClient", () => ({ getWs: () => ({}) }));
 vi.mock("./transport/sessions", async (orig) => ({
   ...(await orig<any>()),
