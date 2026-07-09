@@ -6,12 +6,14 @@ from ide_server.config import Settings
 from ide_server.plugins import Registry
 from ide_server.bus import handle_message, ConnectionManager
 from ide_server.capabilities import repos as repos_cap
+from ide_server.capabilities import sessions as sessions_cap
 
 
 def create_app(root: Path) -> FastAPI:
     settings = Settings()
     registry = Registry()
     repos_cap.register(registry, root)
+    sessions_cap.register(registry, root)
     manager = ConnectionManager()
 
     app = FastAPI(title="Agentic IDE")
@@ -27,6 +29,10 @@ def create_app(root: Path) -> FastAPI:
     @app.get("/api/repos")
     async def api_repos() -> dict:
         return await registry.dispatch("repos.list", {})
+
+    @app.get("/api/sessions")
+    async def api_sessions() -> dict:
+        return await registry.dispatch("sessions.tree", {})
 
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket) -> None:

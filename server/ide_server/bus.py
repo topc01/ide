@@ -1,6 +1,8 @@
 from __future__ import annotations
 import json
 from ide_server.plugins import Registry
+from ide_server.worktrees import WorktreeError, BranchOccupied
+from ide_server.capabilities.sessions import UncommittedChanges
 
 
 async def handle_message(raw: str, registry: Registry) -> str:
@@ -17,6 +19,17 @@ async def handle_message(raw: str, registry: Registry) -> str:
     except KeyError:
         return json.dumps({"type": "error", "id": mid, "channel": channel,
                            "payload": {"code": "unknown_channel", "message": f"no handler: {channel}"}})
+    except BranchOccupied as exc:
+        return json.dumps({"type": "error", "id": mid, "channel": channel,
+                           "payload": {"code": "branch_occupied", "message": str(exc),
+                                       "branch": exc.branch, "suggestion": "new_branch"}})
+    except UncommittedChanges as exc:
+        return json.dumps({"type": "error", "id": mid, "channel": channel,
+                           "payload": {"code": "uncommitted_changes", "message": str(exc),
+                                       "sessionId": exc.session_id}})
+    except WorktreeError as exc:
+        return json.dumps({"type": "error", "id": mid, "channel": channel,
+                           "payload": {"code": "worktree_error", "message": str(exc)}})
     except Exception as exc:  # noqa: BLE001 — todo error viaja como envelope, nunca silencioso
         return json.dumps({"type": "error", "id": mid, "channel": channel,
                            "payload": {"code": "handler_error", "message": str(exc)}})
