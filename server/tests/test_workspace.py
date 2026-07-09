@@ -25,3 +25,11 @@ def test_discover_repos(tmp_path):
     names = sorted(r["name"] for r in repos)
     assert names == ["repo-a", "repo-b"]
     assert all(r["branch"] == "main" for r in repos)
+
+def test_discover_repos_invalid_git_is_unknown(tmp_path):
+    (tmp_path / ".ide").mkdir()
+    broken = tmp_path / "broken"
+    (broken / ".git").mkdir(parents=True)
+    repos = discover_repos(tmp_path)
+    assert repos[0]["name"] == "broken"
+    assert repos[0]["branch"] == "unknown"

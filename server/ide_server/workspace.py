@@ -16,6 +16,8 @@ def _current_branch(repo: Path) -> str:
         ["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"],
         capture_output=True, text=True,
     )
+    if out.returncode != 0:
+        return "unknown"
     return out.stdout.strip() or "HEAD"
 
 
