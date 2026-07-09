@@ -27,8 +27,8 @@ def _occupied_branches(repo: Path) -> set[str]:
     occupied: set[str] = set()
     for line in out.stdout.splitlines():
         if line.startswith("branch "):
-            ref = line[len("branch "):].strip()       # p.ej. refs/heads/main
-            occupied.add(ref.rsplit("/", 1)[-1])
+            ref = line[len("branch "):].strip()       # p.ej. refs/heads/feature/x
+            occupied.add(ref.removeprefix("refs/heads/"))
     return occupied
 
 

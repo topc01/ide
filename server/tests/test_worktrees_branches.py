@@ -25,3 +25,13 @@ def test_branch_occupied_true_for_checked_out(tmp_path):
     repo = _repo(tmp_path / "r")
     assert branch_occupied(repo, "main") is True
     assert branch_occupied(repo, "nope") is False
+
+
+def test_slash_branch_occupied_when_checked_out(tmp_path):
+    repo = _repo(tmp_path / "r")
+    subprocess.run(["git", "-C", str(repo), "branch", "feature/x"], check=True)
+    wt = tmp_path / "wt-fx"
+    subprocess.run(["git", "-C", str(repo), "worktree", "add", str(wt), "feature/x"], check=True)
+    assert branch_occupied(repo, "feature/x") is True
+    marks = {b["name"]: b["occupied"] for b in list_branches(repo)}
+    assert marks["feature/x"] is True
