@@ -20,6 +20,16 @@ describe("useSessions", () => {
     const b = useSessions.getState().tree[0].children[0];
     expect(b.expanded).toBe(false);
   });
+  it("toggleExpanded a profundidad 3 no muta el árbol previo", () => {
+    const original = [node("a", [node("b", [node("c")])])];
+    useSessions.getState().setData(original, []);
+    useSessions.getState().toggleExpanded("c");
+    const c = useSessions.getState().tree[0].children[0].children[0];
+    expect(c.expanded).toBe(false);                       // el nodo profundo se invirtió
+    // el árbol original entregado a setData no fue mutado (updates inmutables)
+    expect(original[0].children[0].children[0].expanded).toBe(true);
+    expect(useSessions.getState().tree).not.toBe(original);
+  });
   it("openModal(null) marca crear root; closeModal cierra", () => {
     useSessions.getState().openModal(null);
     expect(useSessions.getState().modalParentId).toBe(null);
