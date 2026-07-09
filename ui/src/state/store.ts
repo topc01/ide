@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Repo } from "../transport/envelope";
 
-export type PanelId = "search" | "changes" | "graphite" | "tasks" | "terminal" | "notion" | "sessions";
+export type PanelId = "search" | "changes" | "graphite" | "tasks" | "terminal" | "notion";
 export interface Tab { id: string; type: "file" | "task" | "branch" | "terminal" | "page"; label: string; }
 
 interface State {
@@ -13,7 +13,7 @@ interface State {
 }
 
 export const useStore = create<State>((set) => ({
-  repos: [], activePanel: "sessions", openTabs: [], activeTabId: "chat",
+  repos: [], activePanel: "search", openTabs: [], activeTabId: "chat",
   setRepos: (repos) => set({ repos }),
   setActivePanel: (activePanel) => set({ activePanel }),
   openTab: (t) => set((s) => ({
