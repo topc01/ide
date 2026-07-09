@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSessions } from "../../state/sessions";
-import { createSession, fetchTree, type CreatePayload } from "../../transport/sessions";
+import { createSession, fetchTree, fetchBranches, type CreatePayload, type Branch } from "../../transport/sessions";
 import { getWs } from "../../transport/wsClient";
 
 const field: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 3, marginBottom: 10 };
@@ -14,6 +14,18 @@ export function NewSessionModal() {
   const [role, setRole] = useState("");
   const [kind, setKind] = useState<"coordinator" | "work">("coordinator");
   const [repoId, setRepoId] = useState(repos[0]?.id ?? "");
+  const [branchMode, setBranchMode] = useState<"new" | "existing">("new");
+  const [newBranch, setNewBranch] = useState("");
+  const [existingBranch, setExistingBranch] = useState("");
+  const [access, setAccess] = useState<"rw" | "ro">("rw");
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (kind === "work" && branchMode === "existing" && repoId) {
+      fetchBranches(getWs(), repoId).then(setBranches).catch(() => setBranches([]));
+    }
+  }, [kind, branchMode, repoId]);
 
   if (modalParentId === undefined) return null;
 
@@ -21,7 +33,12 @@ export function NewSessionModal() {
     const payload: CreatePayload = {
       name, description: description || undefined, role: role || null,
       parentId: modalParentId, kind,
-      ...(kind === "work" ? { repoId, access: "rw" } : {}),
+      ...(kind === "work" ? {
+        repoId, access,
+        ...(branchMode === "new"
+          ? { branch: newBranch || undefined, base: "main" }
+          : { branch: existingBranch }),
+      } : {}),
     };
     await createSession(getWs(), payload);
     const d = await fetchTree(getWs());
@@ -61,11 +78,47 @@ export function NewSessionModal() {
           </select></label>
 
         {kind === "work" && (
-          <label style={field}><span style={{ fontSize: 11, color: "var(--text-muted)" }}>Repo</span>
-            <select aria-label="Repo" style={input} value={repoId}
-              onChange={(e) => setRepoId(e.target.value)}>
-              {repos.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select></label>
+          <>
+            <label style={field}><span style={{ fontSize: 11, color: "var(--text-muted)" }}>Repo</span>
+              <select aria-label="Repo" style={input} value={repoId}
+                onChange={(e) => setRepoId(e.target.value)}>
+                {repos.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select></label>
+
+            <div style={{ ...field, gap: 8 }}>
+              <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                <input type="radio" name="bmode" aria-label="Branch nueva"
+                  checked={branchMode === "new"} onChange={() => setBranchMode("new")} /> Branch nueva
+              </label>
+              {branchMode === "new" && (
+                <input aria-label="Nombre de branch" style={input} placeholder="default = slug del nombre"
+                  value={newBranch} onChange={(e) => setNewBranch(e.target.value)} />
+              )}
+              <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                <input type="radio" name="bmode" aria-label="Modo: branch existente"
+                  checked={branchMode === "existing"} onChange={() => setBranchMode("existing")} /> Usar existente
+              </label>
+              {branchMode === "existing" && (
+                <>
+                  <input aria-label="Buscar branch" style={input} placeholder="buscar…"
+                    value={query} onChange={(e) => setQuery(e.target.value)} />
+                  <select aria-label="Branch existente" size={4} style={input} value={existingBranch}
+                    onChange={(e) => setExistingBranch(e.target.value)}>
+                    {branches.filter((b) => b.name.includes(query)).map((b) => (
+                      <option key={b.name} value={b.name} disabled={b.occupied && access === "rw"}>
+                        {b.occupied ? `${b.name} · ocupada` : b.name}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+              <select aria-label="Acceso" style={input} value={access}
+                onChange={(e) => setAccess(e.target.value as "rw" | "ro")}>
+                <option value="rw">rw (worktree exclusivo)</option>
+                <option value="ro">ro (detached, repetible)</option>
+              </select>
+            </div>
+          </>
         )}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
