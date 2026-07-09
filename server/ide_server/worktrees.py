@@ -43,3 +43,46 @@ def list_branches(repo: Path) -> list[dict]:
 
 def branch_occupied(repo: Path, branch: str) -> bool:
     return branch in _occupied_branches(repo)
+
+
+def _branch_exists(repo: Path, branch: str) -> bool:
+    out = _git(repo, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}")
+    return out.returncode == 0
+
+
+def add_worktree(repo: Path, path: Path, branch: str, access: str,
+                 base: str | None = None) -> None:
+    if access not in ("rw", "ro"):
+        raise WorktreeError(f"access inválido: {access}")
+    exists = _branch_exists(repo, branch)
+
+    if access == "rw":
+        if exists and branch_occupied(repo, branch):
+            raise BranchOccupied(branch)
+        if exists:
+            args = ["worktree", "add", str(path), branch]
+        else:
+            args = ["worktree", "add", "-b", branch, str(path), base or "HEAD"]
+    else:  # ro → detached, siempre permitido
+        target = branch if exists else (base or "HEAD")
+        args = ["worktree", "add", "--detach", str(path), target]
+
+    out = _git(repo, *args)
+    if out.returncode != 0:
+        raise WorktreeError(out.stderr.strip() or "git worktree add falló")
+
+
+def remove_worktree(repo: Path, path: Path, force: bool = False) -> None:
+    args = ["worktree", "remove", str(path)]
+    if force:
+        args.append("--force")
+    out = _git(repo, *args)
+    if out.returncode != 0:
+        raise WorktreeError(out.stderr.strip() or "git worktree remove falló")
+
+
+def has_uncommitted_changes(worktree: Path) -> bool:
+    out = _git(worktree, "status", "--porcelain")
+    if out.returncode != 0:
+        raise WorktreeError(out.stderr.strip() or "git status falló")
+    return bool(out.stdout.strip())
