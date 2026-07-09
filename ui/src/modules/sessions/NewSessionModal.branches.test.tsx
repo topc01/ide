@@ -26,4 +26,26 @@ describe("NewSessionModal branch picker", () => {
     expect(screen.getByText(/main · ocupada/i)).toBeInTheDocument();
     expect(screen.getByText("dev")).toBeInTheDocument();
   });
+
+  it("con acceso 'ro' la branch ocupada 'main' NO está deshabilitada", async () => {
+    render(<NewSessionModal />);
+    fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "work" } });
+    fireEvent.click(screen.getByRole("radio", { name: /existente/i }));
+    await waitFor(() => screen.getByLabelText("Branch existente"));
+    fireEvent.change(screen.getByLabelText("Acceso"), { target: { value: "ro" } });
+    const mainOption = screen.getByRole("option", { name: /main/i }) as HTMLOptionElement;
+    expect(mainOption.disabled).toBe(false);
+  });
+
+  it("Crear deshabilitado si branchMode=existing sin branch elegida; se habilita al elegir", async () => {
+    render(<NewSessionModal />);
+    fireEvent.change(screen.getByLabelText("Nombre"), { target: { value: "Feature X" } });
+    fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "work" } });
+    fireEvent.click(screen.getByRole("radio", { name: /existente/i }));
+    await waitFor(() => screen.getByLabelText("Branch existente"));
+    const crear = screen.getByRole("button", { name: "Crear" }) as HTMLButtonElement;
+    expect(crear.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Branch existente"), { target: { value: "dev" } });
+    expect(crear.disabled).toBe(false);
+  });
 });

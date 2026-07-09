@@ -29,6 +29,8 @@ export function NewSessionModal() {
 
   if (modalParentId === undefined) return null;
 
+  const canSubmit = Boolean(name.trim()) && !(kind === "work" && branchMode === "existing" && !existingBranch);
+
   const submit = async () => {
     const payload: CreatePayload = {
       name, description: description || undefined, role: role || null,
@@ -123,10 +125,10 @@ export function NewSessionModal() {
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
           <button onClick={closeModal} style={{ ...input, cursor: "pointer" }}>Cancelar</button>
-          <button onClick={submit} disabled={!name.trim()} style={{
+          <button onClick={submit} disabled={!canSubmit} style={{
             border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 12,
-            cursor: name.trim() ? "pointer" : "not-allowed",
-            background: name.trim() ? "var(--accent)" : "var(--border)", color: "var(--on-accent)",
+            cursor: canSubmit ? "pointer" : "not-allowed",
+            background: canSubmit ? "var(--accent)" : "var(--border)", color: "var(--on-accent)",
           }}>Crear</button>
         </div>
       </div>
