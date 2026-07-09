@@ -5,7 +5,8 @@ import { getRepos } from "./transport/rest";
 import { useStore } from "./state/store";
 import { ActivityRail } from "./layout/ActivityRail";
 import { ContextPanel } from "./layout/ContextPanel";
-import { Sidebar } from "./layout/Sidebar";
+import { SessionsPanel } from "./modules/sessions/SessionsPanel";
+import { NewSessionModal } from "./modules/sessions/NewSessionModal";
 import { MainPanel } from "./layout/MainPanel";
 
 export default function App() {
@@ -16,10 +17,11 @@ export default function App() {
   }, [setRepos]);
   return (
     <div style={{ display: "flex", height: "100%" }}>
-      <Sidebar />
+      <SessionsPanel />
       <ActivityRail />
       <ContextPanel />
       <MainPanel />
+      <NewSessionModal />
     </div>
   );
 }
