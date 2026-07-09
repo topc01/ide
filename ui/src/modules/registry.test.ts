@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { Search } from "lucide-react";
 import { getModules } from "./stubs";
+import { registerModule } from "./registry";
+
+const Empty: React.FC = () => null;
 
 describe("module registry", () => {
   it("registra 6 módulos del rail", () => {
@@ -7,5 +11,13 @@ describe("module registry", () => {
     expect(ids).toEqual(
       expect.arrayContaining(["search", "changes", "graphite", "tasks", "terminal", "notion"]));
     expect(getModules().length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("dedup por id: re-registrar un id existente es no-op", () => {
+    const before = getModules().length;
+    registerModule({ id: "search", title: "Otro", icon: Search, Panel: Empty });
+    registerModule({ id: "search", title: "Otro", icon: Search, Panel: Empty });
+    expect(getModules().length).toBe(before);
+    expect(getModules().filter((m) => m.id === "search")).toHaveLength(1);
   });
 });
