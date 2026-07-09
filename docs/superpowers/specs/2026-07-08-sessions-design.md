@@ -202,3 +202,24 @@ actualiza el árbol → render. Cambios de status llegan por `event` (WebSocket)
 
 Terminales/PTY (R2), chat con Claude (R3), diffs (R4), graphite (R5), tasks/notion/settings
 (R6), y el stack pesado (DB/docker/puertos) como hook opcional.
+
+## Aclaraciones de planificación (2026-07-09, sobre la realidad de R0)
+
+Cerradas al planificar R1 sobre R0 ya mergeado a `main`:
+
+- **Arranque de Claude Code = interfaz inyectable, spawn real diferido a R2.** El
+  auto-arranque confirmado (§Decisiones) se implementa detrás de una interfaz
+  `SessionLauncher` (p.ej. `launch(session, role) -> None`). En R1 el launcher por
+  defecto registra la intención de arranque (status/estado), **no** spawnea el binario
+  `claude` — eso necesita el mecanismo de PTY/proceso que es R2 (Terminal). Los tests
+  inyectan un launcher falso, así que ninguna suite spawnea procesos reales. Esto respeta
+  la disciplina de rebanadas y mantiene R1 hermético; R2 conecta el launcher real al PTY.
+- **Testing de worktrees con git real en dirs temporales**, igual que los tests de
+  `workspace.py` en R0 (nada de mockear git).
+- **Roles en R1**: cargar presets de `.ide/config.toml` y resolver `{model, prompt,
+  read_only}`; alcanza con que `read_only` afecte (deriva acceso `ro`) — criterio #7.
+- **Un solo plan**, ordenado backend → frontend → verificación E2E (rebanada vertical),
+  cerrando con un "esqueleto que camina" (crear sesión → worktree real → árbol renderiza).
+- **Costuras con R0 (reutilizar, no reinventar)**: envelope WS + `Registry` + `handle_message`
+  existentes; `discover_repos`/`Repo`; theming 1a con las CSS vars `--status-*` (ya cableadas)
+  para el status dot; `registerModule`/`getModules` para montar el panel de sesiones.
