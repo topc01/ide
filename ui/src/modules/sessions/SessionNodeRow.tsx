@@ -44,7 +44,10 @@ export function SessionNodeRow({ node, depth }: { node: SessionNode; depth: numb
             onChange={(e) => setDraft(e.target.value)}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { renameSession(getWs(), node.id, draft); stopRename(); }
+              if (e.key === "Enter") {
+                renameSession(getWs(), node.id, draft).catch((err) => console.error("rename falló", err));
+                stopRename();
+              }
               if (e.key === "Escape") stopRename();
             }}
             onBlur={stopRename}

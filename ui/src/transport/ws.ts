@@ -13,7 +13,11 @@ export class WsClient {
 
   constructor(url: string) {
     this.ws = new WebSocket(url);
-    this.openP = new Promise((r) => (this.ws.onopen = () => r()));
+    this.openP = new Promise<void>((resolve, reject) => {
+      this.ws.onopen = () => resolve();
+      this.ws.onerror = () => reject(new Error("WebSocket error antes de abrir"));
+      this.ws.onclose = () => reject(new Error("WebSocket cerrado antes de abrir"));
+    });
     this.ws.onmessage = (e) => this.onMessage(JSON.parse(e.data) as Envelope);
   }
   ready() { return this.openP; }

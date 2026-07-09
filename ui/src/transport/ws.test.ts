@@ -25,6 +25,13 @@ class FakeErrorSocket {
   close() { this.onclose?.(); }
 }
 
+class FakeFailSocket {
+  onopen: any; onmessage: any; onclose: any; onerror: any; sent: string[] = [];
+  constructor(public url: string) { setTimeout(() => this.onclose?.(), 0); }   // cierra sin abrir
+  send() { throw new Error("no debería enviarse"); }
+  close() {}
+}
+
 class FakeConnectingSocket {
   onopen: any; onmessage: any; onclose: any; sent: string[] = [];
   private open = false;
@@ -56,5 +63,11 @@ describe("WsClient", () => {
     (globalThis as any).WebSocket = FakeErrorSocket;
     const c = new WsClient("ws://x/ws"); await c.ready();
     await expect(c.request("t.inc", { n: 5 })).rejects.toEqual({ code: "BOOM", message: "algo falló" });
+  });
+
+  it("rechaza el request si el socket cierra antes de abrir (no cuelga)", async () => {
+    (globalThis as any).WebSocket = FakeFailSocket;
+    const c = new WsClient("ws://x/ws");
+    await expect(c.request("t.inc", { n: 1 })).rejects.toThrow();
   });
 });
