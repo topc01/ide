@@ -17,8 +17,10 @@ contrato, el estilo y el listón de calidad de la UI.
 ## Alcance
 
 **Dentro:**
-- Backend FastAPI: config, servidor HTTP+WebSocket, bus de mensajes, registro de plugins,
-  una capacidad real (`repos.list`), endpoint de health.
+- **Comando `ide`**: entry-point que hace *walk-up* hasta el `.ide/` del workspace (o
+  `ide init` para crearlo), levanta el backend apuntado a ese workspace y abre el navegador.
+- Backend FastAPI: config (lee `.ide/config.toml`), servidor HTTP+WebSocket, bus de mensajes,
+  registro de plugins, una capacidad real (`repos.list`), endpoint de health.
 - Frontend React+Vite+TS: shell de 3 regiones, theming 1a (CSS variables), store global,
   cliente WebSocket + REST, registro de módulos (plugins) con los 6 slots, pestaña Chat
   fija (placeholder).
@@ -33,17 +35,25 @@ diffs, graphite, tasks, notion, settings, worktrees, DB/docker/puertos.
 ## Arquitectura
 
 ```
+Comando `ide`  →  walk-up hasta <workspace>/.ide/  →  levanta backend + abre navegador
+
 Navegador (localhost:5173, Vite dev)
   │  REST (lecturas simples)  +  WebSocket (eventos/streams)
   ▼
-FastAPI (localhost:8787)
-  ├─ app        wiring, CORS, monta REST + WS
-  ├─ config     settings (watch_dir, host, port)
-  ├─ bus        ConnectionManager (WS) + envelope de mensajes
-  ├─ plugins    registro de capacidades por nombre  ("repos.list", …)
+FastAPI (localhost:8787)  — apuntado al workspace detectado
+  ├─ cli         `ide` / `ide init`: detección del workspace (walk-up) y arranque
+  ├─ app         wiring, CORS, monta REST + WS
+  ├─ config      lee <workspace>/.ide/config.toml (nombre, settings)
+  ├─ workspace   raíz detectada; descubre los repos que contiene
+  ├─ bus         ConnectionManager (WS) + envelope de mensajes
+  ├─ plugins     registro de capacidades por nombre  ("repos.list", …)
   └─ capabilities/
-        repos   capacidad real: listar repos git + branch actual
+        repos    capacidad real: listar repos git del workspace + branch actual
 ```
+
+**Workspace**: la unidad de trabajo es un directorio que contiene el `.ide/` (y los repos).
+El comando `ide` lo detecta por walk-up; `ide init` crea el `.ide/`. Config, repos y (a
+futuro) sesiones son relativos a ese workspace.
 
 Dos vías de comunicación, con roles distintos:
 - **REST** para lecturas puntuales sin estado (health, `repos.list` inicial).
@@ -73,10 +83,12 @@ entenderse y testearse por separado.
 
 | Unidad | Qué hace | Depende de |
 |--------|----------|------------|
-| `config.py` | Settings (pydantic-settings): `watch_dir`, `host`, `port`, `cors_origins`. Lee de env/`.env`. | — |
+| `cli.py` | Comando `ide` / `ide init`: walk-up hasta `<workspace>/.ide/`, arranca el backend apuntado al workspace y abre el navegador. `init` crea el `.ide/` con `config.toml` mínimo. | config, workspace |
+| `workspace.py` | Resuelve la raíz del workspace (dir que contiene `.ide/`) y descubre los repos git adentro. | — |
+| `config.py` | Settings (pydantic-settings): lee `<workspace>/.ide/config.toml` (nombre) + `host`, `port`, `cors_origins` de env/`.env`. | workspace |
 | `bus.py` | `ConnectionManager`: acepta WS, trackea conexiones, `broadcast(event)`, rutea `req`→handler→`res`. Define el envelope. | plugins |
 | `plugins.py` | `Registry`: `register(channel, handler)`, `dispatch(channel, payload)`. Un plugin = un handler async por `channel`. Base para R1–R6. | — |
-| `capabilities/repos.py` | Capacidad `repos.list`: dado `watch_dir`, encuentra repos git y su branch actual (via `git`). Registrado como plugin. | config |
+| `capabilities/repos.py` | Capacidad `repos.list`: descubre los repos git del workspace y su branch actual (via `git`). Registrado como plugin. | workspace |
 | `app.py` | Crea FastAPI, CORS, registra capacidades, monta `GET /health`, `GET /api/repos`, `WS /ws`. | todos |
 
 ### Frontend
@@ -108,7 +120,7 @@ Agregar un módulo (o un meta-agente futuro) = un `register` de cada lado. Nada 
 ## Flujo de datos — esqueleto que camina
 
 1. Frontend arranca → `App` abre WS y hace `GET /api/repos`.
-2. Backend `repos.list` escanea `watch_dir`, devuelve `[{ id, name, branch }]`.
+2. Backend `repos.list` descubre los repos del workspace, devuelve `[{ id, name, branch }]`.
 3. Store guarda `repos`; el `Sidebar` los renderiza (nombre + chip de branch, estilo 1a).
 4. (Validación del canal WS) Backend emite un `event repos.changed` de prueba; el cliente
    lo recibe y loguea — confirma que el WebSocket bidireccional funciona.
@@ -121,8 +133,9 @@ el canal WS. Todo el circuito, sin implementar ningún módulo real.
 ## Manejo de errores
 
 - **Backend**: cada handler puede lanzar; el bus/REST lo convierte en `error`
-  (`{code, message}`), nunca en un 500 opaco ni en silencio. `repos.list` sobre un
-  `watch_dir` inexistente → `error repos.list: watch_dir not found`, no lista vacía muda.
+  (`{code, message}`), nunca en un 500 opaco ni en silencio. Workspace sin `.ide/` → el
+  comando `ide` sugiere `ide init` (no arranca mudo); un workspace sin repos → lista vacía
+  *explícita*, no un error confuso.
 - **Frontend**: el cliente WS reconecta con backoff; mientras está caído, la UI muestra
   estado "desconectado" (no datos viejos como si fueran vivos). Errores de capacidad se
   renderizan, no se tragan.
@@ -138,9 +151,10 @@ el canal WS. Todo el circuito, sin implementar ningún módulo real.
 
 ## Criterios de aceptación (R0 hecho)
 
-1. `uvicorn` levanta el backend; `GET /health` responde OK.
+1. `ide` detecta el workspace por walk-up (o `ide init` lo crea), levanta el backend y abre
+   el navegador; `GET /health` responde OK.
 2. `vite` levanta el frontend; se ve el **layout de 3 regiones con estética 1a**.
-3. Los **repos reales** de `watch_dir` aparecen en el sidebar (esqueleto que camina).
+3. Los **repos reales** del workspace aparecen en el sidebar (esqueleto que camina).
 4. El canal WebSocket está probado (evento de ida y vuelta).
 5. Existen los **6 slots de módulo** en el rail (5 stubs) y la pestaña **Chat** fija.
 6. Los tests de backend y frontend pasan.
