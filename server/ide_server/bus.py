@@ -4,11 +4,16 @@ from ide_server.plugins import Registry
 
 
 async def handle_message(raw: str, registry: Registry) -> str:
-    msg = json.loads(raw)
-    mid, channel = msg.get("id"), msg.get("channel")
     try:
-        payload = await registry.dispatch(channel, msg.get("payload") or {})
-        return json.dumps({"type": "res", "id": mid, "channel": channel, "payload": payload})
+        msg = json.loads(raw)
+        mid, channel = msg.get("id"), msg.get("channel")
+        payload = msg.get("payload") or {}
+    except (json.JSONDecodeError, AttributeError) as exc:
+        return json.dumps({"type": "error", "id": None, "channel": None,
+                           "payload": {"code": "invalid_message", "message": str(exc)}})
+    try:
+        result = await registry.dispatch(channel, payload)
+        return json.dumps({"type": "res", "id": mid, "channel": channel, "payload": result})
     except KeyError:
         return json.dumps({"type": "error", "id": mid, "channel": channel,
                            "payload": {"code": "unknown_channel", "message": f"no handler: {channel}"}})
