@@ -1,0 +1,34 @@
+from __future__ import annotations
+import json
+from ide_server.plugins import Registry
+
+
+async def handle_message(raw: str, registry: Registry) -> str:
+    msg = json.loads(raw)
+    mid, channel = msg.get("id"), msg.get("channel")
+    try:
+        payload = await registry.dispatch(channel, msg.get("payload") or {})
+        return json.dumps({"type": "res", "id": mid, "channel": channel, "payload": payload})
+    except KeyError:
+        return json.dumps({"type": "error", "id": mid, "channel": channel,
+                           "payload": {"code": "unknown_channel", "message": f"no handler: {channel}"}})
+    except Exception as exc:  # noqa: BLE001 — todo error viaja como envelope, nunca silencioso
+        return json.dumps({"type": "error", "id": mid, "channel": channel,
+                           "payload": {"code": "handler_error", "message": str(exc)}})
+
+
+class ConnectionManager:
+    def __init__(self) -> None:
+        self._active: set = set()
+
+    async def connect(self, ws) -> None:
+        await ws.accept()
+        self._active.add(ws)
+
+    def disconnect(self, ws) -> None:
+        self._active.discard(ws)
+
+    async def broadcast(self, channel: str, payload: dict) -> None:
+        msg = json.dumps({"type": "event", "id": None, "channel": channel, "payload": payload})
+        for ws in list(self._active):
+            await ws.send_text(msg)
