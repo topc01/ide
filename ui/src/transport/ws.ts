@@ -32,7 +32,12 @@ export class WsClient {
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.ws.send(JSON.stringify({ type: "req", id, channel, payload }));
+      // Diferir el envío hasta que el socket abra: si se llama antes (p.ej. un
+      // fetch al montar, sin await ready()), send() sobre un socket CONNECTING
+      // lanza. Un fallo del envío rechaza el request, nunca silencioso.
+      this.openP
+        .then(() => this.ws.send(JSON.stringify({ type: "req", id, channel, payload })))
+        .catch(reject);
     });
   }
   on(channel: string, cb: (p: any) => void) {
