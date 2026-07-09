@@ -1,8 +1,13 @@
 import type { Envelope } from "./envelope";
 
+interface Pending {
+  resolve: (p: any) => void;
+  reject: (p: any) => void;
+}
+
 export class WsClient {
   private ws: WebSocket;
-  private pending = new Map<string, (p: any) => void>();
+  private pending = new Map<string, Pending>();
   private listeners = new Map<string, ((p: any) => void)[]>();
   private openP: Promise<void>;
 
@@ -15,7 +20,9 @@ export class WsClient {
 
   private onMessage(msg: Envelope) {
     if ((msg.type === "res" || msg.type === "error") && msg.id) {
-      this.pending.get(msg.id)?.(msg.type === "error" ? Promise.reject(msg.payload) : msg.payload);
+      const entry = this.pending.get(msg.id);
+      if (msg.type === "error") entry?.reject(msg.payload);
+      else entry?.resolve(msg.payload);
       this.pending.delete(msg.id);
     } else if (msg.type === "event") {
       (this.listeners.get(msg.channel) ?? []).forEach((cb) => cb(msg.payload));
@@ -23,8 +30,8 @@ export class WsClient {
   }
   request(channel: string, payload: any): Promise<any> {
     const id = crypto.randomUUID();
-    return new Promise((resolve) => {
-      this.pending.set(id, resolve);
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
       this.ws.send(JSON.stringify({ type: "req", id, channel, payload }));
     });
   }
