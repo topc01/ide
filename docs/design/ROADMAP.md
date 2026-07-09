@@ -19,6 +19,10 @@ La lógica de dominio se **porta desde finnecto-ide como referencia** (ver
 
 ## Principios
 
+- **Fidelidad de UI (no negociable)**: cada rebanada se implementa contra el mockup
+  (`docs/design/handoff/`), dirección visual **1a — Terminal/amber**, con los tokens de
+  `REFERENCES.md`. Alta fidelidad: colores, tipografía, spacing, radii e interacciones se
+  reproducen con precisión. Prohibida la estética "por defecto".
 - **Extensibilidad primero**: los módulos del rail son plugins detrás de una interfaz
   común (definida en R0). Agregar un módulo nuevo — o mañana un meta-agente LangGraph por
   encima de Claude Code — es un plugin, no una cirugía.

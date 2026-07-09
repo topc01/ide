@@ -1,6 +1,6 @@
 # R1 — Sesiones (sidebar + creación) · Design
 
-Fecha: 2026-07-08 · Estado: **en revisión** · Rebanada: R1 del `docs/design/ROADMAP.md`.
+Fecha: 2026-07-08 · Estado: **aprobado** · Rebanada: R1 del `docs/design/ROADMAP.md`.
 Depende de: R0 (Fundación).
 
 ## Objetivo
@@ -9,6 +9,15 @@ El **sidebar de sesiones** y —su corazón— la **creación de sesiones**. Est
 del producto que más iteración necesitaba, así que el modelo está diseñado en detalle.
 Entrega: lista de repos del workspace, árbol recursivo de sesiones, modal de nueva sesión,
 selección, rename inline, y la mecánica real de **worktree × branch**.
+
+## Fidelidad de UI (prioridad)
+
+La UI es **alta fidelidad** y prioritaria. Fuente de verdad: `docs/design/handoff/HANDOFF.md`
++ `mockup.dc.html`, dirección visual **1a — Terminal/amber** (tokens en
+`docs/design/REFERENCES.md`). El `SessionsPanel` y el `NewSessionModal` deben reproducir con
+precisión el mockup: indentación 16px/nivel, chevron que rota, status dot, pill de rol
+(accent sobre `#2e2820`), "+" inline y la fila punteada "+ Agregar sesión hija", selección
+con borde/fondo accent. Nada de estética "por defecto": se implementa contra el mockup.
 
 ## Concepto base: workspace, no repo
 
@@ -80,7 +89,7 @@ Modal de nueva sesión (campos del handoff, refinados):
 nombre de branch** por default (ej. `FIN-123-*`) para que el ticket quede coherente entre
 repos; editable por hija.
 
-**Al crear** (default a confirmar en revisión):
+**Al crear**:
 - Sesión de trabajo → se crea el worktree y se **auto-arranca Claude Code** en él, sembrado
   con `description` + el preset del rol.
 - Coordinadora → arranca su Claude Code (el orquestador), sin worktree.
@@ -114,7 +123,7 @@ Presets de arranque:
 Agregar un rol = una entrada en `.ide/config.toml`. Es el lugar natural donde configurás
 **modelo + comportamiento** de cada Claude Code (lo que hoy hacés a mano con "el King").
 
-## Ciclo de vida — cerrar (default a confirmar)
+## Ciclo de vida — cerrar
 
 - **Sesión de trabajo `rw`**: al cerrar se **remueve el worktree**; la **branch se preserva**
   (los commits quedan). Si hay cambios sin commitear en el worktree → **advertir/confirmar**.
@@ -181,12 +190,13 @@ actualiza el árbol → render. Cambios de status llegan por `event` (WebSocket)
 7. Los roles cargan de `.ide/config.toml` y afectan la sesión (al menos read-only).
 8. Tests de back y front pasan.
 
-## Defaults a confirmar en revisión
+## Decisiones confirmadas
 
-- **Auto-arrancar Claude Code al crear** la sesión (sembrado con description+rol). Propuesto: sí.
-- **Cerrar**: remover worktree, preservar branch, advertir si hay cambios sin commitear.
+- **Auto-arrancar Claude Code al crear** la sesión, sembrado con `description` + rol. ✅
+- **Cerrar**: remover worktree, **preservar la branch**, advertir si hay cambios sin
+  commitear; nunca tocar base/`main`. ✅
 - **`kind: dir`** (path arbitrario, no repo): soportado como working dir con terminales +
-  Claude Code, sin branch/worktree. Propuesto: sí.
+  Claude Code, sin branch/worktree. ✅
 
 ## Fuera de alcance (rebanadas posteriores)
 
