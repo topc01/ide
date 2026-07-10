@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #161513; --foreground: #f0ece4;
+  --card: #1c1a17; --card-foreground: #f0ece4;
+  --popover: #1c1a17; --popover-foreground: #f0ece4;
+  --primary: #e0863f; --primary-foreground: #161513;
+  --secondary: #211e1a; --secondary-foreground: #f0ece4;
+  --muted: #211e1a; --muted-foreground: #75705f;
+  --accent: #2e2820; --accent-foreground: #f0ece4;
+  --destructive: #c96a4e; --destructive-foreground: #f0ece4;
+  --border: #332f28; --input: #332f28; --ring: #e0863f;
+  --radius: 0.5rem;
+  --title-bg: #131210; --terminal-bg: #0f0e0c;
+  --status-running: #7fb069; --status-idle: #7d7568; --status-done: #6b8fbf;
+  --role-pill-bg: #2e2820;
+}
+* { border-color: var(--border); }
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--background); color: var(--foreground);
+  font-family: Inter, system-ui, sans-serif; font-size: 13px; }
