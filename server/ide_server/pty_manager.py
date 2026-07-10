@@ -1,8 +1,11 @@
 from __future__ import annotations
+import fcntl
 import os
 import pty
 import select
 import signal
+import struct
+import termios
 import uuid
 from pathlib import Path
 
@@ -38,6 +41,11 @@ class PtyManager:
 
     def write(self, tid: str, data: bytes) -> None:
         os.write(self._terms[tid]["fd"], data)
+
+    def resize(self, tid: str, cols: int, rows: int) -> None:
+        fd = self._terms[tid]["fd"]
+        winsize = struct.pack("HHHH", rows, cols, 0, 0)
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
 
     def is_alive(self, tid: str) -> bool:
         t = self._terms.get(tid)
