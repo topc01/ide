@@ -12,9 +12,12 @@ como referencia de dominio**, no como base de código).
 
 ## Reglas de oro (no negociables)
 
-1. **Fidelidad de UI.** Se implementa contra el mockup (`docs/design/handoff/`), dirección
-   visual **1a — Terminal/amber**, con los tokens exactos de `docs/design/REFERENCES.md`.
-   Nada de estética "por defecto". La UI es prioridad del dueño del proyecto.
+1. **Fidelidad de UI.** Identidad visual **1a — Terminal/amber** (paleta ámbar/terminal,
+   tokens en `docs/design/REFERENCES.md`) implementada vía **shadcn/ui + Tailwind**:
+   componentes con el look/pulido nativo de shadcn, **tematizados** a los tokens 1a. El
+   mockup (`docs/design/handoff/`) es **referencia de layout/identidad**, no objetivo pixel.
+   La UI es prioridad del dueño del proyecto. (Cambiado 2026-07-09; ver
+   `docs/superpowers/specs/2026-07-09-ui-shadcn-design.md`.)
 2. **TDD.** Test que falla → implementación mínima → test que pasa → commit. El plan ya viene
    en pasos TDD; seguilos.
 3. **Rebanadas verticales.** Se construye por rebanadas (R0–R6, ver `docs/design/ROADMAP.md`),
