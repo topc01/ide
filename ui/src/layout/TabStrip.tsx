@@ -1,21 +1,22 @@
+import { X } from "lucide-react";
 import { useStore } from "../state/store";
+import { cn } from "../lib/utils";
 
 export function TabStrip() {
   const { openTabs, activeTabId, closeTab } = useStore();
-  const tab = (id: string, label: string, closable: boolean) => {
-    const active = activeTabId === id;
-    return (
-      <div key={id} style={{ padding: "6px 12px", fontSize: 12, display: "flex", gap: 6,
-        color: active ? "var(--text-primary)" : "var(--text-muted)",
-        borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent" }}>
-        {label}{closable && <span onClick={() => closeTab(id)} style={{ cursor: "pointer" }}>×</span>}
-      </div>
-    );
-  };
+  const tabCls = (active: boolean) =>
+    cn("flex items-center gap-1.5 px-3 py-1.5 text-xs border-b-2",
+       active ? "text-foreground border-primary" : "text-muted-foreground border-transparent");
   return (
-    <div style={{ display: "flex", background: "var(--title-bg)", borderBottom: "1px solid var(--border)" }}>
-      {tab("chat", "Chat", false)}
-      {openTabs.map((t) => tab(t.id, t.label, true))}
+    <div className="flex border-b border-border bg-title-bg">
+      <div className={tabCls(activeTabId === "chat")}>Chat</div>
+      {openTabs.map((t) => (
+        <div key={t.id} className={tabCls(activeTabId === t.id)}>
+          {t.label}
+          <button aria-label={`cerrar ${t.label}`} onClick={() => closeTab(t.id)}
+            className="text-muted-foreground hover:text-foreground"><X size={12} /></button>
+        </div>
+      ))}
     </div>
   );
 }

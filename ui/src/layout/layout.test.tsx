@@ -1,6 +1,6 @@
 // ui/src/layout/layout.test.tsx
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import "../modules/stubs";
 import { useStore } from "../state/store";
 import { ActivityRail } from "./ActivityRail";
@@ -23,5 +23,11 @@ describe("layout", () => {
   it("TabStrip tiene la pestaña Chat fija", () => {
     render(<TabStrip />);
     expect(screen.getByText("Chat")).toBeInTheDocument();
+  });
+  it("TabStrip cierra una tab abierta con la ×", () => {
+    useStore.setState({ openTabs: [{ id: "t1", type: "terminal", label: "zsh" }], activeTabId: "t1" });
+    render(<TabStrip />);
+    fireEvent.click(screen.getByRole("button", { name: /cerrar zsh/i }));
+    expect(useStore.getState().openTabs).toHaveLength(0);
   });
 });
