@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import base64
 import os
 from pathlib import Path
@@ -33,6 +34,24 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
         cmd = payload.get("cmd") or [os.environ.get("SHELL", "/bin/zsh")]
         tid = pty.spawn(cwd, cmd)
         terms[tid] = {"sessionId": payload.get("sessionId"), "cmd": cmd, "cwd": str(cwd)}
+
+        loop = asyncio.get_running_loop()
+        fd = pty.fd(tid)
+
+        def _on_readable() -> None:
+            data = pty.read(tid, timeout=0.0)
+            if data:
+                loop.create_task(manager.broadcast(
+                    f"terminal.data.{tid}",
+                    {"data": base64.b64encode(data).decode()}))
+            if not pty.is_alive(tid):
+                try:
+                    loop.remove_reader(fd)
+                except (OSError, ValueError):
+                    pass
+                loop.create_task(manager.broadcast(f"terminal.exit.{tid}", {}))
+
+        loop.add_reader(fd, _on_readable)
         return {"id": tid, "cwd": str(cwd)}
 
     async def list_(payload: dict) -> dict:
@@ -50,6 +69,10 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
         return {"ok": True}
 
     async def close_(payload: dict) -> dict:
+        try:
+            asyncio.get_running_loop().remove_reader(pty.fd(payload["id"]))
+        except (OSError, ValueError, KeyError):
+            pass
         pty.close(payload["id"])
         terms.pop(payload["id"], None)
         return {"ok": True}

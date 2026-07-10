@@ -7,6 +7,7 @@ from ide_server.plugins import Registry
 from ide_server.bus import handle_message, ConnectionManager
 from ide_server.capabilities import repos as repos_cap
 from ide_server.capabilities import sessions as sessions_cap
+from ide_server.capabilities import terminals as terminals_cap
 
 
 def create_app(root: Path) -> FastAPI:
@@ -15,6 +16,7 @@ def create_app(root: Path) -> FastAPI:
     repos_cap.register(registry, root)
     sessions_cap.register(registry, root)
     manager = ConnectionManager()
+    terminals_cap.register(registry, root, manager)
 
     app = FastAPI(title="Agentic IDE")
     app.add_middleware(
