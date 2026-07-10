@@ -1,7 +1,7 @@
 # R2 — Terminal · Design
 
-Fecha: 2026-07-08 · Estado: **en revisión** · Rebanada: R2 del `docs/design/ROADMAP.md`.
-Depende de: R0 (Fundación), R1 (Sesiones).
+Fecha: 2026-07-08 (aclaraciones 2026-07-09) · Estado: **aprobado** · Rebanada: R2 del
+`docs/design/ROADMAP.md`. Depende de: R0 (Fundación), R1 (Sesiones).
 
 ## Objetivo
 
@@ -102,3 +102,30 @@ frontend abre `TerminalTab`, se suscribe al canal → bytes fluyen por WS. Resiz
 
 Chat con Claude (R3), diffs (R4), graphite (R5), tasks/notion (R6). El branch-switcher
 avanzado y las terminales de arranque ricas quedan como extensión.
+
+## Aclaraciones de planificación (2026-07-09, sobre la realidad de R1)
+
+Cerradas al planificar R2 sobre R1 ya mergeado a `main`:
+
+- **Decisión de alcance (A): R2 = fundación de terminal genérica, pura.** Entrega el
+  `pty_manager` + terminales shell on-demand exactamente como este spec. **NO** arranca
+  Claude Code como proceso de la sesión: el `SessionLauncher` de R1 sigue como `NullLauncher`.
+  "Claude Code corriendo en un PTY" + el canal **`fide`** (comunicación entre sesiones,
+  portado de `orq.js` de finnecto) es la **rebanada siguiente (Orquestación)**, que reusa el
+  `pty_manager` de R2. Esto mantiene R2 como una rebanada vertical chica y testeable sola
+  (echo→salida, resize, close) sin arrastrar la complejidad de proceso/socket de fide.
+- **PTY en Python = stdlib, sin deps nuevas.** `pty.openpty()`/`os.openpty()` + `os.fork`/
+  `os.execvp` (o `pty.fork`), lectura no-bloqueante vía `asyncio` (`loop.add_reader` sobre el
+  fd master), escritura con `os.write`, resize con `fcntl.ioctl(fd, TIOCSWINSZ, ...)`, y
+  `os.kill`/close del fd al cerrar. Referencia de patrón (no de código, es JS): `term.js` de
+  finnecto usa `node-pty` + xterm headless; nosotros hacemos el equivalente con stdlib +
+  `xterm.js` en el browser. Solo caer a `ptyprocess`/`pexpect` si el stdlib se vuelve tosco.
+- **`SessionNode.terminals: []`** ya existe (R1). R2 lo llena: la **lista** (nombre/comando)
+  persiste en `.ide/sessions.json`; los **PTYs son runtime** (no se relanzan solos al reabrir).
+- **Costuras con R0/R1 (reusar, no reinventar):** envelope WS + `Registry`/`handle_message`,
+  `ConnectionManager.broadcast` (ya emite `event` a los clientes — base del streaming de
+  salida del PTY), el árbol/worktrees de sesiones (`cwd` = `worktreePath`), theming 1a +
+  terminal-bg `#0f0e0c`, y el patrón de capacidad registrada (`register(registry, root)`).
+- **Transporte de datos del PTY:** un `channel` por terminal id sobre el envelope de R0;
+  la salida viaja como `event` (`terminal.data`), la entrada/resize/close como `req`. Datos
+  binarios del PTY en **base64** dentro del payload (JSON-safe).
