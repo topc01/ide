@@ -1,4 +1,5 @@
 from __future__ import annotations
+import base64
 import os
 from pathlib import Path
 from ide_server.plugins import Registry
@@ -40,8 +41,24 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
                for tid, t in terms.items() if t["sessionId"] == sid]
         return {"terminals": out}
 
+    async def write_(payload: dict) -> dict:
+        pty.write(payload["id"], base64.b64decode(payload["data"]))
+        return {"ok": True}
+
+    async def resize_(payload: dict) -> dict:
+        pty.resize(payload["id"], int(payload["cols"]), int(payload["rows"]))
+        return {"ok": True}
+
+    async def close_(payload: dict) -> dict:
+        pty.close(payload["id"])
+        terms.pop(payload["id"], None)
+        return {"ok": True}
+
     registry.register("terminal.open", open_)
     registry.register("terminal.list", list_)
+    registry.register("terminal.write", write_)
+    registry.register("terminal.resize", resize_)
+    registry.register("terminal.close", close_)
 
     # compartido con Tasks 4-5 (write/resize/close + streaming) vía cierre:
     register._pty = pty        # type: ignore[attr-defined]
