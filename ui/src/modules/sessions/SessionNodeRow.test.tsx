@@ -25,4 +25,10 @@ describe("SessionNodeRow", () => {
     const row = screen.getByText("Coord").closest("[data-session-row]") as HTMLElement;
     expect(row.style.paddingLeft).toBe("32px");   // 2 * 16
   });
+
+  it("el status dot usa la clase de color de estado", () => {
+    render(<SessionNodeRow node={node() as any} depth={0} />);
+    const row = screen.getByText("Coord").closest("[data-session-row]") as HTMLElement;
+    expect(row.querySelector(".bg-status-running")).not.toBeNull();
+  });
 });
