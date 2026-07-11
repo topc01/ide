@@ -5,8 +5,11 @@ import { SessionNodeRow } from "./SessionNodeRow";
 import { fetchTree } from "../../transport/sessions";
 import { getWs } from "../../transport/wsClient";
 
-const label = { fontSize: 10, textTransform: "uppercase" as const, letterSpacing: 0.6,
-  color: "var(--text-muted)", margin: "10px 10px 4px" };
+const Label = ({ children }: { children: React.ReactNode }) => (
+  <div className="mx-2.5 mb-1 mt-2.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+    {children}
+  </div>
+);
 
 export function SessionsPanel() {
   const { tree, repos, setData, openModal } = useSessions();
@@ -16,28 +19,29 @@ export function SessionsPanel() {
   }, [setData]);
 
   return (
-    <aside style={{ width: 272, background: "var(--panel-bg)", borderRight: "1px solid var(--border)",
-      overflow: "auto", display: "flex", flexDirection: "column" }}>
-      <div style={label}>Repos</div>
+    <aside className="flex w-[272px] flex-col overflow-auto border-r border-border bg-card">
+      <Label>Repos</Label>
       {repos.map((r) => (
-        <div key={r.id} style={{ display: "flex", justifyContent: "space-between",
-          padding: "4px 10px", fontSize: 12 }}>
+        <div key={r.id} className="flex justify-between px-2.5 py-1 text-xs">
           <span>{r.name}</span>
-          <span className="mono" style={{ color: "var(--accent)", fontSize: 11 }}>{r.branch}</span>
+          <span className="font-mono text-[11px] text-primary">{r.branch}</span>
         </div>
       ))}
 
-      <div style={{ ...label, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="mx-2.5 mb-1 mt-2.5 flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
         <span>Sesiones</span>
-        <Plus size={13} onClick={() => openModal(null)}
-          style={{ cursor: "pointer", color: "var(--text-muted)" }} aria-label="Nueva sesión" />
+        <Plus
+          size={13}
+          onClick={() => openModal(null)}
+          className="cursor-pointer text-muted-foreground"
+          aria-label="Nueva sesión"
+        />
       </div>
       {tree.map((n) => <SessionNodeRow key={n.id} node={n} depth={0} />)}
 
       <div
         onClick={() => openModal(null)}
-        style={{ margin: "6px 10px", padding: "5px 8px", fontSize: 11, cursor: "pointer",
-          color: "var(--text-muted)", border: "1px dashed var(--border)", borderRadius: 6 }}
+        className="mx-2.5 my-1.5 cursor-pointer rounded-md border border-dashed border-border px-2 py-1.5 text-[11px] text-muted-foreground"
       >
         + Agregar sesión
       </div>

@@ -31,4 +31,10 @@ describe("SessionsPanel", () => {
     fireEvent.click(screen.getByText(/Agregar sesión/i));
     expect(useSessions.getState().modalParentId).toBe(null);
   });
+
+  it("la fila '+ Agregar sesión' usa borde dashed (clase)", async () => {
+    render(<SessionsPanel />);
+    await waitFor(() => screen.getByText(/Agregar sesión/i));
+    expect(screen.getByText(/Agregar sesión/i).className).toMatch(/border-dashed/);
+  });
 });
