@@ -2,10 +2,14 @@ import { useEffect, useState } from "react";
 import { useSessions } from "../../state/sessions";
 import { createSession, fetchTree, fetchBranches, type CreatePayload, type Branch } from "../../transport/sessions";
 import { getWs } from "../../transport/wsClient";
-
-const field: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 3, marginBottom: 10 };
-const input: React.CSSProperties = { background: "var(--terminal-bg)", color: "var(--text-primary)",
-  border: "1px solid var(--border)", borderRadius: 6, padding: "6px 8px", fontSize: 12 };
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../components/ui/dialog";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { Button } from "../../components/ui/button";
+import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../../components/ui/select";
 
 export function NewSessionModal() {
   const { modalParentId, closeModal, repos, setData } = useSessions();
@@ -27,14 +31,14 @@ export function NewSessionModal() {
     }
   }, [kind, branchMode, repoId]);
 
-  if (modalParentId === undefined) return null;
+  const open = modalParentId !== undefined;
 
   const canSubmit = Boolean(name.trim()) && !(kind === "work" && branchMode === "existing" && !existingBranch);
 
   const submit = async () => {
     const payload: CreatePayload = {
       name, description: description || undefined, role: role || null,
-      parentId: modalParentId, kind,
+      parentId: modalParentId ?? null, kind,
       ...(kind === "work" ? {
         repoId, access,
         ...(branchMode === "new"
@@ -49,89 +53,108 @@ export function NewSessionModal() {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "grid",
-      placeItems: "center", zIndex: 50 }} onClick={closeModal}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 420, background: "var(--panel-bg)",
-        border: "1px solid var(--border)", borderRadius: 10, padding: 18 }}>
-        <div style={{ fontSize: 14, color: "var(--text-primary)", marginBottom: 14 }}>Nueva sesión</div>
+    <Dialog open={open} onOpenChange={(next) => { if (!next) closeModal(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Nueva sesión</DialogTitle>
+        </DialogHeader>
 
-        <label style={field}><span style={{ fontSize: 11, color: "var(--text-muted)" }}>Nombre</span>
-          <input aria-label="Nombre" style={input} value={name}
-            onChange={(e) => setName(e.target.value)} /></label>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="new-session-name">Nombre</Label>
+          <Input id="new-session-name" aria-label="Nombre" value={name}
+            onChange={(e) => setName(e.target.value)} />
+        </div>
 
-        <label style={field}><span style={{ fontSize: 11, color: "var(--text-muted)" }}>Descripción</span>
-          <input aria-label="Descripción" style={input} value={description}
-            onChange={(e) => setDescription(e.target.value)} /></label>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="new-session-description">Descripción</Label>
+          <Input id="new-session-description" aria-label="Descripción" value={description}
+            onChange={(e) => setDescription(e.target.value)} />
+        </div>
 
-        <label style={field}><span style={{ fontSize: 11, color: "var(--text-muted)" }}>Rol</span>
-          <select aria-label="Rol" style={input} value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="">Sin rol</option>
-            <option value="lector">Lector</option>
-            <option value="revisor">Revisor</option>
-            <option value="arquitecto">Arquitecto</option>
-            <option value="disenador">Diseñador</option>
-          </select></label>
+        <div className="flex flex-col gap-1.5">
+          <Label>Rol</Label>
+          <Select value={role || "__none__"} onValueChange={(v) => setRole(v === "__none__" ? "" : v)}>
+            <SelectTrigger aria-label="Rol"><SelectValue placeholder="Sin rol" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Sin rol</SelectItem>
+              <SelectItem value="lector">Lector</SelectItem>
+              <SelectItem value="revisor">Revisor</SelectItem>
+              <SelectItem value="arquitecto">Arquitecto</SelectItem>
+              <SelectItem value="disenador">Diseñador</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        <label style={field}><span style={{ fontSize: 11, color: "var(--text-muted)" }}>Tipo</span>
-          <select aria-label="Tipo" style={input} value={kind}
-            onChange={(e) => setKind(e.target.value as "coordinator" | "work")}>
-            <option value="coordinator">Coordinadora (sin branch)</option>
-            <option value="work">De trabajo (worktree + branch)</option>
-          </select></label>
+        <div className="flex flex-col gap-1.5">
+          <Label>Tipo</Label>
+          <Select value={kind} onValueChange={(v) => setKind(v as "coordinator" | "work")}>
+            <SelectTrigger aria-label="Tipo"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="coordinator">Coordinadora (sin branch)</SelectItem>
+              <SelectItem value="work">De trabajo (worktree + branch)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         {kind === "work" && (
           <>
-            <label style={field}><span style={{ fontSize: 11, color: "var(--text-muted)" }}>Repo</span>
-              <select aria-label="Repo" style={input} value={repoId}
-                onChange={(e) => setRepoId(e.target.value)}>
-                {repos.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select></label>
+            <div className="flex flex-col gap-1.5">
+              <Label>Repo</Label>
+              <Select value={repoId} onValueChange={setRepoId}>
+                <SelectTrigger aria-label="Repo"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {repos.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <div style={{ ...field, gap: 8 }}>
-              <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                <input type="radio" name="bmode" aria-label="Branch nueva"
-                  checked={branchMode === "new"} onChange={() => setBranchMode("new")} /> Branch nueva
-              </label>
-              {branchMode === "new" && (
-                <input aria-label="Nombre de branch" style={input} placeholder="default = slug del nombre"
-                  value={newBranch} onChange={(e) => setNewBranch(e.target.value)} />
-              )}
-              <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                <input type="radio" name="bmode" aria-label="Modo: branch existente"
-                  checked={branchMode === "existing"} onChange={() => setBranchMode("existing")} /> Usar existente
-              </label>
+            <div className="flex flex-col gap-2">
+              <RadioGroup value={branchMode} onValueChange={(v) => setBranchMode(v as "new" | "existing")}>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="new" id="branch-mode-new" aria-label="Branch nueva" />
+                  <Label htmlFor="branch-mode-new">Branch nueva</Label>
+                </div>
+                {branchMode === "new" && (
+                  <Input aria-label="Nombre de branch" placeholder="default = slug del nombre"
+                    value={newBranch} onChange={(e) => setNewBranch(e.target.value)} />
+                )}
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="existing" id="branch-mode-existing" aria-label="Modo: branch existente" />
+                  <Label htmlFor="branch-mode-existing">Usar existente</Label>
+                </div>
+              </RadioGroup>
               {branchMode === "existing" && (
                 <>
-                  <input aria-label="Buscar branch" style={input} placeholder="buscar…"
+                  <Input aria-label="Buscar branch" placeholder="buscar…"
                     value={query} onChange={(e) => setQuery(e.target.value)} />
-                  <select aria-label="Branch existente" size={4} style={input} value={existingBranch}
-                    onChange={(e) => setExistingBranch(e.target.value)}>
-                    {branches.filter((b) => b.name.includes(query)).map((b) => (
-                      <option key={b.name} value={b.name} disabled={b.occupied && access === "rw"}>
-                        {b.occupied ? `${b.name} · ocupada` : b.name}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={existingBranch} onValueChange={setExistingBranch}>
+                    <SelectTrigger aria-label="Branch existente"><SelectValue placeholder="Elegir branch" /></SelectTrigger>
+                    <SelectContent>
+                      {branches.filter((b) => b.name.includes(query)).map((b) => (
+                        <SelectItem key={b.name} value={b.name} disabled={b.occupied && access === "rw"}>
+                          {b.occupied ? `${b.name} · ocupada` : b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </>
               )}
-              <select aria-label="Acceso" style={input} value={access}
-                onChange={(e) => setAccess(e.target.value as "rw" | "ro")}>
-                <option value="rw">rw (worktree exclusivo)</option>
-                <option value="ro">ro (detached, repetible)</option>
-              </select>
+              <Select value={access} onValueChange={(v) => setAccess(v as "rw" | "ro")}>
+                <SelectTrigger aria-label="Acceso"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rw">rw (worktree exclusivo)</SelectItem>
+                  <SelectItem value="ro">ro (detached, repetible)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </>
         )}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-          <button onClick={closeModal} style={{ ...input, cursor: "pointer" }}>Cancelar</button>
-          <button onClick={submit} disabled={!canSubmit} style={{
-            border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 12,
-            cursor: canSubmit ? "pointer" : "not-allowed",
-            background: canSubmit ? "var(--accent)" : "var(--border)", color: "var(--on-accent)",
-          }}>Crear</button>
-        </div>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={closeModal}>Cancelar</Button>
+          <Button onClick={submit} disabled={!canSubmit}>Crear</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
