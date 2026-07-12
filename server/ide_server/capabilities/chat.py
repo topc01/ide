@@ -34,7 +34,10 @@ def register(registry: Registry, root: Path, manager, driver_factory=None) -> No
         if not broadcast_tasks:
             return
         tasks, broadcast_tasks[:] = list(broadcast_tasks), []
-        await asyncio.gather(*tasks)
+        # return_exceptions: un socket muerto en un broadcast (posiblemente de otra
+        # sesión, ya que la lista es compartida) no debe tumbar la respuesta de este
+        # handler. La caída de conexión la maneja la capa WS ("desconectado" + resume).
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _await_permission(session_id: str, request_id: str) -> bool:
         loop = asyncio.get_event_loop()
