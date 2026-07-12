@@ -1,8 +1,14 @@
 from __future__ import annotations
+import uuid
 from typing import Awaitable, Callable
-from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
-from ide_server.chat.translate import translate
-from ide_server.chat.events import Done
+from claude_agent_sdk import (
+    ClaudeSDKClient,
+    ClaudeAgentOptions,
+    PermissionResultAllow,
+    PermissionResultDeny,
+)
+from ide_server.chat.translate import translate, _tool_detail
+from ide_server.chat.events import Done, PermissionRequest
 
 EventCb = Callable[[object], None]
 PermissionCb = Callable[[str, dict], Awaitable[bool]] | None
@@ -22,7 +28,22 @@ class ClaudeDriver:
             opts["allowed_tools"] = allowed_tools
         if resume:
             opts["resume"] = resume
+        if permission_mode != "bypassPermissions" and on_permission is not None:
+            opts["can_use_tool"] = self._make_permission_callback()
         self._client = self._factory(options=ClaudeAgentOptions(**opts))
+
+    def _make_permission_callback(self):
+        async def can_use_tool(tool_name: str, input_data: dict, context) -> object:
+            req_id = str(uuid.uuid4())
+            self._on_event(PermissionRequest(id=req_id, tool=tool_name,
+                                             detail=_tool_detail(tool_name, input_data)))
+            allowed = True
+            if self._on_permission is not None:
+                allowed = await self._on_permission(req_id)
+            if allowed:
+                return PermissionResultAllow(updated_input=input_data)
+            return PermissionResultDeny(message="Denegado por el usuario")
+        return can_use_tool
 
     async def start(self) -> None:
         await self._client.__aenter__()
