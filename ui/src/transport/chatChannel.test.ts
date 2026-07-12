@@ -6,6 +6,7 @@ function fakeWs() {
   return {
     request: vi.fn((_c: string, _p: any) => Promise.resolve({ started: true })),
     on: (ch: string, cb: (p: any) => void) => { listeners[ch] = cb; },
+    off: (ch: string, cb: (p: any) => void) => { if (listeners[ch] === cb) delete listeners[ch]; },
     _emit: (ch: string, p: any) => listeners[ch]?.(p),
   } as any;
 }
@@ -29,5 +30,12 @@ describe("chatChannel", () => {
     subscribeChat(ws, "s1", (e) => got.push(e));
     ws._emit("chat.event.s1", { kind: "text_delta", text: "hi" });
     expect(got[0]).toEqual({ kind: "text_delta", text: "hi" });
+  });
+  it("subscribeChat devuelve una función que desuscribe el listener", () => {
+    const ws = fakeWs(); const got: any[] = [];
+    const unsub = subscribeChat(ws, "s1", (e) => got.push(e));
+    unsub();
+    ws._emit("chat.event.s1", { kind: "text_delta", text: "hi" });
+    expect(got).toHaveLength(0);
   });
 });

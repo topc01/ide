@@ -7,18 +7,24 @@ from ide_server.chat.permissions import resolve_permission
 from ide_server.chat.events import to_payload
 
 def _load_session_context(root: Path, session_id: str) -> dict:
-    # Devuelve {cwd, system_prompt, role} de la sesión. Implementación mínima:
-    # busca el nodo en sessions.json y arma cwd=worktreePath, system_prompt del rol.
+    # Devuelve {cwd, system_prompt, role, model} de la sesión. Resuelve el rol
+    # real (preset de .ide/config.toml) para que permisos y modelo se apliquen.
     from ide_server.sessions_store import load_sessions, find_node
+    from ide_server.roles import resolve_role
     tree = load_sessions(root)
     node = find_node(tree, session_id)
     if node is None:
         raise KeyError(session_id)
     cwd = node.get("worktreePath") or str(root)
-    role = node.get("role")
+    role_name = node.get("role")
+    r = resolve_role(root, role_name)
     desc = node.get("description") or ""
-    system_prompt = f"{desc}".strip() or "Sos un asistente de código."
-    return {"cwd": cwd, "system_prompt": system_prompt, "role": {"name": role} if role else None}
+    system_prompt = "\n\n".join(
+        p for p in [desc, r.system_prompt if r else None] if p
+    ) or "Sos un asistente de código."
+    role = {"read_only": r.read_only} if r is not None else None
+    model = r.model if r else None
+    return {"cwd": cwd, "system_prompt": system_prompt, "role": role, "model": model}
 
 def register(registry: Registry, root: Path, manager, driver_factory=None) -> None:
     factory = driver_factory or ClaudeDriver
@@ -56,7 +62,7 @@ def register(registry: Registry, root: Path, manager, driver_factory=None) -> No
         mode, allowed = resolve_permission(ctx["role"], payload.get("override"))
         driver = factory(
             cwd=ctx["cwd"], system_prompt=ctx["system_prompt"],
-            permission_mode=mode, allowed_tools=allowed,
+            permission_mode=mode, allowed_tools=allowed, model=ctx.get("model"),
             on_event=lambda e, s=sid: _emit(s, e),
             on_permission=lambda req_id, s=sid: _await_permission(s, req_id),
         )

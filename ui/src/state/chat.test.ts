@@ -39,4 +39,11 @@ describe("useChat.applyEvent", () => {
     expect(c.permission).toEqual({ id: "p1", tool: "Write", detail: "a.py" });
     expect(c.error).toEqual({ code: "boom", message: "roto" });
   });
+  it("clearPermission limpia el permiso pendiente de la sesión", () => {
+    const { applyEvent, clearPermission } = useChat.getState();
+    applyEvent("s1", { kind: "permission_request", id: "p1", tool: "Write", detail: "a.py" });
+    expect(useChat.getState().convos["s1"].permission).not.toBeNull();
+    clearPermission("s1");
+    expect(useChat.getState().convos["s1"].permission).toBeNull();
+  });
 });

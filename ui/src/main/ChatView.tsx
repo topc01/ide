@@ -9,15 +9,18 @@ import { PermissionPrompt } from "../chat/PermissionPrompt";
 
 export function ChatView() {
   const activeSessionId = useSessions((s) => s.activeSessionId);
-  const { convos, applyEvent, setStarting, pushUser } = useChat();
+  const { convos, applyEvent, setStarting, pushUser, clearPermission } = useChat();
   const scrollRef = useRef<HTMLDivElement>(null);
   const sid = activeSessionId;
 
   useEffect(() => {
     if (!sid) return;
     setStarting(sid, true);
-    subscribeChat(getWs(), sid, (e) => applyEvent(sid, e));
-    startChat(getWs(), sid).finally(() => setStarting(sid, false));
+    const unsub = subscribeChat(getWs(), sid, (e) => applyEvent(sid, e));
+    startChat(getWs(), sid)
+      .catch((err) => applyEvent(sid, { kind: "error", code: "chat_error", message: String(err?.message ?? err) }))
+      .finally(() => setStarting(sid, false));
+    return unsub;
   }, [sid, applyEvent, setStarting]);
 
   useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight); });
@@ -38,9 +41,16 @@ export function ChatView() {
       </div>
       {c?.permission && (
         <PermissionPrompt tool={c.permission.tool} detail={c.permission.detail}
-          onDecide={(allow) => permissionDecision(getWs(), sid, c.permission!.id, allow)} />)}
+          onDecide={(allow) => {
+            permissionDecision(getWs(), sid, c.permission!.id, allow);
+            clearPermission(sid);
+          }} />)}
       <Composer streaming={!!c?.streaming}
-        onSend={(t) => { pushUser(sid, t); sendChat(getWs(), sid, t); }}
+        onSend={(t) => {
+          pushUser(sid, t);
+          sendChat(getWs(), sid, t).catch((err) =>
+            applyEvent(sid, { kind: "error", code: "chat_error", message: String(err?.message ?? err) }));
+        }}
         onStop={() => interruptChat(getWs(), sid)} />
     </div>
   );

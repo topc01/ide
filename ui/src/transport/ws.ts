@@ -47,4 +47,9 @@ export class WsClient {
   on(channel: string, cb: (p: any) => void) {
     this.listeners.set(channel, [...(this.listeners.get(channel) ?? []), cb]);
   }
+  off(channel: string, cb: (p: any) => void) {
+    const next = (this.listeners.get(channel) ?? []).filter((l) => l !== cb);
+    if (next.length === 0) this.listeners.delete(channel);
+    else this.listeners.set(channel, next);
+  }
 }

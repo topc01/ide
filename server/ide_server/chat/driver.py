@@ -17,7 +17,7 @@ class ClaudeDriver:
     def __init__(self, *, cwd: str, system_prompt: str, permission_mode: str,
                  allowed_tools: list[str] | None, on_event: EventCb,
                  on_permission: PermissionCb, resume: str | None = None,
-                 client_factory=None) -> None:
+                 model: str | None = None, client_factory=None) -> None:
         self._on_event = on_event
         self._on_permission = on_permission
         self._factory = client_factory or ClaudeSDKClient
@@ -26,6 +26,8 @@ class ClaudeDriver:
                       "permission_mode": permission_mode, "include_partial_messages": False}
         if allowed_tools is not None:
             opts["allowed_tools"] = allowed_tools
+        if model is not None:
+            opts["model"] = model
         if resume:
             opts["resume"] = resume
         if permission_mode != "bypassPermissions" and on_permission is not None:

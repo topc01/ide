@@ -70,4 +70,16 @@ describe("WsClient", () => {
     const c = new WsClient("ws://x/ws");
     await expect(c.request("t.inc", { n: 1 })).rejects.toThrow();
   });
+
+  it("off() remueve el listener exacto y deja de recibir eventos del canal", async () => {
+    const c = new WsClient("ws://x/ws"); await c.ready();
+    const got: any[] = [];
+    const cb = (p: any) => got.push(p);
+    (c as any).on("chat.event.s1", cb);
+    (c as any).onMessage({ type: "event", channel: "chat.event.s1", payload: { n: 1 } });
+    expect(got).toHaveLength(1);
+    (c as any).off("chat.event.s1", cb);
+    (c as any).onMessage({ type: "event", channel: "chat.event.s1", payload: { n: 2 } });
+    expect(got).toHaveLength(1);
+  });
 });

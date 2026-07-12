@@ -14,6 +14,7 @@ interface ChatState {
   applyEvent: (sid: string, e: any) => void;
   setStarting: (sid: string, v: boolean) => void;
   pushUser: (sid: string, text: string) => void;
+  clearPermission: (sid: string) => void;
 }
 
 const empty = (): Convo => ({ messages: [], streaming: false, permission: null, error: null, starting: false });
@@ -36,6 +37,10 @@ export const useChat = create<ChatState>((set) => ({
     const c = { ...(s.convos[sid] ?? empty()) };
     c.messages = [...c.messages, { role: "user", text, chips: [] }];
     c.streaming = true;
+    return { convos: { ...s.convos, [sid]: c } };
+  }),
+  clearPermission: (sid) => set((s) => {
+    const c = { ...(s.convos[sid] ?? empty()), permission: null };
     return { convos: { ...s.convos, [sid]: c } };
   }),
   applyEvent: (sid, e) => set((s) => {

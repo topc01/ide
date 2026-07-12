@@ -14,6 +14,8 @@ export function permissionDecision(ws: WsClient, sessionId: string,
   return ws.request("chat.permission", { sessionId, requestId, allow });
 }
 export function subscribeChat(ws: WsClient, sessionId: string,
-  onEvent: (e: any) => void): void {
-  ws.on(`chat.event.${sessionId}`, onEvent);
+  onEvent: (e: any) => void): () => void {
+  const channel = `chat.event.${sessionId}`;
+  ws.on(channel, onEvent);
+  return () => ws.off(channel, onEvent);
 }
