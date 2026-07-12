@@ -1,6 +1,7 @@
 import { TabStrip } from "./TabStrip";
 import { useStore } from "../state/store";
 import { TerminalTab } from "../main/TerminalTab";
+import { ChatView } from "../main/ChatView";
 
 export function MainPanel() {
   const { openTabs, activeTabId } = useStore();
@@ -11,7 +12,9 @@ export function MainPanel() {
       <div className="min-h-0 flex-1">
         {active?.type === "terminal"
           ? <TerminalTab id={active.id} />
-          : <div className="p-4 text-sm text-muted-foreground">{active ? `Tab: ${active.id}` : "Chat (R3)"}</div>}
+          : active
+            ? <div className="p-4 text-sm text-muted-foreground">{`Tab: ${active.id}`}</div>
+            : <ChatView />}
       </div>
     </main>
   );

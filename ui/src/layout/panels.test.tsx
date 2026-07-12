@@ -11,8 +11,8 @@ describe("panels", () => {
     render(<ContextPanel />);
     expect(screen.getByText(/Search — próximamente/i)).toBeInTheDocument();
   });
-  it("MainPanel muestra el placeholder de Chat", () => {
+  it("MainPanel renderiza ChatView cuando no hay sesión activa", () => {
     render(<MainPanel />);
-    expect(screen.getByText(/Chat \(R3\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Seleccioná una sesión para chatear\./i)).toBeInTheDocument();
   });
 });
