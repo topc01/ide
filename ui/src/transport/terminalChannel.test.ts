@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import { openTerminal, writeTerminal, subscribeTerminal } from "./terminalChannel";
+import { openTerminal, writeTerminal, subscribeTerminal, listTerminals } from "./terminalChannel";
 
-function fakeWs() {
+function fakeWs(resp: any = { id: "t1", cwd: "/x" }) {
   const listeners: Record<string, (p: any) => void> = {};
   return {
-    request: vi.fn((_c: string, _p: any) => Promise.resolve({ id: "t1", cwd: "/x" })),
+    request: vi.fn((_c: string, _p: any) => Promise.resolve(resp)),
     on: (ch: string, cb: (p: any) => void) => { listeners[ch] = cb; },
     _emit: (ch: string, p: any) => listeners[ch]?.(p),
   } as any;
@@ -27,5 +27,10 @@ describe("terminalChannel", () => {
     subscribeTerminal(ws, "t1", (b) => chunks.push(b), () => {});
     ws._emit("terminal.data.t1", { data: btoa("AB") });
     expect(Array.from(chunks[0])).toEqual([65, 66]);
+  });
+  it("listTerminals pide terminal.list con sessionId y devuelve el array", async () => {
+    const ws = fakeWs({ terminals: [{ id: "term-1", cmd: ["zsh"], alive: true }] });
+    expect(await listTerminals(ws, "s1")).toEqual([{ id: "term-1", cmd: ["zsh"], alive: true }]);
+    expect(ws.request).toHaveBeenCalledWith("terminal.list", { sessionId: "s1" });
   });
 });

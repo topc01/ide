@@ -1,5 +1,7 @@
 import type { WsClient } from "./ws";
 
+export interface TerminalInfo { id: string; cmd: string[]; alive: boolean; }
+
 export function openTerminal(ws: WsClient,
   opts: { sessionId?: string; repoId?: string; cmd?: string[] }): Promise<{ id: string; cwd: string }> {
   return ws.request("terminal.open", opts);
@@ -12,6 +14,9 @@ export function resizeTerminal(ws: WsClient, id: string, cols: number, rows: num
 }
 export function closeTerminal(ws: WsClient, id: string): Promise<any> {
   return ws.request("terminal.close", { id });
+}
+export async function listTerminals(ws: WsClient, sessionId: string): Promise<TerminalInfo[]> {
+  return (await ws.request("terminal.list", { sessionId })).terminals;
 }
 export function subscribeTerminal(ws: WsClient, id: string,
   onData: (bytes: Uint8Array) => void, onExit: () => void): void {
