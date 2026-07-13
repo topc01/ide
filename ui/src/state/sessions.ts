@@ -16,6 +16,7 @@ interface State {
   toggleExpanded: (id: string) => void;
   startRename: (id: string) => void;
   stopRename: () => void;
+  applyRename: (id: string, name: string) => void;
   openModal: (parentId: string | null) => void;
   closeModal: () => void;
 }
@@ -28,6 +29,8 @@ export const useSessions = create<State>((set) => ({
     tree: mapTree(s.tree, id, (n) => ({ ...n, expanded: !n.expanded })) })),
   startRename: (editingId) => set({ editingId }),
   stopRename: () => set({ editingId: null }),
+  applyRename: (id, name) => set((s) => ({
+    tree: mapTree(s.tree, id, (n) => ({ ...n, name })) })),
   openModal: (modalParentId) => set({ modalParentId }),
   closeModal: () => set({ modalParentId: undefined }),
 }));

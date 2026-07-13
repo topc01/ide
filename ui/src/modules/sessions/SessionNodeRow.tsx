@@ -13,7 +13,7 @@ const DOT: Record<string, string> = {
 };
 
 export function SessionNodeRow({ node, depth }: { node: SessionNode; depth: number }) {
-  const { activeSessionId, setActive, toggleExpanded, openModal, editingId, startRename, stopRename } = useSessions();
+  const { activeSessionId, setActive, toggleExpanded, openModal, editingId, startRename, stopRename, applyRename } = useSessions();
   const active = activeSessionId === node.id;
   const hasChildren = node.children.length > 0;
   const [draft, setDraft] = useState(node.name);
@@ -46,6 +46,7 @@ export function SessionNodeRow({ node, depth }: { node: SessionNode; depth: numb
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
+                applyRename(node.id, draft);
                 renameSession(getWs(), node.id, draft).catch((err) => console.error("rename falló", err));
                 stopRename();
               }

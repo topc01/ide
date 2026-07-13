@@ -36,4 +36,17 @@ describe("useSessions", () => {
     useSessions.getState().closeModal();
     expect(useSessions.getState().modalParentId).toBe(undefined);
   });
+  it("applyRename actualiza el nombre de un nodo anidado sin mutar el árbol", () => {
+    const original = [node("a", [node("b"), node("c")])];
+    useSessions.getState().setData(original, []);
+    useSessions.getState().applyRename("b", "nuevo nombre");
+    const tree = useSessions.getState().tree;
+    expect(tree[0].children[0].name).toBe("nuevo nombre");
+    // hermano y padre no tocados
+    expect(tree[0].children[1].name).toBe("c");
+    expect(tree[0].name).toBe("a");
+    // inmutabilidad: el árbol original entregado a setData no fue mutado
+    expect(original[0].children[0].name).toBe("b");
+    expect(tree).not.toBe(original);
+  });
 });
