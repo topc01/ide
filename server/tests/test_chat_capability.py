@@ -64,3 +64,26 @@ async def test_permission_decision_resolves_future(tmp_path, monkeypatch):
     await asyncio.sleep(0)
     await reg.dispatch("chat.permission", {"sessionId": "s1", "requestId": "req-1", "allow": True})
     assert await task is True
+
+def test_load_session_context_spanish_instruction_always_first(tmp_path):
+    from ide_server.capabilities.chat import _load_session_context, _LANG
+    from ide_server.sessions_store import save_sessions
+    (tmp_path / ".ide").mkdir()
+    # Caso 1: sesión con descripción y rol (ambos contribuyen al prompt)
+    save_sessions(tmp_path, [
+        {"id": "s1", "worktreePath": str(tmp_path), "description": "My session", "role": "lector"}
+    ])
+    ctx = _load_session_context(tmp_path, "s1")
+    assert ctx["system_prompt"].startswith(_LANG)
+    assert "My session" in ctx["system_prompt"]
+    # Caso 2: sesión sin descripción ni rol (solo _LANG)
+    save_sessions(tmp_path, [{"id": "s2", "worktreePath": str(tmp_path)}])
+    ctx = _load_session_context(tmp_path, "s2")
+    assert ctx["system_prompt"] == _LANG
+    # Caso 3: sesión con descripción pero sin rol
+    save_sessions(tmp_path, [
+        {"id": "s3", "worktreePath": str(tmp_path), "description": "Another session"}
+    ])
+    ctx = _load_session_context(tmp_path, "s3")
+    assert ctx["system_prompt"].startswith(_LANG)
+    assert "Another session" in ctx["system_prompt"]

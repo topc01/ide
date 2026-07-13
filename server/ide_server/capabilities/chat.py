@@ -6,6 +6,8 @@ from ide_server.chat.driver import ClaudeDriver
 from ide_server.chat.permissions import resolve_permission
 from ide_server.chat.events import to_payload
 
+_LANG = "Respondé siempre en español."
+
 def _load_session_context(root: Path, session_id: str) -> dict:
     # Devuelve {cwd, system_prompt, role, model} de la sesión. Resuelve el rol
     # real (preset de .ide/config.toml) para que permisos y modelo se apliquen.
@@ -20,8 +22,8 @@ def _load_session_context(root: Path, session_id: str) -> dict:
     r = resolve_role(root, role_name)
     desc = node.get("description") or ""
     system_prompt = "\n\n".join(
-        p for p in [desc, r.system_prompt if r else None] if p
-    ) or "Sos un asistente de código."
+        [_LANG] + [p for p in [desc, r.system_prompt if r else None] if p]
+    ) or _LANG
     role = {"read_only": r.read_only} if r is not None else None
     model = r.model if r else None
     return {"cwd": cwd, "system_prompt": system_prompt, "role": role, "model": model}
