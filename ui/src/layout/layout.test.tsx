@@ -31,4 +31,10 @@ describe("layout", () => {
     fireEvent.click(screen.getByRole("button", { name: /cerrar zsh/i }));
     expect(useStore.getState().openTabs).toHaveLength(0);
   });
+  it("TabStrip activa una tab al hacer click", () => {
+    useStore.setState({ openTabs: [{ id: "t1", type: "terminal", label: "zsh" }], activeTabId: "chat" });
+    render(<TabStrip />);
+    fireEvent.click(screen.getByText("zsh"));
+    expect(useStore.getState().activeTabId).toBe("t1");
+  });
 });

@@ -10,6 +10,7 @@ interface State {
   setActivePanel: (p: PanelId) => void;
   openTab: (t: Tab) => void;
   closeTab: (id: string) => void;
+  setActiveTab: (id: string) => void;
 }
 
 export const useStore = create<State>((set) => ({
@@ -25,4 +26,5 @@ export const useStore = create<State>((set) => ({
     const active = s.activeTabId === id ? (tabs.at(-1)?.id ?? "chat") : s.activeTabId;
     return { openTabs: tabs, activeTabId: active };
   }),
+  setActiveTab: (id) => set({ activeTabId: id }),
 }));
