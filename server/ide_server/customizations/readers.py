@@ -84,3 +84,11 @@ def read_agents(home: Path) -> list[dict]:
 
 def read_plugins(home: Path) -> list[dict]:
     return _rows(_dir_entries(home / ".claude" / "plugins", files=False))
+
+
+TOOLS = ["bash", "read", "write", "edit", "grep", "glob",
+         "webSearch", "webFetch", "task", "todoWrite", "notebookEdit", "multiEdit"]
+
+
+def read_tools(used_tools: set[str]) -> list[dict]:
+    return [{"label": t, "inUse": t in used_tools} for t in TOOLS]
