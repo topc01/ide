@@ -9,6 +9,7 @@ from ide_server.capabilities import repos as repos_cap
 from ide_server.capabilities import sessions as sessions_cap
 from ide_server.capabilities import terminals as terminals_cap
 from ide_server.capabilities import chat as chat_cap
+from ide_server.capabilities import customizations as customizations_cap
 
 
 def create_app(root: Path) -> FastAPI:
@@ -19,6 +20,7 @@ def create_app(root: Path) -> FastAPI:
     manager = ConnectionManager()
     terminals_cap.register(registry, root, manager)
     chat_cap.register(registry, root, manager)
+    customizations_cap.register(registry, root)
 
     app = FastAPI(title="Agentic IDE")
     app.add_middleware(

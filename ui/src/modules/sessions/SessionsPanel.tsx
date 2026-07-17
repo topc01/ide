@@ -4,6 +4,7 @@ import { useSessions } from "../../state/sessions";
 import { SessionNodeRow } from "./SessionNodeRow";
 import { fetchTree } from "../../transport/sessions";
 import { getWs } from "../../transport/wsClient";
+import { CustomizationsFooter } from "../settings/CustomizationsFooter";
 
 const Label = ({ children }: { children: React.ReactNode }) => (
   <div className="mx-2.5 mb-1 mt-2.5 text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -45,6 +46,8 @@ export function SessionsPanel() {
       >
         + Agregar sesión
       </div>
+
+      <CustomizationsFooter />
     </aside>
   );
 }
