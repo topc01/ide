@@ -4,6 +4,7 @@ import { ActivityRail } from "./layout/ActivityRail";
 import { ContextPanel } from "./layout/ContextPanel";
 import { SessionsPanel } from "./modules/sessions/SessionsPanel";
 import { NewSessionModal } from "./modules/sessions/NewSessionModal";
+import { SettingsModal } from "./modules/settings/SettingsModal";
 import { MainPanel } from "./layout/MainPanel";
 
 export default function App() {
@@ -14,6 +15,7 @@ export default function App() {
       <ContextPanel />
       <MainPanel />
       <NewSessionModal />
+      <SettingsModal />
     </div>
   );
 }
