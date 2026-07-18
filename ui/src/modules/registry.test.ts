@@ -4,6 +4,7 @@ import { getModules } from "./stubs";
 import "./terminal/register";
 import "./changes/register";
 import "./graphite/register";
+import "./notion/register";
 import { registerModule } from "./registry";
 import { useStore } from "../state/store";
 
