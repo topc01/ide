@@ -102,3 +102,30 @@ def notion_blocks_to_blocknote(blocks: list[dict]) -> dict:
             out.append(_placeholder(bid, ntype))
             unsupported.append(bid)
     return {"blocks": out, "unsupportedIds": unsupported}
+
+
+_BN_TO_NOTION = {"paragraph": "paragraph", "bulletListItem": "bulleted_list_item",
+                 "numberedListItem": "numbered_list_item", "checkListItem": "to_do",
+                 "quote": "quote", "codeBlock": "code"}
+
+
+def _notion_type(bn_block: dict) -> str:
+    t = bn_block["type"]
+    if t == "heading":
+        return f"heading_{(bn_block.get('props') or {}).get('level', 1)}"
+    return _BN_TO_NOTION.get(t, "paragraph")
+
+
+def diff_text_ops(loaded: list[dict], edited: list[dict], unsupported_ids: list[str]) -> dict:
+    unsupported = set(unsupported_ids)
+    loaded_by = {b["id"]: b for b in loaded}
+    edited_by = {b["id"]: b for b in edited}
+    structural = set(loaded_by) != set(edited_by)
+    ops = []
+    for bid, eb in edited_by.items():
+        if bid in unsupported or bid not in loaded_by:
+            continue
+        if eb.get("content") != loaded_by[bid].get("content"):
+            ops.append({"notionId": bid, "notionType": _notion_type(eb),
+                        "richText": inline_to_notion_richtext(eb.get("content", []))})
+    return {"ops": ops, "structural": structural}
