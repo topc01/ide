@@ -1,5 +1,4 @@
 from __future__ import annotations
-from pathlib import Path
 
 
 class GraphiteError(Exception):
@@ -18,13 +17,22 @@ def build_stack(rows: list[dict], current: str | None) -> list[dict]:
     if trunk is None:
         raise GraphiteError("stack sin trunk (ninguna branch sin padre)")
 
+    # Verificar que todos los padres referenciados existan
+    for parent_name in children:
+        if parent_name not in by_name:
+            # Encontrar la primera rama huérfana de este padre para el error
+            orphan_names = children[parent_name]
+            raise GraphiteError(f"stack inconsistente: el padre '{parent_name}' de '{orphan_names[0]}' no existe")
+
     out: list[dict] = []
 
     def visit(name: str) -> None:
         r = by_name[name]
         parent = r["parent"]
         needs = False
-        if parent is not None and parent in by_name:
+        if parent is not None:
+            if parent not in by_name:
+                raise GraphiteError(f"stack inconsistente: el padre '{parent}' de '{name}' no existe")
             needs = r["parentRevision"] != by_name[parent]["revision"]
         out.append({
             "name": name, "parent": parent, "isTrunk": parent is None,

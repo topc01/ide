@@ -34,3 +34,16 @@ def test_build_stack_no_trunk_raises():
         assert False, "esperaba GraphiteError"
     except GraphiteError:
         pass
+
+
+def test_build_stack_dangling_parent_raises():
+    # rama válida con trunk, pero feat-x tiene parent "ghost" que no existe
+    rows = [
+        {"name": "main", "parent": None, "parentRevision": None, "revision": "r0"},
+        {"name": "feat-x", "parent": "ghost", "parentRevision": "rX", "revision": "r1"},
+    ]
+    try:
+        build_stack(rows, current=None)
+        assert False, "esperaba GraphiteError para padre dangling"
+    except GraphiteError as e:
+        assert "ghost" in str(e) and "feat-x" in str(e)
