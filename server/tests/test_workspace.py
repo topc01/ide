@@ -1,6 +1,8 @@
+import json
 import subprocess
+import pytest
 from pathlib import Path
-from ide_server.workspace import find_workspace_root, discover_repos
+from ide_server.workspace import find_workspace_root, discover_repos, resolve_cwd
 
 def _git_repo(path: Path):
     path.mkdir(parents=True)
@@ -33,3 +35,30 @@ def test_discover_repos_invalid_git_is_unknown(tmp_path):
     repos = discover_repos(tmp_path)
     assert repos[0]["name"] == "broken"
     assert repos[0]["branch"] == "unknown"
+
+
+def _seed(tmp_path: Path) -> Path:
+    (tmp_path / ".ide").mkdir()
+    wt = tmp_path / ".ide" / "worktrees" / "s1"; wt.mkdir(parents=True)
+    (tmp_path / "repoA" / ".git").mkdir(parents=True)
+    (tmp_path / ".ide" / "sessions.json").write_text(json.dumps(
+        {"sessions": [{"id": "s1", "name": "S1", "repoId": "repoA",
+                       "worktreePath": str(wt), "children": []}]}))
+    return tmp_path
+
+
+def test_resolve_cwd_session_returns_worktree(tmp_path):
+    root = _seed(tmp_path)
+    assert resolve_cwd(root, {"sessionId": "s1"}).name == "s1"
+
+
+def test_resolve_cwd_repo_and_root(tmp_path):
+    root = _seed(tmp_path)
+    assert resolve_cwd(root, {"repoId": "repoA"}) == root / "repoA"
+    assert resolve_cwd(root, {}) == root
+
+
+def test_resolve_cwd_unknown_session_raises(tmp_path):
+    root = _seed(tmp_path)
+    with pytest.raises(KeyError):
+        resolve_cwd(root, {"sessionId": "nope"})
