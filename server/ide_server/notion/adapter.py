@@ -58,3 +58,47 @@ def inline_to_notion_richtext(inline: list[dict]) -> list[dict]:
         else:
             out.append(_notion_text(node.get("text", ""), node.get("styles", {}), None))
     return out
+
+
+_HEADINGS = {"heading_1": 1, "heading_2": 2, "heading_3": 3}
+
+
+def _content(block: dict, ntype: str) -> list[dict]:
+    rt = (block.get(ntype) or {}).get("rich_text", [])
+    return notion_richtext_to_inline(rt)
+
+
+def _placeholder(bid: str, ntype: str) -> dict:
+    return {"id": bid, "type": "paragraph", "props": {},
+            "content": [{"type": "text", "text": f"[bloque no soportado: {ntype}]",
+                         "styles": {"italic": True}}]}
+
+
+def notion_blocks_to_blocknote(blocks: list[dict]) -> dict:
+    out: list[dict] = []
+    unsupported: list[str] = []
+    for b in blocks:
+        bid, ntype = b["id"], b["type"]
+        if ntype == "paragraph":
+            out.append({"id": bid, "type": "paragraph", "props": {}, "content": _content(b, ntype)})
+        elif ntype in _HEADINGS:
+            out.append({"id": bid, "type": "heading", "props": {"level": _HEADINGS[ntype]},
+                        "content": _content(b, ntype)})
+        elif ntype == "bulleted_list_item":
+            out.append({"id": bid, "type": "bulletListItem", "props": {}, "content": _content(b, ntype)})
+        elif ntype == "numbered_list_item":
+            out.append({"id": bid, "type": "numberedListItem", "props": {}, "content": _content(b, ntype)})
+        elif ntype == "to_do":
+            out.append({"id": bid, "type": "checkListItem",
+                        "props": {"checked": bool((b.get("to_do") or {}).get("checked"))},
+                        "content": _content(b, ntype)})
+        elif ntype == "quote":
+            out.append({"id": bid, "type": "quote", "props": {}, "content": _content(b, ntype)})
+        elif ntype == "code":
+            out.append({"id": bid, "type": "codeBlock",
+                        "props": {"language": (b.get("code") or {}).get("language", "")},
+                        "content": _content(b, ntype)})
+        else:
+            out.append(_placeholder(bid, ntype))
+            unsupported.append(bid)
+    return {"blocks": out, "unsupportedIds": unsupported}
