@@ -4,13 +4,48 @@
 
 ## Dónde estamos
 
-**R5a Graphite stack (lectura) + restack: COMPLETO y mergeado a `main`** (merge `1e75aa7`).
+**R-Notion Fase 1 (API oficial + BlockNote): COMPLETO y mergeado a `main`** (merge `4a0d4ed`).
 
 Rebanadas cerradas end-to-end: **R0** (fundación), **R1** (sesiones), **R2** (terminal),
 **R3** (chat), **UI shadcn/1a** (identidad ámbar/terminal), **R6** (settings/customizations),
-**R4** (changed files + diff), **R5a** (graphite stack lectura + restack).
+**R4** (changed files + diff), **R5a** (graphite stack lectura + restack), **R-Notion Fase 1**
+(lectura + edición de texto de páginas de Notion).
 
-## Qué se construyó en R5a (último trabajo)
+## Qué se construyó en R-Notion Fase 1 (último trabajo)
+
+Ítem "Notion" del rail (antes stub): **lista curada** de páginas por URL, que se abren
+renderizadas con **BlockNote** (editor de bloques estilo Notion) y permiten **editar el texto
+de bloques existentes** sincronizado a la **API oficial** de Notion, respetando ~3 rps.
+
+- **Backend** (`server/ide_server/notion/`): `config.py` (token en `~/.ide/config.toml
+  [notion].token` global, override local/env); `refs.py` (parse de URL + lista curada en
+  `.ide/notion.json`); `adapter.py` **puro** (bloques Notion↔BlockNote inline+block, id de
+  bloque preservado, `diff_text_ops`); `queue.py` (`RateLimitedRunner` ≤3 rps + retry 429
+  acotado); `client.py` (SDK oficial `notion-client`: `fetch_page` paginado, `patch_block_text`
+  que traduce 429→backoff). Capability `notion.health/list/add/remove/page/save` en `app.py`.
+- **Frontend** (`ui/src/`): transport `notionChannel.ts` + store `state/notion.ts`;
+  `modules/notion/NotionPanel.tsx` (lista, "+ por URL", estado "conectá Notion");
+  `main/NotionEditor.tsx` (aísla BlockNote) + `main/NotionPageTab.tsx` (carga, **save con
+  debounce ~800ms**, banner de cambio estructural + re-sync con `syncKey`, título read-only)
+  ruteado en `MainPanel`. Deps nuevas: `@blocknote/core|react|mantine`@0.51.4.
+
+Spec: `docs/superpowers/specs/2026-07-18-rnotion-fase1-design.md`.
+Plan: `docs/superpowers/plans/2026-07-18-rnotion-fase1.md` (12 tareas TDD, todas hechas).
+Verificación al mergear: backend `uv run pytest -q` → **150 passed**; frontend `npm test` →
+**122 passed**, `tsc --noEmit` limpio, `npm run build` ok.
+
+Config para probar en vivo: crear una integración interna en Notion, poner el token en
+`~/.ide/config.toml` (`[notion]\ntoken="secret_..."`), compartir una página con la integración,
+agregarla por URL en el panel.
+
+Deuda menor de R-Notion logueada (no bloqueante, → Fase 2/follow-up): `config` no guarda token
+no-string; `refs.list_refs` traga json corrupto → `[]`; `notion.add` trae la página entera para
+el título; `AsyncClient` no se cierra por llamada; PATCH idempotente en links same-href
+adyacentes; import `RateLimited` sin uso; `float(None)` en retry-after (inverosímil); bundle
++1.68MB por BlockNote (code-split pendiente); vulns de `npm audit` son del toolchain dev
+(vite/vitest/esbuild), preexisten, no de BlockNote.
+
+## Qué se construyó en R5a
 
 Ítem "Graphite" del rail (antes stub): **stack de branches** del repo de la sesión activa,
 todo inline en una columna — branch → (expand) commits → (expand) archivos → (click) diff del
@@ -106,12 +141,18 @@ cd ui && npm run dev   # http://localhost:5173  (backend en :8787)
 
 ## Próximos pasos (sin especificar aún — requieren brainstorming/spec antes de codear)
 
+- **R-Notion Fase 2 — edición estructural**: agregar/borrar/reordenar bloques (APPEND `after`
+  / DELETE + id-map `blocknote↔notion`), editar el título (PATCH properties), y resolver el
+  edge de re-sync (hoy avisado por banner). Decidido en el brainstorming de R-Notion: la Fase 1
+  (lectura + edición de texto) ya está; la Fase 2 es lo estructural.
 - **R5b — acciones de Graphite**: checkout de branch + submit (crea/actualiza PRs vía `gh`,
-  outward-facing → confirmaciones/auth). El decidido en el brainstorming de R5: R5a (lectura +
-  restack) ya está; R5b son las acciones que faltan. Resolver conflictos de restack in-app
-  también queda acá.
-- **Tasks + Notion** (ítems del rail, hoy stubs "próximamente"; eran parte del R6 original, no
-  construidos).
+  outward-facing → confirmaciones/auth). R5a (lectura + restack) ya está; R5b son las acciones
+  que faltan. Resolver conflictos de restack in-app también queda acá.
+- **Tasks** (ítem del rail "Tasks", hoy stub; markdown local en `.ide/tasks/`; era parte del R6
+  original, no construido). Rebanada chica y local, buen candidato para retomar.
+- **Candidato de infra futuro (anotado, no rebanada):** `rmux` (multiplexer de terminal en Rust
+  con SDKs Python/TS) para sesiones persistentes / orquestación multi-agente — reemplazaría el
+  `pty_manager.py` de R2; swap grande, evaluar si/cuando se necesite persistencia.
 - Deuda menor: el `<aside>` de `SessionsPanel` es `overflow-auto` + footer `mt-auto`; con
   muchas sesiones el footer scrollea con el contenido (aceptable por ahora, no bloqueante).
 - Chunk del build > 500 kB (warning de Vite, no error) — code-split si molesta.
