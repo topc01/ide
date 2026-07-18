@@ -15,9 +15,10 @@ export async function fetchChanges(
 }
 
 export async function fetchDiff(
-  ws: WsClient, opts: { sessionId?: string | null; path: string; status: string },
+  ws: WsClient, opts: { sessionId?: string | null; path: string; status: string; sha?: string },
 ): Promise<DiffLine[]> {
   return (await ws.request("changes.diff", {
     sessionId: opts.sessionId ?? undefined, path: opts.path, status: opts.status,
+    ...(opts.sha ? { sha: opts.sha } : {}),
   })).lines;
 }
