@@ -10,19 +10,23 @@ const STYLE: Record<DiffLineType, { bg: string; color: string }> = {
 };
 
 // id = "diff:<sessionId>:<status>:<path>"; path puede contener ":".
-function parseId(id: string): { sessionId: string | null; status: string; path: string } {
+// Si el slot de status arranca con "@" es un diff de commit: status="" y sha=<resto>.
+function parseId(id: string): { sessionId: string | null; status: string; sha?: string; path: string } {
   const rest = id.slice("diff:".length);
   const i1 = rest.indexOf(":");
   const i2 = rest.indexOf(":", i1 + 1);
+  const slot = rest.slice(i1 + 1, i2);
+  const isCommit = slot.startsWith("@");
   return {
     sessionId: rest.slice(0, i1) || null,
-    status: rest.slice(i1 + 1, i2),
+    status: isCommit ? "" : slot,
+    sha: isCommit ? slot.slice(1) : undefined,
     path: rest.slice(i2 + 1),
   };
 }
 
 export function DiffTab({ id }: { id: string }) {
-  const { sessionId, status, path } = parseId(id);
+  const { sessionId, status, sha, path } = parseId(id);
   const [lines, setLines] = useState<DiffLine[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +34,7 @@ export function DiffTab({ id }: { id: string }) {
     let cancelled = false;
     (async () => {
       try {
-        const ls = await fetchDiff(getWs(), { sessionId, path, status });
+        const ls = await fetchDiff(getWs(), { sessionId, path, status, sha });
         if (!cancelled) { setLines(ls); setError(null); }
       } catch (e: unknown) {
         if (!cancelled) setError((e as { message?: string })?.message ?? "desconectado");

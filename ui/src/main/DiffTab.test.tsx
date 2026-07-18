@@ -27,4 +27,11 @@ describe("DiffTab", () => {
     render(<DiffTab id="diff:s1:M:src/a.py" />);
     await waitFor(() => screen.getByText(/no se pudo leer el diff/i));
   });
+
+  it("con id @sha pide el diff del commit (fetchDiff con sha)", async () => {
+    fetchDiff.mockResolvedValue([{ type: "add", text: "dos" }]);
+    render(<DiffTab id="diff:s1:@abc123:src/a.py" />);
+    await waitFor(() => screen.getByText("dos"));
+    expect(fetchDiff).toHaveBeenCalledWith({}, { sessionId: "s1", path: "src/a.py", status: "", sha: "abc123" });
+  });
 });
