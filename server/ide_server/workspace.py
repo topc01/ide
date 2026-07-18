@@ -27,3 +27,18 @@ def discover_repos(root: Path) -> list[dict]:
         if (child / ".git").exists():
             repos.append({"id": child.name, "name": child.name, "branch": _current_branch(child)})
     return repos
+
+
+def resolve_cwd(root: Path, payload: dict) -> Path:
+    from ide_server.sessions_store import load_sessions, find_node
+    if payload.get("sessionId"):
+        node = find_node(load_sessions(root), payload["sessionId"])
+        if node is None:
+            raise KeyError(payload["sessionId"])
+        return Path(node.get("worktreePath") or root)
+    if payload.get("repoId"):
+        for repo in discover_repos(root):
+            if repo["id"] == payload["repoId"]:
+                return root / repo["id"]
+        raise KeyError(payload["repoId"])
+    return root

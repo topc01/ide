@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { Search } from "lucide-react";
 import { getModules } from "./stubs";
 import "./terminal/register";
+import "./changes/register";
 import { registerModule } from "./registry";
 import { useStore } from "../state/store";
 
