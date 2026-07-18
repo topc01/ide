@@ -1,5 +1,6 @@
 import pytest
 from ide_server.notion.client import fetch_page, patch_block_text
+from ide_server.notion.queue import RateLimited
 
 
 class _FakeChildren:
@@ -47,3 +48,42 @@ async def test_patch_block_text_shape():
     client = _FakeClient([])
     await patch_block_text(client, "b1", "heading_2", [{"text": {"content": "x"}}])
     assert client.blocks.updated == [{"block_id": "b1", "heading_2": {"rich_text": [{"text": {"content": "x"}}]}}]
+
+
+class _RateLimitedError(Exception):
+    def __init__(self, status=429, code=None, headers=None):
+        super().__init__("rate limited")
+        self.status = status
+        self.code = code
+        self.headers = headers or {}
+
+
+class _FakeBlocksRaising:
+    def __init__(self, exc):
+        self._exc = exc
+        self.children = None
+
+    async def update(self, **kw):
+        raise self._exc
+
+
+class _FakeClientRaising:
+    def __init__(self, exc):
+        self.blocks = _FakeBlocksRaising(exc)
+
+
+@pytest.mark.asyncio
+async def test_patch_block_text_429_raises_rate_limited():
+    exc = _RateLimitedError(status=429, headers={"Retry-After": "2"})
+    client = _FakeClientRaising(exc)
+    with pytest.raises(RateLimited) as exc_info:
+        await patch_block_text(client, "b1", "paragraph", [])
+    assert exc_info.value.retry_after == 2.0
+
+
+@pytest.mark.asyncio
+async def test_patch_block_text_non_429_propagates():
+    exc = _RateLimitedError(status=400)
+    client = _FakeClientRaising(exc)
+    with pytest.raises(_RateLimitedError):
+        await patch_block_text(client, "b1", "paragraph", [])

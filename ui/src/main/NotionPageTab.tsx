@@ -13,12 +13,13 @@ export function NotionPageTab({ id }: { id: string }) {
   const [status, setStatus] = useState<Status>("idle");
   const [structural, setStructural] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncKey, setSyncKey] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
     fetchPage(getWs(), pageId)
-      .then((d) => { if (!cancelled) { setTitle(d.title); setLoaded(d.blocks); setUnsupported(d.unsupportedIds); } })
+      .then((d) => { if (!cancelled) { setTitle(d.title); setLoaded(d.blocks); setUnsupported(d.unsupportedIds); setSyncKey((k) => k + 1); } })
       .catch((e) => { if (!cancelled) setError((e as { message?: string })?.message ?? "desconectado"); });
     return () => { cancelled = true; };
   }, [pageId]);
@@ -35,7 +36,7 @@ export function NotionPageTab({ id }: { id: string }) {
         else { setStatus("saved"); if (!res.structural) setLoaded(edited); }
         if (res.structural) {
           const d = await fetchPage(getWs(), pageId);      // re-sync tras estructural
-          setLoaded(d.blocks); setUnsupported(d.unsupportedIds);
+          setLoaded(d.blocks); setUnsupported(d.unsupportedIds); setSyncKey((k) => k + 1);
         }
       } catch (e) { setStatus("error"); setError((e as { message?: string })?.message ?? "error"); }
     }, 800);
@@ -57,7 +58,7 @@ export function NotionPageTab({ id }: { id: string }) {
         </div>
       )}
       <div className="min-h-0 flex-1 overflow-auto">
-        <NotionEditor initial={loaded} onChange={onChange} />
+        <NotionEditor key={syncKey} initial={loaded} onChange={onChange} />
       </div>
     </div>
   );

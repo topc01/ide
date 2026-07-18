@@ -29,4 +29,17 @@ describe("NotionPageTab", () => {
       [{ id: "b1", type: "paragraph", content: [] }], expect.any(Array), ["u1"]);
     vi.useRealTimers();
   });
+
+  it("re-sincroniza (re-fetch) el editor tras un guardado estructural", async () => {
+    fetchPage
+      .mockResolvedValueOnce({ title: "T", blocks: [{ id: "b1", type: "paragraph", content: [] }], unsupportedIds: ["u1"] })
+      .mockResolvedValueOnce({ title: "T", blocks: [{ id: "b1", type: "paragraph", content: [] }, { id: "b2", type: "paragraph", content: [] }], unsupportedIds: [] });
+    savePage.mockResolvedValue({ applied: 1, structural: true, failed: [] });
+    render(<NotionPageTab id="notion:pageX" />);
+    await vi.waitFor(() => screen.getByText("edit"));
+    screen.getByText("edit").click();
+    await vi.advanceTimersByTimeAsync(900);
+    await vi.waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(2));
+    vi.useRealTimers();
+  });
 });

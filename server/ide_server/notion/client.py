@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ide_server.notion.queue import RateLimited
+
 
 def async_client(token: str):
     from notion_client import AsyncClient
@@ -29,4 +31,11 @@ async def fetch_page(client, page_id: str) -> dict:
 
 
 async def patch_block_text(client, notion_id: str, notion_type: str, rich_text: list[dict]) -> None:
-    await client.blocks.update(block_id=notion_id, **{notion_type: {"rich_text": rich_text}})
+    try:
+        await client.blocks.update(block_id=notion_id, **{notion_type: {"rich_text": rich_text}})
+    except Exception as e:                                # noqa: BLE001 — se re-lanza si no es rate-limit
+        if getattr(e, "status", None) == 429 or getattr(e, "code", None) == "rate_limited":
+            headers = getattr(e, "headers", {}) or {}
+            retry_after = headers.get("Retry-After", headers.get("retry-after", 1.0))
+            raise RateLimited(float(retry_after)) from e
+        raise

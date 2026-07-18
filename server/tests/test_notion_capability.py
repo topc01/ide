@@ -6,8 +6,9 @@ from ide_server.capabilities import notion as notion_cap
 
 
 class _FakeClient:
-    def __init__(self):
+    def __init__(self, users_me_raises=False):
         self.updated = []
+        self._users_me_raises = users_me_raises
     class _P:
         async def retrieve(self, **kw):
             return {"properties": {"t": {"type": "title", "title": [{"plain_text": "T"}]}}}
@@ -28,6 +29,15 @@ class _FakeClient:
             children = _FakeClient._CH()
             async def update(self, **kw): outer.updated.append(kw)
         return _B()
+    @property
+    def users(self):
+        outer = self
+        class _U:
+            async def me(self):
+                if outer._users_me_raises:
+                    raise RuntimeError("token inválido")
+                return {"id": "u1"}
+        return _U()
 
 
 def _reg(tmp_path, token="tok"):
@@ -67,4 +77,15 @@ async def test_page_and_save_text(tmp_path):
 @pytest.mark.asyncio
 async def test_health_no_token(tmp_path):
     reg, _ = _reg(tmp_path, token="")
+    assert (await reg.dispatch("notion.health", {}))["connected"] is False
+
+
+@pytest.mark.asyncio
+async def test_health_users_me_raises(tmp_path):
+    (tmp_path / ".ide").mkdir(exist_ok=True)
+    home = tmp_path / "home"; (home / ".ide").mkdir(parents=True)
+    (home / ".ide" / "config.toml").write_text('[notion]\ntoken="tok"\n')
+    fake = _FakeClient(users_me_raises=True)
+    reg = Registry()
+    notion_cap.register(reg, tmp_path, home=home, client_factory=lambda t: fake)
     assert (await reg.dispatch("notion.health", {}))["connected"] is False

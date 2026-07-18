@@ -18,7 +18,14 @@ def register(registry: Registry, root: Path, home: Path | None = None, client_fa
         return make_client(token)
 
     async def health(_p: dict) -> dict:
-        return {"connected": notion_token(home, root) is not None}
+        if not notion_token(home, root):
+            return {"connected": False}
+        try:
+            cl = _client()
+            await cl.users.me()
+        except Exception:                                  # noqa: BLE001 — token inválido/red caída
+            return {"connected": False}
+        return {"connected": True}
 
     async def list_(_p: dict) -> dict:
         return {"pages": refs.list_refs(root)}
