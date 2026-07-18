@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import sqlite3
+from pathlib import Path
+
+from ide_server import git
+
 
 class GraphiteError(Exception):
     pass
@@ -43,3 +48,41 @@ def build_stack(rows: list[dict], current: str | None) -> list[dict]:
 
     visit(trunk)
     return out
+
+
+def read_stack(repo_path: Path) -> list[dict]:
+    db = repo_path / ".git" / ".graphite_metadata.db"
+    if not db.exists():
+        raise GraphiteError(f"no es un repo Graphite (falta {db.name})")
+    try:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        try:
+            cur = con.execute(
+                "SELECT branch_name, parent_branch_name, parent_branch_revision, branch_revision "
+                "FROM branch_metadata")
+            rows = cur.fetchall()
+        finally:
+            con.close()
+    except sqlite3.Error as exc:
+        raise GraphiteError(f"no se pudo leer la metadata de Graphite: {exc}") from exc
+    return [{"name": n, "parent": p, "parentRevision": pr, "revision": rev}
+            for (n, p, pr, rev) in rows]
+
+
+def branch_commits(repo_path: Path, revision: str, parent_revision: str | None) -> list[dict]:
+    if parent_revision is None:
+        return []
+    raw = git._git(repo_path, ["log", "--format=%h%x1f%s", f"{parent_revision}..{revision}"])
+    out: list[dict] = []
+    for line in raw.split("\n"):
+        if not line:
+            continue
+        h, _, msg = line.partition("\x1f")
+        out.append({"hash": h, "message": msg})
+    return out
+
+
+def commit_files(repo_path: Path, sha: str) -> list[dict]:
+    raw = git._git(repo_path, ["show", "--numstat", "--format=", sha])
+    return [{"path": f["path"], "added": f["added"], "removed": f["removed"]}
+            for f in git.parse_numstat(raw)]
