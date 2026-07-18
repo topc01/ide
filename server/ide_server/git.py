@@ -1,4 +1,5 @@
 from __future__ import annotations
+import subprocess
 from pathlib import Path
 
 
@@ -76,3 +77,43 @@ def untracked_lines(path: Path) -> int:
         return n if data.endswith(b"\n") else n + 1
     except OSError:
         return 0
+
+
+class GitError(Exception):
+    pass
+
+
+def _git(cwd: Path, args: list[str]) -> str:
+    out = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    if out.returncode != 0:
+        raise GitError(out.stderr.strip() or f"git {' '.join(args)} falló")
+    return out.stdout
+
+
+def repo_status(cwd: Path) -> dict:
+    branch = _git(cwd, ["branch", "--show-current"]).strip() or "(detached)"
+    head = _git(cwd, ["rev-parse", "HEAD"]).strip()
+    numstat = parse_numstat(_git(cwd, ["diff", "--numstat", "HEAD"]))
+    porcelain = parse_porcelain(_git(cwd, ["status", "--porcelain", "-uall"]))
+    files = merge_changes(porcelain, numstat)
+    for f in files:
+        if f["status"] == "?" and not f["added"]:
+            f["added"] = untracked_lines(cwd / f["path"])
+    return {
+        "name": cwd.name, "path": str(cwd), "branch": branch, "head": head,
+        "files": files,
+        "totalAdded": sum(f["added"] or 0 for f in files),
+        "totalRemoved": sum(f["removed"] or 0 for f in files),
+    }
+
+
+def file_diff_full(cwd: Path, path: str, status: str) -> list[dict]:
+    if status == "?":
+        try:
+            data = (cwd / path).read_bytes()
+        except OSError as exc:
+            return [{"type": "ctx", "text": f"no se pudo leer el archivo: {exc}"}]
+        if b"\x00" in data:
+            return [{"type": "ctx", "text": "(binario)"}]
+        return [{"type": "add", "text": t} for t in data.decode("utf-8", "replace").split("\n")]
+    return parse_diff(_git(cwd, ["diff", "HEAD", "-U1000000", "--", path]))
