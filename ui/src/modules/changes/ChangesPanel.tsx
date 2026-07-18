@@ -12,6 +12,7 @@ export function ChangesPanel() {
   const { status, error, load } = useChanges();
 
   useEffect(() => {
+    if (activeSessionId === null) return;
     load(activeSessionId);
     const t = setInterval(() => load(activeSessionId), 4000);
     return () => clearInterval(t);
@@ -28,18 +29,23 @@ export function ChangesPanel() {
           <RefreshCw size={13} />
         </button>
       </div>
-      {status && !error && (
+      {activeSessionId === null && (
+        <div className="px-1 py-2 text-xs text-muted-foreground">seleccioná una sesión</div>
+      )}
+      {activeSessionId !== null && status && !error && (
         <div className="mb-2 flex items-center gap-2 px-1 font-mono text-[10.5px] text-muted-foreground">
           <span className="text-[#e0863f]">{status.branch}</span>
           <span className="text-[#7fb069]">+{status.totalAdded}</span>
           <span className="text-[#c96a4e]">-{status.totalRemoved}</span>
         </div>
       )}
-      {error && <div className="px-1 py-2 text-xs text-destructive">desconectado — {error}</div>}
-      {!error && status && status.files.length === 0 && (
+      {activeSessionId !== null && error && (
+        <div className="px-1 py-2 text-xs text-destructive">desconectado — {error}</div>
+      )}
+      {activeSessionId !== null && !error && status && status.files.length === 0 && (
         <div className="px-1 py-2 text-xs text-muted-foreground">sin cambios</div>
       )}
-      {!error && status?.files.map((f) => (
+      {activeSessionId !== null && !error && status?.files.map((f) => (
         <button key={f.path}
           onClick={() => openTab({
             id: `diff:${activeSessionId ?? ""}:${f.status}:${f.path}`,

@@ -14,6 +14,7 @@ import { ChangesPanel } from "./ChangesPanel";
 
 beforeEach(() => {
   vi.useFakeTimers();
+  load.mockClear();
   useSessions.setState({ activeSessionId: "s1" } as any);
   useStore.setState({ openTabs: [], activeTabId: "chat" } as any);
   useChanges.setState({
@@ -38,6 +39,15 @@ describe("ChangesPanel", () => {
     useChanges.setState({ status: null, loading: false, error: "no es repo git", load });
     render(<ChangesPanel />);
     expect(screen.getByText(/desconectado/i)).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("sin sesión activa muestra estado neutro y no llama a load", () => {
+    useSessions.setState({ activeSessionId: null } as any);
+    useChanges.setState({ status: null, loading: false, error: null, load });
+    render(<ChangesPanel />);
+    expect(screen.getByText(/seleccion[aá] una sesión/i)).toBeInTheDocument();
+    expect(load).not.toHaveBeenCalled();
     vi.useRealTimers();
   });
 });

@@ -5,10 +5,12 @@ const fetchChanges = vi.fn();
 vi.mock("../transport/changesChannel", () => ({ fetchChanges: (...a: any[]) => fetchChanges(...a) }));
 
 import { useChanges } from "./changes";
+import { useSessions } from "./sessions";
 
 beforeEach(() => {
   fetchChanges.mockReset();
   useChanges.setState({ status: null, loading: false, error: null });
+  useSessions.setState({ activeSessionId: "s1" } as any);
 });
 
 describe("state/changes", () => {
@@ -25,5 +27,17 @@ describe("state/changes", () => {
     await useChanges.getState().load("s1");
     expect(useChanges.getState().status).toBeNull();
     expect(useChanges.getState().error).toBe("no es repo git");
+  });
+
+  it("descarta resultado de una sesión que ya no está activa (race entre sesiones)", async () => {
+    const statusS1 = { branch: "s1-branch", files: [] };
+    fetchChanges.mockImplementation(async () => {
+      // mientras el fetch de s1 está en vuelo, el usuario cambia a s2
+      useSessions.setState({ activeSessionId: "s2" } as any);
+      return statusS1;
+    });
+    await useChanges.getState().load("s1");
+    expect(useChanges.getState().status).toBeNull();
+    expect(useChanges.getState().error).toBeNull();
   });
 });
