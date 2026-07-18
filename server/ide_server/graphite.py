@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import shutil
 import sqlite3
+import subprocess
 from pathlib import Path
 
 from ide_server import git
@@ -86,3 +88,18 @@ def commit_files(repo_path: Path, sha: str) -> list[dict]:
     raw = git._git(repo_path, ["show", "--numstat", "--format=", sha])
     return [{"path": f["path"], "added": f["added"], "removed": f["removed"]}
             for f in git.parse_numstat(raw)]
+
+
+def restack(repo_path: Path, branch: str) -> None:
+    if shutil.which("gt") is None:
+        raise GraphiteError("gt (Graphite) no está instalado")
+    out = subprocess.run(
+        ["gt", "restack", "--branch", branch, "--only", "--no-interactive", "-q",
+         "--cwd", str(repo_path)],
+        capture_output=True, text=True)
+    if out.returncode != 0:
+        # defensivo: no dejar el repo a medio-rebase
+        subprocess.run(["git", "-C", str(repo_path), "rebase", "--abort"],
+                       capture_output=True, text=True)
+        msg = (out.stderr or out.stdout or "").strip() or "gt restack falló"
+        raise GraphiteError(f"restack falló (¿conflictos?): {msg}")
