@@ -2,7 +2,7 @@ import json
 import subprocess
 import pytest
 from pathlib import Path
-from ide_server.workspace import find_workspace_root, discover_repos, resolve_cwd
+from ide_server.workspace import find_workspace_root, discover_repos, resolve_cwd, resolve_repo
 
 def _git_repo(path: Path):
     path.mkdir(parents=True)
@@ -62,3 +62,17 @@ def test_resolve_cwd_unknown_session_raises(tmp_path):
     root = _seed(tmp_path)
     with pytest.raises(KeyError):
         resolve_cwd(root, {"sessionId": "nope"})
+
+
+def test_resolve_repo_session_returns_repo(tmp_path):
+    root = _seed(tmp_path)   # helper ya existente: sesión s1 con repoId repoA
+    assert resolve_repo(root, {"sessionId": "s1"}) == root / "repoA"
+
+
+def test_resolve_repo_repoid_and_errors(tmp_path):
+    root = _seed(tmp_path)
+    assert resolve_repo(root, {"repoId": "repoA"}) == root / "repoA"
+    with pytest.raises(KeyError):
+        resolve_repo(root, {})
+    with pytest.raises(KeyError):
+        resolve_repo(root, {"sessionId": "nope"})

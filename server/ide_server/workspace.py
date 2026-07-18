@@ -42,3 +42,15 @@ def resolve_cwd(root: Path, payload: dict) -> Path:
                 return root / repo["id"]
         raise KeyError(payload["repoId"])
     return root
+
+
+def resolve_repo(root: Path, payload: dict) -> Path:
+    from ide_server.sessions_store import load_sessions, find_node
+    if payload.get("sessionId"):
+        node = find_node(load_sessions(root), payload["sessionId"])
+        if node is None or not node.get("repoId"):
+            raise KeyError(payload["sessionId"])
+        return root / node["repoId"]
+    if payload.get("repoId"):
+        return root / payload["repoId"]
+    raise KeyError("sin contexto de repo")
