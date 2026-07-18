@@ -16,4 +16,11 @@ describe("changesChannel", () => {
     expect(await fetchDiff(ws, { sessionId: "s1", path: "a.py", status: "M" })).toBe(lines);
     expect(ws.request).toHaveBeenCalledWith("changes.diff", { sessionId: "s1", path: "a.py", status: "M" });
   });
+
+  it("fetchDiff incluye sha cuando se pasa", async () => {
+    const ws = { request: vi.fn().mockResolvedValue({ lines: [] }) } as any;
+    await fetchDiff(ws, { sessionId: "s1", path: "a.py", status: "M", sha: "abc" });
+    expect(ws.request).toHaveBeenCalledWith("changes.diff",
+      { sessionId: "s1", path: "a.py", status: "M", sha: "abc" });
+  });
 });
