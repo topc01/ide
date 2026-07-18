@@ -4,13 +4,45 @@
 
 ## Dónde estamos
 
-**R4 Changed files + File diff: COMPLETO y mergeado a `main`** (merge `ddaaaf5`).
+**R5a Graphite stack (lectura) + restack: COMPLETO y mergeado a `main`** (merge `1e75aa7`).
 
 Rebanadas cerradas end-to-end: **R0** (fundación), **R1** (sesiones), **R2** (terminal),
 **R3** (chat), **UI shadcn/1a** (identidad ámbar/terminal), **R6** (settings/customizations),
-**R4** (changed files + diff).
+**R4** (changed files + diff), **R5a** (graphite stack lectura + restack).
 
-## Qué se construyó en R4 (último trabajo)
+## Qué se construyó en R5a (último trabajo)
+
+Ítem "Graphite" del rail (antes stub): **stack de branches** del repo de la sesión activa,
+todo inline en una columna — branch → (expand) commits → (expand) archivos → (click) diff del
+archivo *en ese commit*. Marca branches desactualizadas (`needsRestack`, conector punteado) y
+permite **restackear** con confirmación.
+
+- **Backend** (`server/ide_server/`): `graphite.py` — `read_stack` lee el **SQLite de gt**
+  (`<repo>/.git/.graphite_metadata.db`, tabla `branch_metadata`) vía `sqlite3` stdlib;
+  `build_stack` (puro) arma el stack ordenado con `needsRestack` (parentRevision registrada ≠
+  tip actual del padre); `branch_commits`/`commit_files` de git (reusa `git.parse_numstat`);
+  `restack` corre `gt restack --branch X --only --no-interactive -q` con `rebase --abort`
+  defensivo. Helper `workspace.resolve_repo` (repo de la sesión, no worktree).
+  `git.file_diff_at_commit` (`git show <sha>`) + `changes.diff` acepta `sha`. Capability
+  `graphite.stack/branch/restack` en `app.py`. Errores gt/git → envelope.
+- **Frontend** (`ui/src/`): transport `graphiteChannel.ts` + `changesChannel.fetchDiff` con
+  `sha`; store `state/graphite.ts` (load/toggleBranch/toggleCommit/restack, guard de sesión
+  anti-race, invalida cache tras restack); `modules/graphite/GraphitePanel.tsx` (stack inline,
+  conector punteado en needsRestack, flecha de restack con confirmación inline, click archivo
+  abre tab); `DiffTab` extendido para el id `diff:<sessionId>:@<sha>:<path>` (diff por commit).
+
+Spec: `docs/superpowers/specs/2026-07-18-r5a-graphite-stack-design.md`.
+Plan: `docs/superpowers/plans/2026-07-18-r5a-graphite-stack.md` (10 tareas TDD, todas hechas).
+Verificación al mergear: backend `uv run pytest -q` → **125 passed**; frontend `npm test` →
+**108 passed**, `tsc --noEmit` limpio.
+
+Deuda menor de R5a logueada (no bloqueante, → R5b/follow-up): `build_stack` tiene un guard
+muerto en `visit()` (el pre-loop ya valida); `resolve_repo` sin-repoId no testeado y su
+`KeyError` viaja como `unknown_channel` (taxonomía de `bus.py`, predata R5a); `restack` sin
+timeout de subprocess; `graphite.branch` devuelve `[]` para branch desconocida; segundo trunk
+se dropea en silencio en `build_stack`; `GraphitePanel` fallback `?? ""` inalcanzable.
+
+## Qué se construyó en R4
 
 Módulo "Changed files" del rail (antes stub) + tab de diff, contra el **worktree de la sesión
 activa**.
@@ -74,7 +106,12 @@ cd ui && npm run dev   # http://localhost:5173  (backend en :8787)
 
 ## Próximos pasos (sin especificar aún — requieren brainstorming/spec antes de codear)
 
-- **R5 — graphite / branch detail / tasks / notion** (ítems del rail, hoy stubs "próximamente").
+- **R5b — acciones de Graphite**: checkout de branch + submit (crea/actualiza PRs vía `gh`,
+  outward-facing → confirmaciones/auth). El decidido en el brainstorming de R5: R5a (lectura +
+  restack) ya está; R5b son las acciones que faltan. Resolver conflictos de restack in-app
+  también queda acá.
+- **Tasks + Notion** (ítems del rail, hoy stubs "próximamente"; eran parte del R6 original, no
+  construidos).
 - Deuda menor: el `<aside>` de `SessionsPanel` es `overflow-auto` + footer `mt-auto`; con
   muchas sesiones el footer scrollea con el contenido (aceptable por ahora, no bloqueante).
 - Chunk del build > 500 kB (warning de Vite, no error) — code-split si molesta.
