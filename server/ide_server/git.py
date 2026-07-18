@@ -117,3 +117,8 @@ def file_diff_full(cwd: Path, path: str, status: str) -> list[dict]:
             return [{"type": "ctx", "text": "(binario)"}]
         return [{"type": "add", "text": t} for t in data.decode("utf-8", "replace").split("\n")]
     return parse_diff(_git(cwd, ["diff", "HEAD", "-U1000000", "--", path]))
+
+
+def file_diff_at_commit(cwd: Path, sha: str, path: str) -> list[dict]:
+    # `git show <sha> --format=` suprime el header de commit → solo el diff del archivo.
+    return parse_diff(_git(cwd, ["show", sha, "--format=", "-U1000000", "--", path]))

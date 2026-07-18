@@ -11,6 +11,8 @@ def register(registry: Registry, root: Path) -> None:
 
     async def diff_(payload: dict) -> dict:
         cwd = resolve_cwd(root, payload)
+        if payload.get("sha"):
+            return {"lines": git.file_diff_at_commit(cwd, payload["sha"], payload["path"])}
         return {"lines": git.file_diff_full(cwd, payload["path"], payload.get("status") or "M")}
 
     registry.register("changes.list", list_)

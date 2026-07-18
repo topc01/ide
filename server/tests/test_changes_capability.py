@@ -45,3 +45,17 @@ async def test_changes_list_non_git_root_raises(tmp_path):
     from ide_server.git import GitError
     with pytest.raises(GitError):
         await reg.dispatch("changes.list", {})
+
+
+@pytest.mark.asyncio
+async def test_changes_diff_at_commit(tmp_path):
+    root = _seed(tmp_path)   # helper ya existente en el archivo (repoA con a.py modificado)
+    repo = root / "repoA"
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                    "commit", "-q", "-m", "c2"], cwd=repo, check=True)
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                         capture_output=True, text=True).stdout.strip()
+    reg = Registry(); changes_cap.register(reg, root)
+    out = await reg.dispatch("changes.diff", {"sessionId": "s1", "path": "a.py", "sha": sha})
+    assert any(l["type"] == "add" and l["text"] == "dos" for l in out["lines"])
