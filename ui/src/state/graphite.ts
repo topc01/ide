@@ -69,8 +69,11 @@ export const useGraphite = create<GraphiteState>((set, get) => ({
     set({ restacking: branch });
     try {
       const { stack, current } = await restackBranch(getWs(), { sessionId, branch });
-      set({ stack, current, restacking: null, error: null });
+      if (stale(sessionId)) return;
+      set({ stack, current, commitsByBranch: {}, expandedBranches: [],
+            expandedCommits: [], restacking: null, error: null });
     } catch (e: unknown) {
+      if (stale(sessionId)) return;
       set({ restacking: null, error: (e as { message?: string })?.message ?? "desconectado" });
     }
   },

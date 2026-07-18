@@ -54,4 +54,26 @@ describe("state/graphite", () => {
     expect(useGraphite.getState().stack).toEqual([{ name: "main" }]);
     expect(useGraphite.getState().restacking).toBeNull();
   });
+
+  it("restack invalida commitsByBranch/expandedBranches/expandedCommits al tener éxito", async () => {
+    useGraphite.setState({
+      commitsByBranch: { "feat-a": [{ hash: "a", message: "m", files: [] }] as any },
+      expandedBranches: ["feat-a"],
+      expandedCommits: ["a"],
+    });
+    restackBranch.mockResolvedValue({ stack: [{ name: "main" }], current: "main" });
+    await useGraphite.getState().restack("s1", "feat-a");
+    expect(useGraphite.getState().commitsByBranch).toEqual({});
+    expect(useGraphite.getState().expandedBranches).toEqual([]);
+    expect(useGraphite.getState().expandedCommits).toEqual([]);
+  });
+
+  it("restack descarta el resultado si la sesión activa cambió (anti-race)", async () => {
+    const stackAntes = [{ name: "viejo" } as any];
+    useGraphite.setState({ stack: stackAntes });
+    useSessions.setState({ activeSessionId: "s2" } as any);
+    restackBranch.mockResolvedValue({ stack: [{ name: "main" }], current: "main" });
+    await useGraphite.getState().restack("s1", "feat-a");
+    expect(useGraphite.getState().stack).toBe(stackAntes);
+  });
 });
