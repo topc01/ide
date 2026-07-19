@@ -28,10 +28,7 @@ def write_token(home: Path, token: str) -> None:
     cfg = home / ".ide" / "config.toml"
     data: dict = {}
     if cfg.is_file():
-        try:
-            data = tomllib.loads(cfg.read_text())
-        except tomllib.TOMLDecodeError:
-            data = {}
+        data = tomllib.loads(cfg.read_text())
     data.setdefault("notion", {})["token"] = token
     cfg.parent.mkdir(parents=True, exist_ok=True)
     cfg.write_text(tomli_w.dumps(data))

@@ -65,3 +65,16 @@ def test_clear_token_removes_and_keeps_rest(tmp_path, monkeypatch):
 
 def test_clear_token_missing_file_noop(tmp_path):
     clear_token(tmp_path / "nope")   # no explota
+
+
+def test_write_token_malformed_config_raises_and_preserves(tmp_path, monkeypatch):
+    monkeypatch.delenv("NOTION_TOKEN", raising=False)
+    home = tmp_path / "home"
+    (home / ".ide").mkdir(parents=True)
+    cfg = home / ".ide" / "config.toml"
+    cfg.write_text("not = valid = toml")
+    before = cfg.read_text()
+    import pytest
+    with pytest.raises(tomllib.TOMLDecodeError):
+        write_token(home, "x")
+    assert cfg.read_text() == before

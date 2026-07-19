@@ -18,9 +18,9 @@ export function NotionPanel() {
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Conectar Notion</div>
         <input type="password" autoFocus placeholder="Internal Integration Secret" value={token}
           onChange={(e) => setToken(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && token) connect(token); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && token) { connect(token); setToken(""); } }}
           className="mb-2 w-full rounded border border-border bg-background px-2 py-1 font-mono text-[11.5px]" />
-        <button onClick={() => token && connect(token)} disabled={!token}
+        <button onClick={() => { if (token) { connect(token); setToken(""); } }} disabled={!token}
           className="mb-2 rounded bg-[#e0863f] px-3 py-1 text-[11.5px] font-semibold text-black disabled:opacity-50">
           Conectar
         </button>

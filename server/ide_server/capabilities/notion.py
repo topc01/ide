@@ -65,8 +65,12 @@ def register(registry: Registry, root: Path, home: Path | None = None, client_fa
             return {"connected": False}
         try:
             await make_client(token).users.me()
-        except Exception:                                  # noqa: BLE001 — token inválido/red
-            return {"connected": False}
+        except Exception as e:                             # noqa: BLE001 — distinguir auth de red
+            status = getattr(e, "status", None)
+            code = getattr(e, "code", None)
+            if status in (401, 403) or code in ("unauthorized", "restricted_resource"):
+                return {"connected": False}
+            raise
         write_token(home, token)
         return {"connected": True}
 

@@ -103,11 +103,18 @@ async def test_connect_valid_token_persists(tmp_path):
 
 
 @pytest.mark.asyncio
+class _AuthError(RuntimeError):
+    def __init__(self, status: int):
+        super().__init__(str(status))
+        self.status = status
+
+
+@pytest.mark.asyncio
 async def test_connect_invalid_token_not_persisted(tmp_path):
-    # client_factory cuyo users.me() falla
+    # client_factory cuyo users.me() falla con un rechazo de auth (status 401)
     class _Bad:
         class _U:
-            async def me(self): raise RuntimeError("401")
+            async def me(self): raise _AuthError(401)
         @property
         def users(self): return self._U()
     (tmp_path / ".ide").mkdir(exist_ok=True)
@@ -118,6 +125,24 @@ async def test_connect_invalid_token_not_persisted(tmp_path):
     out = await reg.dispatch("notion.connect", {"token": "bad"})
     assert out["connected"] is False
     assert not (home / ".ide" / "config.toml").exists() or "token" not in (home / ".ide" / "config.toml").read_text()
+
+
+@pytest.mark.asyncio
+async def test_connect_network_error_propagates(tmp_path):
+    # error sin .status/.code (red/DNS caída) debe propagar, no confundirse con token inválido
+    class _Bad:
+        class _U:
+            async def me(self): raise ConnectionError("network down")
+        @property
+        def users(self): return self._U()
+    (tmp_path / ".ide").mkdir(exist_ok=True)
+    home = tmp_path / "home3"; (home / ".ide").mkdir(parents=True)
+    from ide_server.plugins import Registry
+    from ide_server.capabilities import notion as notion_cap
+    reg = Registry(); notion_cap.register(reg, tmp_path, home=home, client_factory=lambda t: _Bad())
+    with pytest.raises(ConnectionError):
+        await reg.dispatch("notion.connect", {"token": "x"})
+    assert not (home / ".ide" / "config.toml").exists()
 
 
 @pytest.mark.asyncio

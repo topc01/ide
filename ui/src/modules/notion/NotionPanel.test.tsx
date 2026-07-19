@@ -24,6 +24,7 @@ describe("NotionPanel", () => {
     fireEvent.change(input, { target: { value: "tok-123" } });
     fireEvent.click(screen.getByRole("button", { name: /conectar/i }));
     expect(connect).toHaveBeenCalledWith("tok-123");
+    expect((input as HTMLInputElement).value).toBe("");
   });
   it("conectado muestra desconectar", () => {
     setState({ connected: true, pages: [] });
