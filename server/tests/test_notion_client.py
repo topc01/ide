@@ -1,4 +1,5 @@
 import pytest
+from ide_server.notion import client as nclient
 from ide_server.notion.client import fetch_page, patch_block_text
 from ide_server.notion.queue import RateLimited
 
@@ -87,3 +88,178 @@ async def test_patch_block_text_non_429_propagates():
     client = _FakeClientRaising(exc)
     with pytest.raises(_RateLimitedError):
         await patch_block_text(client, "b1", "paragraph", [])
+
+
+@pytest.mark.asyncio
+async def test_append_block_arma_bloque_y_devuelve_id():
+    captured = {}
+
+    class Children:
+        async def append(self, **kwargs):
+            captured.update(kwargs)
+            return {"results": [{"id": "new-id"}]}
+
+    class Blocks:
+        children = Children()
+
+    class Client:
+        blocks = Blocks()
+
+    new_id = await nclient.append_block(
+        Client(), "parent", "after-id", "paragraph",
+        [{"type": "text", "text": {"content": "x"}, "annotations": {}}], {})
+    assert new_id == "new-id"
+    assert captured["block_id"] == "parent"
+    assert captured["after"] == "after-id"
+    assert captured["children"][0]["type"] == "paragraph"
+    assert "rich_text" in captured["children"][0]["paragraph"]
+
+
+@pytest.mark.asyncio
+async def test_append_block_omite_after_si_none():
+    captured = {}
+
+    class Children:
+        async def append(self, **kwargs):
+            captured.update(kwargs)
+            return {"results": [{"id": "n"}]}
+
+    class Client:
+        class blocks:
+            children = Children()
+
+    await nclient.append_block(Client(), "parent", None, "paragraph", [], {})
+    assert "after" not in captured
+
+
+@pytest.mark.asyncio
+async def test_append_block_checklist_pone_checked():
+    captured = {}
+
+    class Children:
+        async def append(self, **kwargs):
+            captured.update(kwargs)
+            return {"results": [{"id": "n"}]}
+
+    class Client:
+        class blocks:
+            children = Children()
+
+    await nclient.append_block(Client(), "p", None, "to_do", [], {"checked": True})
+    assert captured["children"][0]["to_do"]["checked"] is True
+
+
+@pytest.mark.asyncio
+async def test_append_block_429_a_ratelimited():
+    class Err(Exception):
+        status = 429
+        headers = {"Retry-After": "2"}
+
+    class Children:
+        async def append(self, **kwargs):
+            raise Err()
+
+    class Client:
+        class blocks:
+            children = Children()
+
+    with pytest.raises(RateLimited) as ei:
+        await nclient.append_block(Client(), "p", None, "paragraph", [], {})
+    assert ei.value.retry_after == 2.0
+
+
+@pytest.mark.asyncio
+async def test_delete_block_llama_delete():
+    captured = {}
+
+    class Blocks:
+        async def delete(self, **kwargs):
+            captured.update(kwargs)
+
+    class Client:
+        blocks = Blocks()
+
+    await nclient.delete_block(Client(), "n7")
+    assert captured["block_id"] == "n7"
+
+
+@pytest.mark.asyncio
+async def test_delete_block_429_a_ratelimited():
+    class Err(Exception):
+        code = "rate_limited"
+        headers = {}
+
+    class Blocks:
+        async def delete(self, **kwargs):
+            raise Err()
+
+    class Client:
+        blocks = Blocks()
+
+    with pytest.raises(RateLimited):
+        await nclient.delete_block(Client(), "n7")
+
+
+@pytest.mark.asyncio
+async def test_set_page_title_arma_properties():
+    captured = {}
+
+    class Pages:
+        async def update(self, **kwargs):
+            captured.update(kwargs)
+
+    class Client:
+        pages = Pages()
+
+    await nclient.set_page_title(Client(), "pg", "Nuevo")
+    assert captured["page_id"] == "pg"
+    assert captured["properties"]["title"]["title"][0]["text"]["content"] == "Nuevo"
+
+
+@pytest.mark.asyncio
+async def test_patch_block_text_todo_manda_checked():
+    captured = {}
+
+    class Blocks:
+        async def update(self, **kw):
+            captured.update(kw)
+
+    class Client:
+        blocks = Blocks()
+
+    await nclient.patch_block_text(Client(), "n1", "to_do",
+                                   [{"type": "text", "text": {"content": "x"}, "annotations": {}}],
+                                   {"checked": True})
+    assert captured["block_id"] == "n1"
+    assert captured["to_do"]["checked"] is True
+    assert "rich_text" in captured["to_do"]
+
+
+@pytest.mark.asyncio
+async def test_patch_block_text_code_manda_language():
+    captured = {}
+
+    class Blocks:
+        async def update(self, **kw):
+            captured.update(kw)
+
+    class Client:
+        blocks = Blocks()
+
+    await nclient.patch_block_text(Client(), "n1", "code", [], {"language": "python"})
+    assert captured["code"]["language"] == "python"
+
+
+@pytest.mark.asyncio
+async def test_patch_block_text_sin_props_sigue_funcionando():
+    captured = {}
+
+    class Blocks:
+        async def update(self, **kw):
+            captured.update(kw)
+
+    class Client:
+        blocks = Blocks()
+
+    await nclient.patch_block_text(Client(), "n1", "paragraph", [])   # props default None
+    assert captured["paragraph"] == {"rich_text": []}

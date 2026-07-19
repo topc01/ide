@@ -68,9 +68,9 @@ async def test_page_and_save_text(tmp_path):
     assert page["title"] == "T" and page["blocks"][0]["id"] == "b1"
     loaded = page["blocks"]
     edited = [{**loaded[0], "content": [{"type": "text", "text": "chau", "styles": {}}]}]
-    res = await reg.dispatch("notion.save", {"id": "b-page", "loaded": loaded, "edited": edited,
-                                             "unsupportedIds": page["unsupportedIds"]})
-    assert res["structural"] is False and res["failed"] == []
+    res = await reg.dispatch("notion.save", {"pageId": "b-page", "loaded": loaded, "edited": edited,
+                                             "unsupportedIds": page["unsupportedIds"], "idMap": {}})
+    assert res["patched"] == ["b1"] and res["failed"] == []
     assert fake.updated and fake.updated[0]["block_id"] == "b1"
 
 
@@ -157,3 +157,163 @@ async def test_disconnect_clears(tmp_path):
     assert (await reg.dispatch("notion.health", {}))["connected"] is True
     await reg.dispatch("notion.disconnect", {})
     assert (await reg.dispatch("notion.health", {}))["connected"] is False
+
+
+# --- Fase 2: save estructural + setTitle ---
+
+def _registry_with_notion(tmp_path, client_factory, token="secret"):
+    # Mismo mecanismo que `_reg`: token en home/.ide/config.toml + client_factory inyectado.
+    (tmp_path / ".ide").mkdir(exist_ok=True)
+    home = tmp_path / "home"; (home / ".ide").mkdir(parents=True)
+    if token:
+        (home / ".ide" / "config.toml").write_text(f'[notion]\ntoken="{token}"\n')
+    reg = Registry()
+    notion_cap.register(reg, tmp_path, home=home, client_factory=client_factory)
+    return reg
+
+
+def _p(bid, text):
+    return {"id": bid, "type": "paragraph", "props": {},
+            "content": [{"type": "text", "text": text, "styles": {}}]}
+
+
+@pytest.mark.asyncio
+async def test_save_aplica_append_delete_patch(tmp_path, monkeypatch):
+    # Fake client que registra las llamadas y mintea ids incrementales
+    calls = []
+
+    class Children:
+        async def append(self, **kw):
+            calls.append(("append", kw.get("after")))
+            return {"results": [{"id": f"mint{len(calls)}"}]}
+
+    class Blocks:
+        children = Children()
+        async def update(self, **kw):
+            calls.append(("patch", kw["block_id"]))
+        async def delete(self, **kw):
+            calls.append(("delete", kw["block_id"]))
+
+    class Users:
+        async def me(self):
+            return {}
+
+    class FakeClient:
+        blocks = Blocks()
+        users = Users()
+
+    registry = _registry_with_notion(tmp_path, client_factory=lambda tok: FakeClient(),
+                                      token="secret")  # helper del archivo; ver Fase 1
+    loaded = [_p("n1", "uno"), _p("n2", "dos")]
+    edited = [_p("n1", "UNO"), _p("c3", "tres")]        # patch n1, borra n2, agrega c3
+    res = await registry.dispatch("notion.save", {
+        "pageId": "pg", "loaded": loaded, "edited": edited, "unsupportedIds": [], "idMap": {}})
+    assert res["patched"] == ["n1"]
+    assert res["deleted"] == ["n2"]
+    # diff_ops (ya implementado en Fase 2 Task 1) ordena los ops como
+    # [patch n1, append c3, delete n2]; `calls` es compartida entre los tres
+    # tipos de llamada del fake, así que al ejecutarse el append ya hubo 1
+    # llamada previa (el patch) -> el id minteado es "mint2", no "mint1".
+    assert res["appended"] == [{"clientId": "c3", "notionId": "mint2"}]
+    assert res["failed"] == []
+
+
+@pytest.mark.asyncio
+async def test_save_encadena_after_de_nuevos_consecutivos(tmp_path):
+    calls = []
+
+    class Children:
+        async def append(self, **kw):
+            calls.append(kw.get("after"))
+            return {"results": [{"id": f"mint{len(calls)}"}]}
+
+    class Blocks:
+        children = Children()
+        async def update(self, **kw): ...
+        async def delete(self, **kw): ...
+
+    class Users:
+        async def me(self): return {}
+
+    class FakeClient:
+        blocks = Blocks()
+        users = Users()
+
+    registry = _registry_with_notion(tmp_path, client_factory=lambda tok: FakeClient(),
+                                      token="secret")
+    loaded = [_p("n1", "uno")]
+    edited = [_p("n1", "uno"), _p("c2", "dos"), _p("c3", "tres")]
+    res = await registry.dispatch("notion.save", {
+        "pageId": "pg", "loaded": loaded, "edited": edited, "unsupportedIds": [], "idMap": {}})
+    # c2 -> after n1 ; c3 -> after el id minteado de c2 (mint1)
+    assert calls == ["n1", "mint1"]
+    assert res["appended"] == [{"clientId": "c2", "notionId": "mint1"},
+                               {"clientId": "c3", "notionId": "mint2"}]
+
+
+@pytest.mark.asyncio
+async def test_save_op_fallida_no_corta_el_resto(tmp_path):
+    class Blocks:
+        async def update(self, **kw):
+            raise RuntimeError("boom")
+        async def delete(self, **kw): ...
+        class children:
+            @staticmethod
+            async def append(**kw):
+                return {"results": [{"id": "m"}]}
+
+    class Users:
+        async def me(self): return {}
+
+    class FakeClient:
+        blocks = Blocks()
+        users = Users()
+
+    registry = _registry_with_notion(tmp_path, client_factory=lambda tok: FakeClient(),
+                                      token="secret")
+    loaded = [_p("n1", "uno"), _p("n2", "dos")]
+    edited = [_p("n1", "UNO"), _p("n2", "dos"), _p("c3", "tres")]  # patch falla, append ok
+    res = await registry.dispatch("notion.save", {
+        "pageId": "pg", "loaded": loaded, "edited": edited, "unsupportedIds": [], "idMap": {}})
+    assert res["appended"] == [{"clientId": "c3", "notionId": "m"}]
+    assert len(res["failed"]) == 1 and res["failed"][0]["op"] == "patch"
+
+
+@pytest.mark.asyncio
+async def test_set_title_llama_pages_update(tmp_path):
+    captured = {}
+
+    class Pages:
+        async def update(self, **kw):
+            captured.update(kw)
+
+    class Users:
+        async def me(self): return {}
+
+    class FakeClient:
+        pages = Pages()
+        users = Users()
+
+    registry = _registry_with_notion(tmp_path, client_factory=lambda tok: FakeClient(),
+                                      token="secret")
+    res = await registry.dispatch("notion.setTitle", {"pageId": "pg", "title": "Nuevo"})
+    assert res == {"ok": True}
+    assert captured["properties"]["title"]["title"][0]["text"]["content"] == "Nuevo"
+
+
+@pytest.mark.asyncio
+async def test_save_toggle_checkbox_existente_persiste_checked(tmp_path):
+    reg, fake = _reg(tmp_path, token="tok")
+
+    def _todo(bid, checked):
+        return {"id": bid, "type": "checkListItem", "props": {"checked": checked},
+                "content": [{"type": "text", "text": "tarea", "styles": {}}]}
+
+    res = await reg.dispatch("notion.save", {
+        "pageId": "pg", "loaded": [_todo("n1", False)], "edited": [_todo("n1", True)],
+        "unsupportedIds": [], "idMap": {}})
+    assert res["patched"] == ["n1"]
+    assert res["failed"] == []
+    # el body del update llevó checked=True bajo to_do
+    assert fake.updated[0]["block_id"] == "n1"
+    assert fake.updated[0]["to_do"]["checked"] is True

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchPage, savePage, type BlockNoteDoc } from "../transport/notionChannel";
+import { fetchPage, savePage, setTitle as setTitleReq, type BlockNoteDoc } from "../transport/notionChannel";
 import { getWs } from "../transport/wsClient";
 import { NotionEditor } from "./NotionEditor";
 
@@ -10,8 +10,8 @@ export function NotionPageTab({ id }: { id: string }) {
   const [title, setTitle] = useState("");
   const [loaded, setLoaded] = useState<BlockNoteDoc | null>(null);
   const [unsupported, setUnsupported] = useState<string[]>([]);
+  const [idMap, setIdMap] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<Status>("idle");
-  const [structural, setStructural] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncKey, setSyncKey] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -19,7 +19,7 @@ export function NotionPageTab({ id }: { id: string }) {
   useEffect(() => {
     let cancelled = false;
     fetchPage(getWs(), pageId)
-      .then((d) => { if (!cancelled) { setTitle(d.title); setLoaded(d.blocks); setUnsupported(d.unsupportedIds); setSyncKey((k) => k + 1); } })
+      .then((d) => { if (!cancelled) { setTitle(d.title); setLoaded(d.blocks); setUnsupported(d.unsupportedIds); setIdMap({}); setSyncKey((k) => k + 1); } })
       .catch((e) => { if (!cancelled) setError((e as { message?: string })?.message ?? "desconectado"); });
     return () => { cancelled = true; };
   }, [pageId]);
@@ -30,16 +30,25 @@ export function NotionPageTab({ id }: { id: string }) {
     setStatus("saving");
     timer.current = setTimeout(async () => {
       try {
-        const res = await savePage(getWs(), pageId, loaded, edited, unsupported);
-        setStructural(res.structural);
-        if (res.failed.length) { setStatus("error"); }
-        else { setStatus("saved"); if (!res.structural) setLoaded(edited); }
-        if (res.structural) {
-          const d = await fetchPage(getWs(), pageId);      // re-sync tras estructural
-          setLoaded(d.blocks); setUnsupported(d.unsupportedIds); setSyncKey((k) => k + 1);
+        const res = await savePage(getWs(), pageId, loaded, edited, unsupported, idMap);
+        if (res.failed.length) {
+          setStatus("error");
+          const d = await fetchPage(getWs(), pageId);     // reconciliar a la verdad de Notion
+          setLoaded(d.blocks); setUnsupported(d.unsupportedIds); setIdMap({}); setSyncKey((k) => k + 1);
+        } else {
+          const merged = { ...idMap };
+          for (const a of res.appended) merged[a.clientId] = a.notionId;
+          setIdMap(merged);
+          setLoaded(edited.map((b) => ({ ...b, id: merged[b.id] ?? b.id })));  // rekey a ids de Notion
+          setStatus("saved");
         }
       } catch (e) { setStatus("error"); setError((e as { message?: string })?.message ?? "error"); }
     }, 800);
+  }
+
+  async function commitTitle() {
+    try { await setTitleReq(getWs(), pageId, title); }
+    catch (e) { setStatus("error"); setError((e as { message?: string })?.message ?? "error"); }
   }
 
   if (error) return <div className="p-4 text-sm text-destructive">no se pudo abrir la página — {error}</div>;
@@ -47,16 +56,16 @@ export function NotionPageTab({ id }: { id: string }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-border px-5 py-3">
-        <span className="text-lg font-bold text-foreground">{title}</span>
+        <input
+          className="flex-1 bg-transparent text-lg font-bold text-foreground outline-none"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={commitTitle}
+        />
         <span className="text-[10px] text-muted-foreground">
           {status === "saving" ? "guardando…" : status === "saved" ? "guardado" : status === "error" ? "error al guardar" : ""}
         </span>
       </div>
-      {structural && (
-        <div className="border-b border-border bg-[#2e2820] px-5 py-2 text-[11px] text-[#e0863f]">
-          Los cambios de estructura (agregar/quitar bloques) llegan en Fase 2; se guardaron solo las ediciones de texto.
-        </div>
-      )}
       <div className="min-h-0 flex-1 overflow-auto">
         <NotionEditor key={syncKey} initial={loaded} onChange={onChange} />
       </div>
