@@ -116,21 +116,6 @@ def _notion_type(bn_block: dict) -> str:
     return _BN_TO_NOTION.get(t, "paragraph")
 
 
-def diff_text_ops(loaded: list[dict], edited: list[dict], unsupported_ids: list[str]) -> dict:
-    unsupported = set(unsupported_ids)
-    loaded_by = {b["id"]: b for b in loaded}
-    edited_by = {b["id"]: b for b in edited}
-    structural = set(loaded_by) != set(edited_by)
-    ops = []
-    for bid, eb in edited_by.items():
-        if bid in unsupported or bid not in loaded_by:
-            continue
-        if eb.get("content") != loaded_by[bid].get("content"):
-            ops.append({"notionId": bid, "notionType": _notion_type(eb),
-                        "richText": inline_to_notion_richtext(eb.get("content", []))})
-    return {"ops": ops, "structural": structural}
-
-
 def _append_props(bn_block: dict) -> dict:
     t = bn_block["type"]
     props = bn_block.get("props") or {}
