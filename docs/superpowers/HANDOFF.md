@@ -34,9 +34,18 @@ Plan: `docs/superpowers/plans/2026-07-18-rnotion-fase1.md` (12 tareas TDD, todas
 Verificación al mergear: backend `uv run pytest -q` → **150 passed**; frontend `npm test` →
 **122 passed**, `tsc --noEmit` limpio, `npm run build` ok.
 
-Config para probar en vivo: crear una integración interna en Notion, poner el token en
-`~/.ide/config.toml` (`[notion]\ntoken="secret_..."`), compartir una página con la integración,
-agregarla por URL en el panel.
+**Conectar Notion in-app (mergeado, `6dac9b9`):** mejora chica encima de la Fase 1 — el panel
+tiene una **vista de conexión** (input de token password + "Conectar" + link a
+`notion.so/my-integrations`) y "Desconectar". Capability `notion.connect {token}` valida el token
+con `users.me` (distingue 401/403 de error de red) y solo persiste si es válido, escribiendo
+`~/.ide/config.toml [notion].token` con `tomli-w` (preserva otras secciones); `notion.disconnect`
+lo limpia. Verificado en vivo: token inválido → `connected:false`, no persiste.
+Spec: `docs/superpowers/specs/2026-07-18-notion-connect-design.md`; plan:
+`docs/superpowers/plans/2026-07-18-notion-connect.md`.
+
+Config para probar en vivo: crear una integración interna en `notion.so/my-integrations`, pegar
+su secret en el panel "Conectar Notion" (o a mano en `~/.ide/config.toml`), y compartir una
+página con la integración antes de agregarla por URL.
 
 Deuda menor de R-Notion logueada (no bloqueante, → Fase 2/follow-up): `config` no guarda token
 no-string; `refs.list_refs` traga json corrupto → `[]`; `notion.add` trae la página entera para
