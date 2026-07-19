@@ -1,10 +1,10 @@
 # Handoff — estado del proyecto (Agentic IDE)
 
-> Última actualización: 2026-07-18. Documento vivo para retomar en otra sesión sin recontexto.
+> Última actualización: 2026-07-19. Documento vivo para retomar en otra sesión sin recontexto.
 
 ## Dónde estamos
 
-**R-Notion Fase 1 (API oficial + BlockNote): COMPLETO y mergeado a `main`** (merge `4a0d4ed`).
+**R-Notion Fase 2 (edición estructural): COMPLETO y mergeado a `main`** (merge `49996ea`).
 
 Rebanadas cerradas end-to-end: **R0** (fundación), **R1** (sesiones), **R2** (terminal),
 **R3** (chat), **UI shadcn/1a** (identidad ámbar/terminal), **R6** (settings/customizations),
@@ -46,6 +46,37 @@ Spec: `docs/superpowers/specs/2026-07-18-notion-connect-design.md`; plan:
 Config para probar en vivo: crear una integración interna en `notion.so/my-integrations`, pegar
 su secret en el panel "Conectar Notion" (o a mano en `~/.ide/config.toml`), y compartir una
 página con la integración antes de agregarla por URL.
+
+## Qué se construyó en R-Notion Fase 2 (último trabajo, merge `49996ea`)
+
+Edición **estructural** de páginas: agregar y borrar bloques, y editar el título — todo
+persistido en la API oficial. **Alcance: agregar + borrar + título, SIN reordenar** (Notion no
+tiene endpoint "mover"; reordenar sería borrar+recrear, destructivo).
+
+- **Backend** (`server/ide_server/notion/`): `adapter.diff_ops(loaded, edited, unsupported_ids,
+  id_map)` **puro** reemplaza a `diff_text_ops` — emite ops `append`/`delete`/`patch`; resuelve
+  `clientId→notionId` con `id_map` (un bloque nuevo ya subido = PATCH, no re-APPEND); el `after`
+  de un nuevo = id del bloque previo, y nuevos consecutivos encadenan; **nunca borra bloques no
+  soportados**; PATCH dispara por cambio de `content` **o** de props. `client.append_block`
+  (devuelve id minteado), `delete_block`, `set_page_title`, helper `_reraise_rate_limit`
+  (429→RateLimited); `patch_block_text` acepta `props` y manda `checked`/`language`. Capability
+  `notion.save` reescrita (aplica ops en orden vía `RateLimitedRunner`, mintea ids, resuelve
+  `after`, best-effort → `{appended,deleted,patched,failed}`) + canal `notion.setTitle`.
+- **Frontend** (`ui/src/`): `notionChannel.savePage` con `idMap` + `setTitle`; `NotionPageTab`
+  mantiene el `idMap`, título **editable** (input, guarda on blur), **sin remontar el editor en
+  el camino feliz** (cursor preservado; re-fetch de reconciliación solo si una op falla). Se
+  eliminó el banner de "Fase 2".
+
+Spec: `docs/superpowers/specs/2026-07-19-rnotion-fase2-design.md` (incluye "Limitaciones
+conocidas"). Plan: `docs/superpowers/plans/2026-07-19-rnotion-fase2.md` (5 tareas TDD + fast-follow).
+Verificación al mergear: backend `uv run pytest -q` → **184 passed**; frontend `npm test` →
+**130 passed**. Ejecutado con subagent-driven-development (review por tarea + review final en opus,
+aprobado sin bloqueantes).
+
+**Fast-follow ya incluido:** togglear el checkbox de un `to_do` existente (y cambiar
+`code.language`) **se persiste** — el diff compara props además del texto. **Limitación que queda:**
+cambiar el *tipo* de un bloque existente con texto idéntico (paragraph→heading) no se persiste
+(Notion `blocks.update` no cambia el tipo; requeriría borrar+recrear).
 
 Deuda menor de R-Notion logueada (no bloqueante, → Fase 2/follow-up): `config` no guarda token
 no-string; `refs.list_refs` traga json corrupto → `[]`; `notion.add` trae la página entera para
@@ -150,10 +181,12 @@ cd ui && npm run dev   # http://localhost:5173  (backend en :8787)
 
 ## Próximos pasos (sin especificar aún — requieren brainstorming/spec antes de codear)
 
-- **R-Notion Fase 2 — edición estructural**: agregar/borrar/reordenar bloques (APPEND `after`
-  / DELETE + id-map `blocknote↔notion`), editar el título (PATCH properties), y resolver el
-  edge de re-sync (hoy avisado por banner). Decidido en el brainstorming de R-Notion: la Fase 1
-  (lectura + edición de texto) ya está; la Fase 2 es lo estructural.
+- **Comunicación entre sesiones (lo próximo a diseñar)**: hoy existe el **modelo de datos**
+  jerárquico (árbol coordinadora↔hijas: `parentId`, `children[]`, `kind`), pero **no hay ningún
+  canal de mensajería entre sesiones** — cada sesión tiene su driver de chat aislado
+  (`drivers[sessionId]`, eventos `chat.event.{session_id}`). El concepto "coordinadora comanda
+  hijas" está en el spec de sesiones pero sin implementar. Es la base para meta-agentes y para
+  integrar observabilidad/herramientas externas (langwatch, etc.). Requiere brainstorming/spec.
 - **R5b — acciones de Graphite**: checkout de branch + submit (crea/actualiza PRs vía `gh`,
   outward-facing → confirmaciones/auth). R5a (lectura + restack) ya está; R5b son las acciones
   que faltan. Resolver conflictos de restack in-app también queda acá.
