@@ -166,6 +166,23 @@ re-APPEND).
    se remonta en happy path (el `key`/syncKey no cambia); título editable llama `setTitle`; el
    banner de Fase 2 ya no se renderiza.
 
+## Limitaciones conocidas (deuda para una Fase 2.1)
+
+- **Cambio de tipo/props de un bloque existente con texto idéntico no se persiste.** El diff
+  decide PATCH comparando solo `content` (texto). Si el usuario convierte paragraph→heading,
+  **togglea el checkbox de un to_do existente**, o cambia `code.language` sin tocar el texto, no
+  se emite ninguna op y el cambio se descarta. Es una frontera heredada de Fase 1 (la edición de
+  bloques existentes es texto-only). El sub-caso del checkbox es el más filoso (acción común) y
+  es el primer candidato a fast-follow: la detección es trivial (comparar también
+  `_notion_type`/`_append_props` del bloque cargado), pero el fix completo requiere que
+  `patch_block_text` mande los props y verificar la semántica de cambio de tipo vía `blocks.update`.
+- **Un bloque nuevo insertado antes del primer bloque existente aterriza al final.** Notion no
+  tiene "prepend"; con `after=None` el APPEND va al final. Escribir una línea nueva arriba de todo
+  la reordena al fondo. Consistente con "sin reordenar".
+- **Un nuevo consecutivo cuyo predecesor falló** apunta su `after` a un clientId no minteado →
+  Notion lo rechaza y también cae en `failed`. Se auto-cura en el próximo save (re-fetch/reintento);
+  no corrompe datos.
+
 ## Fuera de alcance
 
 - Reordenar bloques (mover un bloque existente a otra posición).

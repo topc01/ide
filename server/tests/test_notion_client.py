@@ -1,4 +1,5 @@
 import pytest
+from ide_server.notion import client as nclient
 from ide_server.notion.client import fetch_page, patch_block_text
 from ide_server.notion.queue import RateLimited
 
@@ -87,16 +88,6 @@ async def test_patch_block_text_non_429_propagates():
     client = _FakeClientRaising(exc)
     with pytest.raises(_RateLimitedError):
         await patch_block_text(client, "b1", "paragraph", [])
-
-
-from ide_server.notion import client as nclient
-
-
-class _FakeAppend:
-    def __init__(self):
-        self.calls = []
-    class blocks:
-        pass
 
 
 @pytest.mark.asyncio
