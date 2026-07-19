@@ -168,14 +168,13 @@ re-APPEND).
 
 ## Limitaciones conocidas (deuda para una Fase 2.1)
 
-- **Cambio de tipo/props de un bloque existente con texto idéntico no se persiste.** El diff
-  decide PATCH comparando solo `content` (texto). Si el usuario convierte paragraph→heading,
-  **togglea el checkbox de un to_do existente**, o cambia `code.language` sin tocar el texto, no
-  se emite ninguna op y el cambio se descarta. Es una frontera heredada de Fase 1 (la edición de
-  bloques existentes es texto-only). El sub-caso del checkbox es el más filoso (acción común) y
-  es el primer candidato a fast-follow: la detección es trivial (comparar también
-  `_notion_type`/`_append_props` del bloque cargado), pero el fix completo requiere que
-  `patch_block_text` mande los props y verificar la semántica de cambio de tipo vía `blocks.update`.
+- **Cambio de props de un bloque existente SÍ se persiste** (togglear el checkbox de un to_do,
+  cambiar `code.language`): el diff compara `content` **y** `_append_props`, y `patch_block_text`
+  manda `checked`/`language` en el body del `blocks.update`. (Agregado como fast-follow 2026-07-19.)
+- **Cambio de TIPO de un bloque existente con texto idéntico no se persiste.** Convertir
+  paragraph→heading manteniendo el texto no dispara PATCH útil: Notion `blocks.update` no permite
+  cambiar el tipo de un bloque (habría que borrar + re-crear, destructivo, fuera del alcance "sin
+  reordenar"). Queda como limitación conocida.
 - **Un bloque nuevo insertado antes del primer bloque existente aterriza al final.** Notion no
   tiene "prepend"; con `after=None` el APPEND va al final. Escribir una línea nueva arriba de todo
   la reordena al fondo. Consistente con "sin reordenar".

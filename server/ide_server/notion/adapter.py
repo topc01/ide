@@ -139,9 +139,13 @@ def diff_ops(loaded: list[dict], edited: list[dict], unsupported_ids: list[str],
         nid = id_map.get(bid, bid)                     # resolver cliente->notion si aplica
         seen_resolved.add(nid)
         if nid in loaded_by:
-            if nid not in unsupported and eb.get("content") != loaded_by[nid].get("content"):
+            lb = loaded_by[nid]
+            content_changed = eb.get("content") != lb.get("content")
+            props_changed = _append_props(eb) != _append_props(lb)   # p.ej. toggle de checkbox
+            if nid not in unsupported and (content_changed or props_changed):
                 ops.append({"op": "patch", "notionId": nid, "notionType": _notion_type(eb),
-                            "richText": inline_to_notion_richtext(eb.get("content", []))})
+                            "richText": inline_to_notion_richtext(eb.get("content", [])),
+                            "props": _append_props(eb)})
             prev_resolved = nid
         else:
             ops.append({"op": "append", "clientId": bid, "after": prev_resolved,

@@ -299,3 +299,21 @@ async def test_set_title_llama_pages_update(tmp_path):
     res = await registry.dispatch("notion.setTitle", {"pageId": "pg", "title": "Nuevo"})
     assert res == {"ok": True}
     assert captured["properties"]["title"]["title"][0]["text"]["content"] == "Nuevo"
+
+
+@pytest.mark.asyncio
+async def test_save_toggle_checkbox_existente_persiste_checked(tmp_path):
+    reg, fake = _reg(tmp_path, token="tok")
+
+    def _todo(bid, checked):
+        return {"id": bid, "type": "checkListItem", "props": {"checked": checked},
+                "content": [{"type": "text", "text": "tarea", "styles": {}}]}
+
+    res = await reg.dispatch("notion.save", {
+        "pageId": "pg", "loaded": [_todo("n1", False)], "edited": [_todo("n1", True)],
+        "unsupportedIds": [], "idMap": {}})
+    assert res["patched"] == ["n1"]
+    assert res["failed"] == []
+    # el body del update llevó checked=True bajo to_do
+    assert fake.updated[0]["block_id"] == "n1"
+    assert fake.updated[0]["to_do"]["checked"] is True

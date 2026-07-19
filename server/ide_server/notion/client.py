@@ -38,20 +38,26 @@ def _reraise_rate_limit(e: Exception):
     raise
 
 
-async def patch_block_text(client, notion_id: str, notion_type: str, rich_text: list[dict]) -> None:
+def _type_body(notion_type: str, rich_text: list[dict], props: dict) -> dict:
+    body = {"rich_text": rich_text}
+    if notion_type == "to_do":
+        body["checked"] = bool(props.get("checked"))
+    elif notion_type == "code":
+        body["language"] = props.get("language") or "plain text"
+    return body
+
+
+async def patch_block_text(client, notion_id: str, notion_type: str, rich_text: list[dict],
+                           props: dict | None = None) -> None:
     try:
-        await client.blocks.update(block_id=notion_id, **{notion_type: {"rich_text": rich_text}})
+        await client.blocks.update(
+            block_id=notion_id, **{notion_type: _type_body(notion_type, rich_text, props or {})})
     except Exception as e:                                # noqa: BLE001
         _reraise_rate_limit(e)
 
 
 def _build_block(notion_type: str, rich_text: list[dict], props: dict) -> dict:
-    block = {"type": notion_type, notion_type: {"rich_text": rich_text}}
-    if notion_type == "to_do":
-        block["to_do"]["checked"] = bool(props.get("checked"))
-    elif notion_type == "code":
-        block["code"]["language"] = props.get("language") or "plain text"
-    return block
+    return {"type": notion_type, notion_type: _type_body(notion_type, rich_text, props)}
 
 
 async def append_block(client, parent_id: str, after: str | None, notion_type: str,

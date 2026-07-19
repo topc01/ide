@@ -57,7 +57,7 @@ def register(registry: Registry, root: Path, home: Path | None = None, client_fa
             try:
                 if op["op"] == "patch":
                     await runner.run(lambda op=op: nclient.patch_block_text(
-                        cl, op["notionId"], op["notionType"], op["richText"]))
+                        cl, op["notionId"], op["notionType"], op["richText"], op.get("props")))
                     patched.append(op["notionId"])
                 elif op["op"] == "delete":
                     await runner.run(lambda op=op: nclient.delete_block(cl, op["notionId"]))

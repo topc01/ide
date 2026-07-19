@@ -214,3 +214,52 @@ async def test_set_page_title_arma_properties():
     await nclient.set_page_title(Client(), "pg", "Nuevo")
     assert captured["page_id"] == "pg"
     assert captured["properties"]["title"]["title"][0]["text"]["content"] == "Nuevo"
+
+
+@pytest.mark.asyncio
+async def test_patch_block_text_todo_manda_checked():
+    captured = {}
+
+    class Blocks:
+        async def update(self, **kw):
+            captured.update(kw)
+
+    class Client:
+        blocks = Blocks()
+
+    await nclient.patch_block_text(Client(), "n1", "to_do",
+                                   [{"type": "text", "text": {"content": "x"}, "annotations": {}}],
+                                   {"checked": True})
+    assert captured["block_id"] == "n1"
+    assert captured["to_do"]["checked"] is True
+    assert "rich_text" in captured["to_do"]
+
+
+@pytest.mark.asyncio
+async def test_patch_block_text_code_manda_language():
+    captured = {}
+
+    class Blocks:
+        async def update(self, **kw):
+            captured.update(kw)
+
+    class Client:
+        blocks = Blocks()
+
+    await nclient.patch_block_text(Client(), "n1", "code", [], {"language": "python"})
+    assert captured["code"]["language"] == "python"
+
+
+@pytest.mark.asyncio
+async def test_patch_block_text_sin_props_sigue_funcionando():
+    captured = {}
+
+    class Blocks:
+        async def update(self, **kw):
+            captured.update(kw)
+
+    class Client:
+        blocks = Blocks()
+
+    await nclient.patch_block_text(Client(), "n1", "paragraph", [])   # props default None
+    assert captured["paragraph"] == {"rich_text": []}
