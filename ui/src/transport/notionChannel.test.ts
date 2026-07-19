@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { checkHealth, fetchPages, addPage, fetchPage, savePage, connect, disconnect } from "./notionChannel";
+import { checkHealth, fetchPages, addPage, fetchPage, savePage, setTitle, connect, disconnect } from "./notionChannel";
 
 describe("notionChannel", () => {
   it("checkHealth devuelve connected", async () => {
@@ -22,11 +22,16 @@ describe("notionChannel", () => {
     const ws = { request: vi.fn().mockResolvedValue(res) } as any;
     expect(await fetchPage(ws, "id")).toBe(res);
   });
-  it("savePage manda loaded/edited/unsupportedIds", async () => {
-    const ws = { request: vi.fn().mockResolvedValue({ applied: 1, structural: false, failed: [] }) } as any;
-    await savePage(ws, "id", [{ id: "b1" }], [{ id: "b1" }], ["u1"]);
+  it("savePage manda pageId/loaded/edited/unsupportedIds/idMap", async () => {
+    const ws = { request: vi.fn().mockResolvedValue({ appended: [], deleted: [], patched: [], failed: [] }) } as any;
+    await savePage(ws, "id", [{ id: "b1" }], [{ id: "b1" }], ["u1"], { c: "n" });
     expect(ws.request).toHaveBeenCalledWith("notion.save",
-      { id: "id", loaded: [{ id: "b1" }], edited: [{ id: "b1" }], unsupportedIds: ["u1"] });
+      { pageId: "id", loaded: [{ id: "b1" }], edited: [{ id: "b1" }], unsupportedIds: ["u1"], idMap: { c: "n" } });
+  });
+  it("setTitle manda pageId y title", async () => {
+    const ws = { request: vi.fn().mockResolvedValue({ ok: true }) } as any;
+    await setTitle(ws, "id", "Nuevo");
+    expect(ws.request).toHaveBeenCalledWith("notion.setTitle", { pageId: "id", title: "Nuevo" });
   });
   it("connect manda el token y devuelve connected", async () => {
     const ws = { request: vi.fn().mockResolvedValue({ connected: true }) } as any;
