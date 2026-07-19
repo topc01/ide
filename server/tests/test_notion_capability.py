@@ -89,3 +89,71 @@ async def test_health_users_me_raises(tmp_path):
     reg = Registry()
     notion_cap.register(reg, tmp_path, home=home, client_factory=lambda t: fake)
     assert (await reg.dispatch("notion.health", {}))["connected"] is False
+
+
+@pytest.mark.asyncio
+async def test_connect_valid_token_persists(tmp_path):
+    # sin token al inicio
+    reg, fake = _reg(tmp_path, token="")
+    assert (await reg.dispatch("notion.health", {}))["connected"] is False
+    out = await reg.dispatch("notion.connect", {"token": "secret-xyz"})
+    assert out["connected"] is True
+    # persistió en el home global de _reg → health ahora true
+    assert (await reg.dispatch("notion.health", {}))["connected"] is True
+
+
+@pytest.mark.asyncio
+class _AuthError(RuntimeError):
+    def __init__(self, status: int):
+        super().__init__(str(status))
+        self.status = status
+
+
+@pytest.mark.asyncio
+async def test_connect_invalid_token_not_persisted(tmp_path):
+    # client_factory cuyo users.me() falla con un rechazo de auth (status 401)
+    class _Bad:
+        class _U:
+            async def me(self): raise _AuthError(401)
+        @property
+        def users(self): return self._U()
+    (tmp_path / ".ide").mkdir(exist_ok=True)
+    home = tmp_path / "home2"; (home / ".ide").mkdir(parents=True)
+    from ide_server.plugins import Registry
+    from ide_server.capabilities import notion as notion_cap
+    reg = Registry(); notion_cap.register(reg, tmp_path, home=home, client_factory=lambda t: _Bad())
+    out = await reg.dispatch("notion.connect", {"token": "bad"})
+    assert out["connected"] is False
+    assert not (home / ".ide" / "config.toml").exists() or "token" not in (home / ".ide" / "config.toml").read_text()
+
+
+@pytest.mark.asyncio
+async def test_connect_network_error_propagates(tmp_path):
+    # error sin .status/.code (red/DNS caída) debe propagar, no confundirse con token inválido
+    class _Bad:
+        class _U:
+            async def me(self): raise ConnectionError("network down")
+        @property
+        def users(self): return self._U()
+    (tmp_path / ".ide").mkdir(exist_ok=True)
+    home = tmp_path / "home3"; (home / ".ide").mkdir(parents=True)
+    from ide_server.plugins import Registry
+    from ide_server.capabilities import notion as notion_cap
+    reg = Registry(); notion_cap.register(reg, tmp_path, home=home, client_factory=lambda t: _Bad())
+    with pytest.raises(ConnectionError):
+        await reg.dispatch("notion.connect", {"token": "x"})
+    assert not (home / ".ide" / "config.toml").exists()
+
+
+@pytest.mark.asyncio
+async def test_connect_empty_token(tmp_path):
+    reg, _ = _reg(tmp_path, token="")
+    assert (await reg.dispatch("notion.connect", {"token": ""}))["connected"] is False
+
+
+@pytest.mark.asyncio
+async def test_disconnect_clears(tmp_path):
+    reg, _ = _reg(tmp_path, token="preset")   # _reg escribe el token global
+    assert (await reg.dispatch("notion.health", {}))["connected"] is True
+    await reg.dispatch("notion.disconnect", {})
+    assert (await reg.dispatch("notion.health", {}))["connected"] is False

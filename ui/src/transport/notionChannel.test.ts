@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { checkHealth, fetchPages, addPage, fetchPage, savePage } from "./notionChannel";
+import { checkHealth, fetchPages, addPage, fetchPage, savePage, connect, disconnect } from "./notionChannel";
 
 describe("notionChannel", () => {
   it("checkHealth devuelve connected", async () => {
@@ -27,5 +27,15 @@ describe("notionChannel", () => {
     await savePage(ws, "id", [{ id: "b1" }], [{ id: "b1" }], ["u1"]);
     expect(ws.request).toHaveBeenCalledWith("notion.save",
       { id: "id", loaded: [{ id: "b1" }], edited: [{ id: "b1" }], unsupportedIds: ["u1"] });
+  });
+  it("connect manda el token y devuelve connected", async () => {
+    const ws = { request: vi.fn().mockResolvedValue({ connected: true }) } as any;
+    expect(await connect(ws, "tok")).toBe(true);
+    expect(ws.request).toHaveBeenCalledWith("notion.connect", { token: "tok" });
+  });
+  it("disconnect llama notion.disconnect", async () => {
+    const ws = { request: vi.fn().mockResolvedValue({ connected: false }) } as any;
+    await disconnect(ws);
+    expect(ws.request).toHaveBeenCalledWith("notion.disconnect", {});
   });
 });

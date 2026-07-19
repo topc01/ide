@@ -25,3 +25,9 @@ export async function savePage(
 ): Promise<SaveResult> {
   return ws.request("notion.save", { id, loaded, edited, unsupportedIds });
 }
+export async function connect(ws: WsClient, token: string): Promise<boolean> {
+  return (await ws.request("notion.connect", { token })).connected;
+}
+export async function disconnect(ws: WsClient): Promise<void> {
+  await ws.request("notion.disconnect", {});
+}
