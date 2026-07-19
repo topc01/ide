@@ -129,3 +129,42 @@ def diff_text_ops(loaded: list[dict], edited: list[dict], unsupported_ids: list[
             ops.append({"notionId": bid, "notionType": _notion_type(eb),
                         "richText": inline_to_notion_richtext(eb.get("content", []))})
     return {"ops": ops, "structural": structural}
+
+
+def _append_props(bn_block: dict) -> dict:
+    t = bn_block["type"]
+    props = bn_block.get("props") or {}
+    if t == "checkListItem":
+        return {"checked": bool(props.get("checked"))}
+    if t == "codeBlock":
+        return {"language": props.get("language", "")}
+    return {}
+
+
+def diff_ops(loaded: list[dict], edited: list[dict], unsupported_ids: list[str],
+             id_map: dict[str, str] | None = None) -> dict:
+    id_map = id_map or {}
+    unsupported = set(unsupported_ids)
+    loaded_by = {b["id"]: b for b in loaded}          # keyed por id de Notion
+    ops: list[dict] = []
+    seen_resolved: set[str] = set()
+    prev_resolved: str | None = None                  # id resuelto del bloque previo (en orden)
+    for eb in edited:
+        bid = eb["id"]
+        nid = id_map.get(bid, bid)                     # resolver cliente->notion si aplica
+        seen_resolved.add(nid)
+        if nid in loaded_by:
+            if nid not in unsupported and eb.get("content") != loaded_by[nid].get("content"):
+                ops.append({"op": "patch", "notionId": nid, "notionType": _notion_type(eb),
+                            "richText": inline_to_notion_richtext(eb.get("content", []))})
+            prev_resolved = nid
+        else:
+            ops.append({"op": "append", "clientId": bid, "after": prev_resolved,
+                        "notionType": _notion_type(eb),
+                        "richText": inline_to_notion_richtext(eb.get("content", [])),
+                        "props": _append_props(eb)})
+            prev_resolved = bid                        # el próximo nuevo se ancla a este clientId
+    for nid in loaded_by:
+        if nid not in seen_resolved and nid not in unsupported:
+            ops.append({"op": "delete", "notionId": nid})
+    return {"ops": ops}
