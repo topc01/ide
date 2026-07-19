@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 from ide_server.plugins import Registry
-from ide_server.notion.config import notion_token
+from ide_server.notion.config import notion_token, write_token, clear_token
 from ide_server.notion import refs, adapter, client as nclient
 from ide_server.notion.queue import RateLimitedRunner, RateLimited
 
@@ -59,6 +59,22 @@ def register(registry: Registry, root: Path, home: Path | None = None, client_fa
                 failed.append({"notionId": op["notionId"], "error": str(exc)})
         return {"applied": len(diff["ops"]) - len(failed), "structural": diff["structural"], "failed": failed}
 
+    async def connect(p: dict) -> dict:
+        token = (p.get("token") or "").strip()
+        if not token:
+            return {"connected": False}
+        try:
+            await make_client(token).users.me()
+        except Exception:                                  # noqa: BLE001 — token inválido/red
+            return {"connected": False}
+        write_token(home, token)
+        return {"connected": True}
+
+    async def disconnect(_p: dict) -> dict:
+        clear_token(home)
+        return {"connected": False}
+
     for name, fn in [("health", health), ("list", list_), ("add", add),
-                     ("remove", remove), ("page", page), ("save", save)]:
+                     ("remove", remove), ("page", page), ("save", save),
+                     ("connect", connect), ("disconnect", disconnect)]:
         registry.register(f"notion.{name}", fn)
