@@ -171,6 +171,44 @@ async def test_spawn_creates_child_under_coordinator(tmp_path, monkeypatch):
     assert any(c["id"] == out["sessionId"] for c in coord["children"])
 
 
+@pytest.mark.asyncio
+async def test_ensure_started_wraps_mcp_servers_under_orq_key(tmp_path):
+    # Regresión: `opts["mcp_servers"]` tiene que ser {"orq": <config>}, NO el
+    # config plano — el SDK itera mcp_servers.items() como {nombre: config};
+    # si le pasamos el dict plano ({"type":..., "name":..., "instance":...})
+    # itera esas claves como si fueran nombres de server y `orq` nunca se monta.
+    from ide_server.sessions_store import save_sessions
+    (tmp_path / ".ide").mkdir(exist_ok=True)
+    save_sessions(tmp_path, [{"id": "coord", "name": "King", "children": []}])
+    hub = SessionHub(tmp_path, FakeManager(), FakeDriver)
+    hub._load_ctx = lambda sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None,
+                                 "model": None, "is_coordinator": True}
+    driver = await hub.ensure_started("coord")
+    assert list(driver.mcp_servers.keys()) == ["orq"]
+
+
+@pytest.mark.asyncio
+async def test_ask_rejects_non_child_target(tmp_path):
+    # `to_id` que no es hija de `from_id` (incluye auto-pregunta, to_id==from_id,
+    # y ciclos entre coordinadoras) debe rechazarse ANTES de tocar el lock:
+    # de lo contrario, si `ask` corre dentro de `send_human` (que ya sostiene
+    # el lock de `from_id`), un `to_id == from_id` reentraría `lock_for` y
+    # `asyncio.Lock` no es reentrante -> deadlock permanente.
+    from ide_server.sessions_store import save_sessions
+    (tmp_path / ".ide").mkdir(exist_ok=True)
+    save_sessions(tmp_path, [{"id": "coord", "name": "King",
+                              "children": [{"id": "c1", "name": "Hija A", "worktreePath": str(tmp_path)}]}])
+    hub = SessionHub(tmp_path, FakeManager(), FakeDriver)
+    hub._load_ctx = lambda sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None,
+                                 "model": None, "is_coordinator": sid == "coord"}
+    with pytest.raises(ValueError):
+        await hub.ask("coord", "coord", "auto-pregunta")
+    with pytest.raises(ValueError):
+        await hub.ask("coord", "no-existe", "x")
+    # a la hija real sigue funcionando
+    assert await hub.ask("coord", "c1", "compilá") == "ok"
+
+
 def test_list_children(tmp_path):
     from ide_server.sessions_store import save_sessions
     (tmp_path / ".ide").mkdir(exist_ok=True)

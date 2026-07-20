@@ -106,7 +106,10 @@ class SessionHub:
             # no conocen ese kwarg (sesiones no coordinadoras, tests preexistentes)
             # siguen funcionando sin cambios.
             if mcp is not None:
-                opts["mcp_servers"] = mcp
+                # El SDK espera `mcp_servers: dict[nombre, config]` (itera con
+                # `.items()`); el nombre "orq" forma los `mcp__orq__<tool>` que
+                # ya están en `allowed_tools` arriba.
+                opts["mcp_servers"] = {"orq": mcp}
             driver = self._factory(**opts)
             await driver.start()
             self._drivers[session_id] = driver
@@ -155,6 +158,14 @@ class SessionHub:
 
     async def ask(self, from_id: str, to_id: str, text: str) -> str:
         from ide_server.chat.events import RelayMessage
+        # `to_id` debe ser hija directa de `from_id`: previene auto-pregunta
+        # (`to_id == from_id`, re-entraría `lock_for` bajo el lock que ya
+        # sostiene `send_human` -> deadlock, `asyncio.Lock` no es reentrante)
+        # y ciclos A->B->A entre coordinadoras, y evita arrancar permisiva
+        # (override="skip") cualquier sesión-id todavía no corriendo.
+        child_ids = [c["sessionId"] for c in self.list_children(from_id)]
+        if to_id not in child_ids:
+            raise ValueError(f"'{to_id}' no es una sesión hija de '{from_id}'")
         await self.ensure_started(to_id, override="skip")   # hija permisiva
         from_name, to_name = self._name(from_id), self._name(to_id)
         await self.emit(to_id, RelayMessage(direction="in", peer=from_name, peer_id=from_id, text=text))
