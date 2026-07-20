@@ -41,30 +41,28 @@ Tres regiones (según el mockup, dirección visual **1a — Terminal/amber**):
 
 ## Cómo correr
 
-**Requisitos:** [`uv`](https://docs.astral.sh/uv/) (backend Python), Node + npm (frontend), y el
-binario `claude` de Claude Code en el PATH, logueado por suscripción (**sin `ANTHROPIC_API_KEY`**).
+**Requisitos:** [`uv`](https://docs.astral.sh/uv/), Node + npm, y el binario `claude` de Claude
+Code en el PATH, logueado por suscripción (**sin `ANTHROPIC_API_KEY`**).
 
-Hoy el arranque es de **dos procesos** (backend + frontend por separado) y requiere un workspace
-con `.ide/` inicializado:
+### Un comando levanta todo
 
 ```bash
-# 0) (una vez) inicializar un workspace — crea .ide/ (config, worktrees/, tasks/)
-cd server && uv run ide init --cwd /ruta/a/tu/workspace
+cd server && uv run ide build     # buildea el frontend y lo empaqueta en ide_server/web/
+uv tool install ./server          # deja `ide` en el PATH con el frontend adentro
 
-# 1) backend — FastAPI en http://127.0.0.1:8787 (WebSocket + API)
-cd server && uv run ide run --cwd /ruta/a/tu/workspace --no-browser
-
-# 2) frontend — dev server de Vite en otra terminal
-cd ui && npm install      # la primera vez
-cd ui && npm run dev       # http://localhost:5173
+ide run --cwd /ruta/a/tu/workspace   # sirve todo en http://127.0.0.1:8787
 ```
 
-Abrí **http://localhost:5173** en el navegador. El comando `ide` se detecta como script del
-paquete `ide-server` (`uv run ide`); `--cwd` apunta al workspace, `--no-browser` evita abrir el
-navegador automáticamente.
+`ide run` auto-crea `.ide/` si falta y abre el navegador (`--no-browser` lo evita).
 
-> **Nota:** el objetivo es levantar todo con **un solo `ide`** (que sirva también el frontend y
-> auto-inicialice `.ide/` si falta). Eso todavía no está — ver "Estado" abajo.
+### Desarrollo (hot-reload de la UI)
+
+```bash
+cd server && uv run ide run --cwd <ws> --no-browser   # backend + frontend servido
+cd ui && npm run dev                                   # Vite en :5173 con hot-reload
+```
+
+En dev abrí `:5173` (Vite); el WebSocket del frontend siempre pega a `:8787`.
 
 ## Tests
 

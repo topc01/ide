@@ -10,7 +10,91 @@ def test_resolve_root_after_init(tmp_path):
     init_workspace(tmp_path)
     assert resolve_root(tmp_path) == tmp_path
 
-def test_main_without_workspace_returns_1(tmp_path, capsys):
-    code = main(["--cwd", str(tmp_path)])   # no .ide/ → sugiere init
-    assert code == 1
-    assert "ide init" in capsys.readouterr().out
+
+def test_resolve_web_dir_prefers_bundle(tmp_path):
+    from ide_server.cli import resolve_web_dir
+    bundle = tmp_path / "web"; bundle.mkdir(); (bundle / "index.html").write_text("x")
+    dist = tmp_path / "dist"; dist.mkdir(); (dist / "index.html").write_text("y")
+    assert resolve_web_dir(pkg_web=bundle, repo_dist=dist) == bundle
+
+
+def test_resolve_web_dir_falls_back_to_repo_dist(tmp_path):
+    from ide_server.cli import resolve_web_dir
+    dist = tmp_path / "dist"; dist.mkdir(); (dist / "index.html").write_text("y")
+    assert resolve_web_dir(pkg_web=tmp_path / "nope", repo_dist=dist) == dist
+
+
+def test_resolve_web_dir_none(tmp_path):
+    from ide_server.cli import resolve_web_dir
+    assert resolve_web_dir(pkg_web=tmp_path / "a", repo_dist=tmp_path / "b") is None
+
+
+def test_run_auto_inits_and_serves(tmp_path):
+    calls = {}
+    code = main(["run", "--cwd", str(tmp_path)],
+                serve=lambda app, host, port: calls.setdefault("served", (host, port)),
+                opener=lambda u: calls.setdefault("opened", u))
+    assert code == 0
+    assert (tmp_path / ".ide").is_dir()                     # auto-init
+    assert "served" in calls
+    assert calls["opened"] == "http://127.0.0.1:8787"
+
+
+def test_run_no_browser(tmp_path):
+    init_workspace(tmp_path)
+    opened = []
+    main(["run", "--cwd", str(tmp_path), "--no-browser"],
+         serve=lambda a, h, p: None, opener=lambda u: opened.append(u))
+    assert opened == []
+
+
+def test_build_frontend_copies_dist_to_web(tmp_path):
+    from ide_server.cli import build_frontend
+    ui = tmp_path / "ui"; ui.mkdir()
+    web = tmp_path / "pkgweb"
+    seen = {}
+
+    def fake_runner(cmd, cwd=None, check=False, **kw):
+        seen["cmd"] = cmd; seen["cwd"] = cwd; seen["check"] = check
+        d = ui / "dist"; d.mkdir(); (d / "index.html").write_text("built")
+
+    rc = build_frontend(ui, web, runner=fake_runner)
+    assert rc == 0
+    assert (web / "index.html").read_text() == "built"
+    assert seen["cmd"] == ["npm", "run", "build"]
+    assert Path(seen["cwd"]) == ui and seen["check"] is True
+
+
+def test_build_frontend_replaces_existing_web(tmp_path):
+    from ide_server.cli import build_frontend
+    ui = tmp_path / "ui"; ui.mkdir()
+    web = tmp_path / "pkgweb"; web.mkdir(); (web / "stale.txt").write_text("old")
+
+    def fake_runner(cmd, cwd=None, check=False, **kw):
+        d = ui / "dist"; d.mkdir(); (d / "index.html").write_text("new")
+
+    build_frontend(ui, web, runner=fake_runner)
+    assert not (web / "stale.txt").exists()     # reemplazado, no mergeado
+    assert (web / "index.html").read_text() == "new"
+
+
+def test_main_build_outside_repo(capsys, monkeypatch):
+    import ide_server.cli as cli
+    monkeypatch.setattr(cli, "repo_ui", lambda: None)
+    assert cli.main(["build"]) == 1
+    assert "checkout" in capsys.readouterr().out
+
+
+def test_main_build_invokes_build_frontend(tmp_path, monkeypatch):
+    import ide_server.cli as cli
+    ui = tmp_path / "ui"; ui.mkdir()
+    monkeypatch.setattr(cli, "repo_ui", lambda: ui)
+    monkeypatch.setattr(cli, "PKG_WEB", tmp_path / "web")   # no tocar el PKG_WEB real
+    ran = {}
+
+    def fake_runner(cmd, cwd=None, check=False, **kw):
+        ran["yes"] = True
+        d = ui / "dist"; d.mkdir(); (d / "index.html").write_text("x")
+
+    assert cli.main(["build"], build_runner=fake_runner) == 0
+    assert ran.get("yes") and (tmp_path / "web" / "index.html").is_file()
