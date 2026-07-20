@@ -26,3 +26,18 @@ def test_ws_req_res(tmp_path):
         ws.send_text(json.dumps({"type": "req", "id": "1", "channel": "repos.list", "payload": {}}))
         out = json.loads(ws.receive_text())
         assert out["type"] == "res" and out["id"] == "1"
+
+def test_serves_frontend_when_web_dir(tmp_path):
+    ws = _ws(tmp_path)
+    web = tmp_path / "web"; web.mkdir()
+    (web / "index.html").write_text("<html>IDE</html>")
+    c = TestClient(create_app(ws, web_dir=web))
+    assert "<html>IDE</html>" in c.get("/").text        # sirve index
+    assert c.get("/health").json()["status"] == "ok"    # ruta específica gana
+    assert c.get("/api/repos").json()["repos"][0]["name"] == "repo-a"
+
+
+def test_no_web_dir_still_ok(tmp_path):
+    c = TestClient(create_app(_ws(tmp_path)))            # sin web_dir
+    assert c.get("/health").json()["status"] == "ok"
+    assert c.get("/").status_code == 404                # no monta estáticos

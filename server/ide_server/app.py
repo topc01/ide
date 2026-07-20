@@ -16,7 +16,7 @@ from ide_server.capabilities import notion as notion_cap
 from ide_server.capabilities import tasks as tasks_cap
 
 
-def create_app(root: Path) -> FastAPI:
+def create_app(root: Path, web_dir: Path | None = None) -> FastAPI:
     settings = Settings()
     registry = Registry()
     repos_cap.register(registry, root)
@@ -57,5 +57,9 @@ def create_app(root: Path) -> FastAPI:
                 await ws.send_text(await handle_message(raw, registry))
         except WebSocketDisconnect:
             manager.disconnect(ws)
+
+    if web_dir is not None and (web_dir / "index.html").is_file():
+        from starlette.staticfiles import StaticFiles
+        app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
 
     return app
