@@ -1,4 +1,7 @@
+import jsonschema
 import pytest
+from mcp import types
+
 from ide_server.chat import orchestration as orq
 
 
@@ -51,3 +54,47 @@ def test_build_orq_server_exposes_four_tools():
     hub = FakeHub()
     server = orq.build_orq_server(hub, "coord")
     assert server is not None
+
+
+async def _get_tool_schema(server, tool_name: str) -> dict:
+    """Extrae el inputSchema REAL que el SDK/mcp expone para `tool_name`,
+    tal como quedaría después de que `create_sdk_mcp_server` lo precomputa
+    (ver claude_agent_sdk.__init__._build_schema). Es la capa que valida
+    `mcp` antes de invocar el handler, así que es la que hay que verificar
+    (no alcanza con probar `_t_spawn_session` directamente)."""
+    instance = server["instance"]
+    handler = instance.request_handlers[types.ListToolsRequest]
+    result = await handler(types.ListToolsRequest(method="tools/list"))
+    for t in result.root.tools:
+        if t.name == tool_name:
+            return t.inputSchema
+    raise AssertionError(f"tool {tool_name!r} no encontrada")
+
+
+@pytest.mark.asyncio
+async def test_spawn_session_schema_only_requires_repo_and_name():
+    server = orq.build_orq_server(FakeHub(), "coord")
+    schema = await _get_tool_schema(server, "spawn_session")
+    # No debe lanzar: role/branch ausentes son válidos a nivel protocolo mcp.
+    jsonschema.validate({"repo": "r", "name": "Bob"}, schema)
+    assert set(schema.get("required", [])) == {"repo", "name"}
+
+
+@pytest.mark.asyncio
+async def test_t_ask_sessions_reports_partial_failure_without_aborting():
+    class PartialFailHub(FakeHub):
+        async def ask(self, frm, to, text):
+            if to == "c2":
+                raise RuntimeError("boom c2")
+            return await super().ask(frm, to, text)
+
+    hub = PartialFailHub()
+    res = await orq._t_ask_sessions(
+        hub,
+        "coord",
+        {"requests": [{"session_id": "c1", "task": "X"}, {"session_id": "c2", "task": "Y"}]},
+    )
+    assert res.get("isError") is not True
+    text = res["content"][0]["text"]
+    assert "reply:c1" in text
+    assert "boom c2" in text

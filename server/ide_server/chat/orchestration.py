@@ -48,13 +48,18 @@ async def _t_ask_session(hub, coord_id, args) -> dict:
 async def _t_ask_sessions(hub, coord_id, args) -> dict:
     try:
         reqs = args["requests"]
-        replies = await asyncio.gather(
-            *[hub.ask(coord_id, r["session_id"], r["task"]) for r in reqs]
+        # return_exceptions: una hija que falla no tumba el batch; se reporta
+        # cuál falló (sin fallos silenciosos) y las demás igual devuelven su reply.
+        results = await asyncio.gather(
+            *[hub.ask(coord_id, r["session_id"], r["task"]) for r in reqs],
+            return_exceptions=True,
         )
-        out = [
-            {"session_id": r["session_id"], "reply": rep}
-            for r, rep in zip(reqs, replies)
-        ]
+        out = []
+        for r, res in zip(reqs, results):
+            if isinstance(res, Exception):
+                out.append({"session_id": r["session_id"], "error": str(res)})
+            else:
+                out.append({"session_id": r["session_id"], "reply": res})
         return _ok(json.dumps(out, ensure_ascii=False))
     except Exception as e:  # noqa: BLE001
         return _err(str(e))
@@ -96,7 +101,19 @@ def build_orq_server(hub, coordinator_id: str):
     @tool(
         "spawn_session",
         "Crea una hija nueva (worktree+branch+rol) bajo la coordinadora.",
-        {"repo": str, "name": str, "role": str, "branch": str},
+        # JSON Schema explícito (el SDK lo pasa tal cual si tiene type+properties):
+        # role/branch son OPCIONALES; un dict plano de tipos los haría required y
+        # el protocolo mcp rechazaría spawn_session(repo, name) sin ellos.
+        {
+            "type": "object",
+            "properties": {
+                "repo": {"type": "string"},
+                "name": {"type": "string"},
+                "role": {"type": "string"},
+                "branch": {"type": "string"},
+            },
+            "required": ["repo", "name"],
+        },
     )
     async def spawn_session(args):
         return await _t_spawn_session(hub, coordinator_id, args)
