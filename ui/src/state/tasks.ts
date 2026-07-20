@@ -6,7 +6,7 @@ import { getWs } from "../transport/wsClient";
 interface TasksState {
   tasks: TaskRef[]; loading: boolean; error: string | null;
   load: () => Promise<void>;
-  create: (name: string) => Promise<TaskRef>;
+  create: (name: string) => Promise<TaskRef | undefined>;
 }
 const msg = (e: unknown) => (e as { message?: string })?.message ?? "desconectado";
 
@@ -18,8 +18,10 @@ export const useTasks = create<TasksState>((set) => ({
     catch (e) { set({ loading: false, error: msg(e) }); }
   },
   create: async (name) => {
-    const ref = await createTask(getWs(), name);
-    try { set({ tasks: await listTasks(getWs()), error: null }); } catch (e) { set({ error: msg(e) }); }
-    return ref;
+    try {
+      const ref = await createTask(getWs(), name);
+      set({ tasks: await listTasks(getWs()), error: null });
+      return ref;
+    } catch (e) { set({ error: msg(e) }); return undefined; }
   },
 }));
