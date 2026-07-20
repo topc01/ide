@@ -21,4 +21,15 @@ describe("MessageBubble", () => {
     const bubble = screen.getByText("hola").closest("[data-bubble]") as HTMLElement;
     expect(bubble.className).toContain("bg-primary");
   });
+  it("mensaje relay saliente muestra badge con flecha hacia el peer", () => {
+    render(<MessageBubble msg={{ role: "user", text: "compilá", chips: [],
+      relay: { direction: "out", peer: "Hija A" } }} />);
+    expect(screen.getByText("compilá")).toBeInTheDocument();
+    expect(screen.getByText("→ Hija A")).toBeInTheDocument();
+  });
+  it("mensaje relay entrante muestra badge con flecha desde el peer", () => {
+    render(<MessageBubble msg={{ role: "user", text: "listo", chips: [],
+      relay: { direction: "in", peer: "Hija A" } }} />);
+    expect(screen.getByText("← Hija A")).toBeInTheDocument();
+  });
 });

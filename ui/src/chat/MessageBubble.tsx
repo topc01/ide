@@ -6,6 +6,11 @@ export function MessageBubble({ msg }: { msg: Msg }) {
   const isUser = msg.role === "user";
   return (
     <div className={cn("flex flex-col gap-1", isUser ? "items-end" : "items-start")}>
+      {msg.relay && (
+        <span className="text-[11px] font-medium" style={{ color: "#e0863f" }}>
+          {msg.relay.direction === "out" ? "→" : "←"} {msg.relay.peer}
+        </span>
+      )}
       <div data-bubble className={cn("max-w-[80%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap",
         isUser ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground")}>
         {msg.text}

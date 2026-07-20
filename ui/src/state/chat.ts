@@ -3,7 +3,10 @@ import { create } from "zustand";
 export type Chip =
   | { kind: "tool"; name: string; detail: string }
   | { kind: "edit"; path: string; added: number; removed: number };
-export interface Msg { role: "user" | "agent"; text: string; chips: Chip[]; tokens?: number }
+export interface Msg {
+  role: "user" | "agent"; text: string; chips: Chip[]; tokens?: number;
+  relay?: { direction: "in" | "out"; peer: string };
+}
 interface Convo {
   messages: Msg[]; streaming: boolean;
   permission: { id: string; tool: string; detail: string } | null;
@@ -51,6 +54,9 @@ export const useChat = create<ChatState>((set) => ({
     else if (e.kind === "edit") { lastAgent(c).chips.push({ kind: "edit", path: e.path, added: e.added, removed: e.removed }); }
     else if (e.kind === "usage") { lastAgent(c).tokens = e.totalTokens; }
     else if (e.kind === "done") { c.streaming = false; }
+    else if (e.kind === "relay") {
+      c.messages = [...c.messages, { role: "user", text: e.text, chips: [], relay: { direction: e.direction, peer: e.peer } }];
+    }
     else if (e.kind === "permission_request") { c.permission = { id: e.id, tool: e.tool, detail: e.detail }; }
     else if (e.kind === "error") { c.error = { code: e.code, message: e.message }; c.streaming = false; }
     return { convos: { ...s.convos, [sid]: c } };

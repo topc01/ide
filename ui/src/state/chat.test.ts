@@ -39,6 +39,16 @@ describe("useChat.applyEvent", () => {
     expect(c.permission).toEqual({ id: "p1", tool: "Write", detail: "a.py" });
     expect(c.error).toEqual({ code: "boom", message: "roto" });
   });
+  it("un evento relay agrega un mensaje con badge sin romper el streaming", () => {
+    const { applyEvent } = useChat.getState();
+    applyEvent("s1", { kind: "text_delta", text: "x" });
+    applyEvent("s1", { kind: "relay", direction: "out", peer: "Hija A", peerId: "c1", text: "compilá" });
+    const c = useChat.getState().convos["s1"];
+    const m = c.messages[c.messages.length - 1];
+    expect(m.text).toBe("compilá");
+    expect(m.relay).toEqual({ direction: "out", peer: "Hija A" });
+    expect(c.messages[0]).toMatchObject({ role: "agent", text: "x" });
+  });
   it("clearPermission limpia el permiso pendiente de la sesión", () => {
     const { applyEvent, clearPermission } = useChat.getState();
     applyEvent("s1", { kind: "permission_request", id: "p1", tool: "Write", detail: "a.py" });
