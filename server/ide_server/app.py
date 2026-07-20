@@ -22,7 +22,7 @@ def create_app(root: Path) -> FastAPI:
     sessions_cap.register(registry, root)
     manager = ConnectionManager()
     terminals_cap.register(registry, root, manager)
-    chat_cap.register(registry, root, manager)
+    hub = chat_cap.register(registry, root, manager)
     customizations_cap.register(registry, root)
     changes_cap.register(registry, root)
     graphite_cap.register(registry, root)
