@@ -84,3 +84,57 @@ async def test_ensure_started_concurrent_creates_single_driver(tmp_path):
 
     assert d1 is d2
     assert SlowFakeDriver.instances == 1
+
+
+@pytest.mark.asyncio
+async def test_ask_returns_child_text_and_emits_relays(tmp_path):
+    from ide_server.sessions_store import save_sessions
+    (tmp_path / ".ide").mkdir(exist_ok=True)
+    save_sessions(tmp_path, [{"id": "coord", "name": "King",
+                              "children": [{"id": "c1", "name": "Hija A", "worktreePath": str(tmp_path)}]}])
+    hub = SessionHub(tmp_path, FakeManager(), FakeDriver)
+    hub._load_ctx = lambda sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None,
+                                 "model": None, "is_coordinator": sid == "coord"}
+    reply = await hub.ask("coord", "c1", "compilá")
+    assert reply == "ok"
+    kinds = [(ch, p["kind"], p.get("direction"), p.get("text")) for ch, p in hub.manager.events if p["kind"] == "relay"]
+    # entrante a la hija, saliente al coord, respuesta entrante al coord
+    assert ("chat.event.c1", "relay", "in", "compilá") in kinds
+    assert ("chat.event.coord", "relay", "out", "compilá") in kinds
+    assert ("chat.event.coord", "relay", "in", "ok") in kinds
+
+
+@pytest.mark.asyncio
+async def test_ask_serializes_per_session(tmp_path):
+    # dos ask concurrentes a la misma hija no se solapan (el driver registra orden)
+    from ide_server.sessions_store import save_sessions
+    (tmp_path / ".ide").mkdir(exist_ok=True)
+    save_sessions(tmp_path, [{"id": "coord", "name": "K",
+                              "children": [{"id": "c1", "name": "A", "worktreePath": str(tmp_path)}]}])
+    order = []
+
+    class SlowDriver(FakeDriver):
+        async def send(self, text):
+            order.append(("start", text)); await asyncio.sleep(0.01)
+            order.append(("end", text)); return text
+
+    hub = SessionHub(tmp_path, FakeManager(), SlowDriver)
+    hub._load_ctx = lambda sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None,
+                                 "model": None, "is_coordinator": sid == "coord"}
+    await asyncio.gather(hub.ask("coord", "c1", "A"), hub.ask("coord", "c1", "B"))
+    # sin solaparse: cada par start/end es contiguo
+    assert order in ([("start","A"),("end","A"),("start","B"),("end","B")],
+                     [("start","B"),("end","B"),("start","A"),("end","A")])
+
+
+def test_list_children(tmp_path):
+    from ide_server.sessions_store import save_sessions
+    (tmp_path / ".ide").mkdir(exist_ok=True)
+    save_sessions(tmp_path, [{"id": "coord", "name": "K", "children": [
+        {"id": "c1", "name": "A", "status": "idle", "repoId": "repo1", "worktreePath": "/x"},
+        {"id": "c2", "name": "B", "status": "running", "repoId": "repo2", "worktreePath": "/y"}]}])
+    hub = SessionHub(tmp_path, FakeManager(), FakeDriver)
+    kids = hub.list_children("coord")
+    assert kids == [{"sessionId": "c1", "name": "A", "status": "idle", "repoId": "repo1"},
+                    {"sessionId": "c2", "name": "B", "status": "running", "repoId": "repo2"}]
+    assert hub.list_children("desconocido") == []

@@ -121,3 +121,31 @@ class SessionHub:
         fut = self._pending.get(request_id)
         if fut is not None and not fut.done():
             fut.set_result(bool(allow))
+
+    # --- orquestación entre sesiones ---
+    def _node(self, session_id: str):
+        from ide_server.sessions_store import load_sessions, find_node
+        return find_node(load_sessions(self.root), session_id)
+
+    def _name(self, session_id: str) -> str:
+        node = self._node(session_id)
+        return (node or {}).get("name", session_id)
+
+    def list_children(self, coordinator_id: str) -> list[dict]:
+        node = self._node(coordinator_id)
+        if node is None:
+            return []
+        return [{"sessionId": c["id"], "name": c.get("name", c["id"]),
+                 "status": c.get("status"), "repoId": c.get("repoId")}
+                for c in node.get("children", [])]
+
+    async def ask(self, from_id: str, to_id: str, text: str) -> str:
+        from ide_server.chat.events import RelayMessage
+        await self.ensure_started(to_id, override="skip")   # hija permisiva
+        from_name, to_name = self._name(from_id), self._name(to_id)
+        await self.emit(to_id, RelayMessage(direction="in", peer=from_name, peer_id=from_id, text=text))
+        await self.emit(from_id, RelayMessage(direction="out", peer=to_name, peer_id=to_id, text=text))
+        async with self.lock_for(to_id):
+            reply = await self._drivers[to_id].send(text)
+        await self.emit(from_id, RelayMessage(direction="in", peer=to_name, peer_id=to_id, text=reply))
+        return reply
