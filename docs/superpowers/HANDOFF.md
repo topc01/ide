@@ -4,8 +4,34 @@
 
 ## Dónde estamos
 
+**Tasks (markdown local) Fase 1: COMPLETO y mergeado a `main`** (merge `9c783ee`). El ítem
+"Tasks" del rail deja de ser stub: gestiona `.md` en `.ide/tasks/` (listar/abrir/crear/editar).
+
 **Orquestación entre sesiones (meta-agente Fase 1): COMPLETO y mergeado a `main`** (merge
 `73f0e59`). Verificado E2E en vivo con Claude Code real.
+
+## Qué se construyó en Tasks (último trabajo)
+
+Gestor de tareas **local**: cada tarea es un `.md` en `.ide/tasks/`. El rail lista las tareas
+(título + `id.md` + status ámbar); abrir una la muestra en un tab con un **editor de markdown
+crudo** que guarda al archivo con debounce; "+ nueva" crea una tarea. Sin API externa.
+
+- **Backend** (`server/ide_server/tasks/`): `parse.py` (`parse_meta`: título = primer `# H1`,
+  status = línea `status:`); `store.py` (`list_tasks`/`read_task`/`write_task`/`create_task` +
+  **guard de path** contra traversal, `InvalidTaskId`; `create` usa `slugify` + template +
+  sufijo ante colisión). Capability `tasks.list/read/save/create` en `app.py`.
+- **Frontend** (`ui/src/`): `transport/tasksChannel.ts` + `state/tasks.ts` (`useTasks`);
+  `modules/tasks/TasksPanel.tsx` (rail + "+ nueva") + `register.tsx` (quita el stub);
+  `main/TaskTab.tsx` (editor markdown crudo, save debounced, refresca el rail). Tab `task:<id>`
+  ruteado en `MainPanel`.
+
+Spec: `docs/superpowers/specs/2026-07-20-tasks-design.md`. Plan:
+`docs/superpowers/plans/2026-07-20-tasks.md` (6 tareas TDD). Verificación: backend **225 passed**,
+frontend **143 passed**, tsc limpio. Deuda menor: `glob("*.md")` matchea dotfiles plantados a mano;
+cleanup de timer en unmount de `TaskTab` (patrón pre-existente); `bus.py` mapea el `KeyError` de
+"tarea inexistente" a `unknown_channel` (convención pre-existente de todo el repo). Fuera de
+alcance (Fase 2+): borrar tareas, render estructurado (toggle vista), cambiar status desde el rail,
+que una sesión de Claude Code cree/actualice tareas vía una tool.
 
 Rebanadas cerradas end-to-end: **R0** (fundación), **R1** (sesiones), **R2** (terminal),
 **R3** (chat), **UI shadcn/1a** (identidad ámbar/terminal), **R6** (settings/customizations),
@@ -234,8 +260,9 @@ cd ui && npm run dev   # http://localhost:5173  (backend en :8787)
 - **R5b — acciones de Graphite**: checkout de branch + submit (crea/actualiza PRs vía `gh`,
   outward-facing → confirmaciones/auth). R5a (lectura + restack) ya está; R5b son las acciones
   que faltan. Resolver conflictos de restack in-app también queda acá.
-- **Tasks** (ítem del rail "Tasks", hoy stub; markdown local en `.ide/tasks/`; era parte del R6
-  original, no construido). Rebanada chica y local, buen candidato para retomar.
+- **Tasks Fase 2** (sobre la Fase 1 ya mergeada): borrar tareas, render estructurado (toggle
+  vista con secciones/bullets del mockup), cambiar status desde el rail sin abrir, y que una
+  sesión de Claude Code cree/actualice tareas vía una tool (se enlaza con la orquestación).
 - **Candidato de infra futuro (anotado, no rebanada):** `rmux` (multiplexer de terminal en Rust
   con SDKs Python/TS) para sesiones persistentes / orquestación multi-agente — reemplazaría el
   `pty_manager.py` de R2; swap grande, evaluar si/cuando se necesite persistencia.
