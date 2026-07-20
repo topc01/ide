@@ -147,5 +147,10 @@ class SessionHub:
         await self.emit(from_id, RelayMessage(direction="out", peer=to_name, peer_id=to_id, text=text))
         async with self.lock_for(to_id):
             reply = await self._drivers[to_id].send(text)
+        # `send` dispara `on_event` de la hija (TextDelta/ToolUse/etc.) de forma
+        # síncrona; esos broadcasts se encolan en `_broadcast_tasks` (ver
+        # `_make_on_event`) y hay que flushearlos acá para cumplir el invariante
+        # del hub: al retornar, ningún broadcast queda pendiente como task huérfana.
+        await self._flush_broadcasts()
         await self.emit(from_id, RelayMessage(direction="in", peer=to_name, peer_id=to_id, text=reply))
         return reply

@@ -105,6 +105,30 @@ async def test_ask_returns_child_text_and_emits_relays(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_ask_flushes_child_broadcasts_before_returning(tmp_path):
+    # `send` de la hija dispara `on_event` (TextDelta) de forma síncrona durante
+    # el `ask`; ese broadcast se encola vía `_make_on_event` y debe quedar
+    # flusheado en `manager.events` al retornar `ask`, no en un tick futuro
+    # (invariante del hub: sin tasks huérfanas cuyas excepciones nunca se recuperen).
+    from ide_server.sessions_store import save_sessions
+    (tmp_path / ".ide").mkdir(exist_ok=True)
+    save_sessions(tmp_path, [{"id": "coord", "name": "King",
+                              "children": [{"id": "c1", "name": "Hija A", "worktreePath": str(tmp_path)}]}])
+
+    class StreamingFakeDriver(FakeDriver):
+        async def send(self, text):
+            self.sent.append(text)
+            self.on_event(TextDelta(text="stream"))
+            return "ok"
+
+    hub = SessionHub(tmp_path, FakeManager(), StreamingFakeDriver)
+    hub._load_ctx = lambda sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None,
+                                 "model": None, "is_coordinator": sid == "coord"}
+    await hub.ask("coord", "c1", "x")
+    assert ("chat.event.c1", {"kind": "text_delta", "text": "stream"}) in hub.manager.events
+
+
+@pytest.mark.asyncio
 async def test_ask_serializes_per_session(tmp_path):
     # dos ask concurrentes a la misma hija no se solapan (el driver registra orden)
     from ide_server.sessions_store import save_sessions
