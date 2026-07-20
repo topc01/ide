@@ -3,6 +3,7 @@ import "./modules/terminal/register";
 import "./modules/changes/register";
 import "./modules/graphite/register";
 import "./modules/notion/register";
+import "./modules/tasks/register";
 import { ActivityRail } from "./layout/ActivityRail";
 import { ContextPanel } from "./layout/ContextPanel";
 import { SessionsPanel } from "./modules/sessions/SessionsPanel";

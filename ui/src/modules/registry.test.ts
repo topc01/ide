@@ -5,6 +5,7 @@ import "./terminal/register";
 import "./changes/register";
 import "./graphite/register";
 import "./notion/register";
+import "./tasks/register";
 import { registerModule } from "./registry";
 import { useStore } from "../state/store";
 
