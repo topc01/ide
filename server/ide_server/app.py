@@ -13,6 +13,7 @@ from ide_server.capabilities import customizations as customizations_cap
 from ide_server.capabilities import changes as changes_cap
 from ide_server.capabilities import graphite as graphite_cap
 from ide_server.capabilities import notion as notion_cap
+from ide_server.capabilities import tasks as tasks_cap
 
 
 def create_app(root: Path) -> FastAPI:
@@ -27,6 +28,7 @@ def create_app(root: Path) -> FastAPI:
     changes_cap.register(registry, root)
     graphite_cap.register(registry, root)
     notion_cap.register(registry, root)
+    tasks_cap.register(registry, root)
 
     app = FastAPI(title="Agentic IDE")
     app.add_middleware(

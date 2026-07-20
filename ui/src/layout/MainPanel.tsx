@@ -4,6 +4,7 @@ import { TerminalTab } from "../main/TerminalTab";
 import { ChatView } from "../main/ChatView";
 import { DiffTab } from "../main/DiffTab";
 import { NotionPageTab } from "../main/NotionPageTab";
+import { TaskTab } from "../main/TaskTab";
 
 export function MainPanel() {
   const { openTabs, activeTabId } = useStore();
@@ -18,9 +19,11 @@ export function MainPanel() {
             ? <DiffTab id={active.id} />
             : active?.type === "page"
               ? <NotionPageTab id={active.id} />
-              : active
-                ? <div className="p-4 text-sm text-muted-foreground">{`Tab: ${active.id}`}</div>
-                : <ChatView />}
+              : active?.type === "task"
+                ? <TaskTab id={active.id} />
+                : active
+                  ? <div className="p-4 text-sm text-muted-foreground">{`Tab: ${active.id}`}</div>
+                  : <ChatView />}
       </div>
     </main>
   );
