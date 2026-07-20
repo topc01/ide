@@ -55,3 +55,32 @@ async def test_override_skip_is_permissive(tmp_path):
                               "model": None, "is_coordinator": False})
     d = await hub.ensure_started("s1", override="skip")
     assert d.permission_mode == "bypassPermissions"
+
+
+class SlowFakeDriver(FakeDriver):
+    """Como FakeDriver, pero cede el loop en `start()` para poder forzar el
+    entrelazado de dos `ensure_started` concurrentes en el mismo test."""
+    instances = 0
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        SlowFakeDriver.instances += 1
+
+    async def start(self):
+        await asyncio.sleep(0)
+        self.started = True
+
+
+@pytest.mark.asyncio
+async def test_ensure_started_concurrent_creates_single_driver(tmp_path):
+    SlowFakeDriver.instances = 0
+    hub = _hub(tmp_path, ctx={"cwd": str(tmp_path), "system_prompt": "s", "role": None,
+                              "model": None, "is_coordinator": False})
+    hub._factory = SlowFakeDriver
+
+    d1, d2 = await asyncio.gather(
+        hub.ensure_started("s1"), hub.ensure_started("s1"),
+    )
+
+    assert d1 is d2
+    assert SlowFakeDriver.instances == 1

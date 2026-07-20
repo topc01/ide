@@ -65,31 +65,39 @@ class SessionHub:
     async def ensure_started(self, session_id: str, *, override: str | None = None):
         if session_id in self._drivers:
             return self._drivers[session_id]
-        ctx = self._load_ctx(session_id)
-        mode, allowed = resolve_permission(ctx.get("role"), override)
-        mcp = self._mcp_for(session_id, bool(ctx.get("is_coordinator")))
-        if mcp is not None:
-            allowed = list(allowed or []) + [
-                "mcp__orq__list_children", "mcp__orq__ask_session",
-                "mcp__orq__ask_sessions", "mcp__orq__spawn_session",
-            ]
-        opts: dict = dict(
-            cwd=ctx["cwd"], system_prompt=ctx["system_prompt"], permission_mode=mode,
-            allowed_tools=allowed, model=ctx.get("model"),
-            on_event=self._make_on_event(session_id),
-            on_permission=(lambda req_id, s=session_id: self._await_permission(s, req_id))
-            if mode != "bypassPermissions" else None,
-        )
-        # Solo pasamos mcp_servers cuando hay algo que pasar: los drivers/fakes que
-        # no conocen ese kwarg (sesiones no coordinadoras, tests preexistentes)
-        # siguen funcionando sin cambios.
-        if mcp is not None:
-            opts["mcp_servers"] = mcp
-        driver = self._factory(**opts)
-        await driver.start()
-        self._drivers[session_id] = driver
-        await self._flush_broadcasts()
-        return driver
+        # Double-checked locking: dos corutinas concurrentes para la misma sesión
+        # (fan-out del coordinador vía ask_sessions, o el humano abriendo el chat
+        # de una hija mientras el coordinador la comanda) podrían pasar el `if`
+        # de arriba a la vez. El lock por sesión serializa la creación; el
+        # re-check adentro evita construir/arrancar un segundo driver huérfano.
+        async with self.lock_for(session_id):
+            if session_id in self._drivers:
+                return self._drivers[session_id]
+            ctx = self._load_ctx(session_id)
+            mode, allowed = resolve_permission(ctx.get("role"), override)
+            mcp = self._mcp_for(session_id, bool(ctx.get("is_coordinator")))
+            if mcp is not None:
+                allowed = list(allowed or []) + [
+                    "mcp__orq__list_children", "mcp__orq__ask_session",
+                    "mcp__orq__ask_sessions", "mcp__orq__spawn_session",
+                ]
+            opts: dict = dict(
+                cwd=ctx["cwd"], system_prompt=ctx["system_prompt"], permission_mode=mode,
+                allowed_tools=allowed, model=ctx.get("model"),
+                on_event=self._make_on_event(session_id),
+                on_permission=(lambda req_id, s=session_id: self._await_permission(s, req_id))
+                if mode != "bypassPermissions" else None,
+            )
+            # Solo pasamos mcp_servers cuando hay algo que pasar: los drivers/fakes que
+            # no conocen ese kwarg (sesiones no coordinadoras, tests preexistentes)
+            # siguen funcionando sin cambios.
+            if mcp is not None:
+                opts["mcp_servers"] = mcp
+            driver = self._factory(**opts)
+            await driver.start()
+            self._drivers[session_id] = driver
+            await self._flush_broadcasts()
+            return driver
 
     async def send_human(self, session_id: str, text: str) -> None:
         async with self.lock_for(session_id):
