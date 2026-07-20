@@ -40,6 +40,13 @@ class ChatError:
     code: str
     message: str
 
+@dataclass
+class RelayMessage:
+    direction: str   # "in" | "out"
+    peer: str        # nombre de la otra sesión
+    peer_id: str
+    text: str
+
 def to_payload(event: object) -> dict:
     if isinstance(event, TextDelta):
         return {"kind": "text_delta", "text": event.text}
@@ -57,4 +64,7 @@ def to_payload(event: object) -> dict:
         return {"kind": "permission_request", "id": event.id, "tool": event.tool, "detail": event.detail}
     if isinstance(event, ChatError):
         return {"kind": "error", "code": event.code, "message": event.message}
+    if isinstance(event, RelayMessage):
+        return {"kind": "relay", "direction": event.direction, "peer": event.peer,
+                "peerId": event.peer_id, "text": event.text}
     raise TypeError(f"evento de chat desconocido: {type(event)!r}")

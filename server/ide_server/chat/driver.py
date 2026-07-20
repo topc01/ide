@@ -8,7 +8,7 @@ from claude_agent_sdk import (
     PermissionResultDeny,
 )
 from ide_server.chat.translate import translate, _tool_detail
-from ide_server.chat.events import Done, PermissionRequest
+from ide_server.chat.events import Done, PermissionRequest, TextDelta
 
 EventCb = Callable[[object], None]
 PermissionCb = Callable[[str, dict], Awaitable[bool]] | None
@@ -17,7 +17,8 @@ class ClaudeDriver:
     def __init__(self, *, cwd: str, system_prompt: str, permission_mode: str,
                  allowed_tools: list[str] | None, on_event: EventCb,
                  on_permission: PermissionCb, resume: str | None = None,
-                 model: str | None = None, client_factory=None) -> None:
+                 model: str | None = None, mcp_servers: dict | None = None,
+                 client_factory=None) -> None:
         self._on_event = on_event
         self._on_permission = on_permission
         self._factory = client_factory or ClaudeSDKClient
@@ -28,6 +29,8 @@ class ClaudeDriver:
             opts["allowed_tools"] = allowed_tools
         if model is not None:
             opts["model"] = model
+        if mcp_servers is not None:
+            opts["mcp_servers"] = mcp_servers
         if resume:
             opts["resume"] = resume
         if permission_mode != "bypassPermissions" and on_permission is not None:
@@ -50,13 +53,17 @@ class ClaudeDriver:
     async def start(self) -> None:
         await self._client.__aenter__()
 
-    async def send(self, text: str) -> None:
+    async def send(self, text: str) -> str:
         await self._client.query(prompt=text)
+        parts: list[str] = []
         async for message in self._client.receive_response():
             for event in translate(message):
+                if isinstance(event, TextDelta):
+                    parts.append(event.text)
                 if isinstance(event, Done):
                     self.session_id = event.session_id
                 self._on_event(event)
+        return "".join(parts)
 
     async def interrupt(self) -> None:
         await self._client.interrupt()

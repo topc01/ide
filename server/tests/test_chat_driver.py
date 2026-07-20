@@ -51,3 +51,35 @@ async def test_interrupt_delegates_to_client():
     await d.start()
     await d.interrupt()
     assert fake.interrupted is True
+
+@pytest.mark.asyncio
+async def test_send_returns_accumulated_assistant_text():
+    events = []
+    fake = FakeClient()
+    d = ClaudeDriver(cwd=".", system_prompt="s", permission_mode="default",
+                     allowed_tools=None, on_event=events.append, on_permission=None,
+                     client_factory=lambda options: fake)
+    await d.start()
+    fake.feed(
+        AssistantMessage(content=[TextBlock(text="hola ")], model="claude-test"),
+        AssistantMessage(content=[TextBlock(text="mundo")], model="claude-test"),
+        ResultMessage(session_id="s", total_cost_usd=0.0, usage={}, num_turns=1,
+                      subtype="success", duration_ms=1, duration_api_ms=1,
+                      is_error=False, result="ok"),
+    )
+    text = await d.send("go")
+    assert text == "hola mundo"
+
+def test_driver_passes_mcp_servers_to_options():
+    captured = {}
+
+    class FakeOptionsClient:
+        def __init__(self, options):
+            captured["options"] = options
+
+    mcp_servers = {"orq": object()}
+    ClaudeDriver(cwd=".", system_prompt="s", permission_mode="default",
+                 allowed_tools=["mcp__orq__ask_session"], on_event=lambda e: None,
+                 on_permission=None, mcp_servers=mcp_servers,
+                 client_factory=FakeOptionsClient)
+    assert captured["options"].mcp_servers == mcp_servers
