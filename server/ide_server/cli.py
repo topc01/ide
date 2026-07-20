@@ -1,8 +1,12 @@
 from __future__ import annotations
 import argparse
+import shutil
+import subprocess
 import webbrowser
 from pathlib import Path
 from ide_server.workspace import find_workspace_root
+
+PKG_WEB = Path(__file__).parent / "web"
 
 
 def init_workspace(cwd: Path) -> Path:
@@ -19,31 +23,78 @@ def resolve_root(cwd: Path) -> Path | None:
     return find_workspace_root(cwd)
 
 
-def main(argv: list[str] | None = None) -> int:
+def repo_ui_dist() -> Path:
+    return Path(__file__).parent.parent.parent / "ui" / "dist"
+
+
+def repo_ui() -> Path | None:
+    ui = Path(__file__).parent.parent.parent / "ui"
+    return ui if (ui / "package.json").is_file() else None
+
+
+def resolve_web_dir(pkg_web: Path = PKG_WEB, repo_dist: Path | None = None) -> Path | None:
+    if (pkg_web / "index.html").is_file():
+        return pkg_web
+    repo_dist = repo_dist if repo_dist is not None else repo_ui_dist()
+    if (repo_dist / "index.html").is_file():
+        return repo_dist
+    return None
+
+
+def build_frontend(ui_dir: Path, web_dir: Path, runner=subprocess.run) -> int:
+    runner(["npm", "run", "build"], cwd=str(ui_dir), check=True)
+    shutil.rmtree(web_dir, ignore_errors=True)
+    shutil.copytree(ui_dir / "dist", web_dir)
+    return 0
+
+
+def _serve(app, host: str, port: int) -> None:
+    import uvicorn
+    uvicorn.run(app, host=host, port=port)
+
+
+def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner=None) -> int:
+    serve = serve or _serve
+    opener = opener or webbrowser.open
+    build_runner = build_runner or subprocess.run
+
     parser = argparse.ArgumentParser(prog="ide")
-    parser.add_argument("command", nargs="?", default="run", choices=["run", "init"])
+    parser.add_argument("command", nargs="?", default="run", choices=["run", "init", "build"])
     parser.add_argument("--cwd", default=".")
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args(argv)
     cwd = Path(args.cwd).resolve()
 
     if args.command == "init":
-        ide = init_workspace(cwd)
-        print(f"Workspace inicializado en {ide}")
+        print(f"Workspace inicializado en {init_workspace(cwd)}")
         return 0
 
+    if args.command == "build":
+        ui = repo_ui()
+        if ui is None:
+            print("ide build solo corre desde el checkout del repo (no se encontró ui/).")
+            return 1
+        build_frontend(ui, PKG_WEB, build_runner)
+        print(f"Frontend buildeado en {PKG_WEB}")
+        return 0
+
+    # command == "run"
     root = resolve_root(cwd)
     if root is None:
-        print("No se encontró un workspace (.ide/). Corré `ide init` en la raíz del workspace.")
-        return 1
+        init_workspace(cwd)
+        print(f"Workspace .ide/ creado en {cwd}")
+        root = cwd
 
     from ide_server.app import create_app
     from ide_server.config import Settings
-    import uvicorn
-
     settings = Settings()
+
+    web_dir = resolve_web_dir()
+    if web_dir is None:
+        print("frontend no buildeado; corré `ide build` (o `npm run build` en ui/).")
+
     if not args.no_browser:
-        webbrowser.open(f"http://localhost:5173")
-    print(f"Workspace: {root}  →  backend en http://{settings.host}:{settings.port}")
-    uvicorn.run(create_app(root), host=settings.host, port=settings.port)
+        opener("http://127.0.0.1:8787")
+    print(f"Workspace: {root}  →  http://127.0.0.1:8787")
+    serve(create_app(root, web_dir), settings.host, settings.port)
     return 0
