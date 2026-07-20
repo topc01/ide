@@ -1,15 +1,57 @@
 # Handoff — estado del proyecto (Agentic IDE)
 
-> Última actualización: 2026-07-19. Documento vivo para retomar en otra sesión sin recontexto.
+> Última actualización: 2026-07-20. Documento vivo para retomar en otra sesión sin recontexto.
 
 ## Dónde estamos
 
-**R-Notion Fase 2 (edición estructural): COMPLETO y mergeado a `main`** (merge `49996ea`).
+**Orquestación entre sesiones (meta-agente Fase 1): COMPLETO y mergeado a `main`** (merge
+`73f0e59`). Verificado E2E en vivo con Claude Code real.
 
 Rebanadas cerradas end-to-end: **R0** (fundación), **R1** (sesiones), **R2** (terminal),
 **R3** (chat), **UI shadcn/1a** (identidad ámbar/terminal), **R6** (settings/customizations),
 **R4** (changed files + diff), **R5a** (graphite stack lectura + restack), **R-Notion Fase 1**
-(lectura + edición de texto de páginas de Notion).
+(lectura + edición de texto de Notion), **R-Notion Fase 2** (edición estructural),
+**Orquestación Fase 1** (coordinadora comanda hijas vía MCP).
+
+## Qué se construyó en Orquestación entre sesiones (último trabajo, merge `73f0e59`)
+
+Comunicación **agente-a-agente**: al Claude Code de una sesión **coordinadora**
+(`worktreePath is None`) se le monta un **SDK MCP server `orq`** in-process con tools para
+descubrir, comandar y crear hijas. Adapta el mecanismo `fide` de finnecto-ide (King orquesta
+hijos) a nuestro stack SDK. Verificado E2E: un coordinador real invoca `ask_session`, la hija
+real responde, y el intercambio vuelve al coordinador.
+
+- **Backend** (`server/ide_server/chat/`): `session_hub.py` — `SessionHub`, dueño único del ciclo
+  de vida de los drivers (con **double-checked lock** en `ensure_started`, lock por sesión); la
+  capability `chat` delega en él. Primitivos: `ask(from,to,text)->str` (request-reply, valida que
+  `to` sea hija de `from` — previene deadlock por lock reentrante y auto-pregunta; emite eventos
+  `RelayMessage` a **ambos** chats; flushea broadcasts), `list_children`, `spawn` (crea hija bajo
+  la coordinadora, permisiva). `orchestration.py` — `build_orq_server` con 4 tools
+  (`list_children`/`ask_session`/`ask_sessions` fan-out/`spawn_session`) que delegan al hub;
+  `_mcp_for` lo monta solo en coordinadoras, envuelto en `{"orq": server}` (clave → `mcp__orq__*`).
+  `driver.send()` ahora devuelve el texto asistente acumulado + acepta `mcp_servers`. Evento
+  `RelayMessage` en `events.py`. Hijas comandadas/spawneadas corren **permisivas**
+  (bypassPermissions) — trade-off asumido en el spec.
+- **Frontend** (`ui/src/`): `state/chat.ts` maneja `kind:"relay"` (empuja un `Msg` con
+  `relay:{direction,peer}` sin romper el streaming); `chat/MessageBubble.tsx` renderiza el badge
+  de sesión cruzada (`→`/`←` en ámbar `#e0863f`).
+
+Spec: `docs/superpowers/specs/2026-07-19-orchestration-design.md`. Plan:
+`docs/superpowers/plans/2026-07-19-orchestration.md` (7 tareas TDD + fixes). Verificación:
+backend `uv run pytest -q` → **206 passed**; frontend `npm test` → **133 passed**; **E2E en vivo**
+con `claude` real (coordinador invoca las tools, hija responde, relays en ambos canales).
+
+El review final (opus) cazó un CRITICAL invisible a los tests unitarios (todos con driver fake):
+`mcp_servers` se pasaba sin envolver → el server `orq` nunca se montaba → el coordinador jamás
+veía las tools. Arreglado (`{"orq": mcp}`) + guard de deadlock en `ask`. Sin esos fixes la feature
+no funcionaba end-to-end (confirmado por el E2E post-fix).
+
+Deuda menor logueada: `_broadcast_tasks` compartido entre sesiones (ordering cross-sesión débil,
+sin pérdida de eventos); `repo_path` duplica `_repo_path` de `sessions.py` (DRY); un coordinador
+con rol permisivo queda con `allowed_tools` restringido solo a las tools `orq` (revisar si debe
+sumar sus tools normales). Fuera de alcance (Fase 2+): `answer_gate`/permisos humano-en-el-loop,
+`close_session`, panel de orquestación, timeout de un `ask` colgado, buzón simétrico
+(hijas escribiéndole al coordinador espontáneamente).
 
 ## Qué se construyó en R-Notion Fase 1 (último trabajo)
 
@@ -181,12 +223,14 @@ cd ui && npm run dev   # http://localhost:5173  (backend en :8787)
 
 ## Próximos pasos (sin especificar aún — requieren brainstorming/spec antes de codear)
 
-- **Comunicación entre sesiones (lo próximo a diseñar)**: hoy existe el **modelo de datos**
-  jerárquico (árbol coordinadora↔hijas: `parentId`, `children[]`, `kind`), pero **no hay ningún
-  canal de mensajería entre sesiones** — cada sesión tiene su driver de chat aislado
-  (`drivers[sessionId]`, eventos `chat.event.{session_id}`). El concepto "coordinadora comanda
-  hijas" está en el spec de sesiones pero sin implementar. Es la base para meta-agentes y para
-  integrar observabilidad/herramientas externas (langwatch, etc.). Requiere brainstorming/spec.
+- **Orquestación Fase 2**: sobre la Fase 1 ya mergeada — `answer_gate` (permisos de hijas con el
+  humano en el loop, alternativa a hijas permisivas), `close_session` desde el coordinador,
+  timeout/cancelación de un `ask` colgado, buzón simétrico (hijas escribiéndole al coordinador),
+  y un panel/árbol de orquestación en vivo. También revisar el `allowed_tools` del coordinador
+  permisivo (hoy queda restringido solo a las tools `orq`).
+- **Integrar observabilidad/herramientas externas (langwatch, etc.)**: ahora con el `SessionHub`
+  y el MCP `orq` como base, evaluar cómo enganchar tracing/eval de las sesiones. Requiere
+  brainstorming (el punto de integración es el stream de eventos del driver, no la API).
 - **R5b — acciones de Graphite**: checkout de branch + submit (crea/actualiza PRs vía `gh`,
   outward-facing → confirmaciones/auth). R5a (lectura + restack) ya está; R5b son las acciones
   que faltan. Resolver conflictos de restack in-app también queda acá.
