@@ -43,7 +43,10 @@ class SessionHub:
         return _load_session_context(self.root, session_id)
 
     def _mcp_for(self, session_id: str, is_coordinator: bool):
-        return None  # cableado en Task 6 (build_orq_server para coordinadoras)
+        if not is_coordinator:
+            return None
+        from ide_server.chat.orchestration import build_orq_server
+        return build_orq_server(self, session_id)
 
     # --- accesores ---
     def has(self, session_id: str) -> bool:
