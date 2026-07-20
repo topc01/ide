@@ -1,9 +1,20 @@
 from __future__ import annotations
 import asyncio
+import uuid
 from pathlib import Path
 from ide_server.chat.driver import ClaudeDriver
 from ide_server.chat.permissions import resolve_permission
 from ide_server.chat.events import to_payload
+from ide_server.sessions_store import load_sessions, save_sessions, slugify, insert_node
+from ide_server.worktrees import add_worktree
+from ide_server.workspace import discover_repos
+
+
+def repo_path(root: Path, repo_id: str) -> Path:
+    for repo in discover_repos(root):
+        if repo["id"] == repo_id:
+            return root / repo["id"]
+    raise KeyError(repo_id)
 
 
 class SessionHub:
@@ -154,3 +165,23 @@ class SessionHub:
         await self._flush_broadcasts()
         await self.emit(from_id, RelayMessage(direction="in", peer=to_name, peer_id=to_id, text=reply))
         return reply
+
+    async def spawn(self, coordinator_id: str, repo: str, name: str,
+                    role: str | None = None, branch: str | None = None) -> dict:
+        """Crea una sesión hija (worktree + branch + rol) bajo `coordinator_id`,
+        la persiste en el árbol y la arranca permisiva (`override="skip"`).
+        Reusa la misma forma de nodo que `capabilities/sessions.py::create`
+        (kind="work") para no divergir del resto del sistema."""
+        slug = slugify(name)
+        node = {"id": str(uuid.uuid4()), "name": name, "slug": slug, "description": None,
+                "role": role, "status": "idle", "repoId": repo, "access": "rw",
+                "branch": branch or slug, "worktreePath": None,
+                "expanded": True, "terminals": [], "children": []}
+        wt = self.root / ".ide" / "worktrees" / slug
+        add_worktree(repo_path(self.root, repo), wt, node["branch"], access="rw")
+        node["worktreePath"] = str(wt)
+        tree = load_sessions(self.root)
+        insert_node(tree, coordinator_id, node)
+        save_sessions(self.root, tree)
+        await self.ensure_started(node["id"], override="skip")
+        return {"sessionId": node["id"], "name": name}

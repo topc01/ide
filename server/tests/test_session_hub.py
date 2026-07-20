@@ -151,6 +151,26 @@ async def test_ask_serializes_per_session(tmp_path):
                      [("start","B"),("end","B"),("start","A"),("end","A")])
 
 
+@pytest.mark.asyncio
+async def test_spawn_creates_child_under_coordinator(tmp_path, monkeypatch):
+    from ide_server.sessions_store import save_sessions, load_sessions, find_node
+    (tmp_path / ".ide").mkdir(exist_ok=True)
+    save_sessions(tmp_path, [{"id": "coord", "name": "K", "children": []}])
+    # evitar git real: fake de add_worktree y discover_repos
+    import ide_server.chat.session_hub as hubmod
+    monkeypatch.setattr(hubmod, "add_worktree", lambda *a, **k: None)
+    monkeypatch.setattr(hubmod, "repo_path", lambda root, repo_id: tmp_path)
+    hub = SessionHub(tmp_path, FakeManager(), FakeDriver)
+    hub._load_ctx = lambda sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None,
+                                 "model": None, "is_coordinator": False}
+    out = await hub.spawn("coord", repo="repo1", name="Constructor")
+    assert out["name"] == "Constructor" and "sessionId" in out
+    node = find_node(load_sessions(tmp_path), out["sessionId"])
+    assert node is not None and node["repoId"] == "repo1"
+    coord = find_node(load_sessions(tmp_path), "coord")
+    assert any(c["id"] == out["sessionId"] for c in coord["children"])
+
+
 def test_list_children(tmp_path):
     from ide_server.sessions_store import save_sessions
     (tmp_path / ".ide").mkdir(exist_ok=True)
