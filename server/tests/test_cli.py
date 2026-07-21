@@ -166,3 +166,15 @@ def test_ls_lists_running(tmp_path, monkeypatch, capsys):
     assert cli.main(["ls"]) == 0
     out = capsys.readouterr().out
     assert "http://127.0.0.1:8788" in out and "/ws/b" in out
+
+
+def test_help_prints_reference(capsys):
+    from ide_server.cli import main
+    assert main(["help"]) == 0
+    out = capsys.readouterr().out
+    # comandos clave presentes
+    for token in ["ide run", "ide build", "ide ls", "ide init", "--port", "--cwd"]:
+        assert token in out, token
+    # menciona el modelo y el handoff para agentes
+    assert "coordinadora" in out.lower() or "orquesta" in out.lower()
+    assert "ide-handoff" in out or "handoff" in out.lower()

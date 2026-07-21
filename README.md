@@ -33,6 +33,8 @@ Tres regiones (según el mockup, dirección visual **1a — Terminal/amber**):
 
 ## Documentación
 
+- **`docs/ide-handoff.md`** — guía para agentes: cómo operar y hacer handoff al IDE (también `ide help`).
+- `docs/superpowers/HANDOFF.md` — estado vivo del desarrollo y próximos pasos.
 - `docs/design/handoff/HANDOFF.md` — spec de diseño (fuente de verdad, alta fidelidad).
 - `docs/design/handoff/mockup.dc.html` — prototipo interactivo (formato propietario `.dc.html`).
 - `docs/design/ROADMAP.md` — descomposición en rebanadas (R0–R6).
