@@ -55,10 +55,11 @@ lo crean). Es **local, no se commitea**. Contenido:
 | `.ide/sessions.json` | Árbol de sesiones (ver abajo). |
 | `.ide/tasks/` | Tareas markdown (`.md`). |
 | `.ide/worktrees/<slug>/` | Worktrees de las sesiones de trabajo. |
-| `.ide/instances/<port>.json` | Instancias `ide` corriendo. |
 | `.ide/notion.json` | Lista curada de páginas de Notion. |
 
-Config **global** del usuario: `~/.ide/config.toml` (p.ej. el token de integración de Notion).
+Config y estado **global** del usuario (en `~/.ide/`, no en el workspace): `~/.ide/config.toml`
+(p.ej. el token de integración de Notion) y `~/.ide/instances/<port>.json` (instancias `ide`
+corriendo, compartidas entre todos los workspaces).
 
 ## Sesiones (el modelo central)
 
@@ -86,7 +87,7 @@ trabajo **por sí mismo**:
 |---|---|
 | `list_children()` | Lista las sesiones hijas de la coordinadora (id, nombre, estado, repo). |
 | `ask_session(session_id, task)` | Le manda una tarea a una hija y **espera su respuesta final** (request-reply bloqueante). Devuelve el texto de la hija. |
-| `ask_sessions([{session_id, task}, …])` | **Fan-out**: manda tareas a varias hijas en paralelo y espera todas. |
+| `ask_sessions({requests: [{session_id, task}, …]})` | **Fan-out**: manda tareas a varias hijas en paralelo y espera todas. |
 | `spawn_session(repo, name, role?, branch?)` | Crea una hija nueva (worktree + branch + rol) bajo la coordinadora y la deja lista. |
 
 Detalles:

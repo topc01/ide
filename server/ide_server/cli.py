@@ -100,13 +100,15 @@ DESARROLLO (hot-reload de la UI)
 
 EL WORKSPACE (.ide/)
   Un directorio con .ide/ es la unidad de trabajo. Contiene: config.toml, sessions.json,
-  tasks/ (tareas markdown), worktrees/ (worktrees de las sesiones), instances/, notion.json.
-  .ide/ es local y no se commitea. Config global del usuario: ~/.ide/config.toml.
+  tasks/ (tareas markdown), worktrees/ (worktrees de las sesiones), notion.json.
+  .ide/ es local y no se commitea. Global del usuario (en ~/.ide/): config.toml y
+  instances/<port>.json (instancias corriendo, compartidas entre workspaces).
 
 CÓMO UN AGENTE HACE HANDOFF A ESTE IDE (resumen)
   Una sesión COORDINADORA (sin worktree) comanda sesiones HIJAS (worktree + branch + rol) vía
   herramientas MCP `orq` expuestas a su Claude Code: list_children, ask_session(id, tarea)
-  [request-reply bloqueante], ask_sessions([...]) [fan-out paralelo], spawn_session(repo, nombre).
+  [request-reply bloqueante], ask_sessions({requests:[...]}) [fan-out paralelo],
+  spawn_session(repo, nombre).
   Las hijas corren permisivas; los mensajes se ven como chat en ambas sesiones. Las tareas viven
   como markdown en .ide/tasks/ (capability tasks.list/read/save/create).
 
