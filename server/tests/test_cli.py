@@ -37,7 +37,9 @@ def test_run_auto_inits_and_serves(tmp_path):
     assert code == 0
     assert (tmp_path / ".ide").is_dir()                     # auto-init
     assert "served" in calls
-    assert calls["opened"] == "http://127.0.0.1:8787"
+    # Puerto dinámico: verificar que el URL abierto contiene el puerto servido
+    host, port = calls["served"]
+    assert calls["opened"] == f"http://{host}:{port}"
 
 
 def test_run_no_browser(tmp_path):
@@ -98,3 +100,81 @@ def test_main_build_invokes_build_frontend(tmp_path, monkeypatch):
 
     assert cli.main(["build"], build_runner=fake_runner) == 0
     assert ran.get("yes") and (tmp_path / "web" / "index.html").is_file()
+
+
+def test_find_free_port_returns_start_when_free():
+    import socket
+    from ide_server.cli import find_free_port
+    s = socket.socket(); s.bind(("127.0.0.1", 0)); free = s.getsockname()[1]; s.close()
+    assert find_free_port("127.0.0.1", free) == free
+
+
+def test_find_free_port_bumps_when_busy():
+    import socket
+    from ide_server.cli import find_free_port
+    s = socket.socket(); s.bind(("127.0.0.1", 0)); busy = s.getsockname()[1]; s.listen()
+    try:
+        got = find_free_port("127.0.0.1", busy)
+        assert got != busy
+        s2 = socket.socket(); s2.bind(("127.0.0.1", got)); s2.close()   # got es bindeable
+    finally:
+        s.close()
+
+
+def test_find_free_port_raises_when_none_free():
+    import socket
+    import pytest
+    from ide_server.cli import find_free_port
+    s = socket.socket(); s.bind(("127.0.0.1", 0)); busy = s.getsockname()[1]; s.listen()
+    try:
+        with pytest.raises(RuntimeError):
+            find_free_port("127.0.0.1", busy, limit=1)   # solo prueba busy, ocupado → RuntimeError
+    finally:
+        s.close()
+
+
+def test_run_opens_chosen_port(tmp_path):
+    init_workspace(tmp_path)
+    calls = {}
+    main(["run", "--cwd", str(tmp_path), "--port", "8899"],
+         serve=lambda app, host, port: calls.setdefault("served", port),
+         opener=lambda u: calls.setdefault("opened", u))
+    assert calls["served"] == 8899
+    assert calls["opened"] == "http://127.0.0.1:8899"
+
+
+def test_run_registers_and_unregisters_instance(tmp_path, monkeypatch):
+    import ide_server.cli as cli
+    from ide_server import instances
+    monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)
+    init_workspace(tmp_path)
+    seen = {}
+    def fake_serve(app, host, port):
+        seen["during"] = instances.list_instances(tmp_path)   # registrada mientras sirve
+    cli.main(["run", "--cwd", str(tmp_path), "--port", "8787"],
+             serve=fake_serve, opener=lambda u: None)
+    assert len(seen["during"]) == 1 and seen["during"][0]["port"] == 8787
+    assert instances.list_instances(tmp_path) == []           # desregistrada al terminar (finally)
+
+
+def test_ls_lists_running(tmp_path, monkeypatch, capsys):
+    import ide_server.cli as cli
+    from ide_server import instances
+    import os
+    monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)
+    instances.register_instance(tmp_path, port=8788, host="127.0.0.1", workspace="/ws/b", pid=os.getpid())
+    assert cli.main(["ls"]) == 0
+    out = capsys.readouterr().out
+    assert "http://127.0.0.1:8788" in out and "/ws/b" in out
+
+
+def test_help_prints_reference(capsys):
+    from ide_server.cli import main
+    assert main(["help"]) == 0
+    out = capsys.readouterr().out
+    # comandos clave presentes
+    for token in ["ide run", "ide build", "ide ls", "ide init", "--port", "--cwd"]:
+        assert token in out, token
+    # menciona el modelo y el handoff para agentes
+    assert "coordinadora" in out.lower() or "orquesta" in out.lower()
+    assert "ide-handoff" in out or "handoff" in out.lower()
