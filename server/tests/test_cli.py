@@ -37,7 +37,9 @@ def test_run_auto_inits_and_serves(tmp_path):
     assert code == 0
     assert (tmp_path / ".ide").is_dir()                     # auto-init
     assert "served" in calls
-    assert calls["opened"] == "http://127.0.0.1:8787"
+    # Puerto dinámico: verificar que el URL abierto contiene el puerto servido
+    host, port = calls["served"]
+    assert calls["opened"] == f"http://{host}:{port}"
 
 
 def test_run_no_browser(tmp_path):
@@ -98,3 +100,32 @@ def test_main_build_invokes_build_frontend(tmp_path, monkeypatch):
 
     assert cli.main(["build"], build_runner=fake_runner) == 0
     assert ran.get("yes") and (tmp_path / "web" / "index.html").is_file()
+
+
+def test_find_free_port_returns_start_when_free():
+    import socket
+    from ide_server.cli import find_free_port
+    s = socket.socket(); s.bind(("127.0.0.1", 0)); free = s.getsockname()[1]; s.close()
+    assert find_free_port("127.0.0.1", free) == free
+
+
+def test_find_free_port_bumps_when_busy():
+    import socket
+    from ide_server.cli import find_free_port
+    s = socket.socket(); s.bind(("127.0.0.1", 0)); busy = s.getsockname()[1]; s.listen()
+    try:
+        got = find_free_port("127.0.0.1", busy)
+        assert got != busy
+        s2 = socket.socket(); s2.bind(("127.0.0.1", got)); s2.close()   # got es bindeable
+    finally:
+        s.close()
+
+
+def test_run_opens_chosen_port(tmp_path):
+    init_workspace(tmp_path)
+    calls = {}
+    main(["run", "--cwd", str(tmp_path), "--port", "8899"],
+         serve=lambda app, host, port: calls.setdefault("served", port),
+         opener=lambda u: calls.setdefault("opened", u))
+    assert calls["served"] == 8899
+    assert calls["opened"] == "http://127.0.0.1:8899"

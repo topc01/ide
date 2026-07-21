@@ -1,6 +1,7 @@
 from __future__ import annotations
 import argparse
 import shutil
+import socket
 import subprocess
 import webbrowser
 from pathlib import Path
@@ -41,6 +42,17 @@ def resolve_web_dir(pkg_web: Path = PKG_WEB, repo_dist: Path | None = None) -> P
     return None
 
 
+def find_free_port(host: str, start: int, limit: int = 100) -> int:
+    for port in range(start, start + limit):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind((host, port))
+                return port
+            except OSError:
+                continue
+    raise RuntimeError(f"no hay puerto libre en [{start}, {start + limit})")
+
+
 def build_frontend(ui_dir: Path, web_dir: Path, runner=subprocess.run) -> int:
     runner(["npm", "run", "build"], cwd=str(ui_dir), check=True)
     shutil.rmtree(web_dir, ignore_errors=True)
@@ -62,6 +74,7 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
     parser.add_argument("command", nargs="?", default="run", choices=["run", "init", "build"])
     parser.add_argument("--cwd", default=".")
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--port", type=int, default=None)
     args = parser.parse_args(argv)
     cwd = Path(args.cwd).resolve()
 
@@ -93,8 +106,11 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
     if web_dir is None:
         print("frontend no buildeado; corré `ide build` (o `npm run build` en ui/).")
 
+    host = settings.host
+    port = args.port if args.port is not None else find_free_port(host, settings.port)
+    url = f"http://{host}:{port}"
     if not args.no_browser:
-        opener("http://127.0.0.1:8787")
-    print(f"Workspace: {root}  →  http://127.0.0.1:8787")
-    serve(create_app(root, web_dir), settings.host, settings.port)
+        opener(url)
+    print(f"Workspace: {root}  →  {url}")
+    serve(create_app(root, web_dir), host, port)
     return 0
