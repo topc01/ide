@@ -280,12 +280,17 @@ cd ui && npm run dev   # http://localhost:5173  (backend en :8787)
 
 ## Próximos pasos (sin especificar aún — requieren brainstorming/spec antes de codear)
 
-- **`ide setup` — traspaso desde otro entorno**: detectar worktrees existentes (Conductor en
-  `~/.conductor/…`/`~/conductor/workspaces/…`, y `git worktree list` en general) y adoptarlos como
-  sesiones del IDE (`.ide/sessions.json`) apuntando a los worktrees en su lugar; interactivo
-  (mostrar detectado + confirmar qué importar). Fase 2: detectar sesiones de Claude Code
-  (`~/.claude/projects/…/*.jsonl`) y resumir la conversación (SDK `resume`). Ojo: el modelo hoy
-  asume worktrees bajo `.ide/worktrees/`; adoptar ajenos requiere permitir `worktreePath` fuera de ahí.
+- **Modelos locales (mlx) + routing — EN CURSO** (brainstorming cerrado, spec en camino). Subsistema
+  en 3 rebanadas: (1) **fundación** — el IDE spawnea `mlx_lm.server` (dep opcional `ide-server[mlx]`,
+  solo-Mac); router **pluggable** que en el chat decide local (simple/chat, responde sin gastar
+  contexto de Claude) vs Claude Code (código/agente); router de arranque **prompt-based** (sentinela
+  `ROUTE_TO_CLAUDE`, prompt editable por config); badge local/claude; opt-in `~/.ide/config.toml [mlx]`.
+  (2) **config de modelos (UI)** — panel Settings "Modelos" editable: descargar modelos open-source,
+  editar el prompt del router, elegir el local. (3) **RouteLLM** como router alternativo (entrenado +
+  threshold, sin prompt editable). Ver `docs/design/ROADMAP.md`.
+- **Config editable (dirección general)**: Settings/Customizations (roles/skills/agents/hooks/plugins/
+  tools/MCP) es hoy **read-only** (capability `customizations.list` solo lee); se edita a mano. La
+  config de Modelos será la primera editable; hacer editable el resto es un tema mayor.
 - **Orquestación Fase 2**: sobre la Fase 1 ya mergeada — `answer_gate` (permisos de hijas con el
   humano en el loop, alternativa a hijas permisivas), `close_session` desde el coordinador,
   timeout/cancelación de un `ask` colgado, buzón simétrico (hijas escribiéndole al coordinador),

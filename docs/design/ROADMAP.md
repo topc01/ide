@@ -40,13 +40,24 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
 
 ### Pendientes (requieren brainstorming/spec — ver HANDOFF)
 
-- **`ide setup` — traspaso desde otro entorno** (DX de onboarding): detectar worktrees existentes
-  (worktrees de **Conductor** en `~/.conductor/…`/`~/conductor/workspaces/…`, y `git worktree list`
-  en general) y **adoptarlos como sesiones** del IDE en `.ide/sessions.json`, apuntando a los
-  worktrees en su lugar. Interactivo: mostrar lo detectado y confirmar qué importar. **Fase 2:**
-  detectar sesiones de **Claude Code** (`~/.claude/projects/…/*.jsonl`) y **resumir la conversación**
-  (SDK `resume` por session_id). Nota: el modelo hoy asume worktrees bajo `.ide/worktrees/`; adoptar
-  ajenos requiere permitir `worktreePath` fuera de ahí.
+- **Modelos locales (mlx) + routing de tareas** — subsistema, se construye en rebanadas:
+  - *Rebanada 1 (fundación, EN CURSO):* el IDE spawnea `mlx_lm.server` (dep opcional `ide-server[mlx]`,
+    solo-Mac); un **router pluggable** decide en el chat entre el **modelo local** (tareas simples/chat,
+    responde ahí y no gasta contexto de Claude) y **Claude Code** (código/agente). Router de arranque
+    = **prompt-based** (el modelo local decide-y-responde con sentinela `ROUTE_TO_CLAUDE`, prompt
+    editable por config). Badge local/claude por turno. Opt-in vía `~/.ide/config.toml [mlx]`.
+  - *Rebanada 2 (config de modelos, UI):* panel de Settings "Modelos" **editable** (primera config
+    editable de la app): listar/**descargar** modelos open-source (mlx), **editar el prompt del router**,
+    enable/disable, elegir el modelo local. Extiende la superficie de Settings/Customizations (hoy
+    read-only).
+  - *Rebanada 3 (RouteLLM):* enchufar **RouteLLM** (LMSYS) como router alternativo (router `mf`
+    entrenado + threshold calibrable) vía la interfaz de router ya pluggable. Nota: RouteLLM rutea por
+    *dificultad general*, no por "necesita tools", y **no tiene prompt editable** (es entrenado) — por
+    eso es una opción de router, no el reemplazo del prompt-based.
+- **Config editable (dirección general)** — hoy Settings/Customizations (roles, skills, agents, hooks,
+  plugins, tools, MCP) es un **catálogo read-only**; se edita a mano (`.ide/config.toml` para roles,
+  `~/.claude/*` para el resto). La config de Modelos (arriba) es la primera *editable*; hacer editable
+  el resto (roles, skills, MCP desde la app) es un tema mayor a especificar.
 - **R5b** — acciones de Graphite (checkout de branch + submit de PRs vía `gh`).
 - **Orquestación Fase 2** — `answer_gate` (permisos con humano en el loop), `close_session`,
   timeouts de `ask`, buzón simétrico, panel de orquestación en vivo.
