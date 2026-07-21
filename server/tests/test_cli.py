@@ -141,3 +141,28 @@ def test_run_opens_chosen_port(tmp_path):
          opener=lambda u: calls.setdefault("opened", u))
     assert calls["served"] == 8899
     assert calls["opened"] == "http://127.0.0.1:8899"
+
+
+def test_run_registers_and_unregisters_instance(tmp_path, monkeypatch):
+    import ide_server.cli as cli
+    from ide_server import instances
+    monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)
+    init_workspace(tmp_path)
+    seen = {}
+    def fake_serve(app, host, port):
+        seen["during"] = instances.list_instances(tmp_path)   # registrada mientras sirve
+    cli.main(["run", "--cwd", str(tmp_path), "--port", "8787"],
+             serve=fake_serve, opener=lambda u: None)
+    assert len(seen["during"]) == 1 and seen["during"][0]["port"] == 8787
+    assert instances.list_instances(tmp_path) == []           # desregistrada al terminar (finally)
+
+
+def test_ls_lists_running(tmp_path, monkeypatch, capsys):
+    import ide_server.cli as cli
+    from ide_server import instances
+    import os
+    monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)
+    instances.register_instance(tmp_path, port=8788, host="127.0.0.1", workspace="/ws/b", pid=os.getpid())
+    assert cli.main(["ls"]) == 0
+    out = capsys.readouterr().out
+    assert "http://127.0.0.1:8788" in out and "/ws/b" in out

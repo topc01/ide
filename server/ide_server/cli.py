@@ -1,10 +1,12 @@
 from __future__ import annotations
 import argparse
+import os
 import shutil
 import socket
 import subprocess
 import webbrowser
 from pathlib import Path
+from ide_server import instances
 from ide_server.workspace import find_workspace_root
 
 PKG_WEB = Path(__file__).parent / "web"
@@ -71,7 +73,7 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
     build_runner = build_runner or subprocess.run
 
     parser = argparse.ArgumentParser(prog="ide")
-    parser.add_argument("command", nargs="?", default="run", choices=["run", "init", "build"])
+    parser.add_argument("command", nargs="?", default="run", choices=["run", "init", "build", "ls"])
     parser.add_argument("--cwd", default=".")
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--port", type=int, default=None)
@@ -89,6 +91,15 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
             return 1
         build_frontend(ui, PKG_WEB, build_runner)
         print(f"Frontend buildeado en {PKG_WEB}")
+        return 0
+
+    if args.command == "ls":
+        insts = instances.list_instances(Path.home())
+        if not insts:
+            print("no hay instancias corriendo")
+            return 0
+        for i in insts:
+            print(f"  {i['url']}  {i['workspace']}  (pid {i['pid']})")
         return 0
 
     # command == "run"
@@ -109,8 +120,13 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
     host = settings.host
     port = args.port if args.port is not None else find_free_port(host, settings.port)
     url = f"http://{host}:{port}"
+    inst_path = instances.register_instance(Path.home(), port=port, host=host,
+                                            workspace=str(root), pid=os.getpid())
     if not args.no_browser:
         opener(url)
     print(f"Workspace: {root}  →  {url}")
-    serve(create_app(root, web_dir), host, port)
+    try:
+        serve(create_app(root, web_dir), host, port)
+    finally:
+        instances.unregister_instance(inst_path)
     return 0
