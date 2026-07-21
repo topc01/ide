@@ -121,6 +121,18 @@ def test_find_free_port_bumps_when_busy():
         s.close()
 
 
+def test_find_free_port_raises_when_none_free():
+    import socket
+    import pytest
+    from ide_server.cli import find_free_port
+    s = socket.socket(); s.bind(("127.0.0.1", 0)); busy = s.getsockname()[1]; s.listen()
+    try:
+        with pytest.raises(RuntimeError):
+            find_free_port("127.0.0.1", busy, limit=1)   # solo prueba busy, ocupado → RuntimeError
+    finally:
+        s.close()
+
+
 def test_run_opens_chosen_port(tmp_path):
     init_workspace(tmp_path)
     calls = {}
