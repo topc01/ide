@@ -40,6 +40,13 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
 
 ### Pendientes (requieren brainstorming/spec — ver HANDOFF)
 
+- **`ide setup` — traspaso desde otro entorno** (DX de onboarding): detectar worktrees existentes
+  (worktrees de **Conductor** en `~/.conductor/…`/`~/conductor/workspaces/…`, y `git worktree list`
+  en general) y **adoptarlos como sesiones** del IDE en `.ide/sessions.json`, apuntando a los
+  worktrees en su lugar. Interactivo: mostrar lo detectado y confirmar qué importar. **Fase 2:**
+  detectar sesiones de **Claude Code** (`~/.claude/projects/…/*.jsonl`) y **resumir la conversación**
+  (SDK `resume` por session_id). Nota: el modelo hoy asume worktrees bajo `.ide/worktrees/`; adoptar
+  ajenos requiere permitir `worktreePath` fuera de ahí.
 - **R5b** — acciones de Graphite (checkout de branch + submit de PRs vía `gh`).
 - **Orquestación Fase 2** — `answer_gate` (permisos con humano en el loop), `close_session`,
   timeouts de `ask`, buzón simétrico, panel de orquestación en vivo.
