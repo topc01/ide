@@ -24,9 +24,12 @@ mlx no está configurado, el chat funciona como hoy.
    exactamente `ROUTE_TO_CLAUDE` → va a Claude Code.
 5. **Router pluggable**: interfaz `Router.route(text) -> RouteDecision`; Fase 1 implementa el
    prompt-based; RouteLLM entra después por la misma interfaz.
-6. **Prompt del router editable por config** (`~/.ide/config.toml [mlx].router_prompt`), con default
+6. **Prompt del router editable por config** (`.ide/config.toml [mlx].router_prompt`), con default
    en código. (La UI para editarlo es Rebanada 2.)
-7. **Opt-in**: sin `[mlx]` configurado, el chat es Claude-only (comportamiento actual intacto).
+7. **Switch por-proyecto**: `[mlx].enabled` en el `.ide/config.toml` del **workspace** (no global)
+   es el interruptor on/off. Sin `[mlx]` o `enabled=false` → chat Claude-only (comportamiento actual).
+8. **Degradar con aviso**: si mlx está prendido pero no disponible, cae a Claude **y avisa
+   visiblemente** (nunca falla silencioso, nunca rompe el chat).
 
 ## Arquitectura
 
@@ -35,10 +38,12 @@ mlx no está configurado, el chat funciona como hoy.
 **Dep**: `httpx>=0.27` pasa a runtime (ya viene transitivo por `notion-client`; se declara explícito).
 `mlx-lm` como extra opcional: `[project.optional-dependencies] mlx = ["mlx-lm>=0.19"]`.
 
-- **`mlx/config.py`**: `mlx_config(home: Path) -> MlxConfig | None`. Lee `home/.ide/config.toml
-  [mlx]`; si falta o `enabled` no es true → `None` (mlx apagado). `MlxConfig = {model: str,
-  router_prompt: str, port: int | None}`. `router_prompt` default `DEFAULT_ROUTER_PROMPT` (constante
-  del módulo) si no está en el toml. Reutiliza el patrón de lectura toml de `notion/config.py`.
+- **`mlx/config.py`**: `mlx_config(root: Path) -> MlxConfig | None`. Lee el `.ide/config.toml` del
+  **workspace** (`root/.ide/config.toml`, sección `[mlx]`) — **por-proyecto**, no global; si falta la
+  sección o `enabled` no es true → `None` (mlx apagado). `MlxConfig = {model: str, router_prompt:
+  str, port: int | None}`. `router_prompt` default `DEFAULT_ROUTER_PROMPT` (constante del módulo) si
+  no está en el toml. Reutiliza el patrón de lectura toml de `notion/config.py`. (El download del
+  modelo sigue siendo global en el cache de HF; lo que es por-proyecto es el *switch* y el prompt.)
 - **`mlx/server.py`** — `MlxServer(model, *, spawn=subprocess.Popen, http_get=..., find_port=...)`:
   - `async ensure_running() -> str` (base url): si ya corre, devuelve la url; si no, elige puerto
     libre (`find_free_port` de `cli.py`, reusado), `spawn([sys.executable, "-m", "mlx_lm.server",
@@ -53,7 +58,8 @@ mlx no está configurado, el chat funciona como hoy.
     `{"model": "local", "messages": messages}` (OpenAI-compatible), devuelve
     `resp["choices"][0]["message"]["content"]`. `http_post` inyectable (httpx real por default).
 - **`mlx/router.py`** — router pluggable:
-  - `@dataclass RouteDecision: route: str ("local"|"claude"); reply: str | None`.
+  - `@dataclass RouteDecision: route: str ("local"|"claude"); reply: str | None; degraded: bool = False`
+    (`degraded=True` cuando se cae a Claude porque mlx no estaba disponible — el handler lo usa para avisar).
   - `class Router(Protocol): async def route(self, text: str) -> RouteDecision`.
   - `class PromptRouter(client: MlxClient, router_prompt: str)`: `route(text)` manda
     `[{role:"system", content: router_prompt}, {role:"user", content: text}]` al client; si la
@@ -64,20 +70,23 @@ mlx no está configurado, el chat funciona como hoy.
   - `DEFAULT_ROUTER_PROMPT`: instruye al modelo a responder tareas simples y emitir
     `ROUTE_TO_CLAUDE` si requiere leer/editar código, correr comandos o trabajar con el proyecto.
 
-**`MlxRouter` (orquestador del subsistema)** — atado en `app.py`: construye `MlxServer` + `MlxClient`
-(lazy) + `PromptRouter` desde `mlx_config`. Expone `async decide(text) -> RouteDecision | None`
-(`None` si mlx está apagado; si prendido, `ensure_running` + `router.route`). Errores de mlx
-(`MlxUnavailable`) → se traducen a "cae a Claude" (degradación: si el modelo local no está, no
-rompas el chat — ruteá a Claude) **y** se emite un aviso de error (sin fallo silencioso).
+**`MlxRouter` (orquestador del subsistema)** — atado en `app.py` con `root` del workspace: construye
+`MlxServer` + `MlxClient` (lazy) + `PromptRouter` desde `mlx_config(root)`. Expone `async decide(text)
+-> RouteDecision | None` (`None` si mlx está apagado; si prendido, `ensure_running` + `router.route`).
+Errores de mlx (`MlxUnavailable`) → devuelve una decisión **claude** con un flag `degraded=True` (no
+rompe el chat) para que el handler **avise** (evento de aviso visible), no lo trague.
 
 ### Integración en el chat (`capabilities/chat.py`)
 
 `chat.send {sessionId, text}` (path humano) pasa a:
 
 1. `decision = await mlx_router.decide(text)` (si `mlx_router` fue inyectado y está enabled).
-2. Si `decision is None` o `decision.route == "claude"` → emite `Routed(source="claude")` (para el
-   badge) y sigue el flujo actual: `hub.send_human(sid, text)` (Claude Code responde).
-3. Si `decision.route == "local"` → emite `Routed(source="local")` + la respuesta del modelo como
+2. Si `decision` trae `degraded=True` → emite un aviso visible (`ChatError` o un evento de aviso:
+   "modelo local no disponible, usando Claude") **antes** de seguir — el usuario se entera de que el
+   switch está prendido pero mlx no arrancó.
+3. Si `decision is None` o `decision.route == "claude"` → emite `Routed(source="claude")` (badge) y
+   sigue el flujo actual: `hub.send_human(sid, text)` (Claude Code responde).
+4. Si `decision.route == "local"` → emite `Routed(source="local")` + la respuesta del modelo como
    evento(s) de chat (`TextDelta(reply)` + `Done`) al canal `chat.event.{sid}`, **sin** tocar el
    driver de Claude (el turno no entra al contexto de Claude — ahorro de tokens). Emite vía el hub
    (`hub.emit` / broadcast), respetando el patrón de flush.
@@ -97,23 +106,25 @@ Se emite al inicio del turno humano para que el front sepa quién responde.
 - **`main/ChatView.tsx` / `MessageBubble`**: si `m.source`, badge chico: **"local"** (color distinto,
   p.ej. un verde/azul suave) o **"claude"** (ámbar), junto al mensaje del agente.
 
-## Config (opt-in)
+## Config (opt-in, por-proyecto)
 
-`~/.ide/config.toml`:
+El `.ide/config.toml` **del workspace** (el mismo donde viven `name` y los roles):
 ```toml
 [mlx]
-enabled = true
+enabled = true                                          # el switch on/off
 model = "mlx-community/Qwen2.5-3B-Instruct-4bit"
 # router_prompt = "..."   # opcional; default en código
 ```
-Sin esta sección (o `enabled=false`) → mlx apagado, chat = Claude-only (hoy).
+Sin esta sección (o `enabled=false`) → mlx apagado, chat = Claude-only (hoy). Es **por-proyecto**:
+prendés mlx en los workspaces que quieras. (El modelo bajado se comparte a nivel máquina — cache HF.)
 
 ## Manejo de errores
 
-- `mlx-lm` no instalado / server no arranca → `MlxUnavailable` → **degradar a Claude** (el chat no
-  se rompe) + emitir un evento de error visible (sin fallo silencioso).
-- Timeout de carga del modelo → idem (cae a Claude + aviso).
-- Respuesta del server malformada → propaga como error del handler → envelope.
+- `mlx-lm` no instalado / server no arranca / timeout de carga → `MlxUnavailable` → `decide` devuelve
+  `RouteDecision("claude", None, degraded=True)` → el chat **cae a Claude** (no se rompe) y el handler
+  **emite un aviso visible** ("modelo local no disponible, usando Claude"). Sin fallo silencioso.
+- Respuesta del server malformada durante una respuesta local ya en curso → propaga como error del
+  handler → envelope.
 
 ## Plan de tests (TDD)
 
