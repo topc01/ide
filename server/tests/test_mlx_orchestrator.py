@@ -28,3 +28,15 @@ async def test_decide_degrades_when_unavailable():
     r = MlxRouter(_Srv(fail=True), lambda url: _Router(RouteDecision("local", "x")))
     d = await r.decide("hi")
     assert d.route == "claude" and d.degraded is True
+
+
+@pytest.mark.asyncio
+async def test_aclose_stops_server():
+    class _S:
+        def __init__(self): self.stopped = False
+        async def ensure_running(self): return "http://x"
+        def stop(self): self.stopped = True
+    s = _S()
+    r = MlxRouter(s, lambda url: None)
+    await r.aclose()
+    assert s.stopped is True

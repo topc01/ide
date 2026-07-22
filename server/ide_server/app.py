@@ -38,6 +38,11 @@ def create_app(root: Path, web_dir: Path | None = None) -> FastAPI:
         allow_methods=["*"], allow_headers=["*"],
     )
 
+    @app.on_event("shutdown")
+    async def _shutdown_mlx() -> None:
+        if mlx_router is not None:
+            await mlx_router.aclose()
+
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok"}

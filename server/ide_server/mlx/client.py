@@ -1,5 +1,4 @@
 from __future__ import annotations
-import sys
 
 
 async def _httpx_post(url: str, json: dict) -> dict:

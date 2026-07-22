@@ -19,6 +19,9 @@ class MlxRouter:
             return RouteDecision(route="claude", reply=None, degraded=True)
         return await self._router_factory(url).route(text)
 
+    async def aclose(self) -> None:
+        self._server.stop()
+
 
 def build_mlx_router(root: Path) -> MlxRouter | None:
     cfg = mlx_config(root)
