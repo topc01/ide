@@ -20,7 +20,7 @@ def _reg(tmp_path, downloader, installed=None, removed=None):
 @pytest.mark.asyncio
 async def test_list_curated_installed_active_inuse(tmp_path):
     (tmp_path / ".ide").mkdir()
-    (tmp_path / ".ide" / "config.toml").write_text('[mlx]\nmodel = "mlx-community/A"\n')
+    (tmp_path / ".ide" / "config.toml").write_text('[mlx]\nenabled = true\nmodel = "mlx-community/A"\n')
     from ide_server.models.store import InstalledModel
     reg = _reg(tmp_path, _FakeDownloader(),
                installed=lambda: [InstalledModel("mlx-community/A", 123)])
@@ -33,6 +33,15 @@ async def test_list_curated_installed_active_inuse(tmp_path):
 
 @pytest.mark.asyncio
 async def test_list_inuse_none_without_config(tmp_path):
+    reg = _reg(tmp_path, _FakeDownloader())
+    out = await reg.dispatch("models.list", {})
+    assert out["inUse"] is None
+
+
+@pytest.mark.asyncio
+async def test_list_inuse_none_when_disabled(tmp_path):
+    (tmp_path / ".ide").mkdir()
+    (tmp_path / ".ide" / "config.toml").write_text('[mlx]\nenabled = false\nmodel = "mlx-community/A"\n')
     reg = _reg(tmp_path, _FakeDownloader())
     out = await reg.dispatch("models.list", {})
     assert out["inUse"] is None

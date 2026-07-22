@@ -63,7 +63,10 @@ def write_mlx_config(root: Path, *, enabled: bool, model: str, router_prompt: st
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     mlx = data.setdefault("mlx", {})
     mlx["enabled"] = bool(enabled)
-    mlx["model"] = model
+    if model:
+        mlx["model"] = model
+    else:
+        mlx.pop("model", None)
     if router_prompt and router_prompt != DEFAULT_ROUTER_PROMPT:
         mlx["router_prompt"] = router_prompt
     else:

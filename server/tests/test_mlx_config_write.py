@@ -41,3 +41,10 @@ def test_write_persists_custom_prompt(tmp_path):
 def test_write_creates_ide_dir(tmp_path):
     write_mlx_config(tmp_path, enabled=False, model="", router_prompt=DEFAULT_ROUTER_PROMPT)
     assert (tmp_path / ".ide" / "config.toml").is_file()
+
+
+def test_write_disabled_empty_model_pops_key(tmp_path):
+    write_mlx_config(tmp_path, enabled=False, model="", router_prompt=DEFAULT_ROUTER_PROMPT)
+    import tomllib
+    data = tomllib.loads((tmp_path / ".ide" / "config.toml").read_text())
+    assert "model" not in data["mlx"] and data["mlx"]["enabled"] is False

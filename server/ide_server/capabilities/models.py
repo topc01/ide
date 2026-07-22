@@ -15,7 +15,7 @@ def _in_use(root: Path) -> str | None:
     except (tomllib.TOMLDecodeError, OSError):
         return None
     mlx = data.get("mlx")
-    if isinstance(mlx, dict) and mlx.get("model"):
+    if isinstance(mlx, dict) and mlx.get("enabled") and mlx.get("model"):
         return str(mlx["model"])
     return None
 
