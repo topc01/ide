@@ -38,6 +38,7 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
 | Arranque de un comando | `ide run` sirve frontend+backend en un puerto; `ide build`; instalable global. | ✅ hecho |
 | `ide` multi-instancia | Puerto dinámico + `ide ls` + WS same-origin; `ide help` + guía de handoff. | ✅ hecho |
 | Modelos locales (mlx) Fase 1 | Router prompt-based en el chat: local (tool-less) vs Claude; degrada con aviso; badge por turno. Opt-in `.ide/config.toml [mlx]`. | ✅ hecho |
+| Modelos: descargar/gestionar | Panel "Modelos" en Settings: catálogo curado + `repo_id` libre, descarga con progreso %/MB por WS (concurrentes + dedup), instalados + borrar, badge "en uso" (read-only). Dep `huggingface_hub`. | ✅ hecho |
 
 ### Pendientes (requieren brainstorming/spec — ver HANDOFF)
 
@@ -50,13 +51,16 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
     sentinela `ROUTE_TO_CLAUDE`. En esta fundación el modelo local es **tool-less** (sin MCPs: las tools
     quedan del lado de Claude). Badge local/claude por turno. Opt-in **por-proyecto** vía
     `.ide/config.toml [mlx]` (switch `enabled`).
-  - *Rebanada 2 (config de modelos, UI + backends):* panel de Settings "Modelos" **editable** (primera
-    config editable de la app): listar/**descargar** modelos open-source, **editar el prompt del
-    router**, enable/disable, elegir el modelo. Como `MlxClient` es sólo un cliente OpenAI apuntando a un
-    `base_url`, se soportan **backends alternativos** que exponen un endpoint OpenAI —**Ollama**, **LM
-    Studio**, **Unsloth Studio**— además de spawnear `mlx_lm.server`. Extiende la superficie de
-    Settings/Customizations (hoy read-only).
-  - *Rebanada 3 (routers entrenados):* enchufar **RouteLLM** (LMSYS, router `mf` entrenado + threshold
+  - *Rebanada 2 (descargar/gestionar modelos, ✅ HECHA):* panel de Settings "Modelos" con **acciones** —
+    catálogo curado + `repo_id` libre, **descargar** con progreso %/MB por WS (concurrentes + dedup),
+    ver instalados (cache HF) + borrar, badge "en uso" leído de `[mlx].model` (read-only). Dep
+    `huggingface_hub` (descargar no es solo-Mac ni usa `mlx-lm`).
+  - *Rebanada 3 (config editable + backends):* hacer el panel **editable** (primera config editable de
+    la app): toggle `enabled`, elegir el modelo, **editar el prompt del router**, elegir backend. Como
+    `MlxClient` es sólo un cliente OpenAI apuntando a un `base_url`, se soportan **backends alternativos**
+    que exponen un endpoint OpenAI —**Ollama**, **LM Studio**, **Unsloth Studio**— además de spawnear
+    `mlx_lm.server`. Escribe `[mlx]` en `config.toml` (con `tomli-w`, preservando el resto).
+  - *Rebanada 4 (routers entrenados):* enchufar **RouteLLM** (LMSYS, router `mf` entrenado + threshold
     calibrable) y/o un **router fine-tuneado a medida** (vía **Unsloth**) por la interfaz `Router` ya
     pluggable. RouteLLM rutea por *dificultad general*, no por "necesita tools", y **no tiene prompt
     editable** (es entrenado) — por eso es una opción de router, no el reemplazo del prompt-based.
