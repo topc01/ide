@@ -56,4 +56,14 @@ describe("useChat.applyEvent", () => {
     clearPermission("s1");
     expect(useChat.getState().convos["s1"].permission).toBeNull();
   });
+  it("un evento routed taggea el próximo mensaje de agente con source", () => {
+    const { applyEvent } = useChat.getState();
+    applyEvent("s1", { kind: "routed", source: "local" });
+    applyEvent("s1", { kind: "text_delta", text: "hola" });
+    const c = useChat.getState().convos["s1"];
+    const m = c.messages[c.messages.length - 1];
+    expect(m.role).toBe("agent");
+    expect(m.text).toBe("hola");
+    expect(m.source).toBe("local");
+  });
 });

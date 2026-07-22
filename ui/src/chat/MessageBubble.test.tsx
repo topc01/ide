@@ -32,4 +32,8 @@ describe("MessageBubble", () => {
       relay: { direction: "in", peer: "Hija A" } }} />);
     expect(screen.getByText("← Hija A")).toBeInTheDocument();
   });
+  it("mensaje de agente local muestra badge 'local'", () => {
+    render(<MessageBubble msg={{ role: "agent", text: "respuesta", chips: [], source: "local" }} />);
+    expect(screen.getByText("local")).toBeInTheDocument();
+  });
 });

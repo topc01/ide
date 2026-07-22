@@ -65,6 +65,59 @@ async def test_permission_decision_resolves_future(tmp_path, monkeypatch):
     await reg.dispatch("chat.permission", {"sessionId": "s1", "requestId": "req-1", "allow": True})
     assert await task is True
 
+class _FakeRouter:
+    def __init__(self, decision): self._d = decision
+    async def decide(self, text): return self._d
+
+
+@pytest.mark.asyncio
+async def test_send_local_route_answers_without_driver(tmp_path, monkeypatch):
+    from ide_server.mlx.router import RouteDecision
+    import ide_server.capabilities.chat as chatmod
+    reg = Registry(); mgr = FakeManager()
+    monkeypatch.setattr(chatmod, "_load_session_context",
+                        lambda root, sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None})
+    chatmod.register(reg, tmp_path, mgr, driver_factory=FakeDriver,
+                     mlx_router=_FakeRouter(RouteDecision("local", "respuesta local")))
+    await reg.dispatch("chat.start", {"sessionId": "s1"})
+    FakeDriver.last.sent.clear()
+    await reg.dispatch("chat.send", {"sessionId": "s1", "text": "hola"})
+    kinds = [p for _, p in mgr.events]
+    assert {"kind": "routed", "source": "local"} in kinds
+    assert any(p.get("kind") == "text_delta" and p.get("text") == "respuesta local" for p in kinds)
+    assert FakeDriver.last.sent == []                       # NO tocó a Claude
+
+
+@pytest.mark.asyncio
+async def test_send_claude_route_calls_driver(tmp_path, monkeypatch):
+    from ide_server.mlx.router import RouteDecision
+    import ide_server.capabilities.chat as chatmod
+    reg = Registry(); mgr = FakeManager()
+    monkeypatch.setattr(chatmod, "_load_session_context",
+                        lambda root, sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None})
+    chatmod.register(reg, tmp_path, mgr, driver_factory=FakeDriver,
+                     mlx_router=_FakeRouter(RouteDecision("claude", None)))
+    await reg.dispatch("chat.start", {"sessionId": "s1"})
+    await reg.dispatch("chat.send", {"sessionId": "s1", "text": "editá main.py"})
+    assert FakeDriver.last.sent == ["editá main.py"]
+    assert {"kind": "routed", "source": "claude"} in [p for _, p in mgr.events]
+
+
+@pytest.mark.asyncio
+async def test_send_degraded_emits_warning(tmp_path, monkeypatch):
+    from ide_server.mlx.router import RouteDecision
+    import ide_server.capabilities.chat as chatmod
+    reg = Registry(); mgr = FakeManager()
+    monkeypatch.setattr(chatmod, "_load_session_context",
+                        lambda root, sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None})
+    chatmod.register(reg, tmp_path, mgr, driver_factory=FakeDriver,
+                     mlx_router=_FakeRouter(RouteDecision("claude", None, degraded=True)))
+    await reg.dispatch("chat.start", {"sessionId": "s1"})
+    await reg.dispatch("chat.send", {"sessionId": "s1", "text": "hola"})
+    assert any(p.get("kind") == "error" for _, p in mgr.events)     # aviso visible
+    assert FakeDriver.last.sent == ["hola"]                          # igual va a Claude
+
+
 def test_load_session_context_spanish_instruction_always_first(tmp_path):
     from ide_server.capabilities.chat import _load_session_context, _LANG
     from ide_server.sessions_store import save_sessions

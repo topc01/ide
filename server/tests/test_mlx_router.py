@@ -1,0 +1,31 @@
+import pytest
+from ide_server.mlx.router import parse_route, PromptRouter, RouteDecision
+
+
+def test_parse_route_sentinel():
+    assert parse_route("ROUTE_TO_CLAUDE") == ("claude", None)
+    assert parse_route("  ROUTE_TO_CLAUDE  \n") == ("claude", None)
+
+
+def test_parse_route_local():
+    assert parse_route("La capital de Francia es París.") == ("local", "La capital de Francia es París.")
+
+
+class _FakeClient:
+    def __init__(self, reply): self._reply = reply; self.messages = None
+    async def chat(self, messages): self.messages = messages; return self._reply
+
+
+@pytest.mark.asyncio
+async def test_prompt_router_local():
+    c = _FakeClient("2 + 2 = 4")
+    d = await PromptRouter(c, "SYS").route("cuánto es 2+2")
+    assert d == RouteDecision(route="local", reply="2 + 2 = 4")
+    assert c.messages == [{"role": "system", "content": "SYS"},
+                          {"role": "user", "content": "cuánto es 2+2"}]
+
+
+@pytest.mark.asyncio
+async def test_prompt_router_claude():
+    d = await PromptRouter(_FakeClient("ROUTE_TO_CLAUDE"), "SYS").route("editá el archivo main.py")
+    assert d == RouteDecision(route="claude", reply=None)

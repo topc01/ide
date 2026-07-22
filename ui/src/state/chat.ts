@@ -6,11 +6,13 @@ export type Chip =
 export interface Msg {
   role: "user" | "agent"; text: string; chips: Chip[]; tokens?: number;
   relay?: { direction: "in" | "out"; peer: string };
+  source?: "local" | "claude";
 }
 interface Convo {
   messages: Msg[]; streaming: boolean;
   permission: { id: string; tool: string; detail: string } | null;
   error: { code: string; message: string } | null; starting: boolean;
+  pendingSource?: "local" | "claude";
 }
 interface ChatState {
   convos: Record<string, Convo>;
@@ -25,7 +27,8 @@ const empty = (): Convo => ({ messages: [], streaming: false, permission: null, 
 function lastAgent(c: Convo): Msg {
   const last = c.messages[c.messages.length - 1];
   if (last && last.role === "agent") return last;
-  const m: Msg = { role: "agent", text: "", chips: [] };
+  const m: Msg = { role: "agent", text: "", chips: [], source: c.pendingSource };
+  c.pendingSource = undefined;
   c.messages.push(m);
   return m;
 }
@@ -57,6 +60,7 @@ export const useChat = create<ChatState>((set) => ({
     else if (e.kind === "relay") {
       c.messages = [...c.messages, { role: "user", text: e.text, chips: [], relay: { direction: e.direction, peer: e.peer } }];
     }
+    else if (e.kind === "routed") { c.pendingSource = e.source; }
     else if (e.kind === "permission_request") { c.permission = { id: e.id, tool: e.tool, detail: e.detail }; }
     else if (e.kind === "error") { c.error = { code: e.code, message: e.message }; c.streaming = false; }
     return { convos: { ...s.convos, [sid]: c } };

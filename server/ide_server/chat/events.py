@@ -47,6 +47,10 @@ class RelayMessage:
     peer_id: str
     text: str
 
+@dataclass
+class Routed:
+    source: str            # "local" | "claude"
+
 def to_payload(event: object) -> dict:
     if isinstance(event, TextDelta):
         return {"kind": "text_delta", "text": event.text}
@@ -67,4 +71,6 @@ def to_payload(event: object) -> dict:
     if isinstance(event, RelayMessage):
         return {"kind": "relay", "direction": event.direction, "peer": event.peer,
                 "peerId": event.peer_id, "text": event.text}
+    if isinstance(event, Routed):
+        return {"kind": "routed", "source": event.source}
     raise TypeError(f"evento de chat desconocido: {type(event)!r}")
