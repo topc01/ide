@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { fetchModels, downloadModel, deleteModel, subscribeModels } from "./modelsChannel";
+import { fetchModels, downloadModel, deleteModel, subscribeModels, getMlxConfig, setMlxConfig } from "./modelsChannel";
 
 describe("modelsChannel", () => {
   it("fetchModels pega a models.list", async () => {
@@ -20,5 +20,12 @@ describe("modelsChannel", () => {
     expect(on).toHaveBeenCalledWith("models.event", expect.any(Function));
     unsub();
     expect(off).toHaveBeenCalledWith("models.event", expect.any(Function));
+  });
+  it("getMlxConfig y setMlxConfig pegan a los canales mlx.config", async () => {
+    const ws = { request: vi.fn().mockResolvedValue({}) } as any;
+    await getMlxConfig(ws);
+    expect(ws.request).toHaveBeenCalledWith("mlx.config.get", {});
+    setMlxConfig(ws, { enabled: true, model: "m", routerPrompt: "p" });
+    expect(ws.request).toHaveBeenCalledWith("mlx.config.set", { enabled: true, model: "m", routerPrompt: "p" });
   });
 });
