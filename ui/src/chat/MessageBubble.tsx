@@ -11,6 +11,11 @@ export function MessageBubble({ msg }: { msg: Msg }) {
           {msg.relay.direction === "out" ? "→" : "←"} {msg.relay.peer}
         </span>
       )}
+      {msg.role === "agent" && msg.source && (
+        <span className="text-[11px] font-medium" style={{ color: msg.source === "local" ? "#7fb069" : "#e0863f" }}>
+          {msg.source}
+        </span>
+      )}
       <div data-bubble className={cn("max-w-[80%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap",
         isUser ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground")}>
         {msg.text}
