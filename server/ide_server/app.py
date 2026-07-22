@@ -14,7 +14,9 @@ from ide_server.capabilities import changes as changes_cap
 from ide_server.capabilities import graphite as graphite_cap
 from ide_server.capabilities import notion as notion_cap
 from ide_server.capabilities import tasks as tasks_cap
+from ide_server.capabilities import models as models_cap
 from ide_server.mlx.orchestrator import build_mlx_router
+from ide_server.models.downloader import ModelDownloader
 
 
 def create_app(root: Path, web_dir: Path | None = None) -> FastAPI:
@@ -31,6 +33,8 @@ def create_app(root: Path, web_dir: Path | None = None) -> FastAPI:
     graphite_cap.register(registry, root)
     notion_cap.register(registry, root)
     tasks_cap.register(registry, root)
+    downloader = ModelDownloader(manager)
+    models_cap.register(registry, root, manager, downloader=downloader)
 
     app = FastAPI(title="Agentic IDE")
     app.add_middleware(
