@@ -1,5 +1,6 @@
 from __future__ import annotations
 import tomllib
+import tomli_w
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -35,3 +36,37 @@ def mlx_config(root: Path) -> MlxConfig | None:
         router_prompt=str(mlx.get("router_prompt") or DEFAULT_ROUTER_PROMPT),
         port=int(mlx["port"]) if mlx.get("port") is not None else None,
     )
+
+
+def mlx_config_raw(root: Path) -> dict:
+    path = root / ".ide" / "config.toml"
+    mlx: object = {}
+    if path.is_file():
+        try:
+            mlx = tomllib.loads(path.read_text(encoding="utf-8")).get("mlx") or {}
+        except (tomllib.TOMLDecodeError, OSError):
+            mlx = {}
+    if not isinstance(mlx, dict):
+        mlx = {}
+    return {
+        "enabled": bool(mlx.get("enabled")),
+        "model": str(mlx.get("model") or ""),
+        "router_prompt": str(mlx.get("router_prompt") or DEFAULT_ROUTER_PROMPT),
+        "default_prompt": DEFAULT_ROUTER_PROMPT,
+    }
+
+
+def write_mlx_config(root: Path, *, enabled: bool, model: str, router_prompt: str) -> None:
+    path = root / ".ide" / "config.toml"
+    data: dict = {}
+    if path.is_file():
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    mlx = data.setdefault("mlx", {})
+    mlx["enabled"] = bool(enabled)
+    mlx["model"] = model
+    if router_prompt and router_prompt != DEFAULT_ROUTER_PROMPT:
+        mlx["router_prompt"] = router_prompt
+    else:
+        mlx.pop("router_prompt", None)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(tomli_w.dumps(data), encoding="utf-8")
