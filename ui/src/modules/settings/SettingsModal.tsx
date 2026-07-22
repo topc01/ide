@@ -2,10 +2,12 @@ import { Dialog, DialogContent } from "../../components/ui/dialog";
 import { Badge } from "../../components/ui/badge";
 import { cn } from "../../lib/utils";
 import { useSettings } from "../../state/settings";
+import { ModelsPanel } from "./ModelsPanel";
 
 export function SettingsModal() {
   const { items, open, selectedKey, openSettings, closeSettings } = useSettings();
   const item = items.find((i) => i.key === selectedKey) ?? items[0];
+  const isModels = selectedKey === "models";
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) closeSettings(); }}>
       <DialogContent className="flex h-[540px] max-w-[760px] gap-0 p-0 sm:max-w-[760px]">
@@ -18,9 +20,20 @@ export function SettingsModal() {
               {i.count > 0 && <span className="text-[10px] text-muted-foreground">{i.count}</span>}
             </button>
           ))}
+          <button onClick={() => openSettings("models")}
+            className={cn("flex w-full items-center justify-between rounded px-2 py-1.5 text-xs",
+              isModels ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
+            <span>Modelos</span>
+          </button>
         </nav>
         <div className="min-w-0 flex-1 overflow-auto p-4">
-          {item && (
+          {isModels ? (
+            <>
+              <div className="text-base font-medium text-foreground">Modelos</div>
+              <div className="mb-3 text-xs text-muted-foreground">Descargar y gestionar modelos locales</div>
+              <ModelsPanel />
+            </>
+          ) : item && (
             <>
               <div className="text-base font-medium text-foreground">{item.title}</div>
               <div className="mb-3 text-xs text-muted-foreground">{item.description}</div>
