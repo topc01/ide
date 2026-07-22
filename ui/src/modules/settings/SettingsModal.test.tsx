@@ -7,6 +7,8 @@ vi.mock("../../transport/wsClient", () => ({ getWs: () => ({}) }));
 vi.mock("../../transport/modelsChannel", () => ({
   fetchModels: () => Promise.resolve({ curated: [], installed: [], inUse: null, active: {} }),
   subscribeModels: () => () => {}, downloadModel: vi.fn(), deleteModel: vi.fn(),
+  getMlxConfig: () => Promise.resolve({ enabled: false, model: "", routerPrompt: "D", defaultPrompt: "D" }),
+  setMlxConfig: () => Promise.resolve({}),
 }));
 
 const items = [

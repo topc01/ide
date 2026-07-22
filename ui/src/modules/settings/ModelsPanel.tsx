@@ -3,6 +3,7 @@ import { useModels } from "../../state/models";
 import { fetchModels, downloadModel, deleteModel, subscribeModels } from "../../transport/modelsChannel";
 import { getWs } from "../../transport/wsClient";
 import { Badge } from "../../components/ui/badge";
+import { MlxConfigSection } from "./MlxConfigSection";
 
 const pct = (d: number, t: number) => (t > 0 ? Math.min(100, Math.round((d / t) * 100)) : 0);
 const gb = (bytes: number) => (bytes / 1e9).toFixed(1);
@@ -30,6 +31,7 @@ export function ModelsPanel() {
   const reload = () => fetchModels(getWs()).then(setCatalog).catch(() => {});
   return (
     <div className="flex flex-col gap-4">
+      <MlxConfigSection />
       <section>
         <div className="mb-1 text-xs font-medium text-foreground">Catálogo</div>
         <div className="flex flex-col gap-1">
