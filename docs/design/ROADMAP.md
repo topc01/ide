@@ -37,13 +37,14 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
 | Tasks Fase 1 | Gestor de tareas markdown local en `.ide/tasks/` (listar/crear/editar). | ✅ hecho |
 | Arranque de un comando | `ide run` sirve frontend+backend en un puerto; `ide build`; instalable global. | ✅ hecho |
 | `ide` multi-instancia | Puerto dinámico + `ide ls` + WS same-origin; `ide help` + guía de handoff. | ✅ hecho |
+| Modelos locales (mlx) Fase 1 | Router prompt-based en el chat: local (tool-less) vs Claude; degrada con aviso; badge por turno. Opt-in `.ide/config.toml [mlx]`. | ✅ hecho |
 
 ### Pendientes (requieren brainstorming/spec — ver HANDOFF)
 
 - **Modelos locales + routing de tareas** — subsistema, se construye en rebanadas. **Idea
   unificadora:** el router no elige sólo *dónde* corre un turno sino **`(ejecutor, modelo)`** —
   modelo local, Claude Code con modelo chico (Haiku), o Claude Code full (Opus) — según la tarea.
-  - *Rebanada 1 (fundación, EN CURSO):* el IDE spawnea `mlx_lm.server` (dep opcional `ide-server[mlx]`,
+  - *Rebanada 1 (fundación, ✅ HECHA):* el IDE spawnea `mlx_lm.server` (dep opcional `ide-server[mlx]`,
     solo-Mac); un **router pluggable prompt-based** decide en el chat entre el **modelo local** (tareas
     simples/chat, responde ahí y no gasta contexto de Claude) y **Claude Code** (código/agente), con
     sentinela `ROUTE_TO_CLAUDE`. En esta fundación el modelo local es **tool-less** (sin MCPs: las tools
