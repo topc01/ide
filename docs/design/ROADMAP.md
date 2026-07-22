@@ -55,12 +55,21 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
     catálogo curado + `repo_id` libre, **descargar** con progreso %/MB por WS (concurrentes + dedup),
     ver instalados (cache HF) + borrar, badge "en uso" leído de `[mlx].model` (read-only). Dep
     `huggingface_hub` (descargar no es solo-Mac ni usa `mlx-lm`).
-  - *Rebanada 3 (config editable + backends):* hacer el panel **editable** (primera config editable de
-    la app): toggle `enabled`, elegir el modelo, **editar el prompt del router**, elegir backend. Como
-    `MlxClient` es sólo un cliente OpenAI apuntando a un `base_url`, se soportan **backends alternativos**
-    que exponen un endpoint OpenAI —**Ollama**, **LM Studio**, **Unsloth Studio**— además de spawnear
-    `mlx_lm.server`. Escribe `[mlx]` en `config.toml` (con `tomli-w`, preservando el resto).
-  - *Rebanada 4 (routers entrenados):* enchufar **RouteLLM** (LMSYS, router `mf` entrenado + threshold
+  - *Rebanada 3 (config editable de mlx, PRÓXIMA):* hacer el panel **editable** (primera config editable
+    de la app): toggle `enabled`, elegir el modelo (dropdown de instalados), **editar el prompt del
+    router** (con reset al default). Escribe `[mlx]` en `.ide/config.toml` con `tomli-w`, preservando el
+    resto (patrón de `notion/config.py`). Validación: `enabled` requiere `model` (si no, `raise` visible).
+  - *Rebanada 4 (fit del hardware, con detalles):* por modelo del panel, un **badge de fit**
+    (entra / justo / no entra) **más una vista de detalles**: **tok/s estimados**, RAM requerida vs
+    disponible, tamaño en disco, mejor quant, context length, y el **score desglosado** (fit / velocidad
+    / calidad / contexto) con sus supuestos. Vía **`llmfit`** (CLI Rust, `--json`) como **dep opcional
+    externa** — spawn + parse, degrada sin badges si no está en el PATH. `llmfit info "<repo_id>"`
+    entiende nuestros `repo_id` de HF directo (verificado en un spike) y detecta Apple Silicon/MLX.
+  - *Rebanada 5 (backends alternativos):* selector de backend en la config — además de spawnear
+    `mlx_lm.server`, conectar a un **endpoint OpenAI externo** que ya corre (**Ollama**, **LM Studio**,
+    **Unsloth Studio**) vía `base_url`. Como `MlxClient` es sólo un cliente OpenAI, el `MlxServer`
+    (lifecycle) se vuelve opcional; el orquestador de la Fase 1 branchea spawn-vs-conectar.
+  - *Rebanada 6 (routers entrenados):* enchufar **RouteLLM** (LMSYS, router `mf` entrenado + threshold
     calibrable) y/o un **router fine-tuneado a medida** (vía **Unsloth**) por la interfaz `Router` ya
     pluggable. RouteLLM rutea por *dificultad general*, no por "necesita tools", y **no tiene prompt
     editable** (es entrenado) — por eso es una opción de router, no el reemplazo del prompt-based.
