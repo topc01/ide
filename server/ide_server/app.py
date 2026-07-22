@@ -14,6 +14,7 @@ from ide_server.capabilities import changes as changes_cap
 from ide_server.capabilities import graphite as graphite_cap
 from ide_server.capabilities import notion as notion_cap
 from ide_server.capabilities import tasks as tasks_cap
+from ide_server.mlx.orchestrator import build_mlx_router
 
 
 def create_app(root: Path, web_dir: Path | None = None) -> FastAPI:
@@ -23,7 +24,8 @@ def create_app(root: Path, web_dir: Path | None = None) -> FastAPI:
     sessions_cap.register(registry, root)
     manager = ConnectionManager()
     terminals_cap.register(registry, root, manager)
-    hub = chat_cap.register(registry, root, manager)
+    mlx_router = build_mlx_router(root)
+    hub = chat_cap.register(registry, root, manager, mlx_router=mlx_router)
     customizations_cap.register(registry, root)
     changes_cap.register(registry, root)
     graphite_cap.register(registry, root)
