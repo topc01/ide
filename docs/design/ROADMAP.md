@@ -40,20 +40,33 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
 
 ### Pendientes (requieren brainstorming/spec — ver HANDOFF)
 
-- **Modelos locales (mlx) + routing de tareas** — subsistema, se construye en rebanadas:
+- **Modelos locales + routing de tareas** — subsistema, se construye en rebanadas. **Idea
+  unificadora:** el router no elige sólo *dónde* corre un turno sino **`(ejecutor, modelo)`** —
+  modelo local, Claude Code con modelo chico (Haiku), o Claude Code full (Opus) — según la tarea.
   - *Rebanada 1 (fundación, EN CURSO):* el IDE spawnea `mlx_lm.server` (dep opcional `ide-server[mlx]`,
-    solo-Mac); un **router pluggable** decide en el chat entre el **modelo local** (tareas simples/chat,
-    responde ahí y no gasta contexto de Claude) y **Claude Code** (código/agente). Router de arranque
-    = **prompt-based** (el modelo local decide-y-responde con sentinela `ROUTE_TO_CLAUDE`, prompt
-    editable por config). Badge local/claude por turno. Opt-in vía `~/.ide/config.toml [mlx]`.
-  - *Rebanada 2 (config de modelos, UI):* panel de Settings "Modelos" **editable** (primera config
-    editable de la app): listar/**descargar** modelos open-source (mlx), **editar el prompt del router**,
-    enable/disable, elegir el modelo local. Extiende la superficie de Settings/Customizations (hoy
-    read-only).
-  - *Rebanada 3 (RouteLLM):* enchufar **RouteLLM** (LMSYS) como router alternativo (router `mf`
-    entrenado + threshold calibrable) vía la interfaz de router ya pluggable. Nota: RouteLLM rutea por
-    *dificultad general*, no por "necesita tools", y **no tiene prompt editable** (es entrenado) — por
-    eso es una opción de router, no el reemplazo del prompt-based.
+    solo-Mac); un **router pluggable prompt-based** decide en el chat entre el **modelo local** (tareas
+    simples/chat, responde ahí y no gasta contexto de Claude) y **Claude Code** (código/agente), con
+    sentinela `ROUTE_TO_CLAUDE`. En esta fundación el modelo local es **tool-less** (sin MCPs: las tools
+    quedan del lado de Claude). Badge local/claude por turno. Opt-in **por-proyecto** vía
+    `.ide/config.toml [mlx]` (switch `enabled`).
+  - *Rebanada 2 (config de modelos, UI + backends):* panel de Settings "Modelos" **editable** (primera
+    config editable de la app): listar/**descargar** modelos open-source, **editar el prompt del
+    router**, enable/disable, elegir el modelo. Como `MlxClient` es sólo un cliente OpenAI apuntando a un
+    `base_url`, se soportan **backends alternativos** que exponen un endpoint OpenAI —**Ollama**, **LM
+    Studio**, **Unsloth Studio**— además de spawnear `mlx_lm.server`. Extiende la superficie de
+    Settings/Customizations (hoy read-only).
+  - *Rebanada 3 (routers entrenados):* enchufar **RouteLLM** (LMSYS, router `mf` entrenado + threshold
+    calibrable) y/o un **router fine-tuneado a medida** (vía **Unsloth**) por la interfaz `Router` ya
+    pluggable. RouteLLM rutea por *dificultad general*, no por "necesita tools", y **no tiene prompt
+    editable** (es entrenado) — por eso es una opción de router, no el reemplazo del prompt-based.
+  - *Rebanada (cambio de modelo en Claude Code):* que el router pueda mandar un turno a **Claude Code con
+    un modelo distinto** (p.ej. tarea simple → **Haiku** en vez de Opus) — ahorro de costo sin salir del
+    agente. Requiere override de modelo por-turno en el driver de sesión. Generaliza `RouteDecision` de
+    `local|claude` a **`(ejecutor, modelo)`**.
+  - *Rebanada (modelo local con tools):* que el modelo local **ejecute tareas simples que sí usan código
+    o tools externas** — un **loop de agente liviano** alrededor del mlx (MCP → schemas → `tool_calls` →
+    ejecutar → realimentar). `mlx_lm.server` expone tool-calling estilo OpenAI pero **no orquesta el
+    loop**; es una rebanada grande y separada (un "agente local" acotado, no reemplazo de Claude Code).
 - **Config editable (dirección general)** — hoy Settings/Customizations (roles, skills, agents, hooks,
   plugins, tools, MCP) es un **catálogo read-only**; se edita a mano (`.ide/config.toml` para roles,
   `~/.claude/*` para el resto). La config de Modelos (arriba) es la primera *editable*; hacer editable
