@@ -40,4 +40,20 @@ describe("ModelsPanel", () => {
     render(<ModelsPanel />);
     expect(screen.getByText("50%")).toBeInTheDocument();
   });
+  it("una descarga activa muestra su progreso en %/MB", () => {
+    useModels.setState({ downloads: { "mlx-community/A": { downloaded: 500_000_000, total: 1_000_000_000 } } });
+    render(<ModelsPanel />);
+    expect(screen.getByText(/0\.5\/1\.0 GB/)).toBeInTheDocument();
+  });
+  it("una descarga de repo_id libre (no curado) en progreso se muestra", () => {
+    useModels.setState({ downloads: { "mlx-community/typo": { downloaded: 30, total: 100 } } });
+    render(<ModelsPanel />);
+    expect(screen.getByText("mlx-community/typo")).toBeInTheDocument();
+    expect(document.querySelector("[data-extra-download]")).toBeInTheDocument();
+  });
+  it("una descarga de repo_id libre con error muestra el mensaje", () => {
+    useModels.setState({ downloads: { "mlx-community/bad": { downloaded: 0, total: 0, error: "repo no existe" } } });
+    render(<ModelsPanel />);
+    expect(screen.getByText("repo no existe")).toBeInTheDocument();
+  });
 });

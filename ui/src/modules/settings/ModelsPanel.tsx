@@ -51,8 +51,11 @@ export function ModelsPanel() {
                   )}
                 </div>
                 {dl && !dl.done && !dl.error && (
-                  <div className="mt-1 h-1 w-full rounded bg-secondary">
-                    <div className="h-1 rounded bg-primary" style={{ width: `${pct(dl.downloaded, dl.total)}%` }} />
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="h-1 w-full rounded bg-secondary">
+                      <div className="h-1 rounded bg-primary" style={{ width: `${pct(dl.downloaded, dl.total)}%` }} />
+                    </div>
+                    <span className="whitespace-nowrap text-[10px] text-muted-foreground">{gb(dl.downloaded)}/{gb(dl.total)} GB</span>
                   </div>
                 )}
                 {dl?.error && <div className="mt-1 text-[10px] text-destructive">{dl.error}</div>}
@@ -66,6 +69,36 @@ export function ModelsPanel() {
         <div className="mb-1 text-xs font-medium text-foreground">Descargar por repo_id</div>
         <RepoIdInput />
       </section>
+
+      {(() => {
+        const known = new Set([...curated.map((m) => m.repoId), ...installed.map((m) => m.repoId)]);
+        const extra = Object.entries(downloads).filter(([repoId, d]) => !known.has(repoId) && !d.done);
+        if (extra.length === 0) return null;
+        return (
+          <section>
+            <div className="mb-1 text-xs font-medium text-foreground">Descargas</div>
+            <div className="flex flex-col gap-1">
+              {extra.map(([repoId, d]) => (
+                <div key={repoId} data-extra-download className="rounded border border-border px-2 py-1.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span>{repoId}</span>
+                    {!d.error && <span className="text-[10px] text-muted-foreground">{pct(d.downloaded, d.total)}%</span>}
+                  </div>
+                  {!d.error && (
+                    <div className="mt-1 flex items-center gap-2">
+                      <div className="h-1 w-full rounded bg-secondary">
+                        <div className="h-1 rounded bg-primary" style={{ width: `${pct(d.downloaded, d.total)}%` }} />
+                      </div>
+                      <span className="whitespace-nowrap text-[10px] text-muted-foreground">{gb(d.downloaded)}/{gb(d.total)} GB</span>
+                    </div>
+                  )}
+                  {d.error && <div className="mt-1 text-[10px] text-destructive">{d.error}</div>}
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
 
       <section>
         <div className="mb-1 text-xs font-medium text-foreground">Instalados</div>
