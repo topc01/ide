@@ -53,7 +53,7 @@ export function FilesPanel() {
       {!sessionId ? (
         <div className="mx-2.5 text-[11px] text-muted-foreground">Seleccioná una sesión para ver sus archivos.</div>
       ) : (
-        <div className="flex flex-col">
+        <div className="flex flex-col" key={sessionId}>
           {roots?.map((e) => <TreeNode key={e.name} sessionId={sessionId} path="" entry={e} depth={0} />)}
         </div>
       )}

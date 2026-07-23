@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { useSessions } from "../../state/sessions";
 import { useStore } from "../../state/store";
 
@@ -45,5 +45,20 @@ describe("FilesPanel", () => {
     useSessions.setState({ activeSessionId: null } as any);
     render(<FilesPanel />);
     expect(screen.getByText(/Seleccioná una sesión/i)).toBeInTheDocument();
+  });
+  it("cambiar de sesión remonta el árbol (no arrastra el expandido)", async () => {
+    render(<FilesPanel />);
+    await waitFor(() => screen.getByText("src"));
+    // expandir "src" bajo s1 → hijo a1.py
+    listFiles.mockResolvedValueOnce({ entries: [{ name: "a1.py", type: "file" }] });
+    fireEvent.click(screen.getByText("src"));
+    await waitFor(() => expect(screen.getByText("a1.py")).toBeInTheDocument());
+    // cambiar a s2 con contenido de raíz distinto
+    listFiles.mockResolvedValue({ entries: [
+      { name: "src", type: "dir" }, { name: "otro.txt", type: "file" }] });
+    await act(async () => { useSessions.setState({ activeSessionId: "s2" } as any); });
+    await waitFor(() => expect(screen.getByText("otro.txt")).toBeInTheDocument());
+    // el hijo expandido de s1 no debe seguir montado
+    expect(screen.queryByText("a1.py")).not.toBeInTheDocument();
   });
 });
