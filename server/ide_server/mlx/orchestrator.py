@@ -1,13 +1,21 @@
 from __future__ import annotations
 from pathlib import Path
-from ide_server.mlx.config import mlx_config
-from ide_server.mlx.server import MlxServer, MlxUnavailable
-from ide_server.mlx.client import MlxClient
-from ide_server.mlx.router import PromptRouter, RouteDecision
+from .config import mlx_config
+from .server import MlxServer, MlxUnavailable
+from .client import MlxClient
+from .router import PromptRouter, RouteDecision
+from typing import Callable, Protocol
+
+
+class RouterLike(Protocol):
+    async def route(self, text: str) -> RouteDecision: ...
+
+
+RouterFactory = Callable[[str], RouterLike]
 
 
 class MlxRouter:
-    def __init__(self, server, router_factory) -> None:
+    def __init__(self, server: MlxServer, router_factory: RouterFactory) -> None:
         # router_factory(base_url) -> objeto con async route(text) -> RouteDecision
         self._server = server
         self._router_factory = router_factory
@@ -27,5 +35,10 @@ def build_mlx_router(root: Path) -> MlxRouter | None:
     cfg = mlx_config(root)
     if cfg is None:
         return None
-    server = MlxServer(cfg.model, find_port=(lambda h, s: cfg.port) if cfg.port else None)
-    return MlxRouter(server, lambda url: PromptRouter(MlxClient(url), cfg.router_prompt))
+    find_port: Callable[[str, int], int] | None = None
+    if cfg.port is not None:
+        port = cfg.port
+        find_port = lambda h, s: port
+    server = MlxServer(cfg.model, find_port=find_port)
+    router_factory: RouterFactory = lambda url: PromptRouter(MlxClient(url), cfg.router_prompt)
+    return MlxRouter(server, router_factory=router_factory)

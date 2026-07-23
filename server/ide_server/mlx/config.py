@@ -1,5 +1,6 @@
 from __future__ import annotations
 import tomllib
+from typing import Any
 import tomli_w
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,7 +29,7 @@ def mlx_config(root: Path) -> MlxConfig | None:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except (tomllib.TOMLDecodeError, OSError):
         return None
-    mlx = data.get("mlx")
+    mlx: dict[str, Any] | None = data.get("mlx")
     if not isinstance(mlx, dict) or not mlx.get("enabled") or not mlx.get("model"):
         return None
     return MlxConfig(
@@ -38,16 +39,14 @@ def mlx_config(root: Path) -> MlxConfig | None:
     )
 
 
-def mlx_config_raw(root: Path) -> dict:
+def mlx_config_raw(root: Path) -> dict[str, str | bool]:
     path = root / ".ide" / "config.toml"
-    mlx: object = {}
+    mlx: dict[str, Any] = {}
     if path.is_file():
         try:
             mlx = tomllib.loads(path.read_text(encoding="utf-8")).get("mlx") or {}
         except (tomllib.TOMLDecodeError, OSError):
             mlx = {}
-    if not isinstance(mlx, dict):
-        mlx = {}
     return {
         "enabled": bool(mlx.get("enabled")),
         "model": str(mlx.get("model") or ""),
@@ -58,10 +57,10 @@ def mlx_config_raw(root: Path) -> dict:
 
 def write_mlx_config(root: Path, *, enabled: bool, model: str, router_prompt: str) -> None:
     path = root / ".ide" / "config.toml"
-    data: dict = {}
+    data: dict[str, Any] = {}
     if path.is_file():
         data = tomllib.loads(path.read_text(encoding="utf-8"))
-    mlx = data.setdefault("mlx", {})
+    mlx: dict[str, str | bool] = data.setdefault("mlx", {})
     mlx["enabled"] = bool(enabled)
     if model:
         mlx["model"] = model

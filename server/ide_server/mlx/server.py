@@ -2,7 +2,7 @@ from __future__ import annotations
 import asyncio
 import subprocess
 import sys
-
+from typing import Callable
 
 class MlxUnavailable(RuntimeError):
     pass
@@ -22,8 +22,14 @@ def _spawn(cmd: list[str]):
 
 
 class MlxServer:
-    def __init__(self, model: str, *, spawn=None, http_get=None, find_port=None,
-                 host: str = "127.0.0.1", tries: int = 60, sleep=asyncio.sleep) -> None:
+    def __init__(self, model: str, *, 
+        spawn=None,
+        http_get=None,
+        find_port: Callable[[str, int], int] | None = None,
+        host: str = "127.0.0.1",
+        tries: int = 60,
+        sleep=asyncio.sleep
+    ) -> None:
         self._model = model
         self._spawn = spawn or _spawn
         self._get = http_get or _httpx_get_ok
