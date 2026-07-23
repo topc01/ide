@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Repo } from "../transport/envelope";
 
-export type PanelId = "search" | "changes" | "graphite" | "tasks" | "terminal" | "notion";
+export type PanelId = "search" | "changes" | "graphite" | "tasks" | "terminal" | "notion" | "files";
 export interface Tab { id: string; type: "file" | "task" | "branch" | "terminal" | "page"; label: string; }
 
 interface State {
