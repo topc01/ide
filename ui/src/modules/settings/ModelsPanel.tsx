@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useModels } from "../../state/models";
-import { fetchModels, downloadModel, deleteModel, subscribeModels } from "../../transport/modelsChannel";
+import { fetchModels, downloadModel, deleteModel, subscribeModels, fetchFit } from "../../transport/modelsChannel";
 import { getWs } from "../../transport/wsClient";
 import { Badge } from "../../components/ui/badge";
 import { MlxConfigSection } from "./MlxConfigSection";
+import { FitBadge } from "./FitBadge";
 
 const pct = (d: number, t: number) => (t > 0 ? Math.min(100, Math.round((d / t) * 100)) : 0);
 const gb = (bytes: number) => (bytes / 1e9).toFixed(1);
@@ -21,12 +22,16 @@ function RepoIdInput() {
 }
 
 export function ModelsPanel() {
-  const { curated, installed, inUse, downloads, setCatalog, applyEvent } = useModels();
+  const { curated, installed, inUse, downloads, fit, setCatalog, setFit, applyEvent } = useModels();
   useEffect(() => {
-    const reload = () => fetchModels(getWs()).then(setCatalog).catch(() => {});
+    const reload = () => fetchModels(getWs()).then((c) => {
+      setCatalog(c);
+      const ids = [...c.curated.map((m) => m.repoId), ...c.installed.map((m) => m.repoId)];
+      fetchFit(getWs(), ids).then(setFit).catch(() => {});
+    }).catch(() => {});
     reload();
     return subscribeModels(getWs(), (e) => { applyEvent(e); if (e.kind === "done") reload(); });
-  }, [setCatalog, applyEvent]);
+  }, [setCatalog, setFit, applyEvent]);
   const installedIds = new Set(installed.map((m) => m.repoId));
   const reload = () => fetchModels(getWs()).then(setCatalog).catch(() => {});
   return (
@@ -61,6 +66,7 @@ export function ModelsPanel() {
                   </div>
                 )}
                 {dl?.error && <div className="mt-1 text-[10px] text-destructive">{dl.error}</div>}
+                <FitBadge fit={fit[m.repoId]} />
               </div>
             );
           })}
@@ -109,13 +115,16 @@ export function ModelsPanel() {
         ) : (
           <div className="flex flex-col gap-1">
             {installed.map((m) => (
-              <div key={m.repoId} data-installed className="flex items-center justify-between rounded border border-border px-2 py-1.5 text-xs">
-                <span>{m.repoId}<span className="text-muted-foreground"> · {gb(m.sizeOnDisk)} GB</span></span>
-                <div className="flex items-center gap-2">
-                  {m.repoId === inUse && <Badge variant="secondary" className="bg-role-pill text-primary text-[10px]">en uso</Badge>}
-                  <button data-delete={m.repoId} onClick={() => deleteModel(getWs(), m.repoId).then(reload)}
-                    className="text-[10px] text-muted-foreground hover:text-destructive">Borrar</button>
+              <div key={m.repoId} data-installed className="rounded border border-border px-2 py-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span>{m.repoId}<span className="text-muted-foreground"> · {gb(m.sizeOnDisk)} GB</span></span>
+                  <div className="flex items-center gap-2">
+                    {m.repoId === inUse && <Badge variant="secondary" className="bg-role-pill text-primary text-[10px]">en uso</Badge>}
+                    <button data-delete={m.repoId} onClick={() => deleteModel(getWs(), m.repoId).then(reload)}
+                      className="text-[10px] text-muted-foreground hover:text-destructive">Borrar</button>
+                  </div>
                 </div>
+                <FitBadge fit={fit[m.repoId]} />
               </div>
             ))}
           </div>

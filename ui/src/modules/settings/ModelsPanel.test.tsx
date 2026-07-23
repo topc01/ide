@@ -12,6 +12,7 @@ vi.mock("../../transport/modelsChannel", () => ({
   deleteModel: (...a: any[]) => deleteModel(...a),
   getMlxConfig: () => Promise.resolve({ enabled: false, model: "", routerPrompt: "D", defaultPrompt: "D" }),
   setMlxConfig: () => Promise.resolve({}),
+  fetchFit: () => Promise.resolve({}),
 }));
 import { ModelsPanel } from "./ModelsPanel";
 

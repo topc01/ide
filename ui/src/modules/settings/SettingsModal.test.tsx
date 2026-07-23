@@ -9,6 +9,7 @@ vi.mock("../../transport/modelsChannel", () => ({
   subscribeModels: () => () => {}, downloadModel: vi.fn(), deleteModel: vi.fn(),
   getMlxConfig: () => Promise.resolve({ enabled: false, model: "", routerPrompt: "D", defaultPrompt: "D" }),
   setMlxConfig: () => Promise.resolve({}),
+  fetchFit: () => Promise.resolve({}),
 }));
 
 const items = [
