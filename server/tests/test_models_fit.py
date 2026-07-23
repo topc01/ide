@@ -65,3 +65,27 @@ def test_run_llmfit_parses_models0(monkeypatch):
     class _P: stdout = json.dumps({"models": [RAW]})
     monkeypatch.setattr(fitmod.subprocess, "run", lambda *a, **k: _P())
     assert _run_llmfit("x")["best_quant"] == "mlx-8bit"
+
+
+@pytest.mark.asyncio
+async def test_fit_for_bad_entry_maps_to_none():
+    # raw sin memoria y con context_length no numérico → _to_fit podría fallar → None, no rompe el batch
+    bad = {"context_length": "no-numero"}
+    mf = ModelFit(run=lambda rid: dict(bad))
+    assert await mf.fit_for(["a"]) == {"a": None}
+
+
+def test_run_llmfit_models_not_list_returns_none(monkeypatch):
+    import ide_server.models.fit as fitmod, json
+    class _P: stdout = json.dumps({"models": {"not": "a list"}})
+    monkeypatch.setattr(fitmod.subprocess, "run", lambda *a, **k: _P())
+    assert _run_llmfit("x") is None
+
+
+@pytest.mark.asyncio
+async def test_fit_for_missing_score_component_is_zero():
+    raw = {"memory_required_gb": 6.0, "memory_available_gb": 24.0, "estimated_tps": 9.0,
+           "disk_size_gb": 5.0, "best_quant": "q", "context_length": 100, "score": 80,
+           "score_components": {"fit": 100}}   # faltan speed/quality/context
+    fi = (await ModelFit(run=lambda rid: dict(raw)).fit_for(["a"]))["a"]
+    assert fi.score_components == {"fit": 100, "speed": 0, "quality": 0, "context": 0}

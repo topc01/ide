@@ -42,9 +42,10 @@ def _run_llmfit(repo_id: str) -> dict | None:
     except (json.JSONDecodeError, ValueError):
         return None
     models = data.get("models") if isinstance(data, dict) else None
-    if not models:
+    if not isinstance(models, list) or not models:
         return None
-    return models[0]
+    first = models[0]
+    return first if isinstance(first, dict) else None
 
 
 def _to_fit(repo_id: str, raw: dict) -> FitInfo:
@@ -59,7 +60,7 @@ def _to_fit(repo_id: str, raw: dict) -> FitInfo:
         best_quant=str(raw.get("best_quant") or ""),
         context_length=int(raw.get("context_length") or 0),
         score=float(raw.get("score") or 0),
-        score_components={k: comps.get(k) for k in ("fit", "speed", "quality", "context")},
+        score_components={k: (comps.get(k) or 0) for k in ("fit", "speed", "quality", "context")},
     )
 
 
@@ -72,5 +73,8 @@ class ModelFit:
         todo = [r for r in repo_ids if r not in self._cache]
         raws = await asyncio.gather(*(asyncio.to_thread(self._run, r) for r in todo))
         for repo_id, raw in zip(todo, raws):
-            self._cache[repo_id] = _to_fit(repo_id, raw) if raw else None
+            try:
+                self._cache[repo_id] = _to_fit(repo_id, raw) if raw else None
+            except Exception:               # noqa: BLE001 — una entrada malformada = sin dato, no rompe el batch
+                self._cache[repo_id] = None
         return {r: self._cache.get(r) for r in repo_ids}
