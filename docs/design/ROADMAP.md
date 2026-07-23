@@ -40,6 +40,7 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
 | Modelos locales (mlx) Fase 1 | Router prompt-based en el chat: local (tool-less) vs Claude; degrada con aviso; badge por turno. Opt-in `.ide/config.toml [mlx]`. | ✅ hecho |
 | Modelos: descargar/gestionar | Panel "Modelos" en Settings: catálogo curado + `repo_id` libre, descarga con progreso %/MB por WS (concurrentes + dedup), instalados + borrar, badge "en uso" (read-only). Dep `huggingface_hub`. | ✅ hecho |
 | Modelos: config editable | Sección "Configuración" editable en el panel (1ª config editable): toggle `enabled`, elegir modelo, editar router prompt. Escribe `[mlx]` en `config.toml` preservando el resto. | ✅ hecho |
+| Modelos: fit del hardware | Badge entra/justo/no + tok/s + detalles por modelo, vía `llmfit` (CLI externa, `--json`, dep opcional). Nivel derivado de RAM req/disponible; cache por repo. Degrada sin badges si falta. | ✅ hecho |
 
 ### Pendientes (requieren brainstorming/spec — ver HANDOFF)
 
@@ -60,7 +61,7 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
     de la app): toggle `enabled`, elegir el modelo (dropdown de instalados), **editar el prompt del
     router** (con reset al default). Escribe `[mlx]` en `.ide/config.toml` con `tomli-w`, preservando el
     resto (patrón de `notion/config.py`). Validación: `enabled` requiere `model` (si no, `raise` visible).
-  - *Rebanada 4 (fit del hardware, con detalles, PRÓXIMA):* por modelo del panel, un **badge de fit**
+  - *Rebanada 4 (fit del hardware, con detalles, ✅ HECHA):* por modelo del panel, un **badge de fit**
     (entra / justo / no entra) **más una vista de detalles**: **tok/s estimados**, RAM requerida vs
     disponible, tamaño en disco, mejor quant, context length, y el **score desglosado** (fit / velocidad
     / calidad / contexto) con sus supuestos. Vía **`llmfit`** (CLI Rust, `--json`) como **dep opcional
