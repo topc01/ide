@@ -1,5 +1,5 @@
 import type { WsClient } from "./ws";
-import type { Catalog } from "../state/models";
+import type { Catalog, FitInfo } from "../state/models";
 import type { MlxConfig } from "../state/mlxConfig";
 
 export function fetchModels(ws: WsClient): Promise<Catalog> {
@@ -20,4 +20,7 @@ export function getMlxConfig(ws: WsClient): Promise<MlxConfig> {
 }
 export function setMlxConfig(ws: WsClient, c: { enabled: boolean; model: string; routerPrompt: string }): Promise<any> {
   return ws.request("mlx.config.set", c);
+}
+export function fetchFit(ws: WsClient, repoIds: string[]): Promise<Record<string, FitInfo | null>> {
+  return ws.request("models.fit", { repoIds });
 }

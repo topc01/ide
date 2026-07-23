@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { fetchModels, downloadModel, deleteModel, subscribeModels, getMlxConfig, setMlxConfig } from "./modelsChannel";
+import { fetchModels, downloadModel, deleteModel, subscribeModels, getMlxConfig, setMlxConfig, fetchFit } from "./modelsChannel";
 
 describe("modelsChannel", () => {
   it("fetchModels pega a models.list", async () => {
@@ -27,5 +27,10 @@ describe("modelsChannel", () => {
     expect(ws.request).toHaveBeenCalledWith("mlx.config.get", {});
     setMlxConfig(ws, { enabled: true, model: "m", routerPrompt: "p" });
     expect(ws.request).toHaveBeenCalledWith("mlx.config.set", { enabled: true, model: "m", routerPrompt: "p" });
+  });
+  it("fetchFit pega a models.fit con repoIds", async () => {
+    const ws = { request: vi.fn().mockResolvedValue({ a: null }) } as any;
+    await fetchFit(ws, ["a", "b"]);
+    expect(ws.request).toHaveBeenCalledWith("models.fit", { repoIds: ["a", "b"] });
   });
 });

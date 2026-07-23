@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useModels } from "./models";
 
-beforeEach(() => useModels.setState({ curated: [], installed: [], inUse: null, downloads: {} }));
+beforeEach(() => useModels.setState({ curated: [], installed: [], inUse: null, downloads: {}, fit: {} }));
 
 describe("useModels", () => {
   it("progress y done actualizan downloads", () => {
@@ -22,5 +22,11 @@ describe("useModels", () => {
     });
     const s = useModels.getState();
     expect(s.curated).toHaveLength(1); expect(s.inUse).toBe("a");
+  });
+  it("setFit puebla el fit", () => {
+    useModels.getState().setFit({ "a": { level: "ok", fitLabel: "Perfect", memoryRequiredGb: 6.7,
+      memoryAvailableGb: 24, estimatedTps: 9.5, diskSizeGb: 5.8, bestQuant: "mlx-8bit",
+      contextLength: 32768, score: 87, scoreComponents: { fit: 100, speed: 20, quality: 99, context: 100 } } });
+    expect(useModels.getState().fit["a"]?.level).toBe("ok");
   });
 });
