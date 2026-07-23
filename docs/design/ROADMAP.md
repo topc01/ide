@@ -39,6 +39,7 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
 | `ide` multi-instancia | Puerto dinámico + `ide ls` + WS same-origin; `ide help` + guía de handoff. | ✅ hecho |
 | Modelos locales (mlx) Fase 1 | Router prompt-based en el chat: local (tool-less) vs Claude; degrada con aviso; badge por turno. Opt-in `.ide/config.toml [mlx]`. | ✅ hecho |
 | Modelos: descargar/gestionar | Panel "Modelos" en Settings: catálogo curado + `repo_id` libre, descarga con progreso %/MB por WS (concurrentes + dedup), instalados + borrar, badge "en uso" (read-only). Dep `huggingface_hub`. | ✅ hecho |
+| Modelos: config editable | Sección "Configuración" editable en el panel (1ª config editable): toggle `enabled`, elegir modelo, editar router prompt. Escribe `[mlx]` en `config.toml` preservando el resto. | ✅ hecho |
 
 ### Pendientes (requieren brainstorming/spec — ver HANDOFF)
 
@@ -55,11 +56,11 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
     catálogo curado + `repo_id` libre, **descargar** con progreso %/MB por WS (concurrentes + dedup),
     ver instalados (cache HF) + borrar, badge "en uso" leído de `[mlx].model` (read-only). Dep
     `huggingface_hub` (descargar no es solo-Mac ni usa `mlx-lm`).
-  - *Rebanada 3 (config editable de mlx, PRÓXIMA):* hacer el panel **editable** (primera config editable
+  - *Rebanada 3 (config editable de mlx, ✅ HECHA):* el panel es **editable** (primera config editable
     de la app): toggle `enabled`, elegir el modelo (dropdown de instalados), **editar el prompt del
     router** (con reset al default). Escribe `[mlx]` en `.ide/config.toml` con `tomli-w`, preservando el
     resto (patrón de `notion/config.py`). Validación: `enabled` requiere `model` (si no, `raise` visible).
-  - *Rebanada 4 (fit del hardware, con detalles):* por modelo del panel, un **badge de fit**
+  - *Rebanada 4 (fit del hardware, con detalles, PRÓXIMA):* por modelo del panel, un **badge de fit**
     (entra / justo / no entra) **más una vista de detalles**: **tok/s estimados**, RAM requerida vs
     disponible, tamaño en disco, mejor quant, context length, y el **score desglosado** (fit / velocidad
     / calidad / contexto) con sus supuestos. Vía **`llmfit`** (CLI Rust, `--json`) como **dep opcional
