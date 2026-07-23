@@ -37,6 +37,7 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
 | Tasks Fase 1 | Gestor de tareas markdown local en `.ide/tasks/` (listar/crear/editar). | ✅ hecho |
 | Arranque de un comando | `ide run` sirve frontend+backend en un puerto; `ide build`; instalable global. | ✅ hecho |
 | `ide` multi-instancia | Puerto dinámico + `ide ls` + WS same-origin; `ide help` + guía de handoff. | ✅ hecho |
+| Módulo Archivos | Explorador en el rail: árbol lazy (muestra todo) del worktree de la sesión; click abre el archivo en vim/`$EDITOR` en un tab de terminal (reusa `terminal.open`, sin editor propio). | ✅ hecho |
 | Modelos locales (mlx) Fase 1 | Router prompt-based en el chat: local (tool-less) vs Claude; degrada con aviso; badge por turno. Opt-in `.ide/config.toml [mlx]`. | ✅ hecho |
 | Modelos: descargar/gestionar | Panel "Modelos" en Settings: catálogo curado + `repo_id` libre, descarga con progreso %/MB por WS (concurrentes + dedup), instalados + borrar, badge "en uso" (read-only). Dep `huggingface_hub`. | ✅ hecho |
 | Modelos: config editable | Sección "Configuración" editable en el panel (1ª config editable): toggle `enabled`, elegir modelo, editar router prompt. Escribe `[mlx]` en `config.toml` preservando el resto. | ✅ hecho |
