@@ -11,6 +11,7 @@ from ide_server.capabilities import terminals as terminals_cap
 from ide_server.capabilities import chat as chat_cap
 from ide_server.capabilities import customizations as customizations_cap
 from ide_server.capabilities import changes as changes_cap
+from ide_server.capabilities import files as files_cap
 from ide_server.capabilities import graphite as graphite_cap
 from ide_server.capabilities import notion as notion_cap
 from ide_server.capabilities import tasks as tasks_cap
@@ -32,6 +33,7 @@ def create_app(root: Path, web_dir: Path | None = None) -> FastAPI:
     hub = chat_cap.register(registry, root, manager, mlx_router=mlx_router)
     customizations_cap.register(registry, root)
     changes_cap.register(registry, root)
+    files_cap.register(registry, root)
     graphite_cap.register(registry, root)
     notion_cap.register(registry, root)
     tasks_cap.register(registry, root)
