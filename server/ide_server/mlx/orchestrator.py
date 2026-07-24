@@ -40,5 +40,6 @@ def build_mlx_router(root: Path) -> MlxRouter | None:
         port = cfg.port
         find_port = lambda h, s: port
     server = MlxServer(cfg.model, find_port=find_port)
-    router_factory: RouterFactory = lambda url: PromptRouter(MlxClient(url), cfg.router_prompt)
+    router_factory: RouterFactory = lambda url: PromptRouter(
+        MlxClient(url, model=cfg.model), cfg.router_prompt)
     return MlxRouter(server, router_factory=router_factory)

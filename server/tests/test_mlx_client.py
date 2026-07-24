@@ -13,3 +13,15 @@ async def test_chat_posts_openai_and_parses():
     assert out == "hola"
     assert captured["url"] == "http://localhost:9001/v1/chat/completions"
     assert captured["json"]["messages"] == [{"role": "user", "content": "hi"}]
+    assert "model" not in captured["json"]           # sin model configurado → se omite (no "local")
+
+
+@pytest.mark.asyncio
+async def test_chat_sends_configured_model_id():
+    captured = {}
+    async def fake_post(url, json):
+        captured["json"] = json
+        return {"choices": [{"message": {"content": "ok"}}]}
+    c = MlxClient("http://x", model="mlx-community/Llama-3.2-1B-Instruct-4bit", http_post=fake_post)
+    await c.chat([{"role": "user", "content": "hi"}])
+    assert captured["json"]["model"] == "mlx-community/Llama-3.2-1B-Instruct-4bit"
