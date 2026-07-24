@@ -42,6 +42,9 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
 | Modelos: descargar/gestionar | Panel "Modelos" en Settings: catálogo curado + `repo_id` libre, descarga con progreso %/MB por WS (concurrentes + dedup), instalados + borrar, badge "en uso" (read-only). Dep `huggingface_hub`. | ✅ hecho |
 | Modelos: config editable | Sección "Configuración" editable en el panel (1ª config editable): toggle `enabled`, elegir modelo, editar router prompt. Escribe `[mlx]` en `config.toml` preservando el resto. | ✅ hecho |
 | Modelos: fit del hardware | Badge entra/justo/no + tok/s + detalles por modelo, vía `llmfit` (CLI externa, `--json`, dep opcional). Nivel derivado de RAM req/disponible; cache por repo. Degrada sin badges si falta. | ✅ hecho |
+| Modelos: bring-up en vivo | mlx corre de verdad: arreglado el bug `model:"local"` (colgaba cada request); `DEFAULT_ROUTER_PROMPT` reescrito (clasificador → 7/7 con Qwen2.5-3B; 1B muy débil). `mlx-lm` instalado. | ✅ hecho |
+| Modelos: override manual | Selector Auto/Local/Claude en el composer; `chat.send` acepta `route`; forzar local/claude por mensaje. | ✅ hecho |
+| Modelos: streaming local | Reply local forzado streameado token-a-token (SSE de `mlx_lm.server`); degrada a Claude si mlx no arranca. | ✅ hecho |
 
 ### Pendientes (requieren brainstorming/spec — ver HANDOFF)
 
@@ -84,6 +87,11 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
     o tools externas** — un **loop de agente liviano** alrededor del mlx (MCP → schemas → `tool_calls` →
     ejecutar → realimentar). `mlx_lm.server` expone tool-calling estilo OpenAI pero **no orquesta el
     loop**; es una rebanada grande y separada (un "agente local" acotado, no reemplazo de Claude Code).
+    **⚠ Hallazgo (spike 2026-07-24):** con **Qwen2.5-3B** el tool-calling es **poco confiable** —
+    `mlx_lm.server` no puede parsear los tool calls que genera ("truncated mid-generation" / JSON
+    malformado), aun subiendo `max_tokens`. La fundación (tool-calling local) **no funciona out-of-the-box**;
+    esta rebanada necesita primero resolver eso: un modelo tuneado para function-calling (o más grande),
+    y/o un **parser tolerante** propio en vez de depender del parseo estricto de mlx_lm. No es un tack-on.
 - **Config editable (dirección general)** — hoy Settings/Customizations (roles, skills, agents, hooks,
   plugins, tools, MCP) es un **catálogo read-only**; se edita a mano (`.ide/config.toml` para roles,
   `~/.claude/*` para el resto). La config de Modelos (arriba) es la primera *editable*; hacer editable
