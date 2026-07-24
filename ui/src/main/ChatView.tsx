@@ -46,9 +46,9 @@ export function ChatView() {
             clearPermission(sid);
           }} />)}
       <Composer streaming={!!c?.streaming}
-        onSend={(t) => {
+        onSend={(t, route) => {
           pushUser(sid, t);
-          sendChat(getWs(), sid, t).catch((err) =>
+          sendChat(getWs(), sid, t, route).catch((err) =>
             applyEvent(sid, { kind: "error", code: "chat_error", message: String(err?.message ?? err) }));
         }}
         onStop={() => interruptChat(getWs(), sid)} />

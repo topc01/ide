@@ -43,7 +43,12 @@ def register(registry: Registry, root: Path, manager, driver_factory=None, hub=N
 
     async def send(payload: dict) -> dict:
         sid, text = payload["sessionId"], payload["text"]
-        decision = await mlx_router.decide(text) if mlx_router is not None else None
+        force = payload.get("route")                        # None | "local" | "claude" (override manual)
+        if force == "local" and mlx_router is None:
+            await hub.emit(sid, ChatError(code="mlx_off",
+                                          message="mlx no está configurado en este proyecto"))
+            return {"sent": False}
+        decision = await mlx_router.decide(text, force=force) if mlx_router is not None else None
         if decision is None:
             await hub.send_human(sid, text)                 # mlx off → como hoy
             return {"sent": True}

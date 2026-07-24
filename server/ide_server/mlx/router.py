@@ -30,3 +30,10 @@ class PromptRouter:
         ])
         route, local_reply = parse_route(reply)
         return RouteDecision(route=route, reply=local_reply)
+
+    async def answer(self, text: str) -> str:
+        # respuesta directa del modelo local (sin clasificar) — para el override "forzar local"
+        return await self._client.chat([
+            {"role": "system", "content": "Respondé de forma directa y concisa."},
+            {"role": "user", "content": text},
+        ])

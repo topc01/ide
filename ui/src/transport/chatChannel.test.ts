@@ -21,6 +21,8 @@ describe("chatChannel", () => {
     const ws = fakeWs();
     await sendChat(ws, "s1", "hola");
     expect(ws.request).toHaveBeenCalledWith("chat.send", { sessionId: "s1", text: "hola" });
+    await sendChat(ws, "s1", "forzado", "local");
+    expect(ws.request).toHaveBeenCalledWith("chat.send", { sessionId: "s1", text: "forzado", route: "local" });
     await permissionDecision(ws, "s1", "r1", true);
     expect(ws.request).toHaveBeenCalledWith("chat.permission",
       { sessionId: "s1", requestId: "r1", allow: true });

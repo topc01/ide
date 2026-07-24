@@ -66,8 +66,8 @@ async def test_permission_decision_resolves_future(tmp_path, monkeypatch):
     assert await task is True
 
 class _FakeRouter:
-    def __init__(self, decision): self._d = decision
-    async def decide(self, text): return self._d
+    def __init__(self, decision): self._d = decision; self.forced = "unset"
+    async def decide(self, text, force=None): self.forced = force; return self._d
 
 
 @pytest.mark.asyncio
@@ -116,6 +116,35 @@ async def test_send_degraded_emits_warning(tmp_path, monkeypatch):
     await reg.dispatch("chat.send", {"sessionId": "s1", "text": "hola"})
     assert any(p.get("kind") == "error" for _, p in mgr.events)     # aviso visible
     assert FakeDriver.last.sent == ["hola"]                          # igual va a Claude
+
+
+@pytest.mark.asyncio
+async def test_send_forwards_manual_override_to_router(tmp_path, monkeypatch):
+    from ide_server.mlx.router import RouteDecision
+    import ide_server.capabilities.chat as chatmod
+    reg = Registry(); mgr = FakeManager()
+    monkeypatch.setattr(chatmod, "_load_session_context",
+                        lambda root, sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None})
+    router = _FakeRouter(RouteDecision("claude", None))
+    chatmod.register(reg, tmp_path, mgr, driver_factory=FakeDriver, mlx_router=router)
+    await reg.dispatch("chat.start", {"sessionId": "s1"})
+    await reg.dispatch("chat.send", {"sessionId": "s1", "text": "hola", "route": "claude"})
+    assert router.forced == "claude"                                # el override llega al router
+
+
+@pytest.mark.asyncio
+async def test_send_force_local_without_mlx_errors(tmp_path, monkeypatch):
+    import ide_server.capabilities.chat as chatmod
+    reg = Registry(); mgr = FakeManager()
+    monkeypatch.setattr(chatmod, "_load_session_context",
+                        lambda root, sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None})
+    chatmod.register(reg, tmp_path, mgr, driver_factory=FakeDriver, mlx_router=None)
+    await reg.dispatch("chat.start", {"sessionId": "s1"})
+    FakeDriver.last.sent.clear()
+    out = await reg.dispatch("chat.send", {"sessionId": "s1", "text": "hola", "route": "local"})
+    assert out == {"sent": False}
+    assert any(p.get("kind") == "error" and p.get("code") == "mlx_off" for _, p in mgr.events)
+    assert FakeDriver.last.sent == []                                # no fue a Claude
 
 
 def test_load_session_context_spanish_instruction_always_first(tmp_path):

@@ -13,8 +13,9 @@ class _Srv:
 
 
 class _Router:
-    def __init__(self, dec): self._dec = dec
+    def __init__(self, dec, answer="respuesta directa"): self._dec = dec; self._answer = answer
     async def route(self, text): return self._dec
+    async def answer(self, text): return self._answer
 
 
 @pytest.mark.asyncio
@@ -27,6 +28,28 @@ async def test_decide_local():
 async def test_decide_degrades_when_unavailable():
     r = MlxRouter(_Srv(fail=True), lambda url: _Router(RouteDecision("local", "x")))
     d = await r.decide("hi")
+    assert d.route == "claude" and d.degraded is True
+
+
+@pytest.mark.asyncio
+async def test_decide_force_claude_skips_mlx():
+    # force="claude" no debe tocar el server (aunque falle) → claude directo
+    r = MlxRouter(_Srv(fail=True), lambda url: _Router(RouteDecision("local", "x")))
+    d = await r.decide("hi", force="claude")
+    assert d.route == "claude" and d.degraded is False
+
+
+@pytest.mark.asyncio
+async def test_decide_force_local_uses_answer():
+    r = MlxRouter(_Srv(), lambda url: _Router(RouteDecision("claude", None), answer="hola local"))
+    d = await r.decide("hi", force="local")
+    assert d.route == "local" and d.reply == "hola local"
+
+
+@pytest.mark.asyncio
+async def test_decide_force_local_degrades_when_unavailable():
+    r = MlxRouter(_Srv(fail=True), lambda url: _Router(RouteDecision("local", "x")))
+    d = await r.decide("hi", force="local")
     assert d.route == "claude" and d.degraded is True
 
 

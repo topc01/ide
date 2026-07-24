@@ -29,3 +29,13 @@ async def test_prompt_router_local():
 async def test_prompt_router_claude():
     d = await PromptRouter(_FakeClient("ROUTE_TO_CLAUDE"), "SYS").route("editá el archivo main.py")
     assert d == RouteDecision(route="claude", reply=None)
+
+
+@pytest.mark.asyncio
+async def test_prompt_router_answer_is_direct():
+    c = _FakeClient("respuesta directa")
+    out = await PromptRouter(c, "SYS").answer("cuánto es 2+2")
+    assert out == "respuesta directa"
+    # answer NO usa el prompt de router (clasificador); usa un system distinto
+    assert c.messages[0]["role"] == "system" and c.messages[0]["content"] != "SYS"
+    assert c.messages[1] == {"role": "user", "content": "cuánto es 2+2"}

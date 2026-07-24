@@ -9,6 +9,7 @@ from typing import Callable, Protocol
 
 class RouterLike(Protocol):
     async def route(self, text: str) -> RouteDecision: ...
+    async def answer(self, text: str) -> str: ...
 
 
 RouterFactory = Callable[[str], RouterLike]
@@ -20,12 +21,18 @@ class MlxRouter:
         self._server = server
         self._router_factory = router_factory
 
-    async def decide(self, text: str) -> RouteDecision:
+    async def decide(self, text: str, force: str | None = None) -> RouteDecision:
+        # force: None = router decide; "claude" = forzar Claude (sin mlx); "local" = respuesta local directa
+        if force == "claude":
+            return RouteDecision(route="claude", reply=None)
         try:
             url = await self._server.ensure_running()
         except MlxUnavailable:
             return RouteDecision(route="claude", reply=None, degraded=True)
-        return await self._router_factory(url).route(text)
+        router = self._router_factory(url)
+        if force == "local":
+            return RouteDecision(route="local", reply=await router.answer(text))
+        return await router.route(text)
 
     async def aclose(self) -> None:
         self._server.stop()
