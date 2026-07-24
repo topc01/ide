@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from ide_server.plugins import Registry
 from ide_server.chat.events import Routed, TextDelta, Done, ChatError
+from ide_server.mlx.server import MlxUnavailable
 
 _LANG = "Respondé siempre en español."
 
@@ -44,10 +45,30 @@ def register(registry: Registry, root: Path, manager, driver_factory=None, hub=N
     async def send(payload: dict) -> dict:
         sid, text = payload["sessionId"], payload["text"]
         force = payload.get("route")                        # None | "local" | "claude" (override manual)
-        if force == "local" and mlx_router is None:
-            await hub.emit(sid, ChatError(code="mlx_off",
-                                          message="mlx no está configurado en este proyecto"))
-            return {"sent": False}
+
+        if force == "local":
+            # forzar el modelo local, streameado token a token
+            if mlx_router is None:
+                await hub.emit(sid, ChatError(code="mlx_off",
+                                              message="mlx no está configurado en este proyecto"))
+                return {"sent": False}
+            await hub.emit(sid, Routed(source="local"))
+
+            async def _emit(chunk: str) -> None:
+                await hub.emit(sid, TextDelta(text=chunk))
+
+            try:
+                await mlx_router.stream_local(text, _emit)
+            except MlxUnavailable:
+                await hub.emit(sid, ChatError(code="mlx_unavailable",
+                                              message="modelo local no disponible, usando Claude"))
+                await hub.emit(sid, Routed(source="claude"))
+                await hub.send_human(sid, text)
+                return {"sent": True, "route": "claude"}
+            await hub.emit(sid, Done(session_id=sid, is_error=False))
+            return {"sent": True, "route": "local"}
+
+        # auto (force None) o forzar claude
         decision = await mlx_router.decide(text, force=force) if mlx_router is not None else None
         if decision is None:
             await hub.send_human(sid, text)                 # mlx off → como hoy

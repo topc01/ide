@@ -14,6 +14,10 @@ def test_parse_route_local():
 class _FakeClient:
     def __init__(self, reply): self._reply = reply; self.messages = None
     async def chat(self, messages): self.messages = messages; return self._reply
+    async def chat_stream(self, messages, emit):
+        self.messages = messages
+        await emit(self._reply)
+        return self._reply
 
 
 @pytest.mark.asyncio
@@ -32,10 +36,12 @@ async def test_prompt_router_claude():
 
 
 @pytest.mark.asyncio
-async def test_prompt_router_answer_is_direct():
+async def test_prompt_router_answer_stream_is_direct():
     c = _FakeClient("respuesta directa")
-    out = await PromptRouter(c, "SYS").answer("cuánto es 2+2")
-    assert out == "respuesta directa"
-    # answer NO usa el prompt de router (clasificador); usa un system distinto
+    got = []
+    async def emit(ch): got.append(ch)
+    out = await PromptRouter(c, "SYS").answer_stream("cuánto es 2+2", emit)
+    assert out == "respuesta directa" and got == ["respuesta directa"]
+    # answer_stream NO usa el prompt de router (clasificador); usa un system distinto
     assert c.messages[0]["role"] == "system" and c.messages[0]["content"] != "SYS"
     assert c.messages[1] == {"role": "user", "content": "cuánto es 2+2"}

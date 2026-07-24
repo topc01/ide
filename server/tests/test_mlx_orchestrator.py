@@ -15,7 +15,9 @@ class _Srv:
 class _Router:
     def __init__(self, dec, answer="respuesta directa"): self._dec = dec; self._answer = answer
     async def route(self, text): return self._dec
-    async def answer(self, text): return self._answer
+    async def answer_stream(self, text, emit):
+        await emit(self._answer)
+        return self._answer
 
 
 @pytest.mark.asyncio
@@ -40,17 +42,20 @@ async def test_decide_force_claude_skips_mlx():
 
 
 @pytest.mark.asyncio
-async def test_decide_force_local_uses_answer():
+async def test_stream_local_streams_chunks():
     r = MlxRouter(_Srv(), lambda url: _Router(RouteDecision("claude", None), answer="hola local"))
-    d = await r.decide("hi", force="local")
-    assert d.route == "local" and d.reply == "hola local"
+    got = []
+    async def emit(ch): got.append(ch)
+    full = await r.stream_local("hi", emit)
+    assert got == ["hola local"] and full == "hola local"
 
 
 @pytest.mark.asyncio
-async def test_decide_force_local_degrades_when_unavailable():
+async def test_stream_local_raises_when_unavailable():
     r = MlxRouter(_Srv(fail=True), lambda url: _Router(RouteDecision("local", "x")))
-    d = await r.decide("hi", force="local")
-    assert d.route == "claude" and d.degraded is True
+    async def emit(ch): pass
+    with pytest.raises(MlxUnavailable):
+        await r.stream_local("hi", emit)
 
 
 @pytest.mark.asyncio

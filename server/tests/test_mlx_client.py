@@ -25,3 +25,16 @@ async def test_chat_sends_configured_model_id():
     c = MlxClient("http://x", model="mlx-community/Llama-3.2-1B-Instruct-4bit", http_post=fake_post)
     await c.chat([{"role": "user", "content": "hi"}])
     assert captured["json"]["model"] == "mlx-community/Llama-3.2-1B-Instruct-4bit"
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_emits_chunks_and_returns_full():
+    async def fake_stream(url, json):
+        assert json["stream"] is True and json["model"] == "M"
+        for c in ["ho", "la", "!"]:
+            yield c
+    got = []
+    async def emit(c): got.append(c)
+    client = MlxClient("http://x", model="M", http_stream=fake_stream)
+    full = await client.chat_stream([{"role": "user", "content": "hi"}], emit)
+    assert got == ["ho", "la", "!"] and full == "hola!"

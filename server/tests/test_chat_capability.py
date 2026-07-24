@@ -66,8 +66,12 @@ async def test_permission_decision_resolves_future(tmp_path, monkeypatch):
     assert await task is True
 
 class _FakeRouter:
-    def __init__(self, decision): self._d = decision; self.forced = "unset"
+    def __init__(self, decision): self._d = decision; self.forced = "unset"; self.streamed = None
     async def decide(self, text, force=None): self.forced = force; return self._d
+    async def stream_local(self, text, emit):
+        self.streamed = text
+        for ch in ["ho", "la"]: await emit(ch)
+        return "hola"
 
 
 @pytest.mark.asyncio
@@ -145,6 +149,46 @@ async def test_send_force_local_without_mlx_errors(tmp_path, monkeypatch):
     assert out == {"sent": False}
     assert any(p.get("kind") == "error" and p.get("code") == "mlx_off" for _, p in mgr.events)
     assert FakeDriver.last.sent == []                                # no fue a Claude
+
+
+@pytest.mark.asyncio
+async def test_send_force_local_streams_chunks(tmp_path, monkeypatch):
+    from ide_server.mlx.router import RouteDecision
+    import ide_server.capabilities.chat as chatmod
+    reg = Registry(); mgr = FakeManager()
+    monkeypatch.setattr(chatmod, "_load_session_context",
+                        lambda root, sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None})
+    chatmod.register(reg, tmp_path, mgr, driver_factory=FakeDriver,
+                     mlx_router=_FakeRouter(RouteDecision("local", "x")))
+    await reg.dispatch("chat.start", {"sessionId": "s1"})
+    FakeDriver.last.sent.clear()
+    out = await reg.dispatch("chat.send", {"sessionId": "s1", "text": "escribí un poema", "route": "local"})
+    kinds = [p for _, p in mgr.events]
+    assert {"kind": "routed", "source": "local"} in kinds
+    deltas = [p.get("text") for p in kinds if p.get("kind") == "text_delta"]
+    assert deltas == ["ho", "la"]                                   # streameado en chunks
+    assert any(p.get("kind") == "done" for p in kinds)
+    assert FakeDriver.last.sent == [] and out == {"sent": True, "route": "local"}
+
+
+@pytest.mark.asyncio
+async def test_send_force_local_degrades_to_claude(tmp_path, monkeypatch):
+    from ide_server.mlx.server import MlxUnavailable
+    import ide_server.capabilities.chat as chatmod
+
+    class _Unavail:
+        async def stream_local(self, text, emit): raise MlxUnavailable("nope")
+
+    reg = Registry(); mgr = FakeManager()
+    monkeypatch.setattr(chatmod, "_load_session_context",
+                        lambda root, sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None})
+    chatmod.register(reg, tmp_path, mgr, driver_factory=FakeDriver, mlx_router=_Unavail())
+    await reg.dispatch("chat.start", {"sessionId": "s1"})
+    FakeDriver.last.sent.clear()
+    out = await reg.dispatch("chat.send", {"sessionId": "s1", "text": "hola", "route": "local"})
+    assert any(p.get("kind") == "error" for _, p in mgr.events)
+    assert FakeDriver.last.sent == ["hola"]                         # degradó a Claude
+    assert out == {"sent": True, "route": "claude"}
 
 
 def test_load_session_context_spanish_instruction_always_first(tmp_path):
