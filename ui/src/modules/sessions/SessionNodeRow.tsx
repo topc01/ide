@@ -12,6 +12,12 @@ const DOT: Record<string, string> = {
   running: "bg-status-running", idle: "bg-status-idle", done: "bg-status-done",
 };
 
+// pwd resumido: últimos 2 segmentos con "…/" (el completo va en el title/hover).
+function shortPath(p: string): string {
+  const segs = p.split("/").filter(Boolean);
+  return segs.length > 2 ? `…/${segs.slice(-2).join("/")}` : p;
+}
+
 export function SessionNodeRow({ node, depth }: { node: SessionNode; depth: number }) {
   const { activeSessionId, setActive, toggleExpanded, openModal, editingId, startRename, stopRename, applyRename } = useSessions();
   const active = activeSessionId === node.id;
@@ -74,6 +80,20 @@ export function SessionNodeRow({ node, depth }: { node: SessionNode; depth: numb
           className="shrink-0 text-muted-foreground"
         />
       </div>
+      {(node.worktreePath || node.branch) && (
+        <div
+          data-session-meta
+          style={{ paddingLeft: depth * 16 + 22 }}
+          className="flex items-center gap-2 pb-0.5 pr-1.5 text-[10px] text-muted-foreground"
+        >
+          {node.worktreePath && (
+            <span title={node.worktreePath} className="truncate font-mono">{shortPath(node.worktreePath)}</span>
+          )}
+          {node.branch && (
+            <span className="shrink-0 font-mono text-primary">⎇ {node.branch}</span>
+          )}
+        </div>
+      )}
       {node.expanded && node.children.map((c) => (
         <SessionNodeRow key={c.id} node={c} depth={depth + 1} />
       ))}

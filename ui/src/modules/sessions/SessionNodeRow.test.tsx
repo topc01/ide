@@ -31,4 +31,19 @@ describe("SessionNodeRow", () => {
     const row = screen.getByText("Coord").closest("[data-session-row]") as HTMLElement;
     expect(row.querySelector(".bg-status-running")).not.toBeNull();
   });
+
+  it("muestra pwd resumido (full en hover) + rama bajo el nombre", () => {
+    render(<SessionNodeRow node={node({
+      children: [], worktreePath: "/Users/topc/.ide/worktrees/prueba", branch: "feat-x",
+    }) as any} depth={0} />);
+    const short = screen.getByText("…/worktrees/prueba");
+    expect(short).toBeInTheDocument();
+    expect(short).toHaveAttribute("title", "/Users/topc/.ide/worktrees/prueba");   // full en hover
+    expect(screen.getByText(/feat-x/)).toBeInTheDocument();                          // rama
+  });
+
+  it("sin worktree ni rama no muestra la meta-línea", () => {
+    render(<SessionNodeRow node={node({ children: [] }) as any} depth={0} />);
+    expect(document.querySelector("[data-session-meta]")).toBeNull();
+  });
 });
