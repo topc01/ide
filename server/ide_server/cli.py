@@ -67,6 +67,29 @@ def _serve(app, host: str, port: int) -> None:
     uvicorn.run(app, host=host, port=port)
 
 
+def _ensure_root(cwd: Path) -> Path:
+    root = resolve_root(cwd)
+    if root is None:
+        init_workspace(cwd)
+        print(f"Workspace .ide/ creado en {cwd}")
+        return cwd
+    return root
+
+
+def _launch(root: Path, host: str, port: int, web_dir, *, open_browser: bool, serve, opener) -> None:
+    from ide_server.app import create_app
+    url = f"http://{host}:{port}"
+    inst_path = instances.register_instance(Path.home(), port=port, host=host,
+                                            workspace=str(root), pid=os.getpid())
+    if open_browser:
+        opener(url)
+    print(f"Workspace: {root}  →  {url}")
+    try:
+        serve(create_app(root, web_dir), host, port)
+    finally:
+        instances.unregister_instance(inst_path)
+
+
 HELP_TEXT = """\
 ide — Agentic IDE (orquestador de sesiones paralelas de Claude Code)
 
@@ -79,10 +102,16 @@ COMANDOS
         Levanta todo (frontend + backend + API + WebSocket) en un puerto y abre el navegador.
         Elige :8787; si está ocupado sube al siguiente libre (así podés correr varios `ide` a la
         vez). --port fuerza uno exacto. Si el workspace no tiene .ide/, lo crea automáticamente.
-  ide ls
-        Lista las instancias de `ide` corriendo (url, workspace, pid). Poda las muertas.
+  ide server [--dev] [--cwd DIR] [--port N]
+        Solo el backend, headless (no abre navegador). Con --dev fija el puerto :8787 (donde pega
+        el frontend dev). Sin --dev usa un puerto libre. Para el flujo de desarrollo con `ide ui --dev`.
+  ide ui [--dev]
+        Levanta el frontend en modo dev (Vite, hot-reload, http://localhost:5173). Correr desde el
+        checkout del repo. Se usa junto con `ide server --dev`.
   ide build
         Buildea el frontend (Vite) y lo empaqueta en el paquete. Correr desde el checkout del repo.
+  ide ls
+        Lista las instancias de `ide` corriendo (url, workspace, pid). Poda las muertas.
   ide init [--cwd DIR]
         Inicializa un workspace (.ide/) sin levantar el server. Normalmente no hace falta:
         `ide run` ya auto-inicializa.
@@ -94,9 +123,9 @@ INSTALAR (global, un comando levanta todo)
   uv tool install ./server           # deja `ide` en el PATH
   ide run --cwd /ruta/al/workspace   # http://127.0.0.1:8787 (o el siguiente libre)
 
-DESARROLLO (hot-reload de la UI)
-  cd server && uv run ide run --cwd <ws> --no-browser
-  cd ui && npm run dev               # Vite en :5173 (el WS del front pega a :8787)
+DESARROLLO (hot-reload de la UI, dos procesos)
+  ide server --dev --cwd <ws>        # backend en :8787 (headless)
+  ide ui --dev                       # Vite en :5173 (el WS del front pega a :8787)
 
 EL WORKSPACE (.ide/)
   Un directorio con .ide/ es la unidad de trabajo. Contiene: config.toml, sessions.json,
@@ -123,9 +152,10 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
 
     parser = argparse.ArgumentParser(prog="ide")
     parser.add_argument("command", nargs="?", default="run",
-                        choices=["run", "init", "build", "ls", "help"])
+                        choices=["run", "server", "ui", "init", "build", "ls", "help"])
     parser.add_argument("--cwd", default=".")
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--dev", action="store_true")
     parser.add_argument("--port", type=int, default=None)
     args = parser.parse_args(argv)
     cwd = Path(args.cwd).resolve()
@@ -147,6 +177,14 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
         print(f"Frontend buildeado en {PKG_WEB}")
         return 0
 
+    if args.command == "ui":
+        ui = repo_ui()
+        if ui is None:
+            print("ide ui solo corre desde el checkout del repo (no se encontró ui/).")
+            return 1
+        build_runner(["npm", "run", "dev"], cwd=str(ui), check=True)   # Vite dev server (:5173)
+        return 0
+
     if args.command == "ls":
         insts = instances.list_instances(Path.home())
         if not insts:
@@ -156,31 +194,26 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
             print(f"  {i['url']}  {i['workspace']}  (pid {i['pid']})")
         return 0
 
-    # command == "run"
-    root = resolve_root(cwd)
-    if root is None:
-        init_workspace(cwd)
-        print(f"Workspace .ide/ creado en {cwd}")
-        root = cwd
-
-    from ide_server.app import create_app
+    # command == "run" o "server" (ambos levantan el backend)
     from ide_server.config import Settings
+    root = _ensure_root(cwd)
     settings = Settings()
-
     web_dir = resolve_web_dir()
+    host = settings.host
+
+    if args.command == "server":
+        # backend headless (sin abrir navegador). --dev fija :8787, donde pega el frontend dev.
+        if args.dev:
+            port = settings.port
+            print("dev: levantá la UI aparte con `ide ui --dev` (Vite en http://localhost:5173)")
+        else:
+            port = args.port if args.port is not None else find_free_port(host, settings.port)
+        _launch(root, host, port, web_dir, open_browser=False, serve=serve, opener=opener)
+        return 0
+
+    # command == "run"
     if web_dir is None:
         print("frontend no buildeado; corré `ide build` (o `npm run build` en ui/).")
-
-    host = settings.host
     port = args.port if args.port is not None else find_free_port(host, settings.port)
-    url = f"http://{host}:{port}"
-    inst_path = instances.register_instance(Path.home(), port=port, host=host,
-                                            workspace=str(root), pid=os.getpid())
-    if not args.no_browser:
-        opener(url)
-    print(f"Workspace: {root}  →  {url}")
-    try:
-        serve(create_app(root, web_dir), host, port)
-    finally:
-        instances.unregister_instance(inst_path)
+    _launch(root, host, port, web_dir, open_browser=not args.no_browser, serve=serve, opener=opener)
     return 0

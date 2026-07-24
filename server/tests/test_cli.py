@@ -173,8 +173,54 @@ def test_help_prints_reference(capsys):
     assert main(["help"]) == 0
     out = capsys.readouterr().out
     # comandos clave presentes
-    for token in ["ide run", "ide build", "ide ls", "ide init", "--port", "--cwd"]:
+    for token in ["ide run", "ide server", "ide ui", "ide build", "ide ls", "ide init", "--port", "--cwd", "--dev"]:
         assert token in out, token
     # menciona el modelo y el handoff para agentes
     assert "coordinadora" in out.lower() or "orquesta" in out.lower()
     assert "ide-handoff" in out or "handoff" in out.lower()
+
+
+def test_server_dev_uses_fixed_port(tmp_path, monkeypatch):
+    import ide_server.cli as cli
+    monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)
+    cli.init_workspace(tmp_path)
+    served = {}
+    opened = []
+    code = cli.main(["server", "--dev", "--cwd", str(tmp_path)],
+                    serve=lambda a, h, p: served.setdefault("hp", (h, p)),
+                    opener=lambda u: opened.append(u))
+    assert code == 0
+    assert served["hp"][1] == 8787          # --dev fija :8787
+    assert opened == []                     # headless: no abre navegador
+
+
+def test_server_no_dev_uses_free_port(tmp_path, monkeypatch):
+    import ide_server.cli as cli
+    monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)
+    cli.init_workspace(tmp_path)
+    served = {}
+    code = cli.main(["server", "--cwd", str(tmp_path)],
+                    serve=lambda a, h, p: served.setdefault("hp", (h, p)),
+                    opener=lambda u: None)
+    assert code == 0
+    assert served["hp"][1] >= 8787          # puerto libre (auto)
+
+
+def test_ui_dev_runs_npm_dev(tmp_path, monkeypatch):
+    import ide_server.cli as cli
+    from pathlib import Path
+    ui = tmp_path / "ui"; ui.mkdir(); (ui / "package.json").write_text("{}")
+    monkeypatch.setattr(cli, "repo_ui", lambda: ui)
+    seen = {}
+    def fake(cmd, cwd=None, check=False, **kw):
+        seen["cmd"] = cmd; seen["cwd"] = cwd; seen["check"] = check
+    assert cli.main(["ui", "--dev"], build_runner=fake) == 0
+    assert seen["cmd"] == ["npm", "run", "dev"]
+    assert Path(seen["cwd"]) == ui and seen["check"] is True
+
+
+def test_ui_outside_repo(capsys, monkeypatch):
+    import ide_server.cli as cli
+    monkeypatch.setattr(cli, "repo_ui", lambda: None)
+    assert cli.main(["ui", "--dev"]) == 1
+    assert "checkout" in capsys.readouterr().out
