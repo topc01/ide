@@ -1,8 +1,30 @@
 from __future__ import annotations
+import subprocess
 import uuid
 from pathlib import Path
 from ide_server.plugins import Registry
 from ide_server.workspace import discover_repos
+
+
+def _live_branch(wt: Path) -> str | None:
+    # rama actual del worktree; None si git falla (worktree ausente / no-git) → se conserva la guardada
+    out = subprocess.run(
+        ["git", "-C", str(wt), "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True, text=True,
+    )
+    if out.returncode != 0:
+        return None
+    return out.stdout.strip() or "HEAD"
+
+
+def _annotate_branches(nodes: list[dict], branch_of) -> None:
+    for n in nodes:
+        wt = n.get("worktreePath")
+        if wt:
+            live = branch_of(Path(wt))
+            if live is not None:
+                n["branch"] = live
+        _annotate_branches(n.get("children") or [], branch_of)
 from ide_server.worktrees import (
     list_branches, branch_occupied, add_worktree, remove_worktree,
     has_uncommitted_changes,
@@ -15,8 +37,10 @@ from ide_server.roles import resolve_role
 from ide_server.launcher import NullLauncher, SessionLauncher
 
 
-def register(registry: Registry, root: Path, launcher: SessionLauncher | None = None) -> None:
+def register(registry: Registry, root: Path, launcher: SessionLauncher | None = None,
+             branch_of=None) -> None:
     launcher = launcher or NullLauncher()
+    branch_of = branch_of or _live_branch
 
     def _repo_path(repo_id: str) -> Path:
         for repo in discover_repos(root):
@@ -25,7 +49,9 @@ def register(registry: Registry, root: Path, launcher: SessionLauncher | None = 
         raise KeyError(repo_id)
 
     async def tree(_payload: dict) -> dict:
-        return {"sessions": load_sessions(root), "repos": discover_repos(root)}
+        sessions = load_sessions(root)
+        _annotate_branches(sessions, branch_of)
+        return {"sessions": sessions, "repos": discover_repos(root)}
 
     async def branches(payload: dict) -> dict:
         return {"branches": list_branches(_repo_path(payload["repoId"]))}
