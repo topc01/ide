@@ -5,10 +5,10 @@ import { cn } from "../lib/utils";
 export function TabStrip() {
   const { openTabs, activeTabId, closeTab, setActiveTab } = useStore();
   const tabCls = (active: boolean) =>
-    cn("flex items-center gap-1.5 px-3 py-1.5 text-xs border-b-2 cursor-pointer",
+    cn("flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-xs border-b-2 cursor-pointer",
        active ? "text-foreground border-primary" : "text-muted-foreground border-transparent");
   return (
-    <div className="flex border-b border-border bg-title-bg">
+    <div className="flex overflow-x-auto border-b border-border bg-title-bg">
       <div className={tabCls(activeTabId === "chat")} onClick={() => setActiveTab("chat")}>Chat</div>
       {openTabs.map((t) => (
         <div key={t.id} className={tabCls(activeTabId === t.id)} onClick={() => setActiveTab(t.id)}>
