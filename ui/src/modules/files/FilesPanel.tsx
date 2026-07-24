@@ -11,12 +11,22 @@ function TreeNode({ sessionId, path, entry, depth }:
   { sessionId: string; path: string; entry: FileEntry; depth: number }) {
   const [open, setOpen] = useState(false);
   const [children, setChildren] = useState<FileEntry[] | null>(null);
-  const openTab = useStore((s) => s.openTab);
   const full = join(path, entry.name);
   const onClick = () => {
     if (entry.type === "file") {
+      const key = `${sessionId}:${full}`;
+      const st = useStore.getState();
+      const existing = st.fileTabs[key];
+      if (existing && st.openTabs.some((t) => t.id === existing)) {
+        st.setActiveTab(existing);           // ya abierto → enfocar, no reabrir vim
+        return;
+      }
       openFile(getWs(), sessionId, full)
-        .then(({ id }) => openTab({ id, type: "terminal", label: entry.name }))
+        .then(({ id }) => {
+          const s2 = useStore.getState();
+          s2.openTab({ id, type: "terminal", label: entry.name });
+          s2.noteFileTab(key, id);
+        })
         .catch(() => {});
       return;
     }

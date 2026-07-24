@@ -17,7 +17,7 @@ beforeEach(() => {
     { name: "src", type: "dir" }, { name: "a.txt", type: "file" }] });
   openFile.mockClear();
   useSessions.setState({ activeSessionId: "s1" } as any);
-  useStore.setState({ openTabs: [], activeTabId: "chat" } as any);
+  useStore.setState({ openTabs: [], activeTabId: "chat", fileTabs: {} } as any);
 });
 
 describe("FilesPanel", () => {
@@ -40,6 +40,16 @@ describe("FilesPanel", () => {
     fireEvent.click(screen.getByText("a.txt"));
     expect(openFile).toHaveBeenCalledWith({}, "s1", "a.txt");
     await waitFor(() => expect(useStore.getState().openTabs.some((t) => t.id === "t1")).toBe(true));
+  });
+  it("click en el mismo archivo no reabre vim, enfoca el tab existente", async () => {
+    render(<FilesPanel />);
+    await waitFor(() => screen.getByText("a.txt"));
+    fireEvent.click(screen.getByText("a.txt"));
+    await waitFor(() => expect(useStore.getState().openTabs.some((t) => t.id === "t1")).toBe(true));
+    useStore.setState({ activeTabId: "chat" } as any);         // simular que el usuario cambió de tab
+    fireEvent.click(screen.getByText("a.txt"));                 // segundo click al mismo archivo
+    await waitFor(() => expect(useStore.getState().activeTabId).toBe("t1"));
+    expect(openFile).toHaveBeenCalledTimes(1);                  // NO re-spawnea vim
   });
   it("sin sesión muestra un mensaje", () => {
     useSessions.setState({ activeSessionId: null } as any);
