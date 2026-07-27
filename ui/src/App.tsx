@@ -1,4 +1,4 @@
-import "./modules/stubs";
+import "./modules/search/register";
 import "./modules/terminal/register";
 import "./modules/changes/register";
 import "./modules/graphite/register";
