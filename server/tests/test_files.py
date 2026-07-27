@@ -53,3 +53,16 @@ async def test_open_delegates_to_terminal(tmp_path, monkeypatch):
     assert out == {"id": "t1", "cwd": str(tmp_path)}
     assert captured["cmd"] == ["vim", str((tmp_path.resolve() / "a.txt"))]
     assert captured["sessionId"] == "s"
+
+
+@pytest.mark.asyncio
+async def test_open_con_line_antepone_mas_n(tmp_path, monkeypatch):
+    (tmp_path / "x.py").write_text("a\nb\nc\n")
+    monkeypatch.setattr(files_cap, "resolve_cwd", lambda root, payload: tmp_path)
+    monkeypatch.setenv("EDITOR", "vim")
+    reg = Registry(); files_cap.register(reg, tmp_path)
+    captured = {}
+    async def fake_term(payload): captured.update(payload); return {"id": "t1", "cwd": str(tmp_path)}
+    reg.register("terminal.open", fake_term)
+    await reg.dispatch("files.open", {"sessionId": "s", "path": "x.py", "line": 2})
+    assert captured["cmd"] == ["vim", "+2", str((tmp_path.resolve() / "x.py"))]

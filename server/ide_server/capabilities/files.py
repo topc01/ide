@@ -30,9 +30,11 @@ def register(registry: Registry, root: Path) -> None:
         base = resolve_cwd(root, payload)
         target = _safe_join(base, payload.get("path") or "")
         editor = shlex.split(os.environ.get("EDITOR") or "vim")
+        line = payload.get("line")
+        cmd = editor + ([f"+{int(line)}"] if line else []) + [str(target)]
         return await registry.dispatch(
             "terminal.open",
-            {"sessionId": payload.get("sessionId"), "cmd": editor + [str(target)]},
+            {"sessionId": payload.get("sessionId"), "cmd": cmd},
         )
 
     registry.register("files.list", list_)
