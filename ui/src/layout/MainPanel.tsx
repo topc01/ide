@@ -1,6 +1,7 @@
 import { TabStrip } from "./TabStrip";
 import { useStore } from "../state/store";
 import { TerminalTab } from "../main/TerminalTab";
+import { RegexAiTab } from "../main/RegexAiTab";
 import { ChatView } from "../main/ChatView";
 import { DiffTab } from "../main/DiffTab";
 import { NotionPageTab } from "../main/NotionPageTab";
@@ -15,6 +16,8 @@ export function MainPanel() {
       <div className="min-h-0 flex-1">
         {active?.type === "terminal"
           ? <TerminalTab id={active.id} />
+          : active?.type === "airegex"
+            ? <RegexAiTab id={active.id} />
           : active?.type === "file"
             ? <DiffTab id={active.id} />
             : active?.type === "page"

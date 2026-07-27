@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Search } from "lucide-react";
-import { getModules } from "./stubs";
+import { getModules } from "./registry";
+import "./search/register";
 import "./terminal/register";
 import "./changes/register";
 import "./graphite/register";

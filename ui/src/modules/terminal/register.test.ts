@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import "../stubs";
+import "../search/register";
 import "./register";
 import { getModules } from "../registry";
 import { TerminalPanel } from "./TerminalPanel";

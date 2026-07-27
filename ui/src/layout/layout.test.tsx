@@ -1,7 +1,7 @@
 // ui/src/layout/layout.test.tsx
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import "../modules/stubs";
+import "../modules/search/register";
 import "../modules/terminal/register";
 import { useStore } from "../state/store";
 import { ActivityRail } from "./ActivityRail";
