@@ -38,6 +38,7 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
 | Arranque de un comando | `ide run` sirve frontend+backend en un puerto; `ide build`; instalable global. | ✅ hecho |
 | `ide` multi-instancia | Puerto dinámico + `ide ls` + WS same-origin; `ide help` + guía de handoff. | ✅ hecho |
 | Módulo Archivos | Explorador en el rail: árbol lazy (muestra todo) del worktree de la sesión; click abre el archivo en vim/`$EDITOR` en un tab de terminal (reusa `terminal.open`, sin editor propio). | ✅ hecho |
+| Módulo Search (buscar contenido) | Buscador de contenido con **regex** sobre el worktree de la sesión activa (ripgrep `--json`): toggles regex/case/whole-word, globs include/exclude, resultados agrupados por archivo con resaltado, salto a la línea (`vim +N`). Botón **"Crear con IA"** abre un tab de chat (`airegex:`, reusa el chat + router, default Claude) que genera el regex e inserta con un botón. Dep de runtime: `ripgrep` (degrada con `rg_missing`). | ✅ hecho |
 | Modelos locales (mlx) Fase 1 | Router prompt-based en el chat: local (tool-less) vs Claude; degrada con aviso; badge por turno. Opt-in `.ide/config.toml [mlx]`. | ✅ hecho |
 | Modelos: descargar/gestionar | Panel "Modelos" en Settings: catálogo curado + `repo_id` libre, descarga con progreso %/MB por WS (concurrentes + dedup), instalados + borrar, badge "en uso" (read-only). Dep `huggingface_hub`. | ✅ hecho |
 | Modelos: config editable | Sección "Configuración" editable en el panel (1ª config editable): toggle `enabled`, elegir modelo, editar router prompt. Escribe `[mlx]` en `config.toml` preservando el resto. | ✅ hecho |
@@ -96,6 +97,10 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
   plugins, tools, MCP) es un **catálogo read-only**; se edita a mano (`.ide/config.toml` para roles,
   `~/.claude/*` para el resto). La config de Modelos (arriba) es la primera *editable*; hacer editable
   el resto (roles, skills, MCP desde la app) es un tema mayor a especificar.
+- **Buscar archivos (Cmd+P)** — búsqueda de archivos por nombre integrada en el módulo Archivos
+  (no un módulo aparte). Rebanada corta; complementa el Search de contenido ya hecho.
+- **Pase de pulido UI/UX** — revisión de los módulos del rail con la vara "impecable" (estados
+  vacío/carga/error, spacing, foco, teclado, identidad 1a), su propio ciclo de revisión.
 - **R5b** — acciones de Graphite (checkout de branch + submit de PRs vía `gh`).
 - **Orquestación Fase 2** — `answer_gate` (permisos con humano en el loop), `close_session`,
   timeouts de `ask`, buzón simétrico, panel de orquestación en vivo.
