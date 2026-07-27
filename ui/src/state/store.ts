@@ -2,21 +2,34 @@ import { create } from "zustand";
 import type { Repo } from "../transport/envelope";
 
 export type PanelId = "search" | "changes" | "graphite" | "tasks" | "terminal" | "notion" | "files";
-export interface Tab { id: string; type: "file" | "task" | "branch" | "terminal" | "page"; label: string; }
+export interface Tab { id: string; type: "file" | "task" | "branch" | "terminal" | "page" | "airegex"; label: string; }
+
+export interface SearchOptions { caseSensitive: boolean; wholeWord: boolean; include: string; exclude: string; context: number; }
+export interface SearchLine { line: number; text: string; ranges: [number, number][]; }
+export interface SearchFile { path: string; lines: SearchLine[]; }
+export interface SearchResult { matches: SearchFile[]; total: number; files: number; truncated: boolean; }
 
 interface State {
   repos: Repo[]; activePanel: PanelId; openTabs: Tab[]; activeTabId: string;
   fileTabs: Record<string, string>;          // clave (sessionId:path) -> tabId, para no reabrir el mismo archivo
+  searchQuery: string; searchRegex: boolean; searchOptions: SearchOptions;
+  searchResults: SearchResult | null; searchStatus: "idle" | "loading" | "done" | "error"; searchError: string | null;
   setRepos: (r: Repo[]) => void;
   setActivePanel: (p: PanelId) => void;
   openTab: (t: Tab) => void;
   closeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
   noteFileTab: (key: string, tabId: string) => void;
+  setSearchQuery: (q: string) => void; setSearchRegex: (b: boolean) => void;
+  setSearchOptions: (p: Partial<SearchOptions>) => void;
+  setSearchStatus: (s: State["searchStatus"]) => void;
+  setSearchResults: (r: SearchResult | null) => void; setSearchError: (e: string | null) => void;
 }
 
 export const useStore = create<State>((set) => ({
   repos: [], activePanel: "search", openTabs: [], activeTabId: "chat", fileTabs: {},
+  searchQuery: "", searchRegex: true, searchResults: null, searchStatus: "idle", searchError: null,
+  searchOptions: { caseSensitive: false, wholeWord: false, include: "", exclude: "", context: 0 },
   setRepos: (repos) => set({ repos }),
   setActivePanel: (activePanel) => set({ activePanel }),
   openTab: (t) => set((s) => ({
@@ -32,4 +45,10 @@ export const useStore = create<State>((set) => ({
   }),
   setActiveTab: (id) => set({ activeTabId: id }),
   noteFileTab: (key, tabId) => set((s) => ({ fileTabs: { ...s.fileTabs, [key]: tabId } })),
+  setSearchQuery: (searchQuery) => set({ searchQuery }),
+  setSearchRegex: (searchRegex) => set({ searchRegex }),
+  setSearchOptions: (p) => set((s) => ({ searchOptions: { ...s.searchOptions, ...p } })),
+  setSearchStatus: (searchStatus) => set({ searchStatus }),
+  setSearchResults: (searchResults) => set({ searchResults }),
+  setSearchError: (searchError) => set({ searchError }),
 }));
