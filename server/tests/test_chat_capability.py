@@ -191,6 +191,29 @@ async def test_send_force_local_degrades_to_claude(tmp_path, monkeypatch):
     assert out == {"sent": True, "route": "claude"}
 
 
+def test_airegex_session_usa_prompt_de_regex_y_cwd_del_worktree(tmp_path):
+    from ide_server.capabilities.chat import _load_session_context, _LANG, REGEX_AGENT_PROMPT
+    from ide_server.sessions_store import save_sessions
+    (tmp_path / ".ide").mkdir()
+    save_sessions(tmp_path, [{"id": "s1", "worktreePath": str(tmp_path)}])
+    ctx = _load_session_context(tmp_path, "airegex:s1")
+    assert ctx["cwd"] == str(tmp_path)
+    assert ctx["system_prompt"].startswith(_LANG)
+    assert REGEX_AGENT_PROMPT in ctx["system_prompt"]
+    assert ctx["role"] is None and ctx["model"] is None
+    assert ctx["is_coordinator"] is False
+
+
+def test_airegex_de_sesion_inexistente_cae_al_root(tmp_path):
+    from ide_server.capabilities.chat import _load_session_context, REGEX_AGENT_PROMPT
+    from ide_server.sessions_store import save_sessions
+    (tmp_path / ".ide").mkdir()
+    save_sessions(tmp_path, [])
+    ctx = _load_session_context(tmp_path, "airegex:nope")
+    assert ctx["cwd"] == str(tmp_path)                 # fallback al root, no explota
+    assert REGEX_AGENT_PROMPT in ctx["system_prompt"]
+
+
 def test_load_session_context_spanish_instruction_always_first(tmp_path):
     from ide_server.capabilities.chat import _load_session_context, _LANG
     from ide_server.sessions_store import save_sessions

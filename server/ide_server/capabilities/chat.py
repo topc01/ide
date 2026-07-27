@@ -6,6 +6,16 @@ from ide_server.mlx.server import MlxUnavailable
 
 _LANG = "Respondé siempre en español."
 
+REGEX_AGENT_PROMPT = (
+    "Sos un asistente experto en expresiones regulares. Tu tarea es ayudar al usuario a "
+    "construir el regex que necesita para buscar en su código.\n"
+    "- Usá SIEMPRE la sintaxis de regex de ripgrep (motor Rust `regex`), NO PCRE (sin "
+    "lookbehind, sin backreferences).\n"
+    "- Cuando propongas el regex final, escribilo en un bloque de código marcado como "
+    "```regex``` (una sola línea con el patrón), para que la app lo pueda extraer.\n"
+    "- Explicá brevemente qué hace el patrón. Podés pedir aclaraciones y ofrecer variantes."
+)
+
 
 def _load_session_context(root: Path, session_id: str) -> dict:
     # Devuelve {cwd, system_prompt, role, model, is_coordinator} de la sesión.
@@ -15,6 +25,14 @@ def _load_session_context(root: Path, session_id: str) -> dict:
     # el servidor MCP de orquestación.
     from ide_server.sessions_store import load_sessions, find_node
     from ide_server.roles import resolve_role
+    # Sesión efímera del asistente de regex: NO está en sessions.json. Corre en el
+    # worktree de la sesión real (`airegex:<real>`) con un prompt especializado.
+    if session_id.startswith("airegex:"):
+        real = session_id[len("airegex:"):]
+        node = find_node(load_sessions(root), real)
+        cwd = (node or {}).get("worktreePath") or str(root)
+        return {"cwd": cwd, "system_prompt": _LANG + "\n\n" + REGEX_AGENT_PROMPT,
+                "role": None, "model": None, "is_coordinator": False}
     tree = load_sessions(root)
     node = find_node(tree, session_id)
     if node is None:
