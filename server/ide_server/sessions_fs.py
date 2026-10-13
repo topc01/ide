@@ -2,8 +2,14 @@
 from __future__ import annotations
 import re
 import secrets
+import shutil
 import string
+import subprocess
+import tomllib
+from datetime import datetime
+from pathlib import Path
 from typing import Callable
+import tomli_w
 from ide_server.sessions_store import slugify
 
 KINDS = ("main", "ticket", "review")
@@ -65,3 +71,125 @@ def render_template(text: str, variables: dict) -> str:
     if missing:
         raise SessionError("missing_vars", "faltan variables: " + ", ".join(missing))
     return _VAR_RE.sub(lambda m: str(variables[m.group(1)]), text)
+
+
+def sessions_dir(root: Path) -> Path:
+    return root / ".ide" / "sessions"
+
+
+def session_path(root: Path, sid: str) -> Path:
+    return sessions_dir(root) / sid
+
+
+def state_file(kind: str | None) -> str | None:
+    return {"ticket": "TICKET.md", "review": "REVIEW.md"}.get(kind or "")
+
+
+def read_toml(path: Path) -> dict:
+    return tomllib.loads(path.read_text(encoding="utf-8"))
+
+
+def write_toml(path: Path, data: dict) -> None:
+    path.write_text(tomli_w.dumps(data), encoding="utf-8")
+
+
+def update_session_toml(root: Path, sid: str, fn: Callable[[dict], None]) -> dict:
+    path = session_path(root, sid) / ".session.toml"
+    data = read_toml(path)
+    fn(data)
+    write_toml(path, data)
+    return data
+
+
+def find_main(root: Path) -> str | None:
+    d = sessions_dir(root)
+    if not d.is_dir():
+        return None
+    for p in sorted(d.iterdir()):
+        try:
+            if read_toml(p / ".session.toml").get("kind") == "main":
+                return p.name
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+    return None
+
+
+def create_session_dir(root: Path, *, sid: str, kind: str, permissions: str, prompt: str,
+                       meta: dict | None = None, now: datetime | None = None) -> Path:
+    if kind not in KINDS:
+        raise SessionError("invalid_kind", f"kind inválido: {kind!r}")
+    if permissions not in PERMISSIONS:
+        raise SessionError("invalid_permissions",
+                           f"permisos inválidos: {permissions!r} (analyze | full | default)")
+    path = session_path(root, sid)
+    if path.exists():
+        raise SessionError("session_exists", f"ya existe la sesión {sid}")
+    if kind == "main" and (m := find_main(root)):
+        raise SessionError("main_exists", f"ya existe la principal {m}; usá `ide session open {m}`")
+    path.mkdir(parents=True)
+    try:
+        write_toml(path / ".session.toml", {
+            "kind": kind, "permissions": permissions,
+            "created": (now or datetime.now()).isoformat(timespec="seconds")})
+        (path / "PROMPT.md").write_text(prompt, encoding="utf-8")
+        sf = state_file(kind)
+        if sf:
+            first = "analyzing" if kind == "ticket" else "reviewing"
+            (path / sf).write_text(write_frontmatter({"status": first, **(meta or {})}, ""),
+                                   encoding="utf-8")
+    except Exception:
+        shutil.rmtree(path, ignore_errors=True)
+        raise
+    return path
+
+
+def _branch(path: Path) -> str | None:
+    out = subprocess.run(["git", "-C", str(path), "rev-parse", "--abbrev-ref", "HEAD"],
+                         capture_output=True, text=True)
+    if out.returncode != 0:
+        return None
+    return out.stdout.strip() or None
+
+
+def read_session(root: Path, sid: str) -> dict:
+    path = session_path(root, sid)
+    info: dict = {"id": sid, "kind": None, "path": str(path), "created": "", "permissions": None,
+                  "title": None, "status": None, "meta": {}, "repos": [], "prUrl": None,
+                  "reviewedSha": None, "error": None}
+    try:
+        data = read_toml(path / ".session.toml")
+    except FileNotFoundError:
+        info["error"] = "falta .session.toml"
+        return info
+    except tomllib.TOMLDecodeError as exc:
+        info["error"] = f".session.toml inválido: {exc}"
+        return info
+    info.update(kind=data.get("kind"), permissions=data.get("permissions"),
+                created=str(data.get("created", "")), prUrl=data.get("pr_url"),
+                reviewedSha=data.get("reviewed_sha"))
+    ports, setup = data.get("ports", {}), data.get("setup", {})
+    for link in sorted(p for p in path.iterdir() if p.is_symlink()):
+        ok = link.exists()
+        info["repos"].append({"name": link.name, "state": "ok" if ok else "missing",
+                              "branch": _branch(link) if ok else None,
+                              "port": ports.get(link.name), "setup": setup.get(link.name)})
+    sf = state_file(info["kind"])
+    if sf and (path / sf).is_file():
+        try:
+            meta, _ = parse_frontmatter((path / sf).read_text(encoding="utf-8"))
+            info["status"] = meta.pop("status", None)
+            info["title"] = meta.pop("title", None)
+            info["meta"] = meta
+        except SessionError as exc:
+            info["error"] = f"{sf}: {exc}"
+    return info
+
+
+def list_sessions(root: Path) -> list[dict]:
+    d = sessions_dir(root)
+    if not d.is_dir():
+        return []
+    items = [read_session(root, p.name) for p in d.iterdir()
+             if p.is_dir() and not p.is_symlink() and p.name not in RESERVED
+             and not p.name.startswith(".")]
+    return sorted(items, key=lambda s: (s["kind"] != "main", s["created"], s["id"]))
