@@ -53,7 +53,8 @@ def run_script(root: Path, sid: str, repo: str, name: str, *, out: TextIO | None
         argv = script_argv(root, repo, name)
         proc = subprocess.Popen(argv, cwd=worktree_path(root, sid, repo),
                                 env=script_env(root, sid, repo, base_env),
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True)
         assert proc.stdout is not None
         for line in proc.stdout:
             out.write(line)
@@ -62,6 +63,11 @@ def run_script(root: Path, sid: str, repo: str, name: str, *, out: TextIO | None
         if name == "setup":
             _record_setup(root, sid, repo, "failed")
         raise
+    except OSError as exc:
+        if name == "setup":
+            _record_setup(root, sid, repo, "failed")
+        raise SessionError("script_failed",
+                           f"no se pudo ejecutar {repo}/{name}: {exc}") from exc
     if name == "setup":
         _record_setup(root, sid, repo, "ok" if code == 0 else "failed")
     return code

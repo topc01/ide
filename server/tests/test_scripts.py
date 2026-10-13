@@ -80,3 +80,37 @@ def test_script_env_without_port(tmp_path):
     root = _ws(tmp_path)
     env = script_env(root, "t1", "repo-a", base_env={"PATH": "/bin"})
     assert env["IDE_WORKSPACE"] == str(root) and "IDE_PORT" not in env and env["PATH"] == "/bin"
+
+
+def test_rm_refuses_dirty_before_running_archive(tmp_path):
+    root = _ws(tmp_path)
+    add_repo(root, "t1", "repo-a", out=io.StringIO())
+    (worktree_path(root, "t1", "repo-a") / "sucio.txt").write_text("cambio sin commitear\n")
+    marker = tmp_path / "archived"
+    _script(root, "archive", f"touch {marker}; exit 0")
+    with pytest.raises(SessionError) as e:
+        rm_repo(root, "t1", "repo-a", out=io.StringIO())
+    assert e.value.code == "uncommitted_changes"
+    assert not marker.exists()
+    assert worktree_path(root, "t1", "repo-a").exists()
+
+
+def test_script_without_shebang_is_script_failed(tmp_path):
+    root = _ws(tmp_path)
+    add_repo(root, "t1", "repo-a", out=io.StringIO())
+    p = root / ".ide" / "scripts" / "repo-a" / "setup"
+    p.write_bytes(b"\x00\x01")
+    p.chmod(0o755)
+    with pytest.raises(SessionError) as e:
+        run_script(root, "t1", "repo-a", "setup", out=io.StringIO())
+    assert e.value.code == "script_failed"
+    assert read_session(root, "t1")["repos"][0]["setup"] == "failed"
+
+
+def test_script_stdin_is_devnull(tmp_path):
+    root = _ws(tmp_path)
+    add_repo(root, "t1", "repo-a", out=io.StringIO())
+    _script(root, "run", "read x; echo \"got:[$x]\"")
+    out = io.StringIO()
+    assert run_script(root, "t1", "repo-a", "run", out=out) == 0
+    assert "got:[]" in out.getvalue()

@@ -94,15 +94,15 @@ def rm_repo(root: Path, sid: str, repo: str, *, force: bool = False,
         raise SessionError("repo_not_in_session", f"{repo} no está en la sesión {sid}")
     repo_path = root / repo
     from ide_server.scripts import has_script, run_script
+    if wt.exists() and not force and has_uncommitted_changes(wt):
+        raise SessionError("uncommitted_changes",
+                           f"{repo} en {sid} tiene cambios sin commitear (usá --force)")
     if wt.exists() and has_script(root, repo, "archive"):
         code = run_script(root, sid, repo, "archive", out=out)
         if code != 0 and not force:
             raise SessionError("archive_failed",
                                f"archive de {repo} falló (exit {code}); usá --force para quitarlo igual")
     if wt.exists():
-        if not force and has_uncommitted_changes(wt):
-            raise SessionError("uncommitted_changes",
-                               f"{repo} en {sid} tiene cambios sin commitear (usá --force)")
         remove_worktree(repo_path, wt, force=force)
     else:
         subprocess.run(["git", "-C", str(repo_path), "worktree", "prune"], capture_output=True)
