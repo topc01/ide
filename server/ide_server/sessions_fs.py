@@ -1,5 +1,6 @@
 # server/ide_server/sessions_fs.py
 from __future__ import annotations
+import json
 import re
 import secrets
 import shutil
@@ -10,7 +11,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 import tomli_w
+from ide_server import seeds
 from ide_server.sessions_store import slugify
+from ide_server.workspace import discover_repos
 
 KINDS = ("main", "ticket", "review")
 PERMISSIONS = ("analyze", "full", "default")
@@ -201,3 +204,24 @@ def list_sessions(root: Path) -> list[dict]:
              if p.is_dir() and not p.is_symlink() and p.name not in RESERVED
              and not p.name.startswith(".")]
     return sorted(items, key=lambda s: (s["kind"] != "main", s["created"], s["id"]))
+
+
+def seed_workspace(root: Path) -> list[Path]:
+    ide = root / ".ide"
+    for d in (ide / "scripts", ide / "worktrees", sessions_dir(root) / "templates",
+              ide / "permissions"):
+        d.mkdir(parents=True, exist_ok=True)
+    files = {
+        sessions_dir(root) / "CLAUDE.md": seeds.claude_md([r["id"] for r in discover_repos(root)]),
+        sessions_dir(root) / "templates" / "main.md": seeds.TEMPLATE_MAIN,
+        sessions_dir(root) / "templates" / "ticket.md": seeds.TEMPLATE_TICKET,
+        sessions_dir(root) / "templates" / "review.md": seeds.TEMPLATE_REVIEW,
+        ide / "permissions" / "analyze.json": json.dumps(seeds.PERM_ANALYZE, indent=2) + "\n",
+        ide / "permissions" / "full.json": json.dumps(seeds.PERM_FULL, indent=2) + "\n",
+    }
+    created = []
+    for path, content in files.items():
+        if not path.exists():
+            path.write_text(content, encoding="utf-8")
+            created.append(path)
+    return created

@@ -13,12 +13,14 @@ PKG_WEB = Path(__file__).parent / "web"
 
 
 def init_workspace(cwd: Path) -> Path:
+    from ide_server import seeds
+    from ide_server.sessions_fs import seed_workspace
     ide = cwd / ".ide"
-    (ide / "worktrees").mkdir(parents=True, exist_ok=True)
-    (ide / "tasks").mkdir(exist_ok=True)
+    ide.mkdir(parents=True, exist_ok=True)
     cfg = ide / "config.toml"
     if not cfg.exists():
-        cfg.write_text(f'name = "{cwd.name}"\n')
+        cfg.write_text(seeds.CONFIG_TOML.format(name=cwd.name))
+    seed_workspace(cwd)
     return ide
 
 
