@@ -76,6 +76,13 @@ def add_repo(root: Path, sid: str, repo: str, *, branch: str | None = None,
         link.unlink(missing_ok=True)
         remove_worktree(repo_path, wt, force=True)
         raise
+    from ide_server.scripts import has_script, run_script
+    if has_script(root, repo, "setup"):
+        code = run_script(root, sid, repo, "setup", out=out)
+        if code != 0:
+            raise SessionError("setup_failed",
+                               f"setup de {repo} falló (exit {code}); reintentá con "
+                               f"`ide script setup {repo}`")
     return {"name": repo, "branch": branch_name, "path": str(wt), "port": port}
 
 
@@ -86,6 +93,12 @@ def rm_repo(root: Path, sid: str, repo: str, *, force: bool = False,
     if not link.is_symlink() and not wt.exists():
         raise SessionError("repo_not_in_session", f"{repo} no está en la sesión {sid}")
     repo_path = root / repo
+    from ide_server.scripts import has_script, run_script
+    if wt.exists() and has_script(root, repo, "archive"):
+        code = run_script(root, sid, repo, "archive", out=out)
+        if code != 0 and not force:
+            raise SessionError("archive_failed",
+                               f"archive de {repo} falló (exit {code}); usá --force para quitarlo igual")
     if wt.exists():
         if not force and has_uncommitted_changes(wt):
             raise SessionError("uncommitted_changes",
