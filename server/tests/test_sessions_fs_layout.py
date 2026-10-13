@@ -82,3 +82,51 @@ def test_repos_from_symlinks(tmp_path):
         {"name": "repo-a", "state": "ok", "branch": None, "port": 8100, "setup": None},
         {"name": "repo-b", "state": "missing", "branch": None, "port": None, "setup": None},
     ]
+
+
+def test_unreadable_session_toml_surfaces_with_error(tmp_path):
+    create_session_dir(tmp_path, sid="ok", kind="ticket", permissions="analyze", prompt="")
+    bin_ = create_session_dir(tmp_path, sid="bin", kind="ticket", permissions="analyze", prompt="")
+    (bin_ / ".session.toml").write_bytes(b"\xff\xfe\x00\x81")
+    dir_ = create_session_dir(tmp_path, sid="dir", kind="ticket", permissions="analyze", prompt="")
+    (dir_ / ".session.toml").unlink()
+    (dir_ / ".session.toml").mkdir()
+    by_id = {s["id"]: s for s in list_sessions(tmp_path)}
+    assert set(by_id) == {"ok", "bin", "dir"}
+    assert by_id["ok"]["error"] is None
+    assert by_id["bin"]["error"] and "ilegible" in by_id["bin"]["error"]
+    assert by_id["dir"]["error"] and "ilegible" in by_id["dir"]["error"]
+
+
+def test_non_utf8_ticket_md_surfaces_with_error(tmp_path):
+    create_session_dir(tmp_path, sid="ok", kind="ticket", permissions="analyze", prompt="")
+    t = create_session_dir(tmp_path, sid="tb", kind="ticket", permissions="analyze", prompt="")
+    (t / "TICKET.md").write_bytes(b"---\nstatus: \xff\xfe\n---\n")
+    by_id = {s["id"]: s for s in list_sessions(tmp_path)}
+    assert set(by_id) == {"ok", "tb"}
+    assert by_id["ok"]["error"] is None
+    assert by_id["tb"]["error"] and "TICKET.md" in by_id["tb"]["error"]
+
+
+def test_malformed_ports_and_setup_do_not_break_listing(tmp_path):
+    p = create_session_dir(tmp_path, sid="t", kind="ticket", permissions="analyze", prompt="")
+    real = tmp_path / "wt"; real.mkdir()
+    (p / "repo-a").symlink_to(real)
+    (p / ".session.toml").write_text('kind = "ticket"\npermissions = "analyze"\nports = 5\nsetup = "x"\n')
+    s = {x["id"]: x for x in list_sessions(tmp_path)}["t"]
+    assert s["error"] is None
+    assert s["repos"] == [{"name": "repo-a", "state": "ok", "branch": None, "port": None, "setup": None}]
+
+
+def test_main_creation_survives_unreadable_other_session(tmp_path):
+    bad = create_session_dir(tmp_path, sid="bad", kind="ticket", permissions="analyze", prompt="")
+    (bad / ".session.toml").write_bytes(b"\xff\xfe\x00")
+    p = create_session_dir(tmp_path, sid="m", kind="main", permissions="full", prompt="")
+    assert p.is_dir()
+
+
+def test_meta_cannot_override_seeded_status(tmp_path):
+    p = create_session_dir(tmp_path, sid="fin-9", kind="ticket", permissions="analyze", prompt="",
+                           meta={"status": "done", "title": "T"})
+    assert read_session(tmp_path, "fin-9")["status"] == "analyzing"
+    assert (p / "TICKET.md").read_text().startswith("---\nstatus: analyzing\n")

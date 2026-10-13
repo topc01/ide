@@ -109,7 +109,7 @@ def find_main(root: Path) -> str | None:
         try:
             if read_toml(p / ".session.toml").get("kind") == "main":
                 return p.name
-        except (OSError, tomllib.TOMLDecodeError):
+        except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
             continue
     return None
 
@@ -135,7 +135,8 @@ def create_session_dir(root: Path, *, sid: str, kind: str, permissions: str, pro
         sf = state_file(kind)
         if sf:
             first = "analyzing" if kind == "ticket" else "reviewing"
-            (path / sf).write_text(write_frontmatter({"status": first, **(meta or {})}, ""),
+            extra = {k: v for k, v in (meta or {}).items() if k != "status"}
+            (path / sf).write_text(write_frontmatter({"status": first, **extra}, ""),
                                    encoding="utf-8")
     except Exception:
         shutil.rmtree(path, ignore_errors=True)
@@ -164,10 +165,17 @@ def read_session(root: Path, sid: str) -> dict:
     except tomllib.TOMLDecodeError as exc:
         info["error"] = f".session.toml inválido: {exc}"
         return info
+    except (OSError, UnicodeDecodeError) as exc:
+        info["error"] = f".session.toml ilegible: {exc}"
+        return info
     info.update(kind=data.get("kind"), permissions=data.get("permissions"),
                 created=str(data.get("created", "")), prUrl=data.get("pr_url"),
                 reviewedSha=data.get("reviewed_sha"))
     ports, setup = data.get("ports", {}), data.get("setup", {})
+    if not isinstance(ports, dict):
+        ports = {}
+    if not isinstance(setup, dict):
+        setup = {}
     for link in sorted(p for p in path.iterdir() if p.is_symlink()):
         ok = link.exists()
         info["repos"].append({"name": link.name, "state": "ok" if ok else "missing",
@@ -180,7 +188,7 @@ def read_session(root: Path, sid: str) -> dict:
             info["status"] = meta.pop("status", None)
             info["title"] = meta.pop("title", None)
             info["meta"] = meta
-        except SessionError as exc:
+        except (SessionError, OSError, UnicodeDecodeError) as exc:
             info["error"] = f"{sf}: {exc}"
     return info
 
