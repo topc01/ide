@@ -86,7 +86,7 @@ Notion, publicar reviews en GitHub automáticamente.
         │   ├── ticket.md             # prompt por ticket ({{variables}})
         │   └── review.md             # prompt por PR
         └── <session-id>/             # una carpeta = una sesión = cwd de su `claude`
-            ├── .session.toml         # kind, permissions, created, ports, (pr_url)
+            ├── .session.toml         # kind, permissions, created, ports, (pr_url, reviewed_sha)
             ├── PROMPT.md             # instrucciones iniciales renderizadas
             ├── TICKET.md | REVIEW.md # estado + análisis (según kind; main no tiene)
             └── <repo> -> ../../worktrees/<session-id>/<repo>   # symlink relativo
@@ -110,6 +110,9 @@ Notion, publicar reviews en GitHub automáticamente.
 default_permissions = "analyze"   # analyze | full | default
 max_running = 5                   # omitido = sin tope
 claude_command = "claude"         # inyectable (tests usan un comando falso)
+
+[reviews]
+poll_interval = 300               # segundos; 0 = sin polling
 
 [ui]
 modules = ["sessions", "terminal"]
@@ -140,7 +143,10 @@ notion_url: https://www.notion.so/...
 ## Dudas
 ```
 - Ticket: `queued`¹ · `analyzing` · `blocked` · `questions` · `ready` · `in-progress` · `done`.
-- Review: `reviewing` · `commented` · `approved` · `changes-requested` · `stale`.
+- Review: `reviewing` · `commented` · `approved` · `changes-requested`.
+- Review, **derivados por el poller** (no se escriben en el archivo): `stale` (el PR tiene
+  commits posteriores a `reviewed_sha`) · `merged` · `closed`. Se muestran como un badge extra
+  junto al status de `REVIEW.md`.
 - ¹ `queued` lo deriva el server del estado del proceso; no se escribe en el archivo.
 - El **CLI siembra** el frontmatter al crear la sesión (estado inicial determinístico); Claude
   solo lo transiciona. Status desconocido → se muestra tal cual con badge neutro (no se oculta).
@@ -156,7 +162,7 @@ primero porque `os.getcwd()` devuelve la ruta **resuelta** del symlink.
 | `ide session new [--id X] [--main] [--title T] [--template t --var k=v …] [--prompt "…" \| --prompt-file f] [--permissions p]` | Crea la carpeta (`.session.toml`, `PROMPT.md`, `TICKET.md` sembrado si kind=ticket) y pide al server lanzarla (o encolarla). Imprime id y ruta. | **Sí** |
 | `ide session new --review <pr-url>` | `id = pr-<repo>-<num>`; `gh pr view` → título/autor; worktree detached en el head del PR + `setup`; `REVIEW.md` sembrado; plantilla `review`. | **Sí** |
 | `ide session ls [--json]` | Lista desde disco: id, kind, status, repos, proceso (si hay server; si no `?`). | No |
-| `ide session open <id>` | Sin proceso vivo: `claude --continue`; sin historia: `claude` con `PROMPT.md`. Review `stale`: ofrece refrescar el head. | **Sí** |
+| `ide session open <id>` | Sin proceso vivo: `claude --continue`; sin historia: `claude` con `PROMPT.md`. Review `stale`: ofrece refrescar el head (fetch + checkout --detach del SHA nuevo + actualiza `reviewed_sha`; si el worktree tiene cambios, se niega). | **Sí** |
 | `ide session stop <id>` | Mata el proceso; carpeta y worktrees quedan. | **Sí** |
 | `ide session rm <id> [--force]` | stop (si hay server) → `archive` por repo → `git worktree remove` → borra carpeta. Cambios sin commitear → se niega salvo `--force`. Branches se conservan. | No |
 | `ide repo add <repo> [--branch b]` | Worktree en `.ide/worktrees/<id>/<repo>` (branch default `<id>`; ocupada → error que sugiere `--branch`), symlink, reserva `IDE_PORT`, corre `setup` (espera y streamea; exit≠0 → sale ≠0). | No |
@@ -191,6 +197,7 @@ primero porque `os.getcwd()` devuelve la ruta **resuelta** del symlink.
 | `repos_fs.py` | `add_repo`/`rm_repo` (worktree + symlink + puertos), `add_pr_worktree` (detached). | `worktrees.py` |
 | `scripts.py` | Descubrir scripts, validar `+x`, armar env, correr inline o en PTY. | disco |
 | `supervisor.py` | **Dueño único** de procesos `claude`: spawn en PTY, estados, cola `max_running`, comando configurable. | `pty_manager.py` |
+| `pr_poller.py` | Cada `[reviews] poll_interval`: por cada sesión `review`, `gh pr view <url> --json headRefOid,state` (en paralelo, acotado); compara con `reviewed_sha` → `stale`/`merged`/`closed` (en memoria, viaja en `sessions.tree`). Fallo de `gh` → badge `⚠ poll` con el error y backoff exponencial (tope = 4× intervalo); nunca muestra el último estado como vigente sin marcarlo. Comando `gh` inyectable. | `sessions_fs`, `gh` |
 | `watcher.py` | `watchfiles` (ya viene con `uvicorn[standard]`) sobre `.ide/sessions/` y `.ide/scripts/` → debounce → re-lista completo → broadcast `sessions.tree`. | `sessions_fs` |
 | `capabilities/folder_sessions.py` | WS (árbol, open/stop/rm/script desde la UI) + HTTP `/api/sessions/{new,open,stop}` para el CLI. | todos |
 | `cli.py` | Subcomandos nuevos (argparse, como hoy). Disco → in-process; procesos → HTTP. | todos |
@@ -238,6 +245,7 @@ CLI new/open/stop ──HTTP──▶ supervisor ──PTY──▶ claude (cwd=
 | `claude` no está / spawn falla | Envelope `{type:"error",payload:{code,message}}`; CLI imprime y sale ≠ 0. |
 | CLI sin server (new/open/stop) | Mensaje explícito; exit ≠ 0. |
 | `gh` ausente o PR inaccesible | `--review` falla con el error de `gh`; no crea carpeta a medias. |
+| Poll de `gh` falla (red, auth, rate limit) | Badge `⚠ poll` en la revisión con el mensaje + timestamp del último poll OK; backoff. |
 | `{{var}}` sin valor | Error antes de crear nada. |
 | WS caído | Sidebar "desconectado", no el árbol viejo como vivo. |
 
@@ -253,6 +261,8 @@ antes de terminar (excepto `setup` fallido, que deja el worktree a propósito pa
 - `sessions_fs`, `repos_fs`, `scripts`: pytest con `tmp_path` y **repos git reales** temporales
   (worktrees, symlinks, branch ocupada, detached, env `IDE_*`, bloques de puerto, `+x`).
 - `supervisor`: cola/`max_running`/estados con `claude_command` falso (`sleep`/`echo`).
+- `pr_poller`: `gh` falso (script que devuelve JSON fijo / falla) → `stale`, `merged`, `⚠ poll`,
+  backoff; intervalo inyectable para no dormir en tests.
 - `watcher`: escribir en disco → recibir `sessions.tree` (con debounce).
 - CLI: invocar `main([...])` contra `tmp_path` + app de test (httpx) para los comandos con server.
 - UI (vitest): sidebar sin agrupar / por estado, bloque Revisiones, badges, `⚠ error`,
@@ -266,11 +276,9 @@ antes de terminar (excepto `setup` fallido, que deja el worktree a propósito pa
 4. `repos_fs` + `scripts` + `ide repo add/rm` + `ide script` + repos/`⋯` en el sidebar.
 5. Plantillas + `--template` + `TICKET.md` sembrado + `max_running`/`queued`.
 6. Rail filtrado por `[ui] modules`; agrupar + `Queue`.
-7. Revisiones (`--review`, `REVIEW.md`, bloque del sidebar, `stale`).
+7. Revisiones (`--review`, `REVIEW.md`, bloque del sidebar) + `pr_poller` (`stale`/`merged`/`closed`).
 
 ## Abiertas (decidir en el plan, no bloquean)
 
 - ¿Las `queued` al reiniciar el server se re-encolan solas o quedan `stopped`? (Diseño actual:
   `stopped`, coherente con "sin auto-resume".)
-- Detección de `stale` en revisiones: ¿al abrir la sesión o por polling de `gh`? (Diseño actual:
-  al abrir y en `ide session ls`.)
