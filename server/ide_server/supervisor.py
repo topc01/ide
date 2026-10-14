@@ -85,6 +85,7 @@ class Supervisor:
 
     def stop(self, sid: str) -> None:
         self._queue = [(q, r) for q, r in self._queue if q != sid]
+        self._errors.pop(sid, None)
         tid = self._running.pop(sid, None)
         if tid is not None:
             self._kill(tid)
@@ -117,5 +118,5 @@ class Supervisor:
             sid, resume = self._queue.pop(0)
             try:
                 self._launch(sid, resume)
-            except SessionError as exc:
-                self._errors[sid] = str(exc)
+            except Exception as exc:  # un fallo no debe trabar la cola ni quedar silencioso
+                self._errors[sid] = str(exc) or type(exc).__name__

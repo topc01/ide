@@ -8,7 +8,11 @@ class FakePty:
     def __init__(self):
         self.spawned, self.killed, self.exits, self.n = [], [], {}, 0
 
+    fail_for: set = set()
+
     def spawn(self, cwd, argv, env, on_exit):
+        if cwd.name in self.fail_for:
+            raise RuntimeError(f"pty roto para {cwd.name}")
         self.n += 1
         tid = f"t{self.n}"
         self.spawned.append((tid, cwd, argv, env))
@@ -114,3 +118,26 @@ def test_queued_launch_error_is_reported(tmp_path):
     snap = sup.snapshot()["b"]
     assert snap["process"] == "stopped" and snap["terminalId"] is None
     assert "claude" in snap["launchError"]
+
+
+def test_drain_survives_non_session_error_and_keeps_queue_moving(tmp_path):
+    root, pty = _mk(tmp_path, "a", "b", "c"), FakePty()
+    sup = _sup(root, pty, max_running=1)
+    sup.start("a"); sup.start("b"); sup.start("c")
+    pty.fail_for = {"b"}
+    pty.exits["t1"]()
+    snap = sup.snapshot()
+    assert snap["b"]["process"] == "stopped" and snap["b"]["terminalId"] is None
+    assert "pty roto" in snap["b"]["launchError"]
+    assert sup.state("c") == "running" and snap["c"]["terminalId"] == "t2"
+
+
+def test_stop_clears_stale_launch_error(tmp_path):
+    root, pty = _mk(tmp_path, "a", "b"), FakePty()
+    sup = _sup(root, pty, max_running=1)
+    sup.start("a"); sup.start("b")
+    pty.fail_for = {"b"}
+    pty.exits["t1"]()
+    assert sup.snapshot()["b"]["launchError"]
+    sup.stop("b")
+    assert "b" not in sup.snapshot()
