@@ -1,14 +1,17 @@
 import { useStore } from "../state/store";
 import { getModules } from "../modules/registry";
+import { useFolders } from "../state/folders";
 import { cn } from "../lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "../components/ui/tooltip";
 
 export function ActivityRail() {
   const { activePanel, setActivePanel } = useStore();
+  const uiModules = useFolders((s) => s.uiModules);
+  const visibleModules = () => getModules().filter((m) => !uiModules || uiModules.includes(m.id));
   return (
     <TooltipProvider delayDuration={300}>
       <nav className="flex w-11 flex-col items-center gap-1 border-r border-border bg-title-bg pt-2">
-        {getModules().map((m) => {
+        {visibleModules().map((m) => {
           const Icon = m.icon, active = activePanel === m.id;
           return (
             <Tooltip key={m.id}>
