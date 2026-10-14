@@ -58,8 +58,9 @@ def test_repo_add_from_session_env_and_branch_occupied(tmp_path):
 def test_repo_add_from_inside_worktree_without_env(tmp_path):
     root = _ws(tmp_path)
     _run(root, ["repo", "add", "repo-a", "--session", "t1"])
-    code, out, _ = _run(root, ["script", "nope"], cwd=worktree_path(root, "t1", "repo-a"))
+    code, out, err = _run(root, ["script", "nope"], cwd=worktree_path(root, "t1", "repo-a"))
     assert code == 1                                            # resolvió t1; el script no existe
+    assert "--session" not in err                               # no cayó en "no estoy dentro de una sesión"
 
 
 def test_script_infers_single_repo_and_returns_exit_code(tmp_path):
@@ -113,6 +114,57 @@ def test_session_rm(tmp_path):
     root = _ws(tmp_path)
     code, _, _ = _run(root, ["session", "rm", "t1"], http=FakeHttp(fail=True))
     assert code == 0 and not session_path(root, "t1").exists()
+
+
+def test_session_rm_refuses_dirty_before_stopping(tmp_path):
+    root = _ws(tmp_path)
+    _run(root, ["repo", "add", "repo-a", "--session", "t1"])
+    (worktree_path(root, "t1", "repo-a") / "sucio.txt").write_text("x")
+    http = FakeHttp()
+    code, _, err = _run(root, ["session", "rm", "t1"], env={"IDE_URL": "http://h:1"}, http=http)
+    assert code == 1 and "cambios sin commitear" in err
+    assert http.calls == []                                     # no mató el proceso
+    assert session_path(root, "t1").exists()
+
+
+def test_session_rm_stops_then_deletes(tmp_path):
+    root = _ws(tmp_path)
+    http = FakeHttp(body={})
+    code, _, _ = _run(root, ["session", "rm", "t1"], env={"IDE_URL": "http://h:1"}, http=http)
+    assert code == 0 and http.calls == [("http://h:1/api/sessions/t1/stop", {})]
+    assert not session_path(root, "t1").exists()
+
+
+def test_bad_input_is_reported_without_traceback(tmp_path):
+    root = _ws(tmp_path)
+    code, _, err = _run(root, ["session", "new", "--var", "foo"], env={"IDE_URL": "http://h:1"})
+    assert code == 1 and "k=v" in err
+    code, _, err = _run(root, ["session", "new", "--prompt-file", str(root / "no.md")],
+                        env={"IDE_URL": "http://h:1"})
+    assert code == 1 and "--prompt-file" in err
+
+
+def test_non_json_server_response_is_reported(tmp_path):
+    root = _ws(tmp_path)
+
+    class BadJson(FakeHttp):
+        def post(self, url, json=None, timeout=None):
+            self.calls.append((url, json))
+            def boom():
+                raise ValueError("no json")
+            return type("R", (), {"status_code": 502, "json": staticmethod(boom)})()
+
+    code, _, err = _run(root, ["session", "new", "--id", "x"], env={"IDE_URL": "http://h:1"},
+                        http=BadJson())
+    assert code == 1 and "respuesta inválida" in err and "502" in err
+
+
+def test_session_ls_warns_when_server_fails(tmp_path):
+    root = _ws(tmp_path)
+    code, out, err = _run(root, ["session", "ls", "--json"], env={"IDE_URL": "http://h:1"},
+                          http=FakeHttp(fail=True))
+    assert code == 0 and json.loads(out)[0]["process"] == "?"
+    assert "aviso: no se pudo consultar el server" in err
 
 
 def test_find_server_url_from_instances(tmp_path, monkeypatch):

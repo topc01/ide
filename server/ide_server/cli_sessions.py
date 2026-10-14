@@ -21,7 +21,7 @@ def find_server_url(root: Path, env: dict, home: Path) -> str | None:
     if env.get("IDE_URL"):
         return env["IDE_URL"]
     for inst in instances.list_instances(home):
-        if inst.get("workspace") == str(root):
+        if Path(inst.get("workspace", "")).resolve() == root.resolve():
             return inst["url"]
     return None
 
@@ -71,9 +71,15 @@ def _new_payload(a) -> dict:
     if a.main:
         body["main"] = True
     if a.var:
+        bad = [v for v in a.var if "=" not in v]
+        if bad:
+            raise SessionError("bad_var", f"--var debe ser k=v (recibido: {', '.join(bad)})")
         body["vars"] = dict(v.split("=", 1) for v in a.var)
     if a.prompt_file:
-        body["prompt"] = Path(a.prompt_file).read_text(encoding="utf-8")
+        try:
+            body["prompt"] = Path(a.prompt_file).read_text(encoding="utf-8")
+        except OSError as exc:
+            raise SessionError("bad_prompt_file", f"no se pudo leer --prompt-file: {exc}")
     elif a.prompt:
         body["prompt"] = a.prompt
     return body
@@ -86,7 +92,10 @@ def _post(http, url: str | None, path: str, body: dict | None = None) -> dict:
         r = http.post(f"{url}{path}", json=body or {}, timeout=120)
     except httpx.HTTPError:
         raise SessionError("no_server", NO_SERVER)
-    data = r.json()
+    try:
+        data = r.json()
+    except ValueError:
+        raise SessionError("server_error", f"respuesta inválida del server (HTTP {r.status_code})")
     if r.status_code >= 400:
         raise SessionError(data.get("code", "server_error"), data.get("message", str(data)))
     return data
@@ -102,7 +111,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
     url = find_server_url(root, env, home)
     try:
         if a.group == "session":
-            return _session(a, root, url, http, out)
+            return _session(a, root, url, http, out, err)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
         if a.group == "repo" and a.cmd == "add":
             info = add_repo(root, sid, a.repo, branch=a.branch, out=out)
@@ -127,7 +136,18 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
     return 1
 
 
-def _session(a, root: Path, url: str | None, http, out: TextIO) -> int:
+def _stop(http, url: str | None):
+    """Callback para delete_session: para el proceso sólo después de validar que se puede borrar."""
+    def stop(sid: str) -> None:
+        try:
+            _post(http, url, f"/api/sessions/{sid}/stop")
+        except SessionError as exc:
+            if exc.code != "no_server":
+                raise
+    return stop
+
+
+def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO) -> int:
     if a.cmd == "new":
         data = _post(http, url, "/api/sessions", _new_payload(a))
         out.write(f"{data['session']['id']}\t{data['process']}\t{data['session']['path']}\n")
@@ -139,12 +159,7 @@ def _session(a, root: Path, url: str | None, http, out: TextIO) -> int:
         out.write(f"{a.id}\t{data.get('process', 'stopped')}\n")
         return 0
     if a.cmd == "rm":
-        try:
-            _post(http, url, f"/api/sessions/{a.id}/stop")
-        except SessionError as exc:
-            if exc.code != "no_server":
-                raise
-        delete_session(root, a.id, force=a.force)
+        delete_session(root, a.id, force=a.force, stop=_stop(http, url))
         return 0
     sessions = list_sessions(root)
     procs: dict[str, str] = {}
@@ -152,7 +167,8 @@ def _session(a, root: Path, url: str | None, http, out: TextIO) -> int:
         try:
             tree = http.get(f"{url}/api/sessions", timeout=10).json()
             procs = {s["id"]: s.get("process", "?") for s in tree.get("sessions", [])}
-        except (httpx.HTTPError, ValueError, AttributeError):
+        except (httpx.HTTPError, ValueError, AttributeError) as exc:
+            err.write(f"aviso: no se pudo consultar el server: {exc}\n")
             procs = {}
     for s in sessions:
         s["process"] = procs.get(s["id"], "?")

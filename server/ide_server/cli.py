@@ -4,6 +4,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 import webbrowser
 from pathlib import Path
 from ide_server import instances
@@ -148,8 +149,7 @@ CÓMO UN AGENTE HACE HANDOFF A ESTE IDE (resumen)
 
 
 def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner=None) -> int:
-    import sys as _sys
-    raw = list(_sys.argv[1:] if argv is None else argv)
+    raw = list(sys.argv[1:] if argv is None else argv)
     if raw and raw[0] in ("session", "repo", "script"):
         from ide_server.cli_sessions import main as sessions_main
         return sessions_main(raw, cwd=Path.cwd(), env=dict(os.environ), home=Path.home())
