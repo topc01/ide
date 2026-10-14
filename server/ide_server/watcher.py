@@ -1,16 +1,23 @@
 from __future__ import annotations
 import asyncio
+import logging
 from pathlib import Path
 from typing import Callable
+
+log = logging.getLogger(__name__)
 
 
 def relevant(root: Path, path: str) -> bool:
     ide = (root / ".ide").resolve()
+    p = Path(path)
+    # Resolve only the parent so a repo symlink entry (sessions/<id>/<repo> -> worktrees/...)
+    # keeps its own name inside sessions/, while files reached through it still resolve
+    # into worktrees/ and are ignored.
     try:
-        rel = Path(path).resolve().relative_to(ide).parts
+        rel = (p.parent.resolve() / p.name).relative_to(ide).parts
     except ValueError:
         try:
-            rel = Path(path).relative_to(root / ".ide").parts
+            rel = p.relative_to(root / ".ide").parts
         except ValueError:
             return False
     if not rel:
@@ -28,4 +35,7 @@ async def watch_workspace(root: Path, on_change: Callable[[], None], *,
         p.mkdir(parents=True, exist_ok=True)
     async for _ in awatch(*paths, debounce=debounce_ms, stop_event=stop_event,
                           watch_filter=lambda _c, path: relevant(root, path)):
-        on_change()
+        try:
+            on_change()
+        except Exception:
+            log.exception("on_change falló; el watcher sigue activo")
