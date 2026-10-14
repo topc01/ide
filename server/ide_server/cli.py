@@ -119,6 +119,14 @@ COMANDOS
         `ide run` ya auto-inicializa.
   ide help
         Esta ayuda.
+  ide session new [--id X] [--main] [--template t --var k=v …] [--prompt "…" | --prompt-file f]
+                  [--permissions analyze|full|default] [--review <pr-url>]
+        Crea una sesión-carpeta (.ide/sessions/<id>/) y lanza `claude` en ella (requiere `ide run`).
+  ide session ls [--json] | open <id> | stop <id> | rm <id> [--force]
+  ide repo add <repo> [--branch b] | ide repo rm <repo> [--force]
+        Agrega/quita un repo (worktree) a la sesión actual; corre su script `setup`/`archive`.
+  ide script <nombre> [<repo>]
+        Corre .ide/scripts/<repo>/<nombre> en el worktree con env IDE_* (IDE_PORT, …).
 
 INSTALAR (global, un comando levanta todo)
   cd server && uv run ide build      # empaqueta el frontend
@@ -130,24 +138,22 @@ DESARROLLO (hot-reload de la UI, dos procesos)
   ide ui --dev                       # Vite en :5173 (el WS del front pega a :8787)
 
 EL WORKSPACE (.ide/)
-  Un directorio con .ide/ es la unidad de trabajo. Contiene: config.toml, sessions.json,
-  tasks/ (tareas markdown), worktrees/ (worktrees de las sesiones), notion.json.
-  .ide/ es local y no se commitea. Global del usuario (en ~/.ide/): config.toml y
-  instances/<port>.json (instancias corriendo, compartidas entre workspaces).
+  Contiene: config.toml, sessions/ (una carpeta por sesión + CLAUDE.md + templates/), worktrees/,
+  scripts/<repo>/, permissions/. .ide/ es local y no se commitea.
 
 CÓMO UN AGENTE HACE HANDOFF A ESTE IDE (resumen)
-  Una sesión COORDINADORA (sin worktree) comanda sesiones HIJAS (worktree + branch + rol) vía
-  herramientas MCP `orq` expuestas a su Claude Code: list_children, ask_session(id, tarea)
-  [request-reply bloqueante], ask_sessions({requests:[...]}) [fan-out paralelo],
-  spawn_session(repo, nombre).
-  Las hijas corren permisivas; los mensajes se ven como chat en ambas sesiones. Las tareas viven
-  como markdown en .ide/tasks/ (capability tasks.list/read/save/create).
-
-  Guía completa para agentes: docs/ide-handoff.md
+  Las sesiones son `claude` interactivos en .ide/sessions/<id>/. Se comunican con el IDE vía este
+  CLI (ver .ide/sessions/CLAUDE.md). Estado en TICKET.md / REVIEW.md (frontmatter status).
 """
 
 
 def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner=None) -> int:
+    import sys as _sys
+    raw = list(_sys.argv[1:] if argv is None else argv)
+    if raw and raw[0] in ("session", "repo", "script"):
+        from ide_server.cli_sessions import main as sessions_main
+        return sessions_main(raw, cwd=Path.cwd(), env=dict(os.environ), home=Path.home())
+
     serve = serve or _serve
     opener = opener or webbrowser.open
     build_runner = build_runner or subprocess.run

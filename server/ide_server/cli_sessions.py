@@ -1,0 +1,166 @@
+"""Subcomandos `ide session|repo|script`. Disco in-process; procesos vía HTTP al server."""
+from __future__ import annotations
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import TextIO
+import httpx
+from ide_server import instances
+from ide_server.repos_fs import add_repo, rm_repo, require_session
+from ide_server.scripts import run_script
+from ide_server.session_ops import delete_session
+from ide_server.sessions_fs import SessionError, list_sessions, sessions_dir
+from ide_server.workspace import find_workspace_root
+from ide_server.worktrees import BranchOccupied, WorktreeError
+
+NO_SERVER = "No hay `ide run` activo para este workspace (levantalo con `ide run`)."
+
+
+def find_server_url(root: Path, env: dict, home: Path) -> str | None:
+    if env.get("IDE_URL"):
+        return env["IDE_URL"]
+    for inst in instances.list_instances(home):
+        if inst.get("workspace") == str(root):
+            return inst["url"]
+    return None
+
+
+def current_session(root: Path, *, env: dict, cwd: Path, explicit: str | None = None) -> str:
+    if explicit:
+        return explicit
+    if env.get("IDE_SESSION_ID"):
+        return env["IDE_SESSION_ID"]
+    sdir, wdir = sessions_dir(root).resolve(), (root / ".ide" / "worktrees").resolve()
+    for p in [cwd.resolve(), *cwd.resolve().parents]:
+        if p.parent in (sdir, wdir):
+            return p.name
+    raise SessionError("no_session", "no estoy dentro de una sesión: usá --session <id>")
+
+
+def _parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(prog="ide")
+    sub = ap.add_subparsers(dest="group", required=True)
+    s = sub.add_parser("session").add_subparsers(dest="cmd", required=True)
+    new = s.add_parser("new")
+    new.add_argument("--id"); new.add_argument("--main", action="store_true")
+    new.add_argument("--title"); new.add_argument("--template")
+    new.add_argument("--var", action="append", default=[])
+    new.add_argument("--prompt"); new.add_argument("--prompt-file")
+    new.add_argument("--permissions", choices=["analyze", "full", "default"])
+    new.add_argument("--review")
+    ls = s.add_parser("ls"); ls.add_argument("--json", action="store_true")
+    for name in ("open", "stop"):
+        s.add_parser(name).add_argument("id")
+    rm = s.add_parser("rm"); rm.add_argument("id"); rm.add_argument("--force", action="store_true")
+    r = sub.add_parser("repo").add_subparsers(dest="cmd", required=True)
+    ra = r.add_parser("add"); ra.add_argument("repo"); ra.add_argument("--branch")
+    ra.add_argument("--session")
+    rr = r.add_parser("rm"); rr.add_argument("repo"); rr.add_argument("--force", action="store_true")
+    rr.add_argument("--session")
+    sc = sub.add_parser("script"); sc.add_argument("name"); sc.add_argument("repo", nargs="?")
+    sc.add_argument("--session")
+    return ap
+
+
+def _new_payload(a) -> dict:
+    body: dict = {}
+    for key in ("id", "title", "template", "permissions", "review"):
+        if getattr(a, key):
+            body[key] = getattr(a, key)
+    if a.main:
+        body["main"] = True
+    if a.var:
+        body["vars"] = dict(v.split("=", 1) for v in a.var)
+    if a.prompt_file:
+        body["prompt"] = Path(a.prompt_file).read_text(encoding="utf-8")
+    elif a.prompt:
+        body["prompt"] = a.prompt
+    return body
+
+
+def _post(http, url: str | None, path: str, body: dict | None = None) -> dict:
+    if url is None:
+        raise SessionError("no_server", NO_SERVER)
+    try:
+        r = http.post(f"{url}{path}", json=body or {}, timeout=120)
+    except httpx.HTTPError:
+        raise SessionError("no_server", NO_SERVER)
+    data = r.json()
+    if r.status_code >= 400:
+        raise SessionError(data.get("code", "server_error"), data.get("message", str(data)))
+    return data
+
+
+def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
+         out: TextIO = sys.stdout, err: TextIO = sys.stderr) -> int:
+    a = _parser().parse_args(argv)
+    root = Path(env["IDE_WORKSPACE"]) if env.get("IDE_WORKSPACE") else find_workspace_root(cwd)
+    if root is None:
+        err.write("error: no hay workspace (.ide/) acá ni arriba; corré `ide init`\n")
+        return 1
+    url = find_server_url(root, env, home)
+    try:
+        if a.group == "session":
+            return _session(a, root, url, http, out)
+        sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
+        if a.group == "repo" and a.cmd == "add":
+            info = add_repo(root, sid, a.repo, branch=a.branch, out=out)
+            out.write(f"{info['name']}\t{info['branch'] or '(detached)'}\tIDE_PORT={info['port']}\t"
+                      f"{info['path']}\n")
+            return 0
+        if a.group == "repo":
+            rm_repo(root, sid, a.repo, force=a.force, out=out)
+            return 0
+        repo = a.repo
+        if repo is None:
+            repos = [p.name for p in require_session(root, sid).iterdir() if p.is_symlink()]
+            if len(repos) != 1:
+                raise SessionError("ambiguous_repo",
+                                   f"la sesión tiene {len(repos)} repos: indicá cuál ({', '.join(repos)})")
+            repo = repos[0]
+        return run_script(root, sid, repo, a.name, out=out)
+    except BranchOccupied as exc:
+        err.write(f"error: branch ocupada: {exc.branch}. Usá --branch <otra>\n")
+    except (SessionError, WorktreeError) as exc:
+        err.write(f"error: {exc}\n")
+    return 1
+
+
+def _session(a, root: Path, url: str | None, http, out: TextIO) -> int:
+    if a.cmd == "new":
+        data = _post(http, url, "/api/sessions", _new_payload(a))
+        out.write(f"{data['session']['id']}\t{data['process']}\t{data['session']['path']}\n")
+        if data.get("log"):
+            out.write(data["log"])
+        return 0
+    if a.cmd in ("open", "stop"):
+        data = _post(http, url, f"/api/sessions/{a.id}/{a.cmd}")
+        out.write(f"{a.id}\t{data.get('process', 'stopped')}\n")
+        return 0
+    if a.cmd == "rm":
+        try:
+            _post(http, url, f"/api/sessions/{a.id}/stop")
+        except SessionError as exc:
+            if exc.code != "no_server":
+                raise
+        delete_session(root, a.id, force=a.force)
+        return 0
+    sessions = list_sessions(root)
+    procs: dict[str, str] = {}
+    if url is not None:
+        try:
+            tree = http.get(f"{url}/api/sessions", timeout=10).json()
+            procs = {s["id"]: s.get("process", "?") for s in tree.get("sessions", [])}
+        except (httpx.HTTPError, ValueError, AttributeError):
+            procs = {}
+    for s in sessions:
+        s["process"] = procs.get(s["id"], "?")
+    if a.json:
+        out.write(json.dumps(sessions, ensure_ascii=False, indent=2) + "\n")
+        return 0
+    for s in sessions:
+        repos = ",".join(r["name"] for r in s["repos"]) or "-"
+        out.write(f"{s['id']}\t{s['kind']}\t{s['status'] or '-'}\t{s['process']}\t"
+                  f"{s['title'] or ''}\t{repos}{'  ⚠ ' + s['error'] if s['error'] else ''}\n")
+    return 0
