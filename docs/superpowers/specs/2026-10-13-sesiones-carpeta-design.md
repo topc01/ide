@@ -74,6 +74,7 @@ Notion, publicar reviews en GitHub automáticamente.
     ├── config.toml
     ├── permissions/
     │   ├── analyze.json              # settings de claude (permissions.allow/deny), editables
+    │   ├── main.json                 # la principal: analyze + `ide session new` (nunca full)
     │   └── full.json
     ├── scripts/
     │   └── <repo>/{setup,archive,run,…}   # ejecutables; nombre de archivo = nombre del script

@@ -12,7 +12,7 @@ type TabKey = "claude" | "doc" | string;      // string = terminalId de un scrip
 function DocTab({ id }: { id: string }) {
   const [text, setText] = useState(""); const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    const load = () => fetchDoc(getWs(), id).then((d) => setText(d.text)).catch((e) => setError(e?.message ?? String(e)));
+    const load = () => fetchDoc(getWs(), id).then((d) => { setText(d.text); setError(null); }).catch((e) => setError(e?.message ?? String(e)));
     load();
     return onSessionsChanged(getWs(), load);
   }, [id]);

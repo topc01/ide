@@ -20,4 +20,16 @@ describe("WsClient.onClose", () => {
     expect(cb).toHaveBeenCalledTimes(1);
     vi.unstubAllGlobals();
   });
+
+  it("rechaza los requests pendientes al perder la conexión", async () => {
+    vi.stubGlobal("WebSocket", FakeSocket as any);
+    vi.stubGlobal("crypto", { randomUUID: () => "id-1" });
+    const ws = new WsClient("ws://x");
+    FakeSocket.last.onopen();
+    await ws.ready();
+    const p = ws.request("sessions.tree", {});
+    FakeSocket.last.onclose();
+    await expect(p).rejects.toEqual({ code: "disconnected", message: "conexión con el server perdida" });
+    vi.unstubAllGlobals();
+  });
 });

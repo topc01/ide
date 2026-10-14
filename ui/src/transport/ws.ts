@@ -19,6 +19,10 @@ export class WsClient {
       this.ws.onerror = () => reject(new Error("WebSocket error antes de abrir"));
       this.ws.onclose = () => {
         reject(new Error("WebSocket cerrado antes de abrir"));   // no-op si ya abrió
+        // nunca dejar requests colgados: el server ya no va a responder
+        const lost = { code: "disconnected", message: "conexión con el server perdida" };
+        this.pending.forEach((p) => p.reject(lost));
+        this.pending.clear();
         this.closeListeners.forEach((cb) => cb());
       };
     });

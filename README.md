@@ -50,6 +50,10 @@ Code en el PATH, logueado por suscripción (**sin `ANTHROPIC_API_KEY`**). Para e
 de fallar en silencio. Para las **revisiones de PR** (`ide session new --review`) hace falta
 [`gh`](https://cli.github.com/) logueado (`gh auth login`).
 
+**Confianza de carpeta:** Claude Code pide confirmar cada carpeta nueva. La primera vez, abrí
+`claude` en la carpeta del workspace y aceptá la confianza; si una sesión muestra
+**⚠ confiar carpeta**, entrá a su terminal y aceptá (el IDE nunca la acepta por vos).
+
 ### Un comando levanta todo
 
 ```bash

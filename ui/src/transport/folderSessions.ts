@@ -13,6 +13,7 @@ export interface FolderSession {
   error: string | null; process: Process; terminalId: string | null; launchError?: string | null;
   prUrl?: string | null; reviewedSha?: string | null;
   prState?: "stale" | "merged" | "closed" | null; pollError?: string | null; lastOk?: string | null;
+  attention?: string | null;      // "trust": claude espera que confirmes la carpeta
 }
 export interface ScriptInfo { name: string; executable: boolean; }
 export interface SessionsTree {

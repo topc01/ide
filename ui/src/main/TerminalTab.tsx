@@ -21,7 +21,13 @@ export function TerminalTab({ id }: { id: string }) {
       (bytes) => term.write(bytes),
       () => term.write("\r\n[proceso terminado]\r\n"));
     term.onData((d) => writeTerminal(getWs(), id, d));
-    return () => { unsubscribe(); term.dispose(); };
+    // re-ajustar al mostrarse (estaba `hidden` → 0x0) o al cambiar el tamaño del panel
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      try { fit.fit(); } catch { /* sin layout */ }
+      resizeTerminal(getWs(), id, term.cols, term.rows);
+    });
+    if (ro && ref.current) ro.observe(ref.current);
+    return () => { ro?.disconnect(); unsubscribe(); term.dispose(); };
   }, [id]);
   return <div ref={ref} className="h-full w-full bg-terminal-bg" />;
 }

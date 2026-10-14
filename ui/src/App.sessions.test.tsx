@@ -3,7 +3,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("./transport/wsClient", () => ({
   getWs: () => ({ on: () => {}, off: () => {}, onClose: () => {},
-                  request: () => Promise.resolve({ modules: ["sessions", "terminal"] }) }),
+                  request: (channel: string) => Promise.resolve(
+                    channel === "customizations.list" ? { items: [] }
+                    : channel === "ui.config" ? { modules: ["sessions", "terminal"] } : {}) }),
 }));
 vi.mock("./transport/folderSessions", async (orig) => ({
   ...(await orig<any>()),

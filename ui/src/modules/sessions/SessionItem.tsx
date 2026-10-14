@@ -16,6 +16,7 @@ const DOT = { running: ["●", "corriendo"], stopped: ["○", "parada"], queued:
 export function SessionItem({ session }: { session: FolderSession }) {
   const { activeId, setActive } = useFolders();
   const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [dot, label] = DOT[session.process];
   const extra = session.pollError ? "⚠ poll" : session.prState;
   return (
@@ -29,13 +30,21 @@ export function SessionItem({ session }: { session: FolderSession }) {
         {session.meta.author && <span className="text-[10px] text-muted-foreground">{session.meta.author}</span>}
         {session.status && <Badge variant="outline">{session.status}</Badge>}
         {extra && <Badge variant={session.pollError ? "destructive" : "secondary"}
-          title={session.pollError ?? undefined}>{extra}</Badge>}
+          title={session.pollError
+            ? `${session.pollError} (último OK: ${session.lastOk ?? "nunca"})` : undefined}>{extra}</Badge>}
+        {session.attention === "trust" && <Badge variant="destructive"
+          title="Claude Code pide confirmar la carpeta: abrí la terminal y aceptá">⚠ confiar carpeta</Badge>}
         {(session.error || session.launchError) && (
           <span title={session.error ?? session.launchError ?? ""} className="text-destructive">⚠ error</span>)}
+        {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
         <QueueItemActions>
           {session.process !== "stopped" && (
             <QueueItemAction aria-label={`Parar ${session.id}`}
-              onClick={(e) => { e.stopPropagation(); stopSession(getWs(), session.id); }}>
+              onClick={(e) => {
+                e.stopPropagation();
+                setError(null);
+                stopSession(getWs(), session.id).catch((err: any) => setError(err?.message ?? String(err)));
+              }}>
               <Square size={11} />
             </QueueItemAction>)}
           <QueueItemAction aria-label={`Borrar ${session.id}`}

@@ -10,8 +10,11 @@ repo, scripts por repo, `max_running`, revisiones de PR, CLI `ide session|repo|s
 Verificado headless contra un server real (backend 442 tests, UI 200, build OK). Módulos
 viejos ocultos vía `[ui] modules`. Próximos pasos: (1) chequeo visual de la UI por el dueño
 (checklist del plan, Task 18); (2) chat propio sobre sesiones-carpeta; (3) re-habilitar los
-módulos ocultos sobre el nuevo `resolve_cwd`. Nota: en un dir nuevo `claude` puede pedir
-confianza de carpeta antes de procesar el prompt inicial.
+módulos ocultos sobre el nuevo `resolve_cwd`. Confianza de carpeta: la primera vez, abrí
+`claude` en la carpeta del workspace y aceptá la confianza; si una sesión muestra
+**⚠ confiar carpeta** (el supervisor detecta el diálogo en la salida del PTY), entrá y aceptá.
+Fix-wave final (review de rama): sólo la principal despacha sesiones y nunca con `full`
+(perfil `permissions/main.json`), lock de workspace, disco fuera del event loop, PTYs cosechados.
 
 **`ide` multi-instancia + arranque de un comando: COMPLETO y mergeado** (merges `16ca898`
 single-launch, `83d1f7e` multi-instancia). `ide run` sirve frontend+backend en un puerto libre

@@ -13,7 +13,8 @@ vi.mock("@xterm/xterm", () => ({
     get cols() { return 80; } get rows() { return 24; }
   },
 }));
-vi.mock("@xterm/addon-fit", () => ({ FitAddon: class { fit() {} } }));
+const fits = { n: 0 };
+vi.mock("@xterm/addon-fit", () => ({ FitAddon: class { fit() { fits.n++; } } }));
 vi.mock("../transport/wsClient", () => ({ getWs: () => ({}) }));
 const subs: any = {};
 vi.mock("../transport/terminalChannel", () => ({
@@ -23,7 +24,7 @@ vi.mock("../transport/terminalChannel", () => ({
 }));
 
 import { TerminalTab } from "./TerminalTab";
-import { writeTerminal } from "../transport/terminalChannel";
+import { writeTerminal, resizeTerminal } from "../transport/terminalChannel";
 
 describe("TerminalTab", () => {
   it("pinta la salida del canal y envía la entrada del usuario", () => {
@@ -32,5 +33,23 @@ describe("TerminalTab", () => {
     expect(writes.length).toBeGreaterThan(0);
     dataCb?.("x");                                    // tecla del usuario → writeTerminal
     expect(writeTerminal).toHaveBeenCalledWith(expect.anything(), "t1", "x");
+  });
+
+  it("re-ajusta el tamaño cuando el contenedor cambia (al mostrarse)", () => {
+    let cb: (() => void) | null = null;
+    const disconnect = vi.fn();
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(f: () => void) { cb = f; }
+      observe() {} disconnect() { disconnect(); }
+    });
+    const { unmount } = render(<TerminalTab id="t2" />);
+    const before = fits.n;
+    (resizeTerminal as any).mockClear();
+    cb!();
+    expect(fits.n).toBe(before + 1);
+    expect(resizeTerminal).toHaveBeenCalledWith(expect.anything(), "t2", 80, 24);
+    unmount();
+    expect(disconnect).toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });

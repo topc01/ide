@@ -1,5 +1,5 @@
 // ui/src/modules/sessions/ConfirmRmDialog.tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
 import { rmSession } from "../../transport/folderSessions";
@@ -8,6 +8,7 @@ import { getWs } from "../../transport/wsClient";
 export function ConfirmRmDialog({ id, open, onClose }: { id: string; open: boolean; onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [needsForce, setNeedsForce] = useState(false);
+  useEffect(() => { if (open) { setError(null); setNeedsForce(false); } }, [open]);
   const run = async (force: boolean) => {
     try { await rmSession(getWs(), id, force); onClose(); }
     catch (e: any) {

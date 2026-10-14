@@ -25,14 +25,21 @@ const tree = {
     { id: "pr-repo-a-4", kind: "review", path: "", created: "4", permissions: "analyze",
       title: "Refactor auth", status: "reviewing", meta: { author: "@juan" }, repos: [], error: null,
       process: "stopped", terminalId: null, prState: "stale", pollError: null },
+    { id: "pr-repo-a-5", kind: "review", path: "", created: "5", permissions: "analyze",
+      title: "Otro PR", status: "reviewing", meta: {}, repos: [], error: null,
+      process: "running", terminalId: "t9", prState: null, pollError: "gh: 502",
+      lastOk: "2026-10-13T10:00:00", attention: "trust" },
   ],
 };
 const fetchSessions = vi.fn().mockResolvedValue(tree);
 const runScript = vi.fn().mockResolvedValue({ terminalId: "t5" });
 const rmRepo = vi.fn().mockResolvedValue({ ok: true });
+const stopSession = vi.fn().mockRejectedValue({ code: "x", message: "no se pudo parar" });
+const newSession = vi.fn().mockRejectedValue({ code: "main_exists", message: "ya existe la principal" });
 vi.mock("../../transport/folderSessions", async (orig) => ({
   ...(await orig<any>()), fetchSessions: (...a: any[]) => fetchSessions(...a),
   runScript: (...a: any[]) => runScript(...a), rmRepo: (...a: any[]) => rmRepo(...a),
+  stopSession: (...a: any[]) => stopSession(...a), newSession: (...a: any[]) => newSession(...a),
 }));
 
 import { FolderSessionsPanel } from "./FolderSessionsPanel";
@@ -92,5 +99,29 @@ describe("FolderSessionsPanel", () => {
     expect(screen.queryByText("Exportar")).not.toBeInTheDocument();
     act(() => closeCbs.forEach((cb) => cb()));
     expect(screen.getByText(/desconectado/i)).toBeInTheDocument();
+  });
+
+  it("badge de confiar carpeta y título del poll con último OK", async () => {
+    render(<FolderSessionsPanel />);
+    await waitFor(() => screen.getByText("Otro PR"));
+    expect(screen.getByText("⚠ confiar carpeta")).toHaveAttribute("title",
+      "Claude Code pide confirmar la carpeta: abrí la terminal y aceptá");
+    expect(screen.getByText("⚠ poll")).toHaveAttribute("title",
+      expect.stringContaining("último OK: 2026-10-13T10:00:00"));
+  });
+
+  it("error al parar se muestra", async () => {
+    render(<FolderSessionsPanel />);
+    await waitFor(() => screen.getByText("Otro PR"));
+    fireEvent.click(screen.getByLabelText("Parar pr-repo-a-5"));
+    expect(await screen.findByTitle("no se pudo parar")).toBeInTheDocument();
+  });
+
+  it("error al crear la principal se muestra", async () => {
+    fetchSessions.mockResolvedValueOnce({ ...tree, sessions: tree.sessions.slice(1) });
+    render(<FolderSessionsPanel />);
+    await waitFor(() => screen.getByText("Exportar"));
+    fireEvent.click(screen.getByText("Principal"));
+    expect(await screen.findByTitle("ya existe la principal")).toBeInTheDocument();
   });
 });

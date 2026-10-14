@@ -1,15 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { useFolders } from "../state/folders";
 
-vi.mock("../transport/wsClient", () => ({ getWs: () => ({ on: () => {}, off: () => {} }) }));
+const wsListeners: Record<string, (p: any) => void> = {};
+vi.mock("../transport/wsClient", () => ({
+  getWs: () => ({ on: (c: string, cb: any) => { wsListeners[c] = cb; }, off: () => {} }) }));
+const fetchDoc = vi.fn().mockResolvedValue({ name: "TICKET.md", text: "---\nstatus: ready\n---\n## Scope\nX" });
 const openSession = vi.fn().mockResolvedValue({ process: "running" });
 const refreshReview = vi.fn().mockResolvedValue({});
 vi.mock("../transport/folderSessions", async (orig) => ({
   ...(await orig<any>()),
   openSession: (...a: any[]) => openSession(...a),
   refreshReview: (...a: any[]) => refreshReview(...a),
-  fetchDoc: vi.fn().mockResolvedValue({ name: "TICKET.md", text: "---\nstatus: ready\n---\n## Scope\nX" }),
+  fetchDoc: (...a: any[]) => fetchDoc(...a),
 }));
 vi.mock("./TerminalTab", () => ({ TerminalTab: ({ id }: { id: string }) => <div data-testid={`term-${id}`} /> }));
 
@@ -62,5 +65,15 @@ describe("SessionView", () => {
     render(<SessionView />);
     fireEvent.click(screen.getByRole("tab", { name: "repo-a:run" }));
     expect(screen.getByTestId("term-t7")).toBeInTheDocument();
+  });
+
+  it("el doc limpia el error al recargar bien", async () => {
+    fetchDoc.mockRejectedValueOnce({ message: "no se pudo leer" });
+    render(<SessionView />);
+    fireEvent.click(screen.getByRole("tab", { name: "TICKET.md" }));
+    expect(await screen.findByText("no se pudo leer")).toBeInTheDocument();
+    await act(async () => { wsListeners["sessions.changed"]({}); });
+    expect(await screen.findByText(/## Scope/)).toBeInTheDocument();
+    expect(screen.queryByText("no se pudo leer")).not.toBeInTheDocument();
   });
 });

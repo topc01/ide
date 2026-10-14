@@ -1,5 +1,5 @@
 // ui/src/modules/sessions/FolderSessionsPanel.tsx
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Star } from "lucide-react";
 import { useFolders } from "../../state/folders";
 import { fetchSessions, newSession, onSessionsChanged } from "../../transport/folderSessions";
@@ -13,6 +13,7 @@ import { Queue, QueueSection, QueueSectionTrigger, QueueSectionLabel, QueueSecti
 
 export function FolderSessionsPanel() {
   const { tree, connected, groupBy, setTree, setConnected, setActive, openModal } = useFolders();
+  const [mainError, setMainError] = useState<string | null>(null);
 
   useEffect(() => {
     const ws = getWs();
@@ -42,11 +43,15 @@ export function FolderSessionsPanel() {
               <span className="text-muted-foreground">{main.process}</span>
             </button>
           ) : (
-            <button onClick={() => newSession(getWs(), { main: true, template: "main" })
-                .then((r: any) => setActive(r.session.id))}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
-              <Star size={12} /> Principal
-            </button>
+            <>
+              <button onClick={() => { setMainError(null); newSession(getWs(), { main: true, template: "main" })
+                  .then((r: any) => setActive(r.session.id))
+                  .catch((e: any) => setMainError(e?.message ?? String(e))); }}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+                <Star size={12} /> Principal
+              </button>
+              {mainError && <span role="alert" title={mainError} className="text-xs text-destructive">⚠</span>}
+            </>
           )}
           <div className="ml-auto flex items-center gap-1">
             <GroupMenu />

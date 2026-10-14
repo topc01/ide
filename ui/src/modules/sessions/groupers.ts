@@ -30,7 +30,8 @@ registerGrouper({
     { id: "queued", label: "En cola", defaultOpen: true },
     { id: "done", label: "Hechos", defaultOpen: false },
   ],
-  sectionOf: (s) => s.process === "queued" ? "queued"
+  sectionOf: (s) => s.attention ? "attention"
+    : s.process === "queued" ? "queued"
     : s.status === "done" ? "done"
     : ATTENTION.includes(s.status ?? "") ? "attention" : "active",
 });

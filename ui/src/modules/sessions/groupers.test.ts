@@ -23,6 +23,12 @@ describe("groupers", () => {
     expect(g[3].section.defaultOpen).toBe(false);
   });
 
+  it("status: una sesión que pide confiar la carpeta necesita atención", () => {
+    const g = groupSessions([{ ...s("a", "analyzing", "running"), attention: "trust" }],
+      getGrouper("status"));
+    expect(g.map((x) => x.section.id)).toEqual(["attention"]);
+  });
+
   it("es extensible y getGrouper cae a none", () => {
     registerGrouper({ id: "x", label: "X", sections: [{ id: "all", label: "Todo", defaultOpen: true }],
       sectionOf: () => "all" });
