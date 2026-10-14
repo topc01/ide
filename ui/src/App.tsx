@@ -8,6 +8,7 @@ import "./modules/files/register";
 import { ActivityRail } from "./layout/ActivityRail";
 import { ContextPanel } from "./layout/ContextPanel";
 import { FolderSessionsPanel } from "./modules/sessions/FolderSessionsPanel";
+import { NewFolderSessionModal } from "./modules/sessions/NewFolderSessionModal";
 import { SettingsModal } from "./modules/settings/SettingsModal";
 import { MainPanel } from "./layout/MainPanel";
 
@@ -19,6 +20,7 @@ export default function App() {
       <ContextPanel />
       <MainPanel />
       <SettingsModal />
+      <NewFolderSessionModal />
     </div>
   );
 }
