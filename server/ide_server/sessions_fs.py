@@ -38,6 +38,13 @@ def normalize_id(raw: str) -> str:
     return sid
 
 
+def require_plain_name(name: str, what: str = "nombre") -> str:
+    """Rechaza nombres que no sean un componente simple de path (sin '/', '.', '..')."""
+    if not isinstance(name, str) or not name or name in (".", "..") or Path(name).name != name:
+        raise SessionError("invalid_name", f"{what} inválido: {name!r}")
+    return name
+
+
 def new_id(exists: Callable[[str], bool]) -> str:
     alphabet = string.ascii_lowercase + string.digits
     for _ in range(100):
@@ -217,6 +224,7 @@ def seed_workspace(root: Path) -> list[Path]:
         sessions_dir(root) / "templates" / "ticket.md": seeds.TEMPLATE_TICKET,
         sessions_dir(root) / "templates" / "review.md": seeds.TEMPLATE_REVIEW,
         ide / "permissions" / "analyze.json": json.dumps(seeds.PERM_ANALYZE, indent=2) + "\n",
+        ide / "permissions" / "main.json": json.dumps(seeds.PERM_MAIN, indent=2) + "\n",
         ide / "permissions" / "full.json": json.dumps(seeds.PERM_FULL, indent=2) + "\n",
     }
     created = []

@@ -18,7 +18,16 @@ def test_seed_creates_files_with_repo_map(tmp_path):
     for name in ("main", "ticket", "review"):
         assert (ide / "sessions" / "templates" / f"{name}.md").is_file()
     analyze = json.loads((ide / "permissions" / "analyze.json").read_text())
-    assert "Bash(ide repo add:*)" in analyze["permissions"]["allow"]
+    allow = analyze["permissions"]["allow"]
+    assert "Bash(ide repo add:*)" in allow and "Bash(ide session new:*)" not in allow
+    for cmd in ("ls", "cat", "head", "tail", "wc", "find", "rg", "grep", "git branch"):
+        assert f"Bash({cmd}:*)" in allow
+    assert "Bash(git remote -v)" in allow
+    assert {"Bash(git diff --output:*)", "Bash(git log --output:*)"} <= set(
+        analyze["permissions"]["deny"])
+    main = json.loads((ide / "permissions" / "main.json").read_text())["permissions"]
+    assert set(allow) < set(main["allow"]) and main["deny"] == analyze["permissions"]["deny"]
+    assert {"Bash(ide session new:*)", "Bash(ide session ls:*)"} <= set(main["allow"])
     assert json.loads((ide / "permissions" / "full.json").read_text())
     assert (ide / "scripts").is_dir() and (ide / "worktrees").is_dir()
 

@@ -80,18 +80,29 @@ El worktree `{{repo}}/` está en el head del PR (detached).
 4. NO publiques nada en GitHub sin que te lo pida.
 """
 
+_READ_ONLY_BASH = [
+    "Bash(ls:*)", "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)", "Bash(find:*)",
+    "Bash(rg:*)", "Bash(grep:*)",
+    "Bash(git log:*)", "Bash(git diff:*)", "Bash(git show:*)", "Bash(git status:*)",
+    "Bash(git branch:*)", "Bash(git remote -v)",
+]
+
 PERM_ANALYZE = {"permissions": {
     "allow": [
-        "Read", "Grep", "Glob",
-        "Bash(git log:*)", "Bash(git diff:*)", "Bash(git show:*)", "Bash(git status:*)",
+        "Read", "Grep", "Glob", *_READ_ONLY_BASH,
         "Bash(ide repo add:*)", "Bash(ide script:*)", "Bash(ide session ls:*)",
-        "Bash(ide session new:*)",
         "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh search prs:*)",
         "Edit(**/TICKET.md)", "Edit(**/REVIEW.md)",
         "mcp__claude_ai_Notion__notion-fetch", "mcp__claude_ai_Notion__notion-search",
         "mcp__claude_ai_Notion__notion-query-data-sources",
     ],
-    "deny": [],
+    "deny": ["Bash(git diff --output:*)", "Bash(git log --output:*)"],
+}}
+
+# La principal = analyze + despachar sesiones (el server igual le niega `full`).
+PERM_MAIN = {"permissions": {
+    "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)"],
+    "deny": list(PERM_ANALYZE["permissions"]["deny"]),
 }}
 
 PERM_FULL = {"permissions": {"defaultMode": "bypassPermissions"}}

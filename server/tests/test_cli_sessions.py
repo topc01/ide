@@ -175,3 +175,52 @@ def test_find_server_url_from_instances(tmp_path, monkeypatch):
                                       {"workspace": str(root), "url": "http://b"}])
     assert find_server_url(root, {}, root) == "http://b"
     assert find_server_url(root, {"IDE_URL": "http://c"}, root) == "http://c"
+
+
+class RecHttp(FakeHttp):
+    def __init__(self, exc=None, **kw):
+        super().__init__(**kw)
+        self.exc, self.timeouts = exc, []
+
+    def post(self, url, json=None, timeout=None):
+        self.calls.append((url, json)); self.timeouts.append(timeout)
+        if self.exc is not None:
+            raise self.exc
+        return type("R", (), {"status_code": self.status, "json": lambda s: self.body})()
+
+
+def test_session_new_sends_caller_from_env(tmp_path):                # C1
+    root = _ws(tmp_path)
+    http = RecHttp(body={"session": {"id": "x", "path": "/p"}, "process": "running"})
+    _run(root, ["session", "new", "--id", "x"], env={"IDE_URL": "http://h:1",
+                                                     "IDE_SESSION_ID": "t1"}, http=http)
+    assert http.calls[0][1] == {"id": "x", "caller": "t1"}
+    _run(root, ["session", "new", "--id", "y"], env={"IDE_URL": "http://h:1"}, http=http)
+    assert "caller" not in http.calls[1][1]
+
+
+def test_timeout_is_distinct_from_no_server_and_review_waits_longer(tmp_path):   # I3
+    import httpx
+    root = _ws(tmp_path)
+    http = RecHttp(exc=httpx.ReadTimeout("lento"))
+    code, _, err = _run(root, ["session", "new", "--review", "https://github.com/a/repo-a/pull/1"],
+                        env={"IDE_URL": "http://h:1"}, http=http)
+    assert code == 1 and "no respondió a tiempo" in err and "ide run" not in err
+    assert http.timeouts[0] == 600
+    _run(root, ["session", "new", "--id", "x"], env={"IDE_URL": "http://h:1"}, http=http)
+    assert http.timeouts[1] == 120
+
+
+def test_cli_normalizes_session_ids(tmp_path):
+    root = _ws(tmp_path)
+    http = RecHttp(body={"process": "running"})
+    _run(root, ["session", "open", "T1"], env={"IDE_URL": "http://h:1"}, http=http)
+    _run(root, ["session", "stop", "T1"], env={"IDE_URL": "http://h:1"}, http=http)
+    assert [c[0] for c in http.calls] == ["http://h:1/api/sessions/t1/open",
+                                          "http://h:1/api/sessions/t1/stop"]
+    code, out, _ = _run(root, ["repo", "add", "repo-a", "--session", "T1"])
+    assert code == 0 and worktree_path(root, "t1", "repo-a").exists()
+    code, _, err = _run(root, ["session", "open", "..."], env={"IDE_URL": "http://h:1"}, http=http)
+    assert code == 1 and "id inválido" in err
+    code, _, _ = _run(root, ["session", "rm", "T1", "--force"], http=FakeHttp(fail=True))
+    assert code == 0 and not session_path(root, "t1").exists()

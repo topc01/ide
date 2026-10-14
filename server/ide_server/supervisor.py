@@ -23,17 +23,25 @@ def has_history(path: Path, home: Path) -> bool:
 
 def build_argv(root: Path, sid: str, *, command: str, resume: bool) -> list[str]:
     path = session_path(root, sid)
-    perm = read_toml(path / ".session.toml").get("permissions", "default")
+    data = read_toml(path / ".session.toml")
+    perm, kind = data.get("permissions", "default"), data.get("kind")
     argv = shlex.split(command)
     if perm in ("analyze", "full"):
-        argv += ["--settings", str(root / ".ide" / "permissions" / f"{perm}.json")]
+        profile = "main" if (kind == "main" and perm == "analyze") else perm
+        argv += ["--settings", str(root / ".ide" / "permissions" / f"{profile}.json")]
     if perm == "full":
         argv += ["--permission-mode", "bypassPermissions"]
+    # `--add-dir` es variádico en claude: con `=` no se come el prompt posicional.
+    argv.append(f"--add-dir={root / '.ide' / 'worktrees' / sid}")
+    if kind == "main":
+        argv.append(f"--add-dir={root / '.ide' / 'sessions'}")
     if resume:
         argv.append("--continue")
     else:
         prompt_file = path / "PROMPT.md"
         prompt = prompt_file.read_text(encoding="utf-8").strip() if prompt_file.is_file() else ""
+        if prompt.startswith("-"):
+            prompt = " " + prompt                # que claude no lo lea como flag
         if prompt:
             argv.append(prompt)
     return argv
@@ -97,6 +105,7 @@ class Supervisor:
         if self._which(argv[0]) is None:
             raise SessionError("claude_missing",
                                f"no se encontró `{argv[0]}` en el PATH (¿instalaste claude?)")
+        (self._root / ".ide" / "worktrees" / sid).mkdir(parents=True, exist_ok=True)  # --add-dir
         env = {**os.environ, "IDE_SESSION_ID": sid, "IDE_URL": self._url,
                "IDE_WORKSPACE": str(self._root)}
         holder: dict[str, str] = {}

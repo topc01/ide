@@ -118,3 +118,54 @@ def test_refresh_review_moves_head(tmp_path):
     s = refresh_review(root, "pr-repo-a-9", runner=runner2)
     assert s["reviewedSha"] == sha2
     assert _git("rev-parse", "HEAD", cwd=worktree_path(root, "pr-repo-a-9", "repo-a")) == sha2
+
+
+# --- C1: una sesión no escala permisos vía `ide session new` ---------------------------------
+
+def _main(root, perm="analyze"):
+    return create_session(root, {"main": True, "prompt": "p", "permissions": perm})["session"]["id"]
+
+
+def test_caller_ticket_cannot_create_sessions(tmp_path):
+    root = _ws(tmp_path)
+    create_session(root, {"id": "t1", "prompt": "p"})
+    with pytest.raises(SessionError) as e:
+        create_session(root, {"id": "x", "prompt": "p", "caller": "t1"})
+    assert e.value.code == "forbidden" and not session_path(root, "x").exists()
+    with pytest.raises(SessionError) as e:
+        create_session(root, {"id": "x", "prompt": "p", "caller": "nope"})
+    assert e.value.code == "forbidden"
+
+
+def test_caller_main_cannot_request_full(tmp_path):
+    root = _ws(tmp_path)
+    m = _main(root)
+    with pytest.raises(SessionError) as e:
+        create_session(root, {"id": "x", "prompt": "p", "permissions": "full", "caller": m})
+    assert e.value.code == "forbidden" and not session_path(root, "x").exists()
+    with pytest.raises(SessionError) as e:
+        create_session(root, {"review": "https://github.com/a/repo-a/pull/1",
+                              "permissions": "full", "caller": m})
+    assert e.value.code == "forbidden"
+
+
+def test_caller_main_default_full_is_downgraded(tmp_path):
+    root = _ws(tmp_path)
+    (root / ".ide" / "config.toml").write_text('[sessions]\ndefault_permissions = "full"\n')
+    m = _main(root)
+    s = create_session(root, {"id": "x", "prompt": "p", "caller": m})["session"]
+    assert s["permissions"] == "analyze"
+
+
+def test_no_caller_can_request_full(tmp_path):
+    root = _ws(tmp_path)
+    s = create_session(root, {"id": "x", "prompt": "p", "permissions": "full"})["session"]
+    assert s["permissions"] == "full"
+
+
+def test_load_template_rejects_non_plain_names(tmp_path):
+    root = _ws(tmp_path)
+    for bad in ("../x", "a/b", "..", "."):
+        with pytest.raises(SessionError) as e:
+            create_session(root, {"id": "x", "template": bad})
+        assert e.value.code == "invalid_name"

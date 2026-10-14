@@ -10,11 +10,12 @@ from ide_server import instances
 from ide_server.repos_fs import add_repo, rm_repo, require_session
 from ide_server.scripts import run_script
 from ide_server.session_ops import delete_session
-from ide_server.sessions_fs import SessionError, list_sessions, sessions_dir
+from ide_server.sessions_fs import SessionError, list_sessions, normalize_id, sessions_dir
 from ide_server.workspace import find_workspace_root
 from ide_server.worktrees import BranchOccupied, WorktreeError
 
 NO_SERVER = "No hay `ide run` activo para este workspace (levantalo con `ide run`)."
+TIMEOUT = "el server no respondió a tiempo (¿sigue procesando?)"
 
 
 def find_server_url(root: Path, env: dict, home: Path) -> str | None:
@@ -28,7 +29,7 @@ def find_server_url(root: Path, env: dict, home: Path) -> str | None:
 
 def current_session(root: Path, *, env: dict, cwd: Path, explicit: str | None = None) -> str:
     if explicit:
-        return explicit
+        return normalize_id(explicit)
     if env.get("IDE_SESSION_ID"):
         return env["IDE_SESSION_ID"]
     sdir, wdir = sessions_dir(root).resolve(), (root / ".ide" / "worktrees").resolve()
@@ -63,8 +64,10 @@ def _parser() -> argparse.ArgumentParser:
     return ap
 
 
-def _new_payload(a) -> dict:
+def _new_payload(a, env: dict) -> dict:
     body: dict = {}
+    if env.get("IDE_SESSION_ID"):                # lo pide una sesión: el server valida permisos
+        body["caller"] = env["IDE_SESSION_ID"]
     for key in ("id", "title", "template", "permissions", "review"):
         if getattr(a, key):
             body[key] = getattr(a, key)
@@ -85,11 +88,14 @@ def _new_payload(a) -> dict:
     return body
 
 
-def _post(http, url: str | None, path: str, body: dict | None = None) -> dict:
+def _post(http, url: str | None, path: str, body: dict | None = None, *,
+          timeout: float = 120) -> dict:
     if url is None:
         raise SessionError("no_server", NO_SERVER)
     try:
-        r = http.post(f"{url}{path}", json=body or {}, timeout=120)
+        r = http.post(f"{url}{path}", json=body or {}, timeout=timeout)
+    except httpx.TimeoutException:
+        raise SessionError("timeout", TIMEOUT)
     except httpx.HTTPError:
         raise SessionError("no_server", NO_SERVER)
     try:
@@ -111,7 +117,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
     url = find_server_url(root, env, home)
     try:
         if a.group == "session":
-            return _session(a, root, url, http, out, err)
+            return _session(a, root, url, http, out, err, env)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
         if a.group == "repo" and a.cmd == "add":
             info = add_repo(root, sid, a.repo, branch=a.branch, out=out)
@@ -147,13 +153,17 @@ def _stop(http, url: str | None):
     return stop
 
 
-def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO) -> int:
+def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
+             env: dict) -> int:
     if a.cmd == "new":
-        data = _post(http, url, "/api/sessions", _new_payload(a))
+        data = _post(http, url, "/api/sessions", _new_payload(a, env),
+                     timeout=600 if a.review else 120)     # review: gh + fetch + setup
         out.write(f"{data['session']['id']}\t{data['process']}\t{data['session']['path']}\n")
         if data.get("log"):
             out.write(data["log"])
         return 0
+    if a.cmd in ("open", "stop", "rm"):
+        a.id = normalize_id(a.id)
     if a.cmd in ("open", "stop"):
         data = _post(http, url, f"/api/sessions/{a.id}/{a.cmd}")
         out.write(f"{a.id}\t{data.get('process', 'stopped')}\n")

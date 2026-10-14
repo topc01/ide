@@ -11,7 +11,7 @@ from ide_server.config import sessions_config
 from ide_server.repos_fs import add_repo, rm_repo, worktree_path, require_session
 from ide_server.sessions_fs import (
     SessionError, create_session_dir, new_id, normalize_id, read_session, render_template,
-    session_path, sessions_dir, update_session_toml, read_toml,
+    require_plain_name, session_path, sessions_dir, update_session_toml, read_toml,
 )
 from ide_server.workspace import discover_repos
 from ide_server.worktrees import has_uncommitted_changes
@@ -36,6 +36,7 @@ def parse_pr_url(url: str) -> tuple[str, int]:
 
 
 def load_template(root: Path, name: str) -> str:
+    require_plain_name(name, "plantilla")
     path = sessions_dir(root) / "templates" / f"{name}.md"
     if not path.is_file():
         raise SessionError("unknown_template", f"no existe la plantilla {name} ({path})")
@@ -55,8 +56,28 @@ def _fetch_pr(root: Path, repo: str, number: int, runner: Runner) -> None:
         raise SessionError("fetch_failed", f"git fetch del PR falló: {out.stderr.strip()}")
 
 
+def _resolve_permissions(root: Path, req: dict) -> str:
+    """Permisos de la sesión nueva. Si la pide otra sesión (`caller`, vía `ide session new`
+    desde adentro de claude), sólo la principal puede, y nunca con `full` (sin escalada)."""
+    caller = req.get("caller")
+    requested = req.get("permissions")
+    if not caller:
+        return requested or sessions_config(root)["default_permissions"]
+    try:
+        kind = read_toml(session_path(root, normalize_id(caller)) / ".session.toml").get("kind")
+    except (SessionError, OSError, ValueError):
+        kind = None
+    if kind != "main":
+        raise SessionError("forbidden", "solo la sesión principal puede crear sesiones")
+    if requested == "full":
+        raise SessionError("forbidden", "una sesión no puede lanzar otra con permisos full; "
+                                        "hacelo desde la UI o la terminal")
+    permissions = requested or sessions_config(root)["default_permissions"]
+    return "analyze" if permissions == "full" else permissions
+
+
 def create_session(root: Path, req: dict, *, runner: Runner = _run) -> dict:
-    permissions = req.get("permissions") or sessions_config(root)["default_permissions"]
+    permissions = _resolve_permissions(root, req)
     if req.get("review"):
         return _create_review(root, req["review"], permissions, runner)
     kind = "main" if req.get("main") else "ticket"

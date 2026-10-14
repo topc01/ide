@@ -39,12 +39,26 @@ def test_argv_by_permissions(tmp_path):
     create_session_dir(root, sid="f", kind="ticket", permissions="full", prompt="")
     create_session_dir(root, sid="d", kind="ticket", permissions="default", prompt="p")
     perm = root / ".ide" / "permissions"
+    wt = lambda s: f"--add-dir={root / '.ide' / 'worktrees' / s}"
     assert build_argv(root, "a", command="claude", resume=False) == [
-        "claude", "--settings", str(perm / "analyze.json"), "hacé a"]
+        "claude", "--settings", str(perm / "analyze.json"), wt("a"), "hacé a"]
     assert build_argv(root, "f", command="claude --verbose", resume=True) == [
         "claude", "--verbose", "--settings", str(perm / "full.json"),
-        "--permission-mode", "bypassPermissions", "--continue"]
-    assert build_argv(root, "d", command="claude", resume=False) == ["claude", "p"]
+        "--permission-mode", "bypassPermissions", wt("f"), "--continue"]
+    assert build_argv(root, "d", command="claude", resume=False) == ["claude", wt("d"), "p"]
+
+
+def test_argv_main_uses_main_profile_and_sees_sessions(tmp_path):     # C1 + I5
+    create_session_dir(tmp_path, sid="m", kind="main", permissions="analyze", prompt="hola")
+    argv = build_argv(tmp_path, "m", command="claude", resume=False)
+    assert argv == ["claude", "--settings", str(tmp_path / ".ide" / "permissions" / "main.json"),
+                    f"--add-dir={tmp_path / '.ide' / 'worktrees' / 'm'}",
+                    f"--add-dir={tmp_path / '.ide' / 'sessions'}", "hola"]
+
+
+def test_argv_prompt_starting_with_dash_is_not_a_flag(tmp_path):
+    create_session_dir(tmp_path, sid="a", kind="ticket", permissions="default", prompt="--help me")
+    assert build_argv(tmp_path, "a", command="claude", resume=False)[-1] == " --help me"
 
 
 def test_history_detection(tmp_path):
