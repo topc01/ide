@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import json
+import logging
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,6 +9,8 @@ from typing import Awaitable, Callable
 from ide_server.sessions_fs import list_sessions
 
 GhRunner = Callable[[list[str]], Awaitable[tuple[int, str, str]]]
+GH_TIMEOUT = 60
+log = logging.getLogger(__name__)
 
 
 async def _default_gh(args: list[str]) -> tuple[int, str, str]:
@@ -16,7 +19,12 @@ async def _default_gh(args: list[str]) -> tuple[int, str, str]:
             "gh", *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     except FileNotFoundError:
         return 127, "", "gh no está instalado"
-    out, err = await proc.communicate()
+    try:
+        out, err = await asyncio.wait_for(proc.communicate(), timeout=GH_TIMEOUT)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        return 124, "", f"gh timeout ({GH_TIMEOUT}s)"
     return proc.returncode or 0, out.decode(), err.decode()
 
 
@@ -34,14 +42,21 @@ class PrPoller:
 
     async def _poll(self, s: dict) -> tuple[str, dict]:
         prev = self.derived.get(s["id"], {"prState": None, "pollError": None, "lastOk": None})
-        async with self._sem:
-            code, out, err = await self._gh(["pr", "view", s["prUrl"], "--json", "headRefOid,state"])
-        if code != 0:
-            return s["id"], {**prev, "pollError": err.strip() or f"gh exit {code}"}
-        data = json.loads(out)
-        state = {"MERGED": "merged", "CLOSED": "closed"}.get(data.get("state", ""))
-        if state is None and data.get("headRefOid") != s.get("reviewedSha"):
-            state = "stale"
+        try:
+            async with self._sem:
+                code, out, err = await self._gh(
+                    ["pr", "view", s["prUrl"], "--json", "headRefOid,state"])
+            if code != 0:
+                return s["id"], {**prev, "pollError": err.strip() or f"gh exit {code}"}
+            data = json.loads(out)
+            if not isinstance(data, dict):
+                raise ValueError("se esperaba un objeto JSON")
+            state = {"MERGED": "merged", "CLOSED": "closed"}.get(data.get("state", ""))
+            if state is None and data.get("headRefOid") != s.get("reviewedSha"):
+                state = "stale"
+        except Exception as exc:  # cualquier fallo queda marcado, nunca silencioso
+            msg = str(exc) or type(exc).__name__
+            return s["id"], {**prev, "pollError": f"respuesta inválida de gh: {msg}"}
         ts = datetime.fromtimestamp(self._clock(), timezone.utc).isoformat(timespec="seconds")
         return s["id"], {"prState": state, "pollError": None, "lastOk": ts}
 
@@ -67,8 +82,11 @@ class PrPoller:
         if self._interval <= 0:
             return
         while not stop.is_set():
-            if await self.poll_once():
-                self._on_change()
+            try:
+                if await self.poll_once():
+                    self._on_change()
+            except Exception:
+                log.exception("el poller de PRs falló en un ciclo; sigue en el próximo")
             try:
                 await asyncio.wait_for(stop.wait(), self.next_delay())
             except asyncio.TimeoutError:

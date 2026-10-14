@@ -61,7 +61,71 @@ async def test_run_disabled_and_stops(tmp_path):
     p = PrPoller(tmp_path, interval=0, run_gh=_gh({}))
     await asyncio.wait_for(p.run(asyncio.Event()), 1)       # interval 0 → retorna ya
     stop = asyncio.Event(); calls = []
-    p2 = PrPoller(tmp_path, interval=60, run_gh=_gh({}), on_change=lambda: calls.append(1))
+    _review(tmp_path, "r1", "u1", "aaa")
+    p2 = PrPoller(tmp_path, interval=60, run_gh=_gh({
+        "u1": {"headRefOid": "zzz", "state": "OPEN"}}), on_change=lambda: calls.append(1))
     task = asyncio.create_task(p2.run(stop))
     await asyncio.sleep(0.05); stop.set()
     await asyncio.wait_for(task, 1)
+    assert calls == [1]
+
+
+@pytest.mark.asyncio
+async def test_invalid_gh_output_marks_error_and_poll_returns(tmp_path):
+    _review(tmp_path, "r1", "u1", "aaa")
+    async def bad_json(args):
+        return 0, "not json", ""
+    p = PrPoller(tmp_path, interval=60, clock=lambda: 0, run_gh=bad_json)
+    assert await p.poll_once() is True           # el error aparece: cambio real, y no revienta
+    assert "respuesta inválida de gh" in p.derived["r1"]["pollError"]
+
+    async def non_dict(args):
+        return 0, "[1]", ""
+    p = PrPoller(tmp_path, interval=60, clock=lambda: 0, run_gh=non_dict)
+    await p.poll_once()
+    assert "respuesta inválida de gh" in p.derived["r1"]["pollError"]
+
+
+@pytest.mark.asyncio
+async def test_runner_exception_marks_error(tmp_path):
+    _review(tmp_path, "r1", "u1", "aaa")
+    async def boom(args):
+        raise RuntimeError("boom")
+    p = PrPoller(tmp_path, interval=60, clock=lambda: 0, run_gh=boom)
+    await p.poll_once()
+    assert "boom" in p.derived["r1"]["pollError"]
+
+
+@pytest.mark.asyncio
+async def test_run_survives_on_change_error(tmp_path):
+    _review(tmp_path, "r1", "u1", "aaa")
+    polls = []
+    base = _gh({"u1": {"headRefOid": "zzz", "state": "OPEN"}})
+    async def counting(args):
+        polls.append(1)
+        return await base(args)
+    def boom():
+        raise RuntimeError("cb")
+    p = PrPoller(tmp_path, interval=60, run_gh=counting, on_change=boom)
+    p.next_delay = lambda: 0.01
+    stop = asyncio.Event()
+    task = asyncio.create_task(p.run(stop))
+    await asyncio.sleep(0.1); stop.set()
+    await asyncio.wait_for(task, 1)           # no debe haber muerto con la excepción
+    assert len(polls) > 1
+
+
+@pytest.mark.asyncio
+async def test_default_gh_timeout_kills_and_returns_124(tmp_path, monkeypatch):
+    import os, time
+    from ide_server import pr_poller
+    fake = tmp_path / "bin"; fake.mkdir()
+    gh = fake / "gh"
+    gh.write_text("#!/bin/sh\nexec sleep 5\n")
+    gh.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setattr(pr_poller, "GH_TIMEOUT", 0.2)
+    t0 = time.monotonic()
+    code, out, err = await pr_poller._default_gh(["pr", "view", "x"])
+    assert code == 124 and "timeout" in err
+    assert time.monotonic() - t0 < 3
