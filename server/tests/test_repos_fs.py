@@ -84,3 +84,30 @@ def test_rm_repo_with_missing_worktree_prunes(tmp_path):
     shutil.rmtree(worktree_path(root, "t1", "repo-a"))
     rm_repo(root, "t1", "repo-a")
     assert not (session_path(root, "t1") / "repo-a").is_symlink()
+
+
+def test_used_ports_skips_malformed_ports(tmp_path):
+    root = _ws(tmp_path)
+    (session_path(root, "t1") / ".session.toml").write_text(
+        'kind = "ticket"\npermissions = "analyze"\nports = ["x"]\n')
+    (session_path(root, "t2") / ".session.toml").write_text(
+        'kind = "ticket"\npermissions = "analyze"\n[ports]\nrepo-a = 8100\n')
+    assert allocate_port(root) == 8110
+
+
+def test_concurrent_add_repo_gets_distinct_ports(tmp_path, monkeypatch):     # I4
+    import threading, time
+    from ide_server import repos_fs
+    root = _ws(tmp_path)
+    real = repos_fs.allocate_port
+
+    def slow(r):
+        port = real(r); time.sleep(0.2); return port      # ventana de carrera
+
+    monkeypatch.setattr(repos_fs, "allocate_port", slow)
+    infos = {}
+    ts = [threading.Thread(target=lambda s=s: infos.__setitem__(s, add_repo(root, s, "repo-a")))
+          for s in ("t1", "t2")]
+    for t in ts: t.start()
+    for t in ts: t.join()
+    assert sorted(i["port"] for i in infos.values()) == [8100, 8110]

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from ide_server.plugins import Registry
+from ide_server.plugins import Registry, UnknownChannel
 from ide_server.worktrees import WorktreeError, BranchOccupied
 from ide_server.capabilities.sessions import UncommittedChanges
 from ide_server.capabilities.search import SearchError
@@ -18,9 +18,12 @@ async def handle_message(raw: str, registry: Registry) -> str:
     try:
         result = await registry.dispatch(channel, payload)
         return json.dumps({"type": "res", "id": mid, "channel": channel, "payload": result})
-    except KeyError:
+    except UnknownChannel:
         return json.dumps({"type": "error", "id": mid, "channel": channel,
                            "payload": {"code": "unknown_channel", "message": f"no handler: {channel}"}})
+    except KeyError as exc:
+        return json.dumps({"type": "error", "id": mid, "channel": channel,
+                           "payload": {"code": "bad_request", "message": f"falta o no existe: {exc}"}})
     except BranchOccupied as exc:
         return json.dumps({"type": "error", "id": mid, "channel": channel,
                            "payload": {"code": "branch_occupied", "message": str(exc),

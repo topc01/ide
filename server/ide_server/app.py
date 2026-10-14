@@ -111,6 +111,9 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         except (SessionError, BranchOccupied) as exc:
             code = getattr(exc, "code", "branch_occupied")
             return JSONResponse({"code": code, "message": str(exc)}, status_code=409)
+        except KeyError as exc:
+            return JSONResponse({"code": "bad_request", "message": f"falta o no existe: {exc}"},
+                                status_code=400)
         except Exception as exc:  # noqa: BLE001 — nunca silencioso
             return JSONResponse({"code": "handler_error", "message": str(exc)}, status_code=500)
 

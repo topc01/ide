@@ -6,7 +6,7 @@ import tomllib
 from pathlib import Path
 from typing import TextIO
 from ide_server.sessions_fs import (
-    SessionError, session_path, sessions_dir, read_toml, update_session_toml,
+    SessionError, session_path, sessions_dir, read_toml, update_session_toml, workspace_lock,
 )
 from ide_server.workspace import discover_repos
 from ide_server.worktrees import add_worktree, remove_worktree, has_uncommitted_changes
@@ -42,8 +42,8 @@ def _used_ports(root: Path) -> set[int]:
     for p in d.iterdir():
         try:
             used.update(int(v) for v in read_toml(p / ".session.toml").get("ports", {}).values())
-        except (OSError, tomllib.TOMLDecodeError, ValueError):
-            continue
+        except (OSError, tomllib.TOMLDecodeError, ValueError, TypeError, AttributeError):
+            continue                            # ports malformado: no bloquea la asignación
     return used
 
 
@@ -56,6 +56,20 @@ def allocate_port(root: Path) -> int:
 
 def add_repo(root: Path, sid: str, repo: str, *, branch: str | None = None,
              detach_at: str | None = None, out: TextIO | None = None) -> dict:
+    with workspace_lock(root):                  # worktree + puerto + toml, atómico
+        branch_name, wt, port = _add_worktree_locked(root, sid, repo, branch, detach_at)
+    from ide_server.scripts import has_script, run_script
+    if has_script(root, repo, "setup"):
+        code = run_script(root, sid, repo, "setup", out=out)
+        if code != 0:
+            raise SessionError("setup_failed",
+                               f"setup de {repo} falló (exit {code}); reintentá con "
+                               f"`ide script setup {repo}`")
+    return {"name": repo, "branch": branch_name, "path": str(wt), "port": port}
+
+
+def _add_worktree_locked(root: Path, sid: str, repo: str, branch: str | None,
+                         detach_at: str | None) -> tuple[str | None, Path, int]:
     spath = require_session(root, sid)
     repo_path = _repo_root(root, repo)
     link, wt = spath / repo, worktree_path(root, sid, repo)
@@ -76,14 +90,7 @@ def add_repo(root: Path, sid: str, repo: str, *, branch: str | None = None,
         link.unlink(missing_ok=True)
         remove_worktree(repo_path, wt, force=True)
         raise
-    from ide_server.scripts import has_script, run_script
-    if has_script(root, repo, "setup"):
-        code = run_script(root, sid, repo, "setup", out=out)
-        if code != 0:
-            raise SessionError("setup_failed",
-                               f"setup de {repo} falló (exit {code}); reintentá con "
-                               f"`ide script setup {repo}`")
-    return {"name": repo, "branch": branch_name, "path": str(wt), "port": port}
+    return branch_name, wt, port
 
 
 def rm_repo(root: Path, sid: str, repo: str, *, force: bool = False,

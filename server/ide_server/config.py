@@ -28,6 +28,9 @@ def sessions_config(root: Path) -> dict:
     if cfg["default_permissions"] not in ("analyze", "full", "default"):
         raise ValueError(f"[sessions] default_permissions inválido: "
                          f"{cfg['default_permissions']!r} (analyze | full | default)")
+    mr = cfg["max_running"]
+    if mr is not None and (not isinstance(mr, int) or isinstance(mr, bool) or mr < 1):
+        raise ValueError(f"[sessions] max_running inválido: {mr!r} (entero >= 1, u omitido)")
     return cfg
 
 

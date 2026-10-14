@@ -1,5 +1,5 @@
 import pytest
-from ide_server.plugins import Registry
+from ide_server.plugins import Registry, UnknownChannel
 
 @pytest.mark.asyncio
 async def test_register_and_dispatch():
@@ -11,5 +11,5 @@ async def test_register_and_dispatch():
 @pytest.mark.asyncio
 async def test_unknown_channel():
     reg = Registry()
-    with pytest.raises(KeyError):
+    with pytest.raises(UnknownChannel):
         await reg.dispatch("nope", {})

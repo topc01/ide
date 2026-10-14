@@ -1,15 +1,18 @@
 # server/ide_server/sessions_fs.py
 from __future__ import annotations
+import fcntl
 import json
 import re
 import secrets
 import shutil
 import string
 import subprocess
+import threading
 import tomllib
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Iterator
 import tomli_w
 from ide_server import seeds
 from ide_server.sessions_store import slugify
@@ -103,11 +106,37 @@ def write_toml(path: Path, data: dict) -> None:
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
 
 
+_LOCK = threading.RLock()                       # threads del server
+_LOCK_STATE: dict = {"depth": 0, "fh": None}      # flock: entre procesos (server + CLI)
+
+
+@contextmanager
+def workspace_lock(root: Path) -> Iterator[None]:
+    """Lock exclusivo del workspace (`.ide/.lock`), reentrante dentro del proceso."""
+    with _LOCK:
+        if _LOCK_STATE["depth"] == 0:
+            path = root / ".ide" / ".lock"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fh = open(path, "a")
+            fcntl.flock(fh, fcntl.LOCK_EX)
+            _LOCK_STATE["fh"] = fh
+        _LOCK_STATE["depth"] += 1
+        try:
+            yield
+        finally:
+            _LOCK_STATE["depth"] -= 1
+            if _LOCK_STATE["depth"] == 0:
+                fh, _LOCK_STATE["fh"] = _LOCK_STATE["fh"], None
+                fcntl.flock(fh, fcntl.LOCK_UN)
+                fh.close()
+
+
 def update_session_toml(root: Path, sid: str, fn: Callable[[dict], None]) -> dict:
     path = session_path(root, sid) / ".session.toml"
-    data = read_toml(path)
-    fn(data)
-    write_toml(path, data)
+    with workspace_lock(root):
+        data = read_toml(path)
+        fn(data)
+        write_toml(path, data)
     return data
 
 
@@ -131,6 +160,13 @@ def create_session_dir(root: Path, *, sid: str, kind: str, permissions: str, pro
     if permissions not in PERMISSIONS:
         raise SessionError("invalid_permissions",
                            f"permisos inválidos: {permissions!r} (analyze | full | default)")
+    with workspace_lock(root):
+        return _create_session_dir(root, sid=sid, kind=kind, permissions=permissions,
+                                   prompt=prompt, meta=meta, now=now)
+
+
+def _create_session_dir(root: Path, *, sid: str, kind: str, permissions: str, prompt: str,
+                        meta: dict | None, now: datetime | None) -> Path:
     path = session_path(root, sid)
     if path.exists():
         raise SessionError("session_exists", f"ya existe la sesión {sid}")
@@ -178,7 +214,11 @@ def read_session(root: Path, sid: str) -> dict:
     except (OSError, UnicodeDecodeError) as exc:
         info["error"] = f".session.toml ilegible: {exc}"
         return info
-    info.update(kind=data.get("kind"), permissions=data.get("permissions"),
+    kind = data.get("kind")
+    if kind is not None and not isinstance(kind, str):
+        info["error"] = f"kind inválido: {kind!r}"
+        kind = None
+    info.update(kind=kind, permissions=data.get("permissions"),
                 created=str(data.get("created", "")), prUrl=data.get("pr_url"),
                 reviewedSha=data.get("reviewed_sha"))
     ports, setup = data.get("ports", {}), data.get("setup", {})

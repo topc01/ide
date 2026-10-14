@@ -31,3 +31,19 @@ async def test_non_object_json_returns_error():
     out = json.loads(await handle_message("[1, 2]", Registry()))
     assert out["type"] == "error"
     assert out["payload"]["code"] == "invalid_message"
+
+@pytest.mark.asyncio
+async def test_handler_keyerror_is_bad_request_not_unknown_channel():
+    reg = Registry()
+    async def h(p): return {"x": p["id"]}
+    reg.register("t.h", h)
+    raw = json.dumps({"type": "req", "id": "2", "channel": "t.h", "payload": {}})
+    out = json.loads(await handle_message(raw, reg))
+    assert out["payload"]["code"] == "bad_request" and "id" in out["payload"]["message"]
+
+@pytest.mark.asyncio
+async def test_unknown_channel_is_not_a_keyerror():
+    from ide_server.plugins import UnknownChannel
+    assert not issubclass(UnknownChannel, KeyError)
+    with pytest.raises(UnknownChannel):
+        await Registry().dispatch("nope", {})

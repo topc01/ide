@@ -130,3 +130,19 @@ def test_meta_cannot_override_seeded_status(tmp_path):
                            meta={"status": "done", "title": "T"})
     assert read_session(tmp_path, "fin-9")["status"] == "analyzing"
     assert (p / "TICKET.md").read_text().startswith("---\nstatus: analyzing\n")
+
+
+@pytest.mark.parametrize("kind", ['["ticket"]', '{ a = 1 }', '3'])
+def test_non_string_kind_surfaces_as_error(tmp_path, kind):
+    p = create_session_dir(tmp_path, sid="t", kind="ticket", permissions="analyze", prompt="")
+    (p / ".session.toml").write_text(f'kind = {kind}\npermissions = "analyze"\n')
+    s = list_sessions(tmp_path)[0]
+    assert s["kind"] is None and "kind inválido" in s["error"]
+
+
+def test_workspace_lock_is_reentrant(tmp_path):
+    from ide_server.sessions_fs import workspace_lock
+    with workspace_lock(tmp_path):
+        with workspace_lock(tmp_path):
+            update_session_toml  # noqa: B018 — sólo verificamos que no se cuelga
+    assert (tmp_path / ".ide" / ".lock").exists()

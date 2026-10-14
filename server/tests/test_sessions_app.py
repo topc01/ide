@@ -35,3 +35,15 @@ def test_ws_session_error_envelope(tmp_path):
                                  "payload": {"id": "nope"}}))
         out = json.loads(ws.receive_text())
         assert out["type"] == "error" and out["payload"]["code"] == "unknown_session"
+
+
+def test_http_missing_field_is_400(tmp_path, monkeypatch):
+    from ide_server.capabilities import folder_sessions
+
+    def boom(root, req):
+        raise KeyError("id")
+
+    monkeypatch.setattr(folder_sessions, "create_session", boom)
+    with TestClient(create_app(_ws(tmp_path), claude_command="sleep 30")) as c:
+        r = c.post("/api/sessions", json={})
+        assert r.status_code == 400 and r.json()["code"] == "bad_request"
