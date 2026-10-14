@@ -1,5 +1,7 @@
 from __future__ import annotations
 import asyncio
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi.responses import JSONResponse
 from ide_server.capabilities import folder_sessions as folder_cap
@@ -29,6 +31,8 @@ from ide_server.capabilities import models_fit as models_fit_cap
 from ide_server.capabilities import mlx_config as mlx_config_cap
 from ide_server.mlx.orchestrator import build_mlx_router
 from ide_server.models.downloader import ModelDownloader
+
+log = logging.getLogger(__name__)
 
 
 def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | None = None,
@@ -63,16 +67,35 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     mlx_config_cap.register(registry, root)
     models_fit_cap.register(registry, root)
 
-    app = FastAPI(title="Agentic IDE")
+    stop_bg = asyncio.Event()
+
+    def _log_done(t: asyncio.Task) -> None:
+        if not t.cancelled() and t.exception() is not None:
+            log.error("tarea de fondo falló", exc_info=t.exception())
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        tasks = [
+            asyncio.create_task(watch_workspace(root, lambda: notify_box["fn"](), stop_event=stop_bg)),
+            asyncio.create_task(poller.run(stop_bg)),
+        ]
+        for t in tasks:
+            t.add_done_callback(_log_done)
+        try:
+            yield
+        finally:
+            stop_bg.set()
+            for t in tasks:
+                t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            if mlx_router is not None:
+                await mlx_router.aclose()
+
+    app = FastAPI(title="Agentic IDE", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware, allow_origins=settings.cors_origins,
         allow_methods=["*"], allow_headers=["*"],
     )
-
-    @app.on_event("shutdown")
-    async def _shutdown_mlx() -> None:
-        if mlx_router is not None:
-            await mlx_router.aclose()
 
     @app.get("/health")
     async def health() -> dict:
@@ -81,21 +104,6 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     @app.get("/api/repos")
     async def api_repos() -> dict:
         return await registry.dispatch("repos.list", {})
-
-    stop_bg = asyncio.Event()
-
-    @app.on_event("startup")
-    async def _start_bg() -> None:
-        app.state.bg = [
-            asyncio.create_task(watch_workspace(root, lambda: notify_box["fn"](), stop_event=stop_bg)),
-            asyncio.create_task(poller.run(stop_bg)),
-        ]
-
-    @app.on_event("shutdown")
-    async def _stop_bg() -> None:
-        stop_bg.set()
-        for t in getattr(app.state, "bg", []):
-            t.cancel()
 
     async def _http(channel: str, payload: dict):
         try:

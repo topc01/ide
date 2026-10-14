@@ -61,6 +61,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     async def script(p: dict) -> dict:
         require_session(root, p["id"])
+        if not worktree_path(root, p["id"], p["repo"]).exists():
+            raise SessionError("unknown_repo", f"{p['repo']} no está en la sesión {p['id']}")
         argv = script_argv(root, p["repo"], p["name"])
         tid = hooks.spawn(worktree_path(root, p["id"], p["repo"]), argv,
                           script_env(root, p["id"], p["repo"]), notify, session_id=p["id"])

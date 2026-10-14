@@ -36,7 +36,7 @@ def _reg(root):
     sup = Supervisor(root, spawn=hooks.spawn, kill=hooks.kill, server_url="u",
                      home=root / "home", which=lambda c: "/x")
     poller = PrPoller(root, interval=0)
-    notify = cap.register(reg, root, rec, hooks=hooks, supervisor=sup, poller=poller)
+    cap.register(reg, root, rec, hooks=hooks, supervisor=sup, poller=poller)
     return reg, rec, hooks, sup
 
 

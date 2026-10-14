@@ -31,17 +31,25 @@ def discover_repos(root: Path) -> list[dict]:
 
 def _folder_session(root: Path, payload: dict) -> Path | None:
     sid = payload.get("sessionId")
-    if not sid:
+    if not sid or Path(sid).name != sid or sid in (".", ".."):
         return None
     path = root / ".ide" / "sessions" / sid
     return path if (path / ".session.toml").is_file() else None
+
+
+def _linked_repos(folder: Path) -> list[str]:
+    return [p.name for p in folder.iterdir() if p.is_symlink()]
 
 
 def resolve_cwd(root: Path, payload: dict) -> Path:
     folder = _folder_session(root, payload)
     if folder is not None:
         repo = payload.get("repoId")
-        return (folder / repo).resolve() if repo and (folder / repo).exists() else folder
+        if not repo:
+            return folder
+        if repo not in _linked_repos(folder) or not (folder / repo).exists():
+            raise KeyError(repo)
+        return (folder / repo).resolve()
     from ide_server.sessions_store import load_sessions, find_node
     if payload.get("sessionId"):
         node = find_node(load_sessions(root), payload["sessionId"])
@@ -59,10 +67,14 @@ def resolve_cwd(root: Path, payload: dict) -> Path:
 def resolve_repo(root: Path, payload: dict) -> Path:
     folder = _folder_session(root, payload)
     if folder is not None:
-        repos = [p.name for p in folder.iterdir() if p.is_symlink()]
-        repo = payload.get("repoId") or (repos[0] if len(repos) == 1 else None)
+        repos = _linked_repos(folder)
+        repo = payload.get("repoId")
+        if repo is not None and repo not in repos:
+            raise KeyError(repo)
         if repo is None:
-            raise KeyError("la sesión tiene 0 o varios repos: indicá repoId")
+            if len(repos) != 1:
+                raise KeyError("la sesión tiene 0 o varios repos: indicá repoId")
+            repo = repos[0]
         return root / repo
     from ide_server.sessions_store import load_sessions, find_node
     if payload.get("sessionId"):
