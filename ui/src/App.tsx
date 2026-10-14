@@ -7,19 +7,17 @@ import "./modules/tasks/register";
 import "./modules/files/register";
 import { ActivityRail } from "./layout/ActivityRail";
 import { ContextPanel } from "./layout/ContextPanel";
-import { SessionsPanel } from "./modules/sessions/SessionsPanel";
-import { NewSessionModal } from "./modules/sessions/NewSessionModal";
+import { FolderSessionsPanel } from "./modules/sessions/FolderSessionsPanel";
 import { SettingsModal } from "./modules/settings/SettingsModal";
 import { MainPanel } from "./layout/MainPanel";
 
 export default function App() {
   return (
     <div className="flex h-full">
-      <SessionsPanel />
+      <FolderSessionsPanel />
       <ActivityRail />
       <ContextPanel />
       <MainPanel />
-      <NewSessionModal />
       <SettingsModal />
     </div>
   );

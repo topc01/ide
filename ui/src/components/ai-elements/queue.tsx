@@ -59,4 +59,4 @@ export const QueueItemActions = ({ className, ...p }: React.ComponentProps<"div"
 
 export const QueueItemAction = ({ className, ...p }:
   Omit<React.ComponentProps<typeof Button>, "variant" | "size">) =>
-  <Button variant="ghost" size="icon" className={cn("h-5 w-5", className)} {...p} />;
+  <Button variant="ghost" size="icon-xs" className={className} {...p} />;

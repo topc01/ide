@@ -1,21 +1,22 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
-vi.mock("./transport/wsClient", () => ({ getWs: () => ({}) }));
-vi.mock("./transport/sessions", async (orig) => ({
+vi.mock("./transport/wsClient", () => ({
+  getWs: () => ({ on: () => {}, off: () => {}, onClose: () => {},
+                  request: () => Promise.resolve({ modules: ["sessions", "terminal"] }) }),
+}));
+vi.mock("./transport/folderSessions", async (orig) => ({
   ...(await orig<any>()),
-  fetchTree: vi.fn().mockResolvedValue({
-    sessions: [{ id: "s1", name: "MiSesión", status: "idle", expanded: true, children: [] }],
-    repos: [{ id: "repoA", name: "repoA", branch: "main" }],
-  }),
+  fetchSessions: vi.fn().mockResolvedValue({ workspaceRepos: [], scripts: {}, sessions: [
+    { id: "fin-9", kind: "ticket", path: "", created: "1", permissions: "analyze", title: "MiTicket",
+      status: "analyzing", meta: {}, repos: [], error: null, process: "stopped", terminalId: null }] }),
 }));
 
 import App from "./App";
 
-describe("App con sesiones", () => {
-  it("monta el SessionsPanel con el árbol del backend", async () => {
+describe("App con sesiones-carpeta", () => {
+  it("monta el sidebar nuevo", async () => {
     render(<App />);
-    await waitFor(() => expect(screen.getByText("MiSesión")).toBeInTheDocument());
-    expect(screen.getByText(/Agregar sesión/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("MiTicket")).toBeInTheDocument());
   });
 });
