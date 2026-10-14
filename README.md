@@ -33,7 +33,7 @@ Tres regiones (según el mockup, dirección visual **1a — Terminal/amber**):
 
 ## Documentación
 
-- **`docs/ide-handoff.md`** — guía para agentes: cómo operar y hacer handoff al IDE (también `ide help`).
+- **`ide docs`** (`server/ide_server/REFERENCE.md`) — referencia completa para agentes y humanos: layout de `.ide/`, `config.toml`, permisos, plantillas, scripts, CLI, estados y errores.
 - `docs/superpowers/HANDOFF.md` — estado vivo del desarrollo y próximos pasos.
 - `docs/design/handoff/HANDOFF.md` — spec de diseño (fuente de verdad, alta fidelidad).
 - `docs/design/handoff/mockup.dc.html` — prototipo interactivo (formato propietario `.dc.html`).

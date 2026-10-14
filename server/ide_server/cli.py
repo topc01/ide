@@ -120,6 +120,9 @@ COMANDOS
         `ide run` ya auto-inicializa.
   ide help
         Esta ayuda.
+  ide docs
+        Referencia completa (layout de .ide/, config.toml, permisos, plantillas, scripts, CLI,
+        estados, errores). Pensada para que un agente pueda configurar el IDE.
   ide session new [--id X] [--main] [--template t --var k=v …] [--prompt "…" | --prompt-file f]
                   [--permissions analyze|full|default] [--review <pr-url>]
                   [--notion <url>] [--vars-file f.json|-] [--if-missing] [--dry-run]
@@ -163,7 +166,7 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
 
     parser = argparse.ArgumentParser(prog="ide")
     parser.add_argument("command", nargs="?", default="run",
-                        choices=["run", "server", "ui", "init", "build", "ls", "help"])
+                        choices=["run", "server", "ui", "init", "build", "ls", "help", "docs"])
     parser.add_argument("--cwd", default=".")
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--dev", action="store_true")
@@ -173,6 +176,10 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
 
     if args.command == "help":
         print(HELP_TEXT)
+        return 0
+
+    if args.command == "docs":
+        print((Path(__file__).parent / "REFERENCE.md").read_text(encoding="utf-8"))
         return 0
 
     if args.command == "init":

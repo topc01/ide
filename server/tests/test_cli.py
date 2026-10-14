@@ -224,3 +224,19 @@ def test_ui_outside_repo(capsys, monkeypatch):
     monkeypatch.setattr(cli, "repo_ui", lambda: None)
     assert cli.main(["ui", "--dev"]) == 1
     assert "checkout" in capsys.readouterr().out
+
+
+def test_docs_prints_reference(capsys):
+    assert main(["docs"]) == 0
+    out = capsys.readouterr().out
+    assert "## 4. `config.toml`" in out and "--if-missing" in out
+
+
+def test_help_mentions_docs(capsys):
+    main(["help"])
+    assert "ide docs" in capsys.readouterr().out
+
+
+def test_seeded_claude_md_points_to_docs():
+    from ide_server.seeds import claude_md
+    assert "ide docs" in claude_md(["a"])

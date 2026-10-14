@@ -23,7 +23,8 @@ def claude_md(repos: list[str]) -> str:
     return f"""\
 # Workspace
 
-Estás en una sesión del IDE (`.ide/sessions/<id>/`). Los repos del workspace:
+Estás en una sesión del IDE (`.ide/sessions/<id>/`). Referencia completa del IDE (config,
+permisos, plantillas, scripts, CLI): corré `ide docs`. Los repos del workspace:
 
 {lines}
 

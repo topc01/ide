@@ -69,6 +69,12 @@ especificar. **Sesiones-carpeta hechas** (backend + UI; los módulos viejos qued
 `[ui] modules` en `.ide/config.toml`). Próximo: chat propio sobre sesiones-carpeta y
 re-habilitar módulos ocultos; ver `docs/superpowers/HANDOFF.md`.
 
+## Documentación del IDE
+
+`server/ide_server/REFERENCE.md` (se imprime con `ide docs`) es la referencia para que un agente
+configure y opere el IDE. **Todo cambio de comportamiento visible (flags, config, plantillas,
+permisos, estados, errores) actualiza ese archivo en el mismo commit.**
+
 ## Commits
 
 Conventional commits, atómicos, en español. Un commit por tarea del plan.
