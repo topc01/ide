@@ -95,12 +95,12 @@ async def test_ask_returns_child_text_and_emits_relays(tmp_path):
     hub = SessionHub(tmp_path, FakeManager(), FakeDriver)
     hub._load_ctx = lambda sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None,
                                  "model": None, "is_coordinator": sid == "coord"}
-    reply = await hub.ask("coord", "c1", "compilá")
+    reply = await hub.ask("coord", "c1", "compila")
     assert reply == "ok"
     kinds = [(ch, p["kind"], p.get("direction"), p.get("text")) for ch, p in hub.manager.events if p["kind"] == "relay"]
     # entrante a la hija, saliente al coord, respuesta entrante al coord
-    assert ("chat.event.c1", "relay", "in", "compilá") in kinds
-    assert ("chat.event.coord", "relay", "out", "compilá") in kinds
+    assert ("chat.event.c1", "relay", "in", "compila") in kinds
+    assert ("chat.event.coord", "relay", "out", "compila") in kinds
     assert ("chat.event.coord", "relay", "in", "ok") in kinds
 
 
@@ -206,7 +206,7 @@ async def test_ask_rejects_non_child_target(tmp_path):
     with pytest.raises(ValueError):
         await hub.ask("coord", "no-existe", "x")
     # a la hija real sigue funcionando
-    assert await hub.ask("coord", "c1", "compilá") == "ok"
+    assert await hub.ask("coord", "c1", "compila") == "ok"
 
 
 def test_list_children(tmp_path):

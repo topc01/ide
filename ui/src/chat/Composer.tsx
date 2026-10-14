@@ -23,7 +23,7 @@ export function Composer({ onSend, onStop, streaming }:
       </select>
       <Input value={text} onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
-        placeholder="Escribí un mensaje…" className="flex-1" />
+        placeholder="Escribe un mensaje…" className="flex-1" />
       {streaming ? (
         <Button variant="secondary" size="icon" aria-label="detener" onClick={onStop}>
           <Square size={16} />

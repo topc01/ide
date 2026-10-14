@@ -22,7 +22,7 @@ una branch con confirmación.
    texto de `gt log`, sin checkouts. Commits y archivos salen de **git** (reusa `git.py` de R4).
 2. **Repo = repo de la sesión activa.** La metadata gt vive en el `.git` del repo (compartido
    entre worktrees), así que se resuelve el **repo** (no el worktree) desde la sesión. Nuevo
-   helper `workspace.resolve_repo`. Sin sesión → estado neutro "seleccioná una sesión".
+   helper `workspace.resolve_repo`. Sin sesión → estado neutro "selecciona una sesión".
 3. **Refresco = fetch al abrir + botón refrescar + re-fetch al cambiar de sesión.** Sin
    polling (la estructura del stack cambia poco y cada refresh dispara varios `git log`).
 4. **Interacción inline, sin lupa ni tab de detalle:** una sola columna; branch expande a
@@ -151,8 +151,8 @@ re-fetch stack.
 - Repo sin gt / db ausente / gt no instalado → `GraphiteError` → envelope → panel "desconectado
   / no es un repo Graphite", nunca stack viejo.
 - Restack con conflicto → gt no-interactive falla → cleanup `rebase --abort` → envelope
-  "restack con conflictos, resolvé en la terminal".
-- Sin sesión activa → estado neutro "seleccioná una sesión" (no se llama al backend).
+  "restack con conflictos, resuelve en la terminal".
+- Sin sesión activa → estado neutro "selecciona una sesión" (no se llama al backend).
 - Guard de sesión anti-race en el store (descarta respuestas de sesión previa).
 
 ## Plan de tests (TDD, un commit por tarea)

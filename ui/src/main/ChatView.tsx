@@ -26,7 +26,7 @@ export function ChatView() {
   useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight); });
 
   if (!sid) {
-    return <div className="p-4 text-sm text-muted-foreground">Seleccioná una sesión para chatear.</div>;
+    return <div className="p-4 text-sm text-muted-foreground">Selecciona una sesión para chatear.</div>;
   }
   const c = convos[sid];
   return (

@@ -51,8 +51,8 @@ Agregar a `server/tests/test_chat_events.py`:
 ```python
 def test_relay_message_payload():
     from ide_server.chat.events import RelayMessage, to_payload
-    p = to_payload(RelayMessage(direction="out", peer="Hija A", peer_id="c2", text="compilá"))
-    assert p == {"kind": "relay", "direction": "out", "peer": "Hija A", "peerId": "c2", "text": "compilá"}
+    p = to_payload(RelayMessage(direction="out", peer="Hija A", peer_id="c2", text="compila"))
+    assert p == {"kind": "relay", "direction": "out", "peer": "Hija A", "peerId": "c2", "text": "compila"}
 ```
 
 - [ ] **Step 2: Correr, verificar que falla**
@@ -106,7 +106,7 @@ git commit -m "feat(chat): evento RelayMessage (mensaje relay entre sesiones)"
 
 - [ ] **Step 1: Test que falla**
 
-Mirá el patrón de fake client de `test_chat_driver.py` y reusalo. Agregar:
+Mira el patrón de fake client de `test_chat_driver.py` y reutilízalo. Agregar:
 
 ```python
 @pytest.mark.asyncio
@@ -148,10 +148,10 @@ def test_driver_passes_mcp_servers_to_options():
 ```
 
 > Nota al implementador: `ResultMessage`/`AssistantMessage`/`TextBlock` puede requerir kwargs
-> distintos según la versión del SDK; ajustá la construcción del fake a la firma real (mirá cómo
-> los usa `translate.py`). Para el segundo test, en vez de `d._mcp_servers_debug`, asertá que
+> distintos según la versión del SDK; ajusta la construcción del fake a la firma real (mira cómo
+> los usa `translate.py`). Para el segundo test, en vez de `d._mcp_servers_debug`, aserta que
 > `captured["options"].mcp_servers == {"orq": <el mismo object>}` guardando la referencia del
-> `object()` en una variable local y comparando contra ella. Ajustá el assert a esa forma.
+> `object()` en una variable local y comparando contra ella. Ajusta el assert a esa forma.
 
 - [ ] **Step 2: Correr, verificar que falla**
 
@@ -211,7 +211,7 @@ git commit -m "feat(chat): driver.send devuelve el texto asistente y acepta mcp_
 - Produces: `SessionHub(root, manager, driver_factory)` con:
   - `async ensure_started(session_id, *, override=None) -> driver` — si ya está, lo devuelve; si
     no, carga contexto, resuelve permiso, construye el driver (con `mcp_servers` si la sesión es
-    coordinadora — se cablea en Task 6, acá el hook queda como `self._mcp_for(session_id)` que
+    coordinadora — se cablea en Task 6, aquí el hook queda como `self._mcp_for(session_id)` que
     por ahora devuelve `None`), lo arranca, lo registra. `override` se pasa a `resolve_permission`.
   - `async send_human(session_id, text) -> None` — bajo lock, `driver.send(text)`.
   - `async interrupt(session_id) -> None`.
@@ -381,7 +381,7 @@ class SessionHub:
 > Nota: el `mcp_servers=mcp` se pasa siempre al factory; el `FakeDriver` de los tests del hub y de
 > Task 6 acepta `mcp_servers`. El `FakeDriver` de `test_chat_capability.py` NO lo acepta — por eso
 > ese test se rewirea en el Step 5 para usar el hub con un factory que sí lo acepta, O se mantiene
-> el paso condicional (ver Step 5). Elegí la opción que deje ese test verde con el mínimo cambio.
+> el paso condicional (ver Step 5). Elige la opción que deje ese test verde con el mínimo cambio.
 
 - [ ] **Step 4: Correr los tests del hub**
 
@@ -444,29 +444,29 @@ def register(registry: Registry, root: Path, manager, driver_factory=None, hub=N
 
 > El `on_event` del hub usa `asyncio.create_task(self.emit(...))` (dispara el broadcast). Los tests
 > de `test_chat_capability.py` esperan que el broadcast ocurra tras `chat.send`: como el fake
-> `send` del test llama `on_event` sincrónicamente y `emit` crea una task, agregá un `await
+> `send` del test llama `on_event` sincrónicamente y `emit` crea una task, agrega un `await
 > asyncio.sleep(0)` NO — en cambio, esos tests ya existen y usan `driver_factory=FakeDriver` sin
 > `mcp_servers`. PARA MANTENERLOS VERDES: (a) el `FakeDriver` de ese archivo no acepta
 > `mcp_servers`; como esas sesiones no son coordinadoras, `mcp` es `None`, pero el hub igual pasa
 > `mcp_servers=None` al factory → el `FakeDriver` lo rechazaría. Solución mínima: en el hub, armar
 > un dict `opts` y hacer `if mcp is not None: opts["mcp_servers"] = mcp` (no pasar la clave cuando
 > es None), y pasar `**opts` al factory. Así el `FakeDriver` viejo (sin `mcp_servers`) sigue
-> andando. Ajustá `ensure_started` a esa forma (dict opts + `**opts`).
+> andando. Ajusta `ensure_started` a esa forma (dict opts + `**opts`).
 >
 > Para el broadcast tras `chat.send`: el test asertaba el evento en `mgr.events` inmediatamente
-> tras `await reg.dispatch("chat.send", ...)`. Con `emit` como task, hacé que `send_human` haga
+> tras `await reg.dispatch("chat.send", ...)`. Con `emit` como task, haz que `send_human` haga
 > `await self.emit(...)` de los eventos capturados NO — mejor: que el `on_event` del driver, en el
 > hub, NO cree task sino que agende el broadcast y `send_human`/`ensure_started` lo flusheen. Para
-> mantener el test simple y determinístico, implementá `on_event` así: acumula los eventos en una
+> mantener el test simple y determinístico, implementa `on_event` así: acumula los eventos en una
 > lista y `send_human`/`ensure_started` hacen `await` de los broadcasts pendientes al terminar
-> (patrón `_flush_broadcasts` que ya existía en el chat original). Copiá ese patrón del `git show`
+> (patrón `_flush_broadcasts` que ya existía en el chat original). Copia ese patrón del `git show`
 > del `chat.py` original si hace falta. Lo importante: tras `chat.send`, el evento ya está en
 > `mgr.events`.
 
 - [ ] **Step 6: Wire en `app.py`**
 
 En `server/ide_server/app.py`, `chat_cap.register(registry, root, manager)` puede seguir igual
-(crea el hub internamente y lo devuelve). Guardá el hub devuelto para Task 6:
+(crea el hub internamente y lo devuelve). Guarda el hub devuelto para Task 6:
 `hub = chat_cap.register(registry, root, manager)`.
 
 - [ ] **Step 7: Correr TODO chat**
@@ -511,12 +511,12 @@ async def test_ask_returns_child_text_and_emits_relays(tmp_path):
     hub = SessionHub(tmp_path, FakeManager(), FakeDriver)
     hub._load_ctx = lambda sid: {"cwd": str(tmp_path), "system_prompt": "s", "role": None,
                                  "model": None, "is_coordinator": sid == "coord"}
-    reply = await hub.ask("coord", "c1", "compilá")
+    reply = await hub.ask("coord", "c1", "compila")
     assert reply == "ok"
     kinds = [(ch, p["kind"], p.get("direction"), p.get("text")) for ch, p in hub.manager.events if p["kind"] == "relay"]
     # entrante a la hija, saliente al coord, respuesta entrante al coord
-    assert ("chat.event.c1", "relay", "in", "compilá") in kinds
-    assert ("chat.event.coord", "relay", "out", "compilá") in kinds
+    assert ("chat.event.c1", "relay", "in", "compila") in kinds
+    assert ("chat.event.coord", "relay", "out", "compila") in kinds
     assert ("chat.event.coord", "relay", "in", "ok") in kinds
 
 
@@ -728,8 +728,8 @@ class FakeHub:
 @pytest.mark.asyncio
 async def test_t_ask_session_delegates_and_returns_text():
     hub = FakeHub()
-    res = await orq._t_ask_session(hub, "coord", {"session_id": "c1", "task": "hacé X"})
-    assert hub.asked == [("c1", "hacé X")]
+    res = await orq._t_ask_session(hub, "coord", {"session_id": "c1", "task": "haz X"})
+    assert hub.asked == [("c1", "haz X")]
     assert res["content"][0]["text"] == "reply:c1"
 
 
@@ -843,10 +843,10 @@ def build_orq_server(hub, coordinator_id: str):
 ```
 
 > Nota: la firma exacta de `tool(...)` y `create_sdk_mcp_server(...)` puede variar según la versión
-> del SDK (el schema puede pedir tipos como `{"type":"string"}` en vez de `str`). Verificá con
-> `uv run python -c "from claude_agent_sdk import tool, create_sdk_mcp_server; help(tool)"` y ajustá
+> del SDK (el schema puede pedir tipos como `{"type":"string"}` en vez de `str`). Verifica con
+> `uv run python -c "from claude_agent_sdk import tool, create_sdk_mcp_server; help(tool)"` y ajusta
 > la construcción para que `build_orq_server` devuelva un server válido. Los tests de las funciones
-> `_t_*` no dependen del SDK; solo `test_build_orq_server_exposes_four_tools` lo toca (mantenelo en
+> `_t_*` no dependen del SDK; solo `test_build_orq_server_exposes_four_tools` lo toca (manténlo en
 > un assert robusto: `server is not None`).
 
 En `session_hub.py`, cambiar `_mcp_for`:
@@ -891,17 +891,17 @@ En `ui/src/state/chat.test.ts` agregar:
 ```ts
 it("un evento relay agrega un mensaje con badge sin romper el streaming", () => {
   const { applyEvent } = useChat.getState();
-  applyEvent("s1", { kind: "relay", direction: "out", peer: "Hija A", peerId: "c1", text: "compilá" });
+  applyEvent("s1", { kind: "relay", direction: "out", peer: "Hija A", peerId: "c1", text: "compila" });
   const c = useChat.getState().convos["s1"];
   const m = c.messages[c.messages.length - 1];
-  expect(m.text).toBe("compilá");
+  expect(m.text).toBe("compila");
   expect(m.relay).toEqual({ direction: "out", peer: "Hija A" });
 });
 ```
 
 En `ui/src/main/ChatView.test.tsx` agregar un test que renderice un `Msg` con `relay` y asere que
-aparece el badge (p.ej. el nombre del peer y la flecha). Seguí el patrón de render existente del
-archivo (mirá cómo monta `ChatView` con un convo del store).
+aparece el badge (p.ej. el nombre del peer y la flecha). Sigue el patrón de render existente del
+archivo (mira cómo monta `ChatView` con un convo del store).
 
 - [ ] **Step 2: Correr, verificar que falla**
 
@@ -921,7 +921,7 @@ En `ui/src/state/chat.ts`:
 
 En `ui/src/main/ChatView.tsx`: al renderizar cada `Msg`, si `m.relay`, mostrar un badge antes/junto
 al texto: `→ {peer}` si `direction === "out"`, `← {peer}` si `"in"`, con clase de color ámbar
-(reusá el token de accent existente, p.ej. `text-[#e0863f]`). Seguí el markup de burbuja que ya
+(reutiliza el token de accent existente, p.ej. `text-[#e0863f]`). Sigue el markup de burbuja que ya
 usa el componente.
 
 - [ ] **Step 4: Correr, verificar que pasa**

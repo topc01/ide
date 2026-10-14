@@ -19,12 +19,12 @@ modules = ["sessions", "terminal"]
 
 
 def claude_md(repos: list[str]) -> str:
-    lines = "\n".join(f"- `{r}`: (describí qué hace este repo)" for r in repos) or "- (sin repos)"
+    lines = "\n".join(f"- `{r}`: (describe qué hace este repo)" for r in repos) or "- (sin repos)"
     return f"""\
 # Workspace
 
 Estás en una sesión del IDE (`.ide/sessions/<id>/`). Referencia completa del IDE (config,
-permisos, plantillas, scripts, CLI): corré `ide docs`. Los repos del workspace:
+permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace:
 
 {lines}
 
@@ -42,42 +42,42 @@ permisos, plantillas, scripts, CLI): corré `ide docs`. Los repos del workspace:
 
 Las sesiones de ticket mantienen `TICKET.md` (frontmatter `status`:
 analyzing | blocked | questions | ready | in-progress | done). Las de revisión, `REVIEW.md`
-(reviewing | commented | approved | changes-requested). Solo cambiá `status` y el cuerpo.
+(reviewing | commented | approved | changes-requested). Solo cambia `status` y el cuerpo.
 """
 
 
 TEMPLATE_MAIN = """\
-Sos la sesión principal de este workspace.
+Eres la sesión principal de este workspace.
 
-1. Tickets: consultá mi base de tickets en Notion: <URL o collection:// de la base>
+1. Tickets: consulta mi base de tickets en Notion: <URL o collection:// de la base>
    (asignados a mí; Status en <estados que entran, ej. Backlog, To Do, In progress>).
 2. PRs: `gh search prs --review-requested=@me --state=open --json url,title,repository`.
-3. Probá cada uno con `--dry-run` y mostrame una tabla:
-   id | título | status | ¿ya tiene sesión? | acción. Esperá mi OK.
+3. Prueba cada uno con `--dry-run` y muéstrame una tabla:
+   id | título | status | ¿ya tiene sesión? | acción. Espera mi OK.
 4. Con OK, por cada ticket:
    `ide session new --if-missing --notion <url del ticket> --template ticket --vars-file -`
    pasando por stdin `{"title": "…"}` (JSON: así los títulos no se rompen en el shell).
    Por cada PR: `ide session new --if-missing --review <url>`.
-5. Resumí lo lanzado. Estado general: leé `../*/TICKET.md` y `../*/REVIEW.md`.
+5. Resume lo lanzado. Estado general: lee `../*/TICKET.md` y `../*/REVIEW.md`.
 """
 TEMPLATE_TICKET = """\
-Sos la sesión del ticket {{id}}: "{{title}}" ({{notion_url}}).
+Eres la sesión del ticket {{id}}: "{{title}}" ({{notion_url}}).
 
 Tu trabajo AHORA es analizar, no implementar:
-1. Leé ../CLAUDE.md (mapa de repos) y el ticket en Notion ({{notion_url}}).
-2. Determiná scope y qué repos toca. Por cada uno: `ide repo add <repo>`.
-3. Escribí TICKET.md: Scope, Repos, Plan, Bloqueantes, Dudas.
-   Cambiá `status` a blocked | questions | ready.
-4. Pará y esperá instrucciones.
+1. Lee ../CLAUDE.md (mapa de repos) y el ticket en Notion ({{notion_url}}).
+2. Determina scope y qué repos toca. Por cada uno: `ide repo add <repo>`.
+3. Escribe TICKET.md: Scope, Repos, Plan, Bloqueantes, Dudas.
+   Cambia `status` a blocked | questions | ready.
+4. Detente y espera instrucciones.
 """
 
 TEMPLATE_REVIEW = """\
-Sos la revisión del PR {{pr_url}} ("{{title}}", de {{author}}) en el repo {{repo}}.
+Eres la revisión del PR {{pr_url}} ("{{title}}", de {{author}}) en el repo {{repo}}.
 El worktree `{{repo}}/` está en el head del PR (detached).
 
-1. Revisá el diff contra la base (`gh pr diff {{pr_url}}`, y leé el código alrededor).
-2. Escribí REVIEW.md con hallazgos por severidad (bloqueante / importante / menor / nit).
-3. Cambiá `status` a commented | approved | changes-requested según tu veredicto.
+1. Revisa el diff contra la base (`gh pr diff {{pr_url}}`, y lee el código alrededor).
+2. Escribe REVIEW.md con hallazgos por severidad (bloqueante / importante / menor / nit).
+3. Cambia `status` a commented | approved | changes-requested según tu veredicto.
 4. NO publiques nada en GitHub sin que te lo pida.
 """
 

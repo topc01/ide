@@ -725,7 +725,7 @@ def main(argv: list[str] | None = None) -> int:
 
     root = resolve_root(cwd)
     if root is None:
-        print("No se encontró un workspace (.ide/). Corré `ide init` en la raíz del workspace.")
+        print("No se encontró un workspace (.ide/). Ejecuta `ide init` en la raíz del workspace.")
         return 1
 
     from ide_server.app import create_app

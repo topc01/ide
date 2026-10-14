@@ -15,9 +15,9 @@ class Role:
 
 PRESETS: dict[str, Role] = {
     "lector": Role("lector", model="haiku", read_only=True),
-    "revisor": Role("revisor", system_prompt="Revisá el código y reportá problemas.", read_only=True),
-    "arquitecto": Role("arquitecto", system_prompt="Diseñá la arquitectura.", read_only=False),
-    "disenador": Role("disenador", system_prompt="Enfocate en frontend/UI.", read_only=False),
+    "revisor": Role("revisor", system_prompt="Revisa el código y reporta problemas.", read_only=True),
+    "arquitecto": Role("arquitecto", system_prompt="Diseña la arquitectura.", read_only=False),
+    "disenador": Role("disenador", system_prompt="Enfócate en frontend/UI.", read_only=False),
 }
 
 

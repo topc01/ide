@@ -23,7 +23,7 @@ La lógica de dominio se **porta desde finnecto-ide como referencia** (ver
 | R5 | Graphite + Branch detail | Branch-stack lineal, expand a commits/archivos, restack. | ⏳ **R5a hecho** (lectura + restack); **R5b pendiente** (checkout + submit) |
 | R6 | Tasks + Notion + Settings | Módulo Tasks, Notion editable, Settings + Customizations. | ✅ Settings/Customizations + Notion + Tasks hechos (ver abajo) |
 
-## Rebanadas más allá del plan original
+## Rebanadas más allí del plan original
 
 A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron algunas nuevas:
 

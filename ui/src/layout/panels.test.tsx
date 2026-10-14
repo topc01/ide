@@ -13,6 +13,6 @@ describe("panels", () => {
   });
   it("MainPanel renderiza ChatView cuando no hay sesión activa", () => {
     render(<MainPanel />);
-    expect(screen.getByText(/Seleccioná una sesión para chatear\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Selecciona una sesión para chatear\./i)).toBeInTheDocument();
   });
 });

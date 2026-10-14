@@ -212,8 +212,8 @@ git commit -m "feat(notion): diff_ops (append/delete/patch con id_map, protege n
 
 - [ ] **Step 1: Escribir los tests que fallan**
 
-Agregar al final de `server/tests/test_notion_client.py` (revisá arriba del archivo el estilo de
-fakes existentes y reusalo; estos fakes son autocontenidos):
+Agregar al final de `server/tests/test_notion_client.py` (revisa arriba del archivo el estilo de
+fakes existentes y reutilízalo; estos fakes son autocontenidos):
 
 ```python
 import pytest
@@ -452,8 +452,8 @@ git commit -m "feat(notion): append_block/delete_block/set_page_title (429->Rate
 
 - [ ] **Step 1: Escribir los tests que fallan**
 
-Mirá cómo `test_notion_capability.py` arma el registry y el fake client de Fase 1 y reusá ese
-patrón. Agregar tests (adaptá el nombre del fake/registry al del archivo):
+Mira cómo `test_notion_capability.py` arma el registry y el fake client de Fase 1 y reutiliza ese
+patrón. Agregar tests (adapta el nombre del fake/registry al del archivo):
 
 ```python
 # --- Fase 2: save estructural + setTitle ---
@@ -584,9 +584,9 @@ async def test_set_title_llama_pages_update(tmp_path):
 ```
 
 Nota al implementador: si `test_notion_capability.py` no tiene un helper `_registry_with_notion`
-que acepte `client_factory` y `token`, creá uno arriba del archivo siguiendo cómo los tests de
+que acepte `client_factory` y `token`, crea uno arriba del archivo siguiendo cómo los tests de
 Fase 1 construyen el registry con token configurado (por ej. escribiendo el token en
-`tmp_path/.ide/config.toml` o pasando `home=tmp_path` a `register`). Reusá exactamente el
+`tmp_path/.ide/config.toml` o pasando `home=tmp_path` a `register`). Reutiliza exactamente el
 mecanismo existente; no inventes uno nuevo.
 
 - [ ] **Step 2: Correr y verificar que fallan**

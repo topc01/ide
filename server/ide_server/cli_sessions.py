@@ -14,7 +14,7 @@ from ide_server.sessions_fs import SessionError, list_sessions, normalize_id, se
 from ide_server.workspace import find_workspace_root
 from ide_server.worktrees import BranchOccupied, WorktreeError
 
-NO_SERVER = "No hay `ide run` activo para este workspace (levantalo con `ide run`)."
+NO_SERVER = "No hay `ide run` activo para este workspace (levántalo con `ide run`)."
 TIMEOUT = "el server no respondió a tiempo (¿sigue procesando?)"
 
 
@@ -36,7 +36,7 @@ def current_session(root: Path, *, env: dict, cwd: Path, explicit: str | None = 
     for p in [cwd.resolve(), *cwd.resolve().parents]:
         if p.parent in (sdir, wdir):
             return p.name
-    raise SessionError("no_session", "no estoy dentro de una sesión: usá --session <id>")
+    raise SessionError("no_session", "no estoy dentro de una sesión: usa --session <id>")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -131,7 +131,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
     a = _parser().parse_args(argv)
     root = Path(env["IDE_WORKSPACE"]) if env.get("IDE_WORKSPACE") else find_workspace_root(cwd)
     if root is None:
-        err.write("error: no hay workspace (.ide/) acá ni arriba; corré `ide init`\n")
+        err.write("error: no hay workspace (.ide/) aquí ni arriba; ejecuta `ide init`\n")
         return 1
     url = find_server_url(root, env, home)
     try:
@@ -151,11 +151,11 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             repos = [p.name for p in require_session(root, sid).iterdir() if p.is_symlink()]
             if len(repos) != 1:
                 raise SessionError("ambiguous_repo",
-                                   f"la sesión tiene {len(repos)} repos: indicá cuál ({', '.join(repos)})")
+                                   f"la sesión tiene {len(repos)} repos: indica cuál ({', '.join(repos)})")
             repo = repos[0]
         return run_script(root, sid, repo, a.name, out=out)
     except BranchOccupied as exc:
-        err.write(f"error: branch ocupada: {exc.branch}. Usá --branch <otra>\n")
+        err.write(f"error: branch ocupada: {exc.branch}. Usa --branch <otra>\n")
     except (SessionError, WorktreeError) as exc:
         err.write(f"error: {exc}\n")
     return 1

@@ -120,8 +120,8 @@ Presets de arranque:
 | Arquitecto | rw | prompt de diseño, modelo capaz |
 | Diseñador | rw | enfoque frontend/UI |
 
-Agregar un rol = una entrada en `.ide/config.toml`. Es el lugar natural donde configurás
-**modelo + comportamiento** de cada Claude Code (lo que hoy hacés a mano con "el King").
+Agregar un rol = una entrada en `.ide/config.toml`. Es el lugar natural donde configuras
+**modelo + comportamiento** de cada Claude Code (lo que hoy haces a mano con "el King").
 
 ## Ciclo de vida — cerrar
 

@@ -16,8 +16,8 @@ class FakeHub:
 @pytest.mark.asyncio
 async def test_t_ask_session_delegates_and_returns_text():
     hub = FakeHub()
-    res = await orq._t_ask_session(hub, "coord", {"session_id": "c1", "task": "hacé X"})
-    assert hub.asked == [("c1", "hacé X")]
+    res = await orq._t_ask_session(hub, "coord", {"session_id": "c1", "task": "haz X"})
+    assert hub.asked == [("c1", "haz X")]
     assert res["content"][0]["text"] == "reply:c1"
 
 

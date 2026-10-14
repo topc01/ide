@@ -105,7 +105,7 @@ describe("FolderSessionsPanel", () => {
     render(<FolderSessionsPanel />);
     await waitFor(() => screen.getByText("Otro PR"));
     expect(screen.getByText("⚠ confiar carpeta")).toHaveAttribute("title",
-      "Claude Code pide confirmar la carpeta: abrí la terminal y aceptá");
+      "Claude Code pide confirmar la carpeta: abre la terminal y acepta");
     expect(screen.getByText("⚠ poll")).toHaveAttribute("title",
       expect.stringContaining("último OK: 2026-10-13T10:00:00"));
   });

@@ -36,7 +36,7 @@ Contra el mockup 1a (`docs/design/handoff/`, tokens en `REFERENCES.md`). Termina
 
 ### Terminales de arranque (opcional)
 `.ide/config.toml` puede declarar comandos que se abren al entrar a una sesión (ej.
-`npm run dev`). **Default: manual** (solo se abre lo que pedís). Extensible.
+`npm run dev`). **Default: manual** (solo se abre lo que pides). Extensible.
 
 ## PTY ↔ WebSocket ↔ xterm.js
 

@@ -63,7 +63,7 @@ Constantes/helpers (parametrizables para tests):
 - `run`:
   - `root = resolve_root(cwd)`; si `None` → **auto-init**: `init_workspace(cwd)`, print
     "Workspace .ide/ creado en {cwd}", `root = cwd`.
-  - `web_dir = resolve_web_dir()`; si `None` → print "⚠ frontend no buildeado; corré `ide build`
+  - `web_dir = resolve_web_dir()`; si `None` → print "⚠ frontend no buildeado; ejecuta `ide build`
     (o `npm run build` en ui/)". (Igual arranca el backend — la API/WS funcionan.)
   - si no `--no-browser` → `opener("http://127.0.0.1:8787")`.
   - print "Workspace: {root} → http://127.0.0.1:8787".

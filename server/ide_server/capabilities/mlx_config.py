@@ -15,7 +15,7 @@ def register(registry: Registry, root: Path) -> None:
         model = (payload.get("model") or "").strip()
         router_prompt = payload.get("routerPrompt") or ""
         if enabled and not model:
-            raise ValueError("elegí un modelo para prender mlx")
+            raise ValueError("elige un modelo para prender mlx")
         write_mlx_config(root, enabled=enabled, model=model, router_prompt=router_prompt)
         return {"saved": True}
 

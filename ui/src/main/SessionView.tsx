@@ -36,7 +36,7 @@ export function SessionView() {
   }, [visibleTerm, mounted]);
 
   if (!session) {
-    return <div className="p-6 text-sm text-muted-foreground">Elegí una sesión del sidebar (o creá la principal con ★).</div>;
+    return <div className="p-6 text-sm text-muted-foreground">Elige una sesión del sidebar (o crea la principal con ★).</div>;
   }
   const docName = session.kind === "review" ? "REVIEW.md" : session.kind === "ticket" ? "TICKET.md" : null;
   const tabCls = (active: boolean) => cn("flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs",

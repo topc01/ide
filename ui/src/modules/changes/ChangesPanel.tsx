@@ -30,7 +30,7 @@ export function ChangesPanel() {
         </button>
       </div>
       {activeSessionId === null && (
-        <div className="px-1 py-2 text-xs text-muted-foreground">seleccioná una sesión</div>
+        <div className="px-1 py-2 text-xs text-muted-foreground">selecciona una sesión</div>
       )}
       {activeSessionId !== null && status && !error && (
         <div className="mb-2 flex items-center gap-2 px-1 font-mono text-[10.5px] text-muted-foreground">

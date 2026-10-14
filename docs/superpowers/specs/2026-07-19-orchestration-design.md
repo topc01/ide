@@ -125,7 +125,7 @@ nuevo `relay` fluye solo (no requiere cambio de transporte, solo el `applyEvent`
 
 ## Flujo de datos (ask_session)
 
-Coordinador razona "que la hija X compile" → llama `mcp__orq__ask_session(X, "compilá y reportá")`
+Coordinador razona "que la hija X compile" → llama `mcp__orq__ask_session(X, "compila y reporta")`
 → tool delega en `hub.ask(coord, X, texto)` → hub emite relay entrante al chat de X (badge "↳ de
 Coordinadora") y relay saliente al chat del coordinador (badge "→ X") → bajo lock de X,
 `driverX.send(texto)` procesa (los `TextDelta`/`ToolUse` de X fluyen a `chat.event.{X}` como

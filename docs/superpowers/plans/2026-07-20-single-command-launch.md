@@ -197,7 +197,7 @@ def test_main_build_invokes_build_frontend(tmp_path, monkeypatch):
 ```
 
 > El import del tope del test necesita `from ide_server.cli import init_workspace, resolve_root,
-> main` (ya está); agregá lo que falte.
+> main` (ya está); agrega lo que falte.
 
 - [ ] **Step 2: Correr, verificar que falla** → FAIL (`resolve_web_dir`/`build_frontend` no
   existen / `main` no acepta `serve`).
@@ -300,7 +300,7 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
 
     web_dir = resolve_web_dir()
     if web_dir is None:
-        print("⚠ frontend no buildeado; corré `ide build` (o `npm run build` en ui/).")
+        print("⚠ frontend no buildeado; ejecuta `ide build` (o `npm run build` en ui/).")
 
     if not args.no_browser:
         opener("http://127.0.0.1:8787")
@@ -387,7 +387,7 @@ cd server && uv run ide run --cwd <ws> --no-browser   # backend + frontend servi
 cd ui && npm run dev                                   # Vite en :5173 con hot-reload
 ```
 
-En dev abrí `:5173` (Vite); el WebSocket del frontend siempre pega a `:8787`.
+En dev abre `:5173` (Vite); el WebSocket del frontend siempre pega a `:8787`.
 ````
 
 - [ ] **Step 5: Suite + commit**

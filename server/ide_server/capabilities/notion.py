@@ -14,7 +14,7 @@ def register(registry: Registry, root: Path, home: Path | None = None, client_fa
     def _client():
         token = notion_token(home, root)
         if not token:
-            raise RuntimeError("Notion sin token: configurá ~/.ide/config.toml [notion].token")
+            raise RuntimeError("Notion sin token: configura ~/.ide/config.toml [notion].token")
         return make_client(token)
 
     async def health(_p: dict) -> dict:

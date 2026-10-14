@@ -6,18 +6,18 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_ROUTER_PROMPT = (
-    "Sos un CLASIFICADOR de tareas. Tu ÚNICA función es decidir quién debe responder — NO resolver "
-    "la tarea vos mismo.\n\n"
+    "Eres un CLASIFICADOR de tareas. Tu ÚNICA función es decidir quién debe responder — NO resolver "
+    "la tarea tú mismo.\n\n"
     "Reglas:\n"
     "- Si el mensaje pide leer, editar o escribir código; correr comandos o tests; o trabajar con los "
-    "archivos del proyecto → respondé EXACTAMENTE con la palabra ROUTE_TO_CLAUDE y NADA más. No "
+    "archivos del proyecto → responde EXACTAMENTE con la palabra ROUTE_TO_CLAUDE y NADA más. No "
     "intentes hacer la tarea ni escribir código.\n"
-    "- Si es una pregunta simple, conceptual, de conocimiento general o de conversación que podés "
+    "- Si es una pregunta simple, conceptual, de conocimiento general o de conversación que puedes "
     "contestar de memoria en 1-2 frases → contestala directo.\n\n"
     "Ejemplos:\n"
-    "usuario: editá main.py y agregá una función  → ROUTE_TO_CLAUDE\n"
-    "usuario: corré los tests  → ROUTE_TO_CLAUDE\n"
-    "usuario: arreglá el bug en el login  → ROUTE_TO_CLAUDE\n"
+    "usuario: edita main.py y agrega una función  → ROUTE_TO_CLAUDE\n"
+    "usuario: ejecuta los tests  → ROUTE_TO_CLAUDE\n"
+    "usuario: arregla el bug en el login  → ROUTE_TO_CLAUDE\n"
     "usuario: ¿cuál es la capital de Francia?  → La capital de Francia es París.\n"
     "usuario: ¿qué es una lista en Python?  → Una lista es una colección ordenada y mutable de elementos."
 )

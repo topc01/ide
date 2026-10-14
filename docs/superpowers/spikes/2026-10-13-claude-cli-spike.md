@@ -9,7 +9,7 @@ temporal `/private/tmp/claude-501/spike.XXXX/.ide/sessions/<id>/` (cwd no-git). 
 - Ajuste: ninguno. El "mapa de repos" puede vivir en `.ide/sessions/CLAUDE.md`.
 
 ## 2. `--settings` allow/deny aplica en `-p` desde cwd no-git — ✅
-- Cmd: `claude --settings analyze.json -p "... echo hola ... ls / ... creá TICKET.md"`
+- Cmd: `claude --settings analyze.json -p "... echo hola ... ls / ... crea TICKET.md"`
 - `echo hola` (allow `Bash(echo:*)`): ejecutó sin pedir permiso, imprimió `hola`.
 - `ls /` (no está en allow): **bloqueado** (en `-p` lo no permitido se deniega solo). El modelo informó que solo puede listar dentro del directorio de la sesión.
 - `rm TICKET.md` (deny `Bash(rm:*)`): mensaje exacto `Permission to use Bash with command rm TICKET.md has been denied.`; el archivo no se tocó.
@@ -23,7 +23,7 @@ temporal `/private/tmp/claude-501/spike.XXXX/.ide/sessions/<id>/` (cwd no-git). 
 - Ajuste (Task 3 / perfiles): usar **solo `Edit(**/TICKET.md)`** y eliminar `Write(**/TICKET.md)` del seed de `analyze.json` (genera warning). Un `Edit(...)` cubre Write/Edit.
 
 ## 4. Nombre del dir en `~/.claude/projects` y `--continue` — ✅ con ajuste
-- `claude -p "Recordá el número 4711."` y luego `claude --continue -p "¿Qué número...?"` en el mismo cwd → respondió **4711**. `--continue` es por cwd.
+- `claude -p "Recuerda el número 4711."` y luego `claude --continue -p "¿Qué número...?"` en el mismo cwd → respondió **4711**. `--continue` es por cwd.
 - Dir real: `-private-tmp-claude-501-spike-lTYL--ide-sessions-s1` (nótese que el `.` de `spike.lTYL` y el de `.ide` también pasan a `-`).
 - Python `re.sub(r"[^A-Za-z0-9]", "-", str(path))`:
   - path **resuelto** `/private/tmp/claude-501/spike.lTYL/.ide/sessions/s1` → `-private-tmp-claude-501-spike-lTYL--ide-sessions-s1` (coincide exacto).
@@ -40,7 +40,7 @@ Prefijo `mcp__claude_ai_Notion__` (con guion bajo en `claude_ai_Notion`, y herra
 - Ajuste: usar exactamente estos nombres en `allow`; nota que se ven en `-p` sin config extra (conector de claude.ai de la cuenta).
 
 ## 6. `--permission-mode bypassPermissions` no interactivo — ✅
-- Cmd: `claude --permission-mode bypassPermissions -p "Corré: echo bypass-ok"` → ejecutó y devolvió `bypass-ok`, rc=0, sin diálogo de aceptación.
+- Cmd: `claude --permission-mode bypassPermissions -p "Ejecuta: echo bypass-ok"` → ejecutó y devolvió `bypass-ok`, rc=0, sin diálogo de aceptación.
 - Ajuste: ninguno.
 
 ## Resumen de ajustes para tareas posteriores

@@ -33,7 +33,7 @@ Notion vía la **API oficial**, respetando el rate limit (~3 rps).
 7. **Rate limit** (~3 rps): debounce en el front + **cola serializada en el backend** con
    backoff en 429.
 8. **Token a nivel global** `~/.ide/config.toml [notion].token`, con override local
-   (`.ide/config.toml`) y env `NOTION_TOKEN`. Sin token / inválido → panel "conectá Notion".
+   (`.ide/config.toml`) y env `NOTION_TOKEN`. Sin token / inválido → panel "conecta Notion".
 
 ## Arquitectura
 
@@ -97,12 +97,12 @@ Errores de red/API/token → envelope `{type:"error",...}` vía `bus.py`. Sin fa
   `BlockNoteDoc = unknown[]` (el JSON de BlockNote).
 - `state/notion.ts` (Zustand) — `{connected, pages, loading, error, load, add, remove}` (lista);
   el estado por-página (doc cargado, dirty, saving, structuralNotice) vive en el tab.
-- `modules/notion/NotionPanel.tsx` — reemplaza el stub. Estado "conectá Notion" si
+- `modules/notion/NotionPanel.tsx` — reemplaza el stub. Estado "conecta Notion" si
   `!connected`. Botón **"+ Nueva"** → input inline para pegar la **URL** → `add`. Lista de
   páginas (ícono, título, preview), fiel al mockup (231-251). Click → `openTab({id:'notion:'+id,
   type:'page', label:title})`. Estado de error, botón refrescar. `register.tsx`; se quita
   `notion` de `stubs.tsx`; import en `App.tsx` y `registry.test.ts`.
-- `main/NotionPageTab.tsx` — `MainPanel` rutea `type==="page"` acá. Inicializa BlockNote con el
+- `main/NotionPageTab.tsx` — `MainPanel` rutea `type==="page"` aquí. Inicializa BlockNote con el
   doc de `notion.page`. **Título editable** (PATCH properties — o Fase 2; en Fase 1 el título es
   read-only para acotar) — **decisión: título read-only en Fase 1**, solo contenido de texto.
   `onChange` con **debounce (~800ms)** → `savePage(loaded, edited)`; indicador de estado
@@ -113,13 +113,13 @@ Errores de red/API/token → envelope `{type:"error",...}` vía `bus.py`. Sin fa
 ## Flujo de datos
 
 `NotionPanel` monta → `notion.health` + `notion.list`. Click página → tab → `NotionPageTab` →
-`notion.page` → adapter → BlockNote. Editás texto → onChange (debounce) → `notion.save {loaded,
+`notion.page` → adapter → BlockNote. Editas texto → onChange (debounce) → `notion.save {loaded,
 edited}` → `diff_text_ops` → cola de rate-limit → `blocks.update` (PATCH) por bloque cambiado →
 `{applied, structural, failed}`. Estructural → banner + re-fetch.
 
 ## Manejo de errores
 
-- Sin token / token inválido → `notion.health connected:false` → panel "conectá Notion".
+- Sin token / token inválido → `notion.health connected:false` → panel "conecta Notion".
 - Error de red/API → envelope → tab muestra error, no guarda datos falsos como guardados.
 - 429 → la cola hace backoff (`Retry-After`) y reintenta; si agota → op falla → reportada.
 - Fallo parcial de save → `failed` no vacío → el front avisa y re-fetchea (estado real, no
@@ -143,7 +143,7 @@ edited}` → `diff_text_ops` → cola de rate-limit → `blocks.update` (PATCH) 
 6. Capability `notion.*`: health/list/add/remove/page/save con cliente y refs mockeados;
    envelopes de error (sin token, API error).
 7. Frontend `notionChannel` + `state/notion` (load/add/remove, guard de error).
-8. `NotionPanel`: estado conectá-Notion, lista, +URL agrega, click abre tab, error.
+8. `NotionPanel`: estado conecta-Notion, lista, +URL agrega, click abre tab, error.
 9. `NotionPageTab`: render de BlockNote desde doc, debounce→save (mock), banner estructural,
    indicador de estado. (BlockNote se mockea/monta según convenga en jsdom.)
 

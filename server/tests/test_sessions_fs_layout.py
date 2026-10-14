@@ -11,12 +11,12 @@ T1 = datetime(2026, 10, 13, 11, 0, 0)
 
 def test_create_ticket_seeds_files(tmp_path):
     p = create_session_dir(tmp_path, sid="fin-1", kind="ticket", permissions="analyze",
-                           prompt="hacé X", meta={"title": "Exportar", "notion_url": "https://n"},
+                           prompt="haz X", meta={"title": "Exportar", "notion_url": "https://n"},
                            now=T0)
     assert p == session_path(tmp_path, "fin-1")
     assert read_toml(p / ".session.toml") == {"kind": "ticket", "permissions": "analyze",
                                               "created": "2026-10-13T10:00:00"}
-    assert (p / "PROMPT.md").read_text() == "hacé X"
+    assert (p / "PROMPT.md").read_text() == "haz X"
     s = read_session(tmp_path, "fin-1")
     assert s["status"] == "analyzing" and s["title"] == "Exportar"
     assert s["meta"] == {"notion_url": "https://n"} and s["error"] is None

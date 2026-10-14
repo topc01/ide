@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **Sin fallos silenciosos:** errores de red/API/token viajan como envelope `{type:"error",payload:{code,message}}` (bus.py envuelve cualquier Exception en `handler_error`). Token ausente/inválido → `notion.health connected:false` → panel "conectá Notion", nunca datos falsos. Fallo parcial de save → `failed` reportado, el front re-fetchea. Cambio estructural en Fase 1 → banner explícito + re-sync, jamás drop silencioso.
+- **Sin fallos silenciosos:** errores de red/API/token viajan como envelope `{type:"error",payload:{code,message}}` (bus.py envuelve cualquier Exception en `handler_error`). Token ausente/inválido → `notion.health connected:false` → panel "conecta Notion", nunca datos falsos. Fallo parcial de save → `failed` reportado, el front re-fetchea. Cambio estructural en Fase 1 → banner explícito + re-sync, jamás drop silencioso.
 - **TDD estricto:** test que falla → implementación mínima → test que pasa → commit. Un commit por tarea.
 - **Conventional commits en español**, atómicos.
 - **Rate limit ~3 rps:** cola serializada en backend con backoff en 429 (`Retry-After`). Los tests **mockean el SDK** (nunca se pega a Notion en CI).
@@ -282,11 +282,11 @@ def test_plain_and_styled_to_inline():
 
 
 def test_link_to_inline():
-    rt = [_rt("acá", link="https://x.com")]
+    rt = [_rt("aquí", link="https://x.com")]
     inline = notion_richtext_to_inline(rt)
     assert inline[0] == {
         "type": "link", "href": "https://x.com",
-        "content": [{"type": "text", "text": "acá", "styles": {}}]}
+        "content": [{"type": "text", "text": "aquí", "styles": {}}]}
 
 
 def test_roundtrip_inline_to_notion():
@@ -494,7 +494,7 @@ def notion_blocks_to_blocknote(blocks: list[dict]) -> dict:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd server && uv run pytest tests/test_notion_blocks.py -q`
-Expected: PASS (2 passed). Si BlockNote 0.51.4 usa nombres de `type` distintos (p.ej. no existe `quote`/`codeBlock`), ajustá el shape esperado del test a lo que la lib acepta y anotalo en el report.
+Expected: PASS (2 passed). Si BlockNote 0.51.4 usa nombres de `type` distintos (p.ej. no existe `quote`/`codeBlock`), ajusta el shape esperado del test a lo que la lib acepta y anótalo en el report.
 
 - [ ] **Step 5: Commit**
 
@@ -963,7 +963,7 @@ def register(registry: Registry, root: Path, home: Path | None = None, client_fa
     def _client():
         token = notion_token(home, root)
         if not token:
-            raise RuntimeError("Notion sin token: configurá ~/.ide/config.toml [notion].token")
+            raise RuntimeError("Notion sin token: configura ~/.ide/config.toml [notion].token")
         return make_client(token)
 
     async def health(_p: dict) -> dict:
@@ -1008,7 +1008,7 @@ def register(registry: Registry, root: Path, home: Path | None = None, client_fa
 
 El test de `notion.save` (Step 1) manda `unsupportedIds: page["unsupportedIds"]` en el payload.
 
-Wire en `server/ide_server/app.py`: importá `from ide_server.capabilities import notion as notion_cap` y registrá `notion_cap.register(registry, root)` después de `graphite_cap.register(registry, root)`. (Nota: `create_app` no recibe `home`; `register` usa `Path.home()` por default — correcto en producción.)
+Wire en `server/ide_server/app.py`: importa `from ide_server.capabilities import notion as notion_cap` y registra `notion_cap.register(registry, root)` después de `graphite_cap.register(registry, root)`. (Nota: `create_app` no recibe `home`; `register` usa `Path.home()` por default — correcto en producción.)
 
 - [ ] **Step 4: Run test to verify it passes** (capability + app arranca)
 
@@ -1254,7 +1254,7 @@ git commit -m "feat(notion): store zustand (health + lista + add/remove)"
 
 **Interfaces:**
 - Consumes: `useNotion` (Task 10), `useStore` (`openTab`).
-- Produces: `NotionPanel`; módulo `id:"notion"`. Click página → `openTab({id:'notion:'+id, type:'page', label:title})`. "+ Nueva" → input de URL → `add`. Estado "conectá Notion" si `!connected`.
+- Produces: `NotionPanel`; módulo `id:"notion"`. Click página → `openTab({id:'notion:'+id, type:'page', label:title})`. "+ Nueva" → input de URL → `add`. Estado "conecta Notion" si `!connected`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1279,10 +1279,10 @@ beforeEach(() => {
 });
 
 describe("NotionPanel", () => {
-  it("sin conexión muestra 'conectá Notion'", () => {
+  it("sin conexión muestra 'conecta Notion'", () => {
     setState({ connected: false });
     render(<NotionPanel />);
-    expect(screen.getByText(/conectá notion/i)).toBeInTheDocument();
+    expect(screen.getByText(/conecta notion/i)).toBeInTheDocument();
   });
   it("lista páginas y abre tab al click", () => {
     setState({ pages: [{ id: "p1", title: "Mi Página" }] });
@@ -1338,7 +1338,7 @@ export function NotionPanel() {
   useEffect(() => { load(); }, [load]);
 
   if (!connected && !error) {
-    return <div className="p-3 text-xs text-muted-foreground">conectá Notion — configurá el token en <code>~/.ide/config.toml</code></div>;
+    return <div className="p-3 text-xs text-muted-foreground">conecta Notion — configura el token en <code>~/.ide/config.toml</code></div>;
   }
   return (
     <div className="p-3">
@@ -1376,7 +1376,7 @@ import { NotionPanel } from "./NotionPanel";
 registerModule({ id: "notion", title: "Notion", icon: BookOpen, Panel: NotionPanel });
 ```
 
-Editá `stubs.tsx` (quitar la línea `notion` y `BookOpen` del import si queda sin uso), `App.tsx` (agregar el import del register) y `registry.test.ts` (agregar `import "./notion/register";`), igual que se hizo con changes/graphite.
+Edita `stubs.tsx` (quitar la línea `notion` y `BookOpen` del import si queda sin uso), `App.tsx` (agregar el import del register) y `registry.test.ts` (agregar `import "./notion/register";`), igual que se hizo con changes/graphite.
 
 - [ ] **Step 4: Run test to verify it passes** (notion + tsc + suite)
 
@@ -1537,12 +1537,12 @@ export function NotionPageTab({ id }: { id: string }) {
 }
 ```
 
-Rutea en `ui/src/layout/MainPanel.tsx`: agregá una rama `active?.type === "page" ? <NotionPageTab id={active.id} /> : …` (importá `NotionPageTab`), conservando terminal/file/placeholder/ChatView.
+Rutea en `ui/src/layout/MainPanel.tsx`: agrega una rama `active?.type === "page" ? <NotionPageTab id={active.id} /> : …` (importa `NotionPageTab`), conservando terminal/file/placeholder/ChatView.
 
 - [ ] **Step 5: Run test + tsc + build + suite**
 
 Run: `cd ui && npm test -- NotionPageTab && cd ui && npx tsc --noEmit && npm run build && npm test`
-Expected: PASS; tsc limpio; build ok; suite verde. (Si el build/tsc se queja por tipos de BlockNote, ajustá los `as any` mínimos necesarios en `NotionEditor.tsx`.)
+Expected: PASS; tsc limpio; build ok; suite verde. (Si el build/tsc se queja por tipos de BlockNote, ajusta los `as any` mínimos necesarios en `NotionEditor.tsx`.)
 
 - [ ] **Step 6: Commit**
 
@@ -1563,7 +1563,7 @@ git commit -m "feat(notion): NotionPageTab con editor BlockNote + save debounced
 ## Self-Review (notas del plan)
 
 - **Cobertura del spec:** config/token (T1), refs+URL (T2), adapter inline (T3), bloques+inertes (T4), diff (T5), cola rate-limit (T6), client SDK (T7), capability (T8), transport (T9), store (T10), panel (T11), tab+BlockNote (T12). Fuera de alcance (estructural, título, no-soportados activos, crear páginas) no se implementa.
-- **Sin fallos silenciosos:** token ausente → `connected:false` → "conectá Notion"; API error → envelope; `failed` reportado + re-fetch; estructural → banner + re-sync; inertes nunca reciben op.
+- **Sin fallos silenciosos:** token ausente → `connected:false` → "conecta Notion"; API error → envelope; `failed` reportado + re-fetch; estructural → banner + re-sync; inertes nunca reciben op.
 - **BlockNote id = Notion id** → diff por id sin id-map; estructural detectado por cambio del set de ids.
 - **Riesgo de shape de BlockNote 0.51.4:** los tests del adapter (T4) fijan el contrato; si la lib difiere, ajustar el test a la lib y anotarlo. El editor se aísla en `NotionEditor.tsx` y se mockea en los tests del tab (ProseMirror no monta en jsdom).
 - **Tipos consistentes:** `NotionRef`, `BlockNoteDoc`, `PageData`, `SaveResult`; `notion.save {id, loaded, edited, unsupportedIds}` en transport, capability y store.

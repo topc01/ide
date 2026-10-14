@@ -53,14 +53,14 @@ echo $SP
 - [ ] **Step 2: Verificar herencia de CLAUDE.md y `--settings` desde carpeta no-git**
 
 ```bash
-cd $SP/.ide/sessions/s1 && claude --settings $SP/.ide/permissions/analyze.json -p "¿Cuál es la palabra clave de tu CLAUDE.md? Después corré: echo hola, y creá TICKET.md con 'x'."
+cd $SP/.ide/sessions/s1 && claude --settings $SP/.ide/permissions/analyze.json -p "¿Cuál es la palabra clave de tu CLAUDE.md? Después ejecuta: echo hola, y crea TICKET.md con 'x'."
 ```
 Expected: menciona PINGÜINO; `echo` y `TICKET.md` sin pedir permiso (en `-p` lo no permitido falla). Anotar resultado.
 
 - [ ] **Step 3: Verificar `--continue` por cwd y el encoding de `~/.claude/projects`**
 
 ```bash
-cd $SP/.ide/sessions/s1 && claude -p "Recordá el número 4711." >/dev/null && claude --continue -p "¿Qué número te pedí recordar?"
+cd $SP/.ide/sessions/s1 && claude -p "Recuerda el número 4711." >/dev/null && claude --continue -p "¿Qué número te pide recordar?"
 ls ~/.claude/projects | grep -i "$(basename $SP)"
 ```
 Expected: responde 4711; el dir de proyecto es la ruta con todo lo no-alfanumérico reemplazado por `-` (ej. `/private/var/.../.ide/sessions/s1` → `-private-var-...--ide-sessions-s1`). Anotar la regla exacta (si difiere de `re.sub(r"[^A-Za-z0-9]", "-", str(path))`, ajustar `encode_project_dir` en Task 6).
@@ -68,8 +68,8 @@ Expected: responde 4711; el dir de proyecto es la ruta con todo lo no-alfanumér
 - [ ] **Step 4: Verificar Notion y bypass**
 
 ```bash
-cd $SP/.ide/sessions/s1 && claude -p "Listá tus herramientas MCP cuyo nombre contenga Notion (solo nombres)."
-cd $SP/.ide/sessions/s1 && claude --permission-mode bypassPermissions -p "Corré: echo bypass-ok"
+cd $SP/.ide/sessions/s1 && claude -p "Lista tus herramientas MCP cuyo nombre contenga Notion (solo nombres)."
+cd $SP/.ide/sessions/s1 && claude --permission-mode bypassPermissions -p "Ejecuta: echo bypass-ok"
 ```
 Expected: aparecen `mcp__claude_ai_Notion__*` (anotar los nombres exactos de fetch/search/query para la semilla de `analyze.json` en Task 3); `bypass-ok` sin diálogo. Si bypass pide aceptación interactiva la primera vez, anotarlo (se acepta una vez a mano).
 
@@ -313,12 +313,12 @@ T1 = datetime(2026, 10, 13, 11, 0, 0)
 
 def test_create_ticket_seeds_files(tmp_path):
     p = create_session_dir(tmp_path, sid="fin-1", kind="ticket", permissions="analyze",
-                           prompt="hacé X", meta={"title": "Exportar", "notion_url": "https://n"},
+                           prompt="haz X", meta={"title": "Exportar", "notion_url": "https://n"},
                            now=T0)
     assert p == session_path(tmp_path, "fin-1")
     assert read_toml(p / ".session.toml") == {"kind": "ticket", "permissions": "analyze",
                                               "created": "2026-10-13T10:00:00"}
-    assert (p / "PROMPT.md").read_text() == "hacé X"
+    assert (p / "PROMPT.md").read_text() == "haz X"
     s = read_session(tmp_path, "fin-1")
     assert s["status"] == "analyzing" and s["title"] == "Exportar"
     assert s["meta"] == {"notion_url": "https://n"} and s["error"] is None
@@ -479,7 +479,7 @@ def create_session_dir(root: Path, *, sid: str, kind: str, permissions: str, pro
     if path.exists():
         raise SessionError("session_exists", f"ya existe la sesión {sid}")
     if kind == "main" and (m := find_main(root)):
-        raise SessionError("main_exists", f"ya existe la principal {m}; usá `ide session open {m}`")
+        raise SessionError("main_exists", f"ya existe la principal {m}; usa `ide session open {m}`")
     path.mkdir(parents=True)
     try:
         write_toml(path / ".session.toml", {
@@ -662,7 +662,7 @@ modules = ["sessions", "terminal"]
 
 
 def claude_md(repos: list[str]) -> str:
-    lines = "\n".join(f"- `{r}`: (describí qué hace este repo)" for r in repos) or "- (sin repos)"
+    lines = "\n".join(f"- `{r}`: (describe qué hace este repo)" for r in repos) or "- (sin repos)"
     return f"""\
 # Workspace
 
@@ -684,42 +684,42 @@ Estás en una sesión del IDE (`.ide/sessions/<id>/`). Los repos del workspace:
 
 Las sesiones de ticket mantienen `TICKET.md` (frontmatter `status`:
 analyzing | blocked | questions | ready | in-progress | done). Las de revisión, `REVIEW.md`
-(reviewing | commented | approved | changes-requested). Solo cambiá `status` y el cuerpo.
+(reviewing | commented | approved | changes-requested). Solo cambia `status` y el cuerpo.
 """
 
 
 TEMPLATE_MAIN = """\
-Sos la sesión principal de este workspace.
+Eres la sesión principal de este workspace.
 
-1. Leé mi backlog en Notion: <URL de la base de tickets> (asignados a mí, no Done).
-2. Corré `ide session ls --json` y salteá los tickets que ya tienen sesión (id = id del ticket).
+1. Lee mi backlog en Notion: <URL de la base de tickets> (asignados a mí, no Done).
+2. Ejecuta `ide session ls --json` y omite los tickets que ya tienen sesión (id = id del ticket).
 3. Por cada ticket nuevo:
    `ide session new --id <ticket-id> --template ticket --var title="…" --var notion_url="…" --var body="…"`
 4. PRs donde me pidieron review: `gh search prs --review-requested=@me --state=open --json url`.
    Por cada uno sin sesión: `ide session new --review <url>`.
-5. Resumí lo que lanzaste. Para ver el estado de todo: leé `../*/TICKET.md` y `../*/REVIEW.md`.
+5. Resume lo que lanzaste. Para ver el estado de todo: lee `../*/TICKET.md` y `../*/REVIEW.md`.
 """
 
 TEMPLATE_TICKET = """\
-Sos la sesión del ticket {{id}}: "{{title}}" ({{notion_url}}).
+Eres la sesión del ticket {{id}}: "{{title}}" ({{notion_url}}).
 
 {{body}}
 
 Tu trabajo AHORA es analizar, no implementar:
-1. Leé ../CLAUDE.md (mapa de repos) y el ticket en Notion.
-2. Determiná scope y qué repos toca. Por cada uno: `ide repo add <repo>`.
-3. Escribí TICKET.md: Scope, Repos, Plan, Bloqueantes, Dudas.
-   Cambiá `status` a blocked | questions | ready.
-4. Pará y esperá instrucciones.
+1. Lee ../CLAUDE.md (mapa de repos) y el ticket en Notion.
+2. Determina scope y qué repos toca. Por cada uno: `ide repo add <repo>`.
+3. Escribe TICKET.md: Scope, Repos, Plan, Bloqueantes, Dudas.
+   Cambia `status` a blocked | questions | ready.
+4. Detente y espera instrucciones.
 """
 
 TEMPLATE_REVIEW = """\
-Sos la revisión del PR {{pr_url}} ("{{title}}", de {{author}}) en el repo {{repo}}.
+Eres la revisión del PR {{pr_url}} ("{{title}}", de {{author}}) en el repo {{repo}}.
 El worktree `{{repo}}/` está en el head del PR (detached).
 
-1. Revisá el diff contra la base (`gh pr diff {{pr_url}}`, y leé el código alrededor).
-2. Escribí REVIEW.md con hallazgos por severidad (bloqueante / importante / menor / nit).
-3. Cambiá `status` a commented | approved | changes-requested según tu veredicto.
+1. Revisa el diff contra la base (`gh pr diff {{pr_url}}`, y lee el código alrededor).
+2. Escribe REVIEW.md con hallazgos por severidad (bloqueante / importante / menor / nit).
+3. Cambia `status` a commented | approved | changes-requested según tu veredicto.
 4. NO publiques nada en GitHub sin que te lo pida.
 """
 
@@ -1002,7 +1002,7 @@ def rm_repo(root: Path, sid: str, repo: str, *, force: bool = False,
     if wt.exists():
         if not force and has_uncommitted_changes(wt):
             raise SessionError("uncommitted_changes",
-                               f"{repo} en {sid} tiene cambios sin commitear (usá --force)")
+                               f"{repo} en {sid} tiene cambios sin commitear (usa --force)")
         remove_worktree(repo_path, wt, force=force)
     else:
         subprocess.run(["git", "-C", str(repo_path), "worktree", "prune"], capture_output=True)
@@ -1224,7 +1224,7 @@ En `add_repo`, antes del `return`:
         code = run_script(root, sid, repo, "setup", out=out)
         if code != 0:
             raise SessionError("setup_failed",
-                               f"setup de {repo} falló (exit {code}); reintentá con "
+                               f"setup de {repo} falló (exit {code}); reintenta con "
                                f"`ide script setup {repo}`")
 ```
 
@@ -1236,7 +1236,7 @@ En `rm_repo`, justo después de `repo_path = root / repo`:
         code = run_script(root, sid, repo, "archive", out=out)
         if code != 0 and not force:
             raise SessionError("archive_failed",
-                               f"archive de {repo} falló (exit {code}); usá --force para quitarlo igual")
+                               f"archive de {repo} falló (exit {code}); usa --force para quitarlo igual")
 ```
 
 - [ ] **Step 5: Run tests**
@@ -1297,7 +1297,7 @@ class FakePty:
 
 def _mk(tmp_path, *sids, perm="analyze"):
     for sid in sids:
-        create_session_dir(tmp_path, sid=sid, kind="ticket", permissions=perm, prompt=f"hacé {sid}")
+        create_session_dir(tmp_path, sid=sid, kind="ticket", permissions=perm, prompt=f"haz {sid}")
     return tmp_path
 
 
@@ -1312,7 +1312,7 @@ def test_argv_by_permissions(tmp_path):
     create_session_dir(root, sid="d", kind="ticket", permissions="default", prompt="p")
     perm = root / ".ide" / "permissions"
     assert build_argv(root, "a", command="claude", resume=False) == [
-        "claude", "--settings", str(perm / "analyze.json"), "hacé a"]
+        "claude", "--settings", str(perm / "analyze.json"), "haz a"]
     assert build_argv(root, "f", command="claude --verbose", resume=True) == [
         "claude", "--verbose", "--settings", str(perm / "full.json"),
         "--permission-mode", "bypassPermissions", "--continue"]
@@ -1333,7 +1333,7 @@ def test_start_spawns_with_env_and_exit_marks_stopped(tmp_path):
     sup = _sup(root, pty, on_change=lambda: changes.append(1))
     assert sup.start("a") == "running"
     tid, cwd, argv, env = pty.spawned[0]
-    assert cwd == root / ".ide" / "sessions" / "a" and argv[-1] == "hacé a"
+    assert cwd == root / ".ide" / "sessions" / "a" and argv[-1] == "haz a"
     assert env["IDE_SESSION_ID"] == "a" and env["IDE_URL"] == "http://127.0.0.1:9"
     assert env["IDE_WORKSPACE"] == str(root)
     assert sup.snapshot() == {"a": {"process": "running", "terminalId": tid, "launchError": None}}
@@ -2002,7 +2002,7 @@ def delete_session(root: Path, sid: str, *, force: bool = False,
                  and has_uncommitted_changes(worktree_path(root, sid, r))]
         if dirty:
             raise SessionError("uncommitted_changes",
-                               f"cambios sin commitear en {', '.join(dirty)} (usá --force)")
+                               f"cambios sin commitear en {', '.join(dirty)} (usa --force)")
     if stop is not None:
         stop(sid)
     for repo in repos:
@@ -2733,7 +2733,7 @@ def resolve_repo(root: Path, payload: dict) -> Path:
         repos = [p.name for p in folder.iterdir() if p.is_symlink()]
         repo = payload.get("repoId") or (repos[0] if len(repos) == 1 else None)
         if repo is None:
-            raise KeyError("la sesión tiene 0 o varios repos: indicá repoId")
+            raise KeyError("la sesión tiene 0 o varios repos: indica repoId")
         return root / repo
     ...  # cuerpo existente sin cambios
 ```
@@ -2922,7 +2922,7 @@ from ide_server.sessions_fs import SessionError, list_sessions, sessions_dir
 from ide_server.workspace import find_workspace_root
 from ide_server.worktrees import BranchOccupied, WorktreeError
 
-NO_SERVER = "No hay `ide run` activo para este workspace (levantalo con `ide run`)."
+NO_SERVER = "No hay `ide run` activo para este workspace (levántalo con `ide run`)."
 
 
 def find_server_url(root: Path, env: dict, home: Path) -> str | None:
@@ -2943,7 +2943,7 @@ def current_session(root: Path, *, env: dict, cwd: Path, explicit: str | None = 
     for p in [cwd.resolve(), *cwd.resolve().parents]:
         if p.parent in (sdir, wdir):
             return p.name
-    raise SessionError("no_session", "no estoy dentro de una sesión: usá --session <id>")
+    raise SessionError("no_session", "no estoy dentro de una sesión: usa --session <id>")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -3005,7 +3005,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
     a = _parser().parse_args(argv)
     root = Path(env["IDE_WORKSPACE"]) if env.get("IDE_WORKSPACE") else find_workspace_root(cwd)
     if root is None:
-        err.write("error: no hay workspace (.ide/) acá ni arriba; corré `ide init`\n")
+        err.write("error: no hay workspace (.ide/) aquí ni arriba; ejecuta `ide init`\n")
         return 1
     url = find_server_url(root, env, home)
     try:
@@ -3025,11 +3025,11 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             repos = [p.name for p in require_session(root, sid).iterdir() if p.is_symlink()]
             if len(repos) != 1:
                 raise SessionError("ambiguous_repo",
-                                   f"la sesión tiene {len(repos)} repos: indicá cuál ({', '.join(repos)})")
+                                   f"la sesión tiene {len(repos)} repos: indica cuál ({', '.join(repos)})")
             repo = repos[0]
         return run_script(root, sid, repo, a.name, out=out)
     except BranchOccupied as exc:
-        err.write(f"error: branch ocupada: {exc.branch}. Usá --branch <otra>\n")
+        err.write(f"error: branch ocupada: {exc.branch}. Usa --branch <otra>\n")
     except (SessionError, WorktreeError) as exc:
         err.write(f"error: {exc}\n")
     return 1
@@ -4387,7 +4387,7 @@ export function SessionView() {
   }, [visibleTerm, mounted]);
 
   if (!session) {
-    return <div className="p-6 text-sm text-muted-foreground">Elegí una sesión del sidebar (o creá la principal con ★).</div>;
+    return <div className="p-6 text-sm text-muted-foreground">Elige una sesión del sidebar (o crea la principal con ★).</div>;
   }
   const docName = session.kind === "review" ? "REVIEW.md" : session.kind === "ticket" ? "TICKET.md" : null;
   const tabCls = (active: boolean) => cn("flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs",
@@ -4524,7 +4524,7 @@ uv run --project /Users/topc/dev/ide/server ide run --cwd $W
 Checklist (anotar ✅/❌ en el commit):
 1. Sidebar vacío con botón ★ Principal; rail solo con Terminal.
 2. `[+]` → ticket `TEST-1` con plantilla → aparece `test-1` con `analyzing` y ● corriendo; tab `claude` muestra el TUI de Claude Code con el prompt.
-3. Pedirle en esa terminal "corré `ide repo add ide-copy`" → corre sin pedir permiso (perfil analyze), aparece el repo con `✓ setup`, `IDE_PORT=8100`.
+3. Pedirle en esa terminal "ejecuta `ide repo add ide-copy`" → corre sin pedir permiso (perfil analyze), aparece el repo con `✓ setup`, `IDE_PORT=8100`.
 4. Editar a mano `TICKET.md` → `status: blocked` → el badge cambia sin recargar. Agrupar → "Por estado" → aparece en "Necesitan tu atención".
 5. `config.toml` con `max_running = 1`, crear otra sesión → `◌ en cola`; parar la primera → la segunda arranca.
 6. Cambiar entre sesiones y volver → la salida del TUI sigue ahí.

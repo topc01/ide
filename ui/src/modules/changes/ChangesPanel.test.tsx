@@ -46,7 +46,7 @@ describe("ChangesPanel", () => {
     useSessions.setState({ activeSessionId: null } as any);
     useChanges.setState({ status: null, loading: false, error: null, load });
     render(<ChangesPanel />);
-    expect(screen.getByText(/seleccion[aá] una sesión/i)).toBeInTheDocument();
+    expect(screen.getByText(/selecciona una sesión/i)).toBeInTheDocument();
     expect(load).not.toHaveBeenCalled();
     vi.useRealTimers();
   });

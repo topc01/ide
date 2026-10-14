@@ -98,7 +98,7 @@ entenderse y testearse por separado.
 | `theme/tokens.ts` + `theme.css` | Tokens 1a como CSS variables (`--accent`, `--panel-bg`, …). Fuente única de color/tipografía/spacing. | — |
 | `transport/ws.ts` + `rest.ts` | Cliente WS (conecta, reconecta con backoff, correlaciona `req`/`res` por `id`, expone `on(channel)`) + fetch REST tipado. Tipos del envelope. | — |
 | `state/store.ts` | Store global (Zustand): `repos[]`, `activePanel`, `openTabs[]`, `activeTabId`. Sin lógica de red adentro. | — |
-| `modules/registry.tsx` | Interfaz `ActivityModule { id, icon, title, Panel }` + registro. Los 6 módulos se registran acá (5 stubs + repos mínimo). Base para R1–R6. | — |
+| `modules/registry.tsx` | Interfaz `ActivityModule { id, icon, title, Panel }` + registro. Los 6 módulos se registran aquí (5 stubs + repos mínimo). Base para R1–R6. | — |
 | `layout/*` | `Sidebar`, `ActivityRail`, `ContextPanel`, `MainPanel`, `TabStrip` — estructura de 3 regiones, sin lógica de dominio. | state, modules, theme |
 | `App.tsx` | Composición: monta layout, conecta transport, hidrata `repos` al iniciar. | todos |
 

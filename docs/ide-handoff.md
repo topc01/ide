@@ -10,6 +10,6 @@ ide docs
 Cubre: qué es, cómo arrancarlo, el layout de `.ide/`, todas las claves de `config.toml` con sus
 defaults, los perfiles de permisos, plantillas y variables, scripts por repo y su env, todos los
 comandos del CLI con flags y salidas, estados de sesión, problemas comunes, códigos de error y la
-API. Si cambiás comportamiento del IDE, actualizá ese archivo en el mismo commit.
+API. Si cambias comportamiento del IDE, actualiza ese archivo en el mismo commit.
 
 Estado del desarrollo interno: `docs/superpowers/HANDOFF.md`.

@@ -64,7 +64,7 @@ switch, elegir el modelo, y editar el prompt del router. Al guardar, el badge "e
 
 ## Manejo de errores (sin fallos silenciosos)
 
-- `enabled` sin `model` → `ValueError` → envelope → el form muestra "elegí un modelo para prender mlx".
+- `enabled` sin `model` → `ValueError` → envelope → el form muestra "elige un modelo para prender mlx".
 - Error de escritura del toml → envelope → el form muestra el error.
 - `mlx.config.get` sobre un toml malformado → `mlx_config_raw` devuelve defaults (form usable), no rompe.
 

@@ -91,10 +91,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_ROUTER_PROMPT = (
-    "Sos un router de tareas. Si el mensaje del usuario es una pregunta simple, conceptual o de "
-    "conversación que podés responder con confianza sin leer ni editar código, sin correr comandos "
-    "y sin trabajar con el proyecto, RESPONDELO directamente. Si en cambio requiere leer/editar "
-    "código, correr comandos, o trabajar con los archivos del proyecto, respondé EXACTAMENTE con "
+    "Eres un router de tareas. Si el mensaje del usuario es una pregunta simple, conceptual o de "
+    "conversación que puedes responder con confianza sin leer ni editar código, sin correr comandos "
+    "y sin trabajar con el proyecto, RESPÓNDELA directamente. Si en cambio requiere leer/editar "
+    "código, correr comandos, o trabajar con los archivos del proyecto, responde EXACTAMENTE con "
     "esta única palabra y nada más: ROUTE_TO_CLAUDE"
 )
 
@@ -181,7 +181,7 @@ async def test_prompt_router_local():
 
 @pytest.mark.asyncio
 async def test_prompt_router_claude():
-    d = await PromptRouter(_FakeClient("ROUTE_TO_CLAUDE"), "SYS").route("editá el archivo main.py")
+    d = await PromptRouter(_FakeClient("ROUTE_TO_CLAUDE"), "SYS").route("edita el archivo main.py")
     assert d == RouteDecision(route="claude", reply=None)
 ```
 
@@ -228,9 +228,9 @@ class PromptRouter:
         return RouteDecision(route=route, reply=local_reply)
 ```
 
-> Nota: simplificá `parse_route` — el sentinela debe matchear cuando la respuesta stripeada **es
+> Nota: simplifica `parse_route` — el sentinela debe matchear cuando la respuesta stripeada **es
 > exactamente** `ROUTE_TO_CLAUDE`. Implementación mínima:
-> `return ("claude", None) if (text or "").strip() == _SENTINEL else ("local", text)`. Ajustá el
+> `return ("claude", None) if (text or "").strip() == _SENTINEL else ("local", text)`. Ajusta el
 > cuerpo a esa forma (el ejemplo de arriba quedó redundante); los tests deben pasar igual.
 
 - [ ] **Step 4: Correr, verificar que pasa** → PASS.
@@ -604,8 +604,8 @@ async def test_send_claude_route_calls_driver(tmp_path, monkeypatch):
     chatmod.register(reg, tmp_path, mgr, driver_factory=FakeDriver,
                      mlx_router=_FakeRouter(RouteDecision("claude", None)))
     await reg.dispatch("chat.start", {"sessionId": "s1"})
-    await reg.dispatch("chat.send", {"sessionId": "s1", "text": "editá main.py"})
-    assert FakeDriver.last.sent == ["editá main.py"]
+    await reg.dispatch("chat.send", {"sessionId": "s1", "text": "edita main.py"})
+    assert FakeDriver.last.sent == ["edita main.py"]
     assert {"kind": "routed", "source": "claude"} in [p for _, p in mgr.events]
 
 
@@ -668,7 +668,7 @@ from ide_server.chat.events import Routed, TextDelta, Done, ChatError
         return {"sent": True, "route": "claude"}
 ```
 
-> Verificá la firma de `hub.emit` (es `async def emit(self, session_id, event)` que hace
+> Verifica la firma de `hub.emit` (es `async def emit(self, session_id, event)` que hace
 > `await manager.broadcast(...)`, del SessionHub). `ChatError` tiene `code`/`message`.
 
 - [ ] **Step 4: Correr, verificar que pasan**
@@ -711,7 +711,7 @@ it("un evento routed taggea el próximo mensaje de agente con source", () => {
 });
 ```
 
-En el test del bubble (mirá `MessageBubble.test.tsx` — el que ya tiene el badge de relay): agregar
+En el test del bubble (mira `MessageBubble.test.tsx` — el que ya tiene el badge de relay): agregar
 un caso que renderice un `Msg` de agente con `source:"local"` y asere que aparece el badge "local".
 
 - [ ] **Step 2: Correr, verificar que fallan** → FAIL.
@@ -740,7 +740,7 @@ function lastAgent(c: Convo): Msg {
 
 En `ui/src/chat/MessageBubble.tsx`: si el `Msg` es de agente y tiene `source`, mostrar un badge:
 **"local"** (color distinto, p.ej. `text-[#7fb069]` verde) o **"claude"** (`text-[#e0863f]` ámbar),
-junto al mensaje. Seguí el markup del badge de relay ya existente.
+junto al mensaje. Sigue el markup del badge de relay ya existente.
 
 - [ ] **Step 4: Correr, verificar que pasan**
 

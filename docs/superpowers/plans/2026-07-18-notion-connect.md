@@ -81,7 +81,7 @@ def test_clear_token_missing_file_noop(tmp_path):
 Run: `cd server && uv run pytest tests/test_notion_config.py -q`
 Expected: FAIL (`ImportError: cannot import name 'write_token'`)
 
-- [ ] **Step 4: Write minimal implementation** (append a `server/ide_server/notion/config.py`; agregá `import tomli_w` arriba con los otros imports)
+- [ ] **Step 4: Write minimal implementation** (append a `server/ide_server/notion/config.py`; agrega `import tomli_w` arriba con los otros imports)
 
 ```python
 def write_token(home: Path, token: str) -> None:
@@ -139,7 +139,7 @@ git commit -m "feat(notion): write_token/clear_token en config global + dep toml
 
 - [ ] **Step 1: Write the failing test** (append a `server/tests/test_notion_capability.py`)
 
-El archivo ya tiene un `_FakeClient` con `users.me` (configurable para éxito/fallo) y el helper `_reg(tmp_path, token=...)` que registra con `client_factory` y `home`. Reutilizalos. Nota: `_reg` usa un `home` bajo `tmp_path`; `write_token`/`clear_token` operan sobre ese `home`.
+El archivo ya tiene un `_FakeClient` con `users.me` (configurable para éxito/fallo) y el helper `_reg(tmp_path, token=...)` que registra con `client_factory` y `home`. Reutilízalos. Nota: `_reg` usa un `home` bajo `tmp_path`; `write_token`/`clear_token` operan sobre ese `home`.
 
 ```python
 @pytest.mark.asyncio
@@ -185,7 +185,7 @@ async def test_disconnect_clears(tmp_path):
     assert (await reg.dispatch("notion.health", {}))["connected"] is False
 ```
 
-Nota: si el helper `_reg` escribe el token en un `config.toml` que `clear_token` debe poder limpiar, verificá que `_reg(token="preset")` cree ese archivo bajo el mismo `home` que la capability usa. Si `_reg` setea el token de otra forma (p.ej. solo en el archivo global), `test_disconnect_clears` valida el path real; ajustá el helper mínimamente si hace falta para que health lea del archivo que `clear_token` toca.
+Nota: si el helper `_reg` escribe el token en un `config.toml` que `clear_token` debe poder limpiar, verifica que `_reg(token="preset")` cree ese archivo bajo el mismo `home` que la capability usa. Si `_reg` setea el token de otra forma (p.ej. solo en el archivo global), `test_disconnect_clears` valida el path real; ajusta el helper mínimamente si hace falta para que health lea del archivo que `clear_token` toca.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -194,8 +194,8 @@ Expected: FAIL (`unknown_channel: notion.connect` o similar)
 
 - [ ] **Step 3: Write minimal implementation**
 
-En `server/ide_server/capabilities/notion.py`: cambiá el import de config para traer los writers —
-`from ide_server.notion.config import notion_token, write_token, clear_token` — y agregá los handlers dentro de `register` (junto a los demás), luego registralos:
+En `server/ide_server/capabilities/notion.py`: cambia el import de config para traer los writers —
+`from ide_server.notion.config import notion_token, write_token, clear_token` — y agrega los handlers dentro de `register` (junto a los demás), luego regístralos:
 
 ```python
     async def connect(p: dict) -> dict:
@@ -214,7 +214,7 @@ En `server/ide_server/capabilities/notion.py`: cambiá el import de config para 
         return {"connected": False}
 ```
 
-Agregá `("connect", connect), ("disconnect", disconnect)` a la lista de registro de canales
+Agrega `("connect", connect), ("disconnect", disconnect)` a la lista de registro de canales
 `notion.*`.
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -259,9 +259,9 @@ it("disconnect llama notion.disconnect", async () => {
 });
 ```
 
-(agregá `connect, disconnect` al import de `./notionChannel` en ese test.)
+(agrega `connect, disconnect` al import de `./notionChannel` en ese test.)
 
-Append a `ui/src/state/notion.test.ts` (mockeá `connect`/`disconnect` en el `vi.mock` de notionChannel — agregá `connect: (...a)=>connectFn(...a)`, `disconnect: (...a)=>disconnectFn(...a)` y declará los `vi.fn()`):
+Append a `ui/src/state/notion.test.ts` (mockea `connect`/`disconnect` en el `vi.mock` de notionChannel — agrega `connect: (...a)=>connectFn(...a)`, `disconnect: (...a)=>disconnectFn(...a)` y declara los `vi.fn()`):
 
 ```typescript
 it("connect exitoso conecta y carga", async () => {
@@ -305,8 +305,8 @@ export async function disconnect(ws: WsClient): Promise<void> {
 }
 ```
 
-En `ui/src/state/notion.ts`: importá con alias para evitar el choque de nombres —
-`import { checkHealth, fetchPages, addPage, removePage, connect as connectApi, disconnect as disconnectApi } from "../transport/notionChannel";` — agregá `connect`/`disconnect` al type `NotionState` y al store:
+En `ui/src/state/notion.ts`: importa con alias para evitar el choque de nombres —
+`import { checkHealth, fetchPages, addPage, removePage, connect as connectApi, disconnect as disconnectApi } from "../transport/notionChannel";` — agrega `connect`/`disconnect` al type `NotionState` y al store:
 
 ```typescript
   connect: async (token: string) => {
@@ -322,7 +322,7 @@ En `ui/src/state/notion.ts`: importá con alias para evitar el choque de nombres
   },
 ```
 
-(agregá `connect: (token: string) => Promise<void>;` y `disconnect: () => Promise<void>;` a la interface `NotionState`.)
+(agrega `connect: (token: string) => Promise<void>;` y `disconnect: () => Promise<void>;` a la interface `NotionState`.)
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -350,7 +350,7 @@ git commit -m "feat(notion): transport + store connect/disconnect"
 
 - [ ] **Step 1: Write/adjust the failing test**
 
-El test actual tiene `it("sin conexión muestra 'conectá Notion'")` que espera el texto viejo — **reemplazalo** por la vista nueva. Ajustá `NotionPanel.test.tsx`:
+El test actual tiene `it("sin conexión muestra 'conecta Notion'")` que espera el texto viejo — **reemplázalo** por la vista nueva. Ajusta `NotionPanel.test.tsx`:
 
 ```typescript
 // reemplaza el test "sin conexión ..." por:
@@ -370,14 +370,14 @@ it("conectado muestra desconectar", () => {
 });
 ```
 
-Agregá `connect`/`disconnect` a los `vi.fn()` y al `setState` helper del test (que ya inyecta `load, add, remove` en `useNotion.setState`): incluí `connect, disconnect`.
+Agrega `connect`/`disconnect` a los `vi.fn()` y al `setState` helper del test (que ya inyecta `load, add, remove` en `useNotion.setState`): incluye `connect, disconnect`.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd ui && npm test -- NotionPanel`
 Expected: FAIL (no hay input de token / botón conectar / desconectar)
 
-- [ ] **Step 3: Write minimal implementation** — reescribí `ui/src/modules/notion/NotionPanel.tsx`
+- [ ] **Step 3: Write minimal implementation** — reescribe `ui/src/modules/notion/NotionPanel.tsx`
 
 ```tsx
 import { useEffect, useState } from "react";
@@ -408,9 +408,9 @@ export function NotionPanel() {
         </button>
         {error && <div className="mb-2 text-xs text-destructive">{error}</div>}
         <div className="text-[11px] leading-relaxed text-muted-foreground">
-          Creá una integración interna en{" "}
+          Crea una integración interna en{" "}
           <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer" className="text-[#e0863f]">notion.so/my-integrations</a>,
-          pegá su secret acá, y compartí tus páginas con la integración.
+          pega su secret aquí, y comparte tus páginas con la integración.
         </div>
       </div>
     );
@@ -472,4 +472,4 @@ git commit -m "feat(notion): panel de conexión con input de token + desconectar
 - **Sin fallos silenciosos:** token inválido → connected:false (no persiste); disconnect limpia; errores → envelope.
 - **Reusa Fase 1:** `notion_token`, `make_client` inyectable, `_FakeClient` de los tests.
 - **Choque de nombres** en el store resuelto con alias (`connectApi`/`disconnectApi`).
-- **Test roto esperado:** el test viejo "conectá Notion" del panel se reemplaza por la vista de conexión — es intencional, no un regressor.
+- **Test roto esperado:** el test viejo "conecta Notion" del panel se reemplaza por la vista de conexión — es intencional, no un regressor.

@@ -45,7 +45,7 @@ un editor de código en el browser: **vim es viewer y editor a la vez**.
     como `TreeNode` (recursión, indentado por profundidad);
   - archivo → click hace `openFile(path)` → `openTab({id, type:"terminal", label: name})` (+ activa el
     tab). Vim corre en ese tab de terminal.
-  - La raíz (`FilesPanel`) lista `path=""` de la sesión activa; sin sesión → "Seleccioná una sesión".
+  - La raíz (`FilesPanel`) lista `path=""` de la sesión activa; sin sesión → "Selecciona una sesión".
 - **`modules/files/register.tsx`**: `registerModule({ id:"files", title:"Files", icon: FolderTree, Panel: FilesPanel })`.
 - **`App.tsx`**: `import "./modules/files/register";` (junto a los otros módulos).
 

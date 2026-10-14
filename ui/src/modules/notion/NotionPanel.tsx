@@ -26,9 +26,9 @@ export function NotionPanel() {
         </button>
         {error && <div className="mb-2 text-xs text-destructive">{error}</div>}
         <div className="text-[11px] leading-relaxed text-muted-foreground">
-          Creá una integración interna en{" "}
+          Crea una integración interna en{" "}
           <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer" className="text-[#e0863f]">notion.so/my-integrations</a>,
-          pegá su secret acá, y compartí tus páginas con la integración.
+          pega su secret aquí, y comparte tus páginas con la integración.
         </div>
       </div>
     );

@@ -45,7 +45,7 @@ Manejamos el **Claude Code local**, que usa **tu login de Claude Code** (suscrip
   oficial del SDK al implementar** — no se adivina en el plan.
 - **Fallback**: spawnear `claude --output-format stream-json --input-format stream-json` y
   parsear el JSONL nosotros (estilo `transcript.js` de finnecto). Mismo login local.
-- **No** usamos el SDK `anthropic` (Messages API) — ese requeriría key y no aplica acá.
+- **No** usamos el SDK `anthropic` (Messages API) — ese requeriría key y no aplica aquí.
 
 ## Modelo
 
@@ -119,7 +119,7 @@ IDE → `resume` re-renderiza el historial.
 ## Manejo de errores
 
 - `claude` no instalado / no logueado → `error` tipado y claro ("Claude Code no está
-  logueado — corré `claude login`"), renderizado; **nunca silencioso**.
+  logueado — ejecuta `claude login`"), renderizado; **nunca silencioso**.
 - Corrida que falla → se muestra el error en el chat, la sesión queda usable.
 - WS caído → el chat marca "desconectado" y reengancha por resume al volver.
 

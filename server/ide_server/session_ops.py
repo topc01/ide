@@ -71,7 +71,7 @@ def _resolve_permissions(root: Path, req: dict) -> str:
         raise SessionError("forbidden", "solo la sesión principal puede crear sesiones")
     if requested == "full":
         raise SessionError("forbidden", "una sesión no puede lanzar otra con permisos full; "
-                                        "hacelo desde la UI o la terminal")
+                                        "hazlo desde la UI o la terminal")
     permissions = requested or sessions_config(root)["default_permissions"]
     return "analyze" if permissions == "full" else permissions
 
@@ -96,7 +96,7 @@ def _existing(root: Path, sid: str, req: dict) -> dict | None:
         stored = current["meta"].get("notion_url")
         if req.get("notion") and stored and stored != req["notion"]:
             raise SessionError("id_collision",
-                               f"el id {sid} ya es de otro ticket ({stored}); pasá --id explícito")
+                               f"el id {sid} ya es de otro ticket ({stored}); pasa --id explícito")
         return {"session": current, "log": "", "existed": True}
     if req.get("dry_run"):
         return None
@@ -182,7 +182,7 @@ def check_delete(root: Path, sid: str, *, force: bool = False) -> list[str]:
                  and has_uncommitted_changes(worktree_path(root, sid, r))]
         if dirty:
             raise SessionError("uncommitted_changes",
-                               f"cambios sin commitear en {', '.join(dirty)} (usá --force)")
+                               f"cambios sin commitear en {', '.join(dirty)} (usa --force)")
     return repos
 
 

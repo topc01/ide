@@ -171,7 +171,7 @@ def _create_session_dir(root: Path, *, sid: str, kind: str, permissions: str, pr
     if path.exists():
         raise SessionError("session_exists", f"ya existe la sesión {sid}")
     if kind == "main" and (m := find_main(root)):
-        raise SessionError("main_exists", f"ya existe la principal {m}; usá `ide session open {m}`")
+        raise SessionError("main_exists", f"ya existe la principal {m}; usa `ide session open {m}`")
     path.mkdir(parents=True)
     try:
         write_toml(path / ".session.toml", {

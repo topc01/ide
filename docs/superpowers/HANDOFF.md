@@ -10,9 +10,9 @@ repo, scripts por repo, `max_running`, revisiones de PR, CLI `ide session|repo|s
 Verificado headless contra un server real (backend 442 tests, UI 200, build OK). Módulos
 viejos ocultos vía `[ui] modules`. Próximos pasos: (1) chequeo visual de la UI por el dueño
 (checklist del plan, Task 18); (2) chat propio sobre sesiones-carpeta; (3) re-habilitar los
-módulos ocultos sobre el nuevo `resolve_cwd`. Confianza de carpeta: la primera vez, abrí
-`claude` en la carpeta del workspace y aceptá la confianza; si una sesión muestra
-**⚠ confiar carpeta** (el supervisor detecta el diálogo en la salida del PTY), entrá y aceptá.
+módulos ocultos sobre el nuevo `resolve_cwd`. Confianza de carpeta: la primera vez, abre
+`claude` en la carpeta del workspace y acepta la confianza; si una sesión muestra
+**⚠ confiar carpeta** (el supervisor detecta el diálogo en la salida del PTY), entra y acepta.
 Fix-wave final (review de rama): sólo la principal despacha sesiones y nunca con `full`
 (perfil `permissions/main.json`), lock de workspace, disco fuera del event loop, PTYs cosechados.
 
@@ -135,7 +135,7 @@ de bloques existentes** sincronizado a la **API oficial** de Notion, respetando 
   acotado); `client.py` (SDK oficial `notion-client`: `fetch_page` paginado, `patch_block_text`
   que traduce 429→backoff). Capability `notion.health/list/add/remove/page/save` en `app.py`.
 - **Frontend** (`ui/src/`): transport `notionChannel.ts` + store `state/notion.ts`;
-  `modules/notion/NotionPanel.tsx` (lista, "+ por URL", estado "conectá Notion");
+  `modules/notion/NotionPanel.tsx` (lista, "+ por URL", estado "conecta Notion");
   `main/NotionEditor.tsx` (aísla BlockNote) + `main/NotionPageTab.tsx` (carga, **save con
   debounce ~800ms**, banner de cambio estructural + re-sync con `syncKey`, título read-only)
   ruteado en `MainPanel`. Deps nuevas: `@blocknote/core|react|mantine`@0.51.4.
@@ -313,7 +313,7 @@ cd ui && npm run dev   # http://localhost:5173  (backend en :8787)
   brainstorming (el punto de integración es el stream de eventos del driver, no la API).
 - **R5b — acciones de Graphite**: checkout de branch + submit (crea/actualiza PRs vía `gh`,
   outward-facing → confirmaciones/auth). R5a (lectura + restack) ya está; R5b son las acciones
-  que faltan. Resolver conflictos de restack in-app también queda acá.
+  que faltan. Resolver conflictos de restack in-app también queda aquí.
 - **Tasks Fase 2** (sobre la Fase 1 ya mergeada): borrar tareas, render estructurado (toggle
   vista con secciones/bullets del mockup), cambiar status desde el rail sin abrir, y que una
   sesión de Claude Code cree/actualice tareas vía una tool (se enlaza con la orquestación).

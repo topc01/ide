@@ -102,8 +102,8 @@ async def test_send_claude_route_calls_driver(tmp_path, monkeypatch):
     chatmod.register(reg, tmp_path, mgr, driver_factory=FakeDriver,
                      mlx_router=_FakeRouter(RouteDecision("claude", None)))
     await reg.dispatch("chat.start", {"sessionId": "s1"})
-    await reg.dispatch("chat.send", {"sessionId": "s1", "text": "editá main.py"})
-    assert FakeDriver.last.sent == ["editá main.py"]
+    await reg.dispatch("chat.send", {"sessionId": "s1", "text": "edita main.py"})
+    assert FakeDriver.last.sent == ["edita main.py"]
     assert {"kind": "routed", "source": "claude"} in [p for _, p in mgr.events]
 
 
@@ -162,7 +162,7 @@ async def test_send_force_local_streams_chunks(tmp_path, monkeypatch):
                      mlx_router=_FakeRouter(RouteDecision("local", "x")))
     await reg.dispatch("chat.start", {"sessionId": "s1"})
     FakeDriver.last.sent.clear()
-    out = await reg.dispatch("chat.send", {"sessionId": "s1", "text": "escribí un poema", "route": "local"})
+    out = await reg.dispatch("chat.send", {"sessionId": "s1", "text": "escribe un poema", "route": "local"})
     kinds = [p for _, p in mgr.events]
     assert {"kind": "routed", "source": "local"} in kinds
     deltas = [p.get("text") for p in kinds if p.get("kind") == "text_delta"]

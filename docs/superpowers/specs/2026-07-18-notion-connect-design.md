@@ -5,7 +5,7 @@
 
 ## Objetivo
 
-Eliminar la fricción de setup de Notion: hoy, sin token, el panel dice "conectá Notion" y
+Eliminar la fricción de setup de Notion: hoy, sin token, el panel dice "conecta Notion" y
 agregar una página falla con un mensaje que manda a editar TOML a mano. Con esto, el usuario
 **pega su token de integración en la app** y queda conectado — la app valida y persiste el token
 en su config global.
@@ -56,10 +56,10 @@ transporte: devuelve `{connected:false}` (el front muestra "token inválido"), c
   `load()`; si no → setea `error: "token inválido"`) y `disconnect()` (llama `notion.disconnect`
   → `set({connected:false, pages:[]})`).
 - `modules/notion/NotionPanel.tsx`:
-  - Estado "conectá Notion" (`!connected && !error` o estado desconectado): **input de token**
+  - Estado "conecta Notion" (`!connected && !error` o estado desconectado): **input de token**
     (`type="password"`, placeholder "Internal Integration Secret") + botón **"Conectar"**;
     link a `https://www.notion.so/my-integrations` (abre en pestaña nueva) y un mini-instructivo
-    de 1-2 líneas ("Creá una integración interna, pegá su secret, y compartí tus páginas con la
+    de 1-2 líneas ("Crea una integración interna, pega su secret, y comparte tus páginas con la
     integración"). Enter o click → `connect(token)`.
   - Cuando `connected`: un botón/ícono **"Desconectar"** en el header (además de "+ Nueva" y
     refrescar) → `disconnect()`.
@@ -72,7 +72,7 @@ Panel desconectado → usuario pega token → `connect` → `notion.connect {tok
 
 ## Manejo de errores
 
-- Token inválido → `connect` devuelve `{connected:false}` → panel "token inválido, revisá el
+- Token inválido → `connect` devuelve `{connected:false}` → panel "token inválido, revisa el
   secret". No se persiste.
 - Error de red al validar → envelope → panel muestra error.
 - `write_token`/`clear_token` con IO error → excepción → envelope (no se pretende éxito falso).

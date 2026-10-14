@@ -54,7 +54,7 @@ describe("FilesPanel", () => {
   it("sin sesión muestra un mensaje", () => {
     useSessions.setState({ activeSessionId: null } as any);
     render(<FilesPanel />);
-    expect(screen.getByText(/Seleccioná una sesión/i)).toBeInTheDocument();
+    expect(screen.getByText(/Selecciona una sesión/i)).toBeInTheDocument();
   });
   it("cambiar de sesión remonta el árbol (no arrastra el expandido)", async () => {
     render(<FilesPanel />);

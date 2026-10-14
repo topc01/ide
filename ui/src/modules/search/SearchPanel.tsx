@@ -62,7 +62,7 @@ export function SearchPanel() {
         <div className="min-h-0 flex-1 overflow-auto">
           <div className="mb-1 text-xs text-muted-foreground">
             {searchResults.total} resultado{searchResults.total === 1 ? "" : "s"} en {searchResults.files} archivo{searchResults.files === 1 ? "" : "s"}
-            {searchResults.truncated && " (mostrando los primeros — refiná la búsqueda)"}
+            {searchResults.truncated && " (mostrando los primeros — refina la búsqueda)"}
           </div>
           {searchResults.total === 0 && <div className="text-muted-foreground">Sin coincidencias</div>}
           {searchResults.matches.map((f) => (

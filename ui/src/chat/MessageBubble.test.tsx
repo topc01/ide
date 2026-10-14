@@ -22,9 +22,9 @@ describe("MessageBubble", () => {
     expect(bubble.className).toContain("bg-primary");
   });
   it("mensaje relay saliente muestra badge con flecha hacia el peer", () => {
-    render(<MessageBubble msg={{ role: "user", text: "compilá", chips: [],
+    render(<MessageBubble msg={{ role: "user", text: "compila", chips: [],
       relay: { direction: "out", peer: "Hija A" } }} />);
-    expect(screen.getByText("compilá")).toBeInTheDocument();
+    expect(screen.getByText("compila")).toBeInTheDocument();
     expect(screen.getByText("→ Hija A")).toBeInTheDocument();
   });
   it("mensaje relay entrante muestra badge con flecha desde el peer", () => {

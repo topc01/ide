@@ -73,7 +73,7 @@ def resolve_repo(root: Path, payload: dict) -> Path:
             raise KeyError(repo)
         if repo is None:
             if len(repos) != 1:
-                raise KeyError("la sesión tiene 0 o varios repos: indicá repoId")
+                raise KeyError("la sesión tiene 0 o varios repos: indica repoId")
             repo = repos[0]
         return root / repo
     from ide_server.sessions_store import load_sessions, find_node

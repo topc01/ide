@@ -22,7 +22,7 @@ export function GraphitePanel() {
   }, [activeSessionId, load]);
 
   if (activeSessionId === null) {
-    return <div className="p-3 text-xs text-muted-foreground">seleccioná una sesión</div>;
+    return <div className="p-3 text-xs text-muted-foreground">selecciona una sesión</div>;
   }
 
   return (

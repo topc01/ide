@@ -31,7 +31,7 @@ describe("GraphitePanel", () => {
     useSessions.setState({ activeSessionId: null } as any);
     setGraphite({});
     render(<GraphitePanel />);
-    expect(screen.getByText(/seleccioná una sesión/i)).toBeInTheDocument();
+    expect(screen.getByText(/selecciona una sesión/i)).toBeInTheDocument();
     expect(load).not.toHaveBeenCalled();
   });
 

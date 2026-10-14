@@ -20,7 +20,7 @@ def repo_path(root: Path, repo_id: str) -> Path:
 class SessionHub:
     """Dueño del ciclo de vida de los drivers de chat (uno por sesión).
 
-    `capabilities/chat.py` delega acá el arranque, el envío de mensajes humanos,
+    `capabilities/chat.py` delega aquí el arranque, el envío de mensajes humanos,
     la interrupción y la resolución de permisos. Se mantiene desacoplado del
     transporte (Registry/WS): solo conoce `manager.broadcast` para emitir eventos.
     """
@@ -33,7 +33,7 @@ class SessionHub:
         self._locks: dict[str, asyncio.Lock] = {}
         self._pending: dict[str, asyncio.Future] = {}
         # Los `on_event` de los drivers son síncronos; acumulamos las tareas de
-        # broadcast acá y las flusheamos (await) al final de cada operación
+        # broadcast aquí y las flusheamos (await) al final de cada operación
         # pública para que el efecto sea determinístico ante quien llama.
         self._broadcast_tasks: list[asyncio.Task] = []
 
@@ -174,7 +174,7 @@ class SessionHub:
             reply = await self._drivers[to_id].send(text)
         # `send` dispara `on_event` de la hija (TextDelta/ToolUse/etc.) de forma
         # síncrona; esos broadcasts se encolan en `_broadcast_tasks` (ver
-        # `_make_on_event`) y hay que flushearlos acá para cumplir el invariante
+        # `_make_on_event`) y hay que flushearlos aquí para cumplir el invariante
         # del hub: al retornar, ningún broadcast queda pendiente como task huérfana.
         await self._flush_broadcasts()
         await self.emit(from_id, RelayMessage(direction="in", peer=to_name, peer_id=to_id, text=reply))

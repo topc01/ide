@@ -411,7 +411,7 @@ def test_resolve_repo_repoid_and_errors(tmp_path):
         resolve_repo(root, {"sessionId": "nope"})
 ```
 
-Nota: si el helper `_seed` existente en `test_workspace.py` no crea una sesión con `repoId`, agregá una sesión `{"id":"s1","repoId":"repoA","worktreePath":...,"children":[]}` a su `sessions.json` (mirar cómo lo hace `test_resolve_cwd_session_returns_worktree`, que ya siembra `s1`).
+Nota: si el helper `_seed` existente en `test_workspace.py` no crea una sesión con `repoId`, agrega una sesión `{"id":"s1","repoId":"repoA","worktreePath":...,"children":[]}` a su `sessions.json` (mirar cómo lo hace `test_resolve_cwd_session_returns_worktree`, que ya siembra `s1`).
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -1039,7 +1039,7 @@ describe("GraphitePanel", () => {
     useSessions.setState({ activeSessionId: null } as any);
     setGraphite({});
     render(<GraphitePanel />);
-    expect(screen.getByText(/seleccioná una sesión/i)).toBeInTheDocument();
+    expect(screen.getByText(/selecciona una sesión/i)).toBeInTheDocument();
     expect(load).not.toHaveBeenCalled();
   });
 
@@ -1136,7 +1136,7 @@ export function GraphitePanel() {
   }, [activeSessionId, load]);
 
   if (activeSessionId === null) {
-    return <div className="p-3 text-xs text-muted-foreground">seleccioná una sesión</div>;
+    return <div className="p-3 text-xs text-muted-foreground">selecciona una sesión</div>;
   }
 
   return (

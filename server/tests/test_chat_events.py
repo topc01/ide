@@ -22,13 +22,13 @@ def test_done_and_permission_and_error():
         "kind": "done", "sessionId": "s1", "isError": False}
     assert to_payload(PermissionRequest(id="p1", tool="Write", detail="a.py")) == {
         "kind": "permission_request", "id": "p1", "tool": "Write", "detail": "a.py"}
-    assert to_payload(ChatError(code="not_logged_in", message="corré claude login")) == {
-        "kind": "error", "code": "not_logged_in", "message": "corré claude login"}
+    assert to_payload(ChatError(code="not_logged_in", message="ejecuta claude login")) == {
+        "kind": "error", "code": "not_logged_in", "message": "ejecuta claude login"}
 
 def test_relay_message_payload():
     from ide_server.chat.events import RelayMessage, to_payload
-    p = to_payload(RelayMessage(direction="out", peer="Hija A", peer_id="c2", text="compilá"))
-    assert p == {"kind": "relay", "direction": "out", "peer": "Hija A", "peerId": "c2", "text": "compilá"}
+    p = to_payload(RelayMessage(direction="out", peer="Hija A", peer_id="c2", text="compila"))
+    assert p == {"kind": "relay", "direction": "out", "peer": "Hija A", "peerId": "c2", "text": "compila"}
 
 def test_routed_payload():
     from ide_server.chat.events import Routed, to_payload

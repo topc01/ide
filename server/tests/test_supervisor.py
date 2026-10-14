@@ -27,7 +27,7 @@ class FakePty:
 
 def _mk(tmp_path, *sids, perm="analyze"):
     for sid in sids:
-        create_session_dir(tmp_path, sid=sid, kind="ticket", permissions=perm, prompt=f"hacé {sid}")
+        create_session_dir(tmp_path, sid=sid, kind="ticket", permissions=perm, prompt=f"haz {sid}")
     return tmp_path
 
 
@@ -43,7 +43,7 @@ def test_argv_by_permissions(tmp_path):
     perm = root / ".ide" / "permissions"
     wt = lambda s: f"--add-dir={root / '.ide' / 'worktrees' / s}"
     assert build_argv(root, "a", command="claude", resume=False) == [
-        "claude", "--settings", str(perm / "analyze.json"), wt("a"), "hacé a"]
+        "claude", "--settings", str(perm / "analyze.json"), wt("a"), "haz a"]
     assert build_argv(root, "f", command="claude --verbose", resume=True) == [
         "claude", "--verbose", "--settings", str(perm / "full.json"),
         "--permission-mode", "bypassPermissions", wt("f"), "--continue"]
@@ -77,7 +77,7 @@ def test_start_spawns_with_env_and_exit_marks_stopped(tmp_path):
     sup = _sup(root, pty, on_change=lambda: changes.append(1))
     assert sup.start("a") == "running"
     tid, cwd, argv, env = pty.spawned[0]
-    assert cwd == root / ".ide" / "sessions" / "a" and argv[-1] == "hacé a"
+    assert cwd == root / ".ide" / "sessions" / "a" and argv[-1] == "haz a"
     assert env["IDE_SESSION_ID"] == "a" and env["IDE_URL"] == "http://127.0.0.1:9"
     assert env["IDE_WORKSPACE"] == str(root)
     assert sup.snapshot() == {"a": {"process": "running", "terminalId": tid, "launchError": None,

@@ -49,7 +49,7 @@ mlx no está configurado, el chat funciona como hoy.
     libre (`find_free_port` de `cli.py`, reusado), `spawn([sys.executable, "-m", "mlx_lm.server",
     "--model", model, "--port", str(port)])`, y **hace polling de health** (`GET {url}/v1/models`
     hasta 200, con timeout — la carga del modelo tarda) antes de devolver. Errores: spawn falla
-    (mlx-lm no instalado) → `MlxUnavailable("instalá ide-server[mlx]")`; timeout de carga →
+    (mlx-lm no instalado) → `MlxUnavailable("instala ide-server[mlx]")`; timeout de carga →
     `MlxUnavailable("el modelo no cargó a tiempo")`.
   - `stop()`: termina el subproceso si está vivo.
   - Los hooks `spawn`/`http_get`/`find_port` son inyectables para tests (no se corre mlx real).
@@ -116,7 +116,7 @@ model = "mlx-community/Qwen2.5-3B-Instruct-4bit"
 # router_prompt = "..."   # opcional; default en código
 ```
 Sin esta sección (o `enabled=false`) → mlx apagado, chat = Claude-only (hoy). Es **por-proyecto**:
-prendés mlx en los workspaces que quieras. (El modelo bajado se comparte a nivel máquina — cache HF.)
+prendes mlx en los workspaces que quieras. (El modelo bajado se comparte a nivel máquina — cache HF.)
 
 ## Manejo de errores
 

@@ -42,10 +42,10 @@ describe("useChat.applyEvent", () => {
   it("un evento relay agrega un mensaje con badge sin romper el streaming", () => {
     const { applyEvent } = useChat.getState();
     applyEvent("s1", { kind: "text_delta", text: "x" });
-    applyEvent("s1", { kind: "relay", direction: "out", peer: "Hija A", peerId: "c1", text: "compilá" });
+    applyEvent("s1", { kind: "relay", direction: "out", peer: "Hija A", peerId: "c1", text: "compila" });
     const c = useChat.getState().convos["s1"];
     const m = c.messages[c.messages.length - 1];
-    expect(m.text).toBe("compilá");
+    expect(m.text).toBe("compila");
     expect(m.relay).toEqual({ direction: "out", peer: "Hija A" });
     expect(c.messages[0]).toMatchObject({ role: "agent", text: "x" });
   });

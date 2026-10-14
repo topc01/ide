@@ -10,7 +10,7 @@
 
 Flujo de trabajo diario:
 
-1. Abro la **principal** y le pido "despachá". Lee mi backlog en Notion (y los PRs donde me
+1. Abro la **principal** y le pido "despacha". Lee mi backlog en Notion (y los PRs donde me
    pidieron review) y lanza **una sesión por ticket/PR**.
 2. Cada sesión de ticket **analiza** su ticket: lee el mapa de repos (`sessions/CLAUDE.md`),
    determina scope, qué repos necesita (y se los agrega como worktrees), bloqueantes y dudas, y
@@ -22,7 +22,7 @@ Flujo de trabajo diario:
 sesión queda con su análisis en `TICKET.md`, y el sidebar refleja el disco en todo momento.
 
 Fuera de alcance: chat propio (SDK) para estas sesiones (posible extensión futura), sqlite,
-stack pesado por sesión (DB/docker) más allá de lo que hagan los scripts, escribir de vuelta a
+stack pesado por sesión (DB/docker) más allí de lo que hagan los scripts, escribir de vuelta a
 Notion, publicar reviews en GitHub automáticamente.
 
 ## Decisiones cerradas (brainstorming 2026-10-13)

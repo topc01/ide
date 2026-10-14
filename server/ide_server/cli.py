@@ -103,7 +103,7 @@ Usa tu login de Claude Code (suscripción), sin ANTHROPIC_API_KEY.
 COMANDOS
   ide run [--cwd DIR] [--port N] [--no-browser]
         Levanta todo (frontend + backend + API + WebSocket) en un puerto y abre el navegador.
-        Elige :8787; si está ocupado sube al siguiente libre (así podés correr varios `ide` a la
+        Elige :8787; si está ocupado sube al siguiente libre (así puedes correr varios `ide` a la
         vez). --port fuerza uno exacto. Si el workspace no tiene .ide/, lo crea automáticamente.
   ide server [--dev] [--cwd DIR] [--port N]
         Solo el backend, headless (no abre navegador). Con --dev fija el puerto :8787 (donde pega
@@ -223,7 +223,7 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
         # backend headless (sin abrir navegador). --dev fija :8787, donde pega el frontend dev.
         if args.dev:
             port = settings.port
-            print("dev: levantá la UI aparte con `ide ui --dev` (Vite en http://localhost:5173)")
+            print("dev: levanta la UI aparte con `ide ui --dev` (Vite en http://localhost:5173)")
         else:
             port = args.port if args.port is not None else find_free_port(host, settings.port)
         _launch(root, host, port, web_dir, open_browser=False, serve=serve, opener=opener)
@@ -231,7 +231,7 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
 
     # command == "run"
     if web_dir is None:
-        print("frontend no buildeado; corré `ide build` (o `npm run build` en ui/).")
+        print("frontend no buildeado; ejecuta `ide build` (o `npm run build` en ui/).")
     port = args.port if args.port is not None else find_free_port(host, settings.port)
     _launch(root, host, port, web_dir, open_browser=not args.no_browser, serve=serve, opener=opener)
     return 0

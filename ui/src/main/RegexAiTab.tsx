@@ -36,7 +36,7 @@ export function RegexAiTab({ id }: { id: string }) {
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-border p-2 text-xs text-muted-foreground">
-        Asistente de regex — describí qué querés buscar.
+        Asistente de regex — describe qué quieres buscar.
       </div>
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
         {c?.messages.map((m, i) => <MessageBubble key={i} msg={m} />)}

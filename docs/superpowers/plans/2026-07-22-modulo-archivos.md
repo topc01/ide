@@ -290,7 +290,7 @@ describe("FilesPanel", () => {
   it("sin sesión muestra un mensaje", () => {
     useSessions.setState({ activeSessionId: null } as any);
     render(<FilesPanel />);
-    expect(screen.getByText(/Seleccioná una sesión/i)).toBeInTheDocument();
+    expect(screen.getByText(/Selecciona una sesión/i)).toBeInTheDocument();
   });
 });
 ```
@@ -355,7 +355,7 @@ export function FilesPanel() {
     <aside className="w-64 overflow-auto border-r border-border bg-card">
       <div className="mx-2.5 mb-1 mt-2.5 text-[10px] uppercase tracking-wide text-muted-foreground">Archivos</div>
       {!sessionId ? (
-        <div className="mx-2.5 text-[11px] text-muted-foreground">Seleccioná una sesión para ver sus archivos.</div>
+        <div className="mx-2.5 text-[11px] text-muted-foreground">Selecciona una sesión para ver sus archivos.</div>
       ) : (
         <div className="flex flex-col">
           {roots?.map((e) => <TreeNode key={e.name} sessionId={sessionId} path="" entry={e} depth={0} />)}

@@ -1,7 +1,7 @@
 # `ide` — referencia completa (para humanos y agentes)
 
-> Imprimila con `ide docs`. Este archivo es la fuente de verdad de cómo se configura y opera el
-> IDE. Si sos un agente y te piden "configurá el IDE", todo lo que podés tocar está acá.
+> Imprímela con `ide docs`. Este archivo es la fuente de verdad de cómo se configura y opera el
+> IDE. Si eres un agente y te piden "configura el IDE", todo lo que puedes tocar está aquí.
 
 ## 1. Qué es
 
@@ -31,7 +31,7 @@ es un repo del workspace). `ide` lo encuentra subiendo desde el cwd hasta el pri
 la env `IDE_WORKSPACE`). **Ojo:** correrlo desde un directorio sin `.ide/` propio puede encontrar
 uno viejo más arriba (ej. `~/.ide`).
 
-Cambios en `config.toml` se leen **al arrancar el server** (reiniciá `ide run`). Plantillas,
+Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`). Plantillas,
 `sessions/CLAUDE.md`, scripts y perfiles de permisos se leen **en cada uso** (sin reiniciar).
 
 ## 3. Layout de `.ide/` (local, no se commitea)
@@ -55,8 +55,8 @@ Cambios en `config.toml` se leen **al arrancar el server** (reiniciá `ide run`)
 ```
 
 `ide init` **siembra** `sessions/CLAUDE.md`, `templates/*.md`, `permissions/*.json` y
-`config.toml` **solo si no existen**: nunca pisa ediciones. Para volver a la semilla, borrá el
-archivo y corré `ide init`.
+`config.toml` **solo si no existen**: nunca pisa ediciones. Para volver a la semilla, borra el
+archivo y ejecuta `ide init`.
 
 `claude` también hereda (por walk-up) cualquier `CLAUDE.md` en `<workspace>/` o más arriba.
 
@@ -112,12 +112,12 @@ Todas las sesiones reciben `--add-dir=.ide/worktrees/<id>` (sus repos); la princ
 seteada), solo la **principal** puede crear sesiones y **nunca con `full`** (si el default es
 `full`, se baja a `analyze`). `full` solo se lanza desde la UI o desde una terminal tuya.
 
-Editá los `.json` para ajustar (formato de settings de Claude Code: `permissions.allow/deny`).
+Edita los `.json` para ajustar (formato de settings de Claude Code: `permissions.allow/deny`).
 
 ## 6. CLI
 
 Dentro de una sesión, el CLI sabe en qué sesión está por `IDE_SESSION_ID` (la inyecta el server),
-o subiendo desde el cwd hasta `.ide/sessions/<id>/` o `.ide/worktrees/<id>/`. Fuera, usá
+o subiendo desde el cwd hasta `.ide/sessions/<id>/` o `.ide/worktrees/<id>/`. Fuera, usa
 `--session <id>`. Todos los ids se normalizan a slug (`FIN-123` → `fin-123`).
 
 Los comandos marcados **[server]** necesitan `ide run` activo (lo encuentran por `IDE_URL` o por
@@ -133,7 +133,7 @@ Crea la carpeta y lanza `claude` en ella (o la encola si se llegó a `max_runnin
 | `--notion <url>` | id = `n-<últimos 10 hex del page id>` y `notion_url` = la URL. Si el id ya es de otro ticket → `id_collision` |
 | `--main` | sesión principal (una sola por workspace; `main_exists` si ya hay) |
 | `--template <nombre>` | renderiza `templates/<nombre>.md` como prompt (§7) |
-| `--var k=v` (repetible) / `--vars-file f.json` / `--vars-file -` (stdin) | variables de la plantilla; JSON = objeto `{"k": "v"}`; `--var` pisa al archivo. Preferí JSON para textos con comillas, `\|` o saltos de línea |
+| `--var k=v` (repetible) / `--vars-file f.json` / `--vars-file -` (stdin) | variables de la plantilla; JSON = objeto `{"k": "v"}`; `--var` pisa al archivo. Prefiere JSON para textos con comillas, `\|` o saltos de línea |
 | `--prompt "…"` / `--prompt-file f` | prompt libre (sin plantilla) |
 | `--title T` | título (si no, sale de la variable `title`) |
 | `--permissions analyze\|full\|default` | perfil (§5) |
@@ -150,7 +150,7 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 - `ide session rm <id> [--force]`: si hay cambios sin commitear en algún repo, **se niega antes de tocar nada** (`--force` lo fuerza); si no: para el proceso, corre `archive` de cada repo, quita los worktrees y borra la carpeta. Las branches quedan.
 
 ### Repos y scripts
-- `ide repo add <repo> [--branch b] [--session id]`: worktree en `.ide/worktrees/<id>/<repo>`, symlink en la sesión, reserva `IDE_PORT` y corre `setup` (espera y muestra la salida). Branch default = `<id>`; si está ocupada → error que sugiere `--branch`. `setup` fallido → exit 1, el worktree queda marcado `setup failed` (reintentá con `ide script setup <repo>`).
+- `ide repo add <repo> [--branch b] [--session id]`: worktree en `.ide/worktrees/<id>/<repo>`, symlink en la sesión, reserva `IDE_PORT` y corre `setup` (espera y muestra la salida). Branch default = `<id>`; si está ocupada → error que sugiere `--branch`. `setup` fallido → exit 1, el worktree queda marcado `setup failed` (reintenta con `ide script setup <repo>`).
 - `ide repo rm <repo> [--force]`: misma regla de cambios sin commitear; corre `archive`; quita worktree y symlink.
 - `ide script <nombre> [<repo>]`: corre `.ide/scripts/<repo>/<nombre>` en el worktree (repo inferido si la sesión tiene uno solo). Devuelve el exit code del script.
 
@@ -165,9 +165,9 @@ un placeholder literal. Siempre disponible: `{{id}}`. Con `--notion`: `{{notion_
 | `ticket.md` | `id`, `title`, `notion_url` | qué hace cada sesión de ticket (analizar, `ide repo add`, escribir `TICKET.md`) |
 | `review.md` | `id`, `title`, `pr_url`, `author`, `repo` (las completa el IDE con `gh`) | qué hace cada revisión |
 
-Para configurar el despacho editá `main.md`: la base (URL o `collection://…`), el filtro
+Para configurar el despacho edita `main.md`: la base (URL o `collection://…`), el filtro
 (asignado, estados que entran), y si debe pedir OK antes de lanzar (recomendado: `--dry-run` +
-tabla + esperar OK, luego `--if-missing`). Podés crear plantillas nuevas (`templates/x.md`) y
+tabla + esperar OK, luego `--if-missing`). Puedes crear plantillas nuevas (`templates/x.md`) y
 usarlas con `--template x`.
 
 ## 8. Scripts por repo (`.ide/scripts/<repo>/<nombre>`)
@@ -213,10 +213,10 @@ notion_url: https://www.notion.so/...
 
 | Síntoma | Causa / solución |
 |---|---|
-| Sesión con badge **⚠ confiar carpeta** | Claude Code pregunta si confiás en la carpeta nueva. Abrí la terminal de la sesión y aceptá. También aparece con el aviso del modo `full` (aceptalo una vez). |
-| `No hay ide run activo` | Levantá `ide run` en el workspace (o exportá `IDE_URL`). |
+| Sesión con badge **⚠ confiar carpeta** | Claude Code pregunta si confías en la carpeta nueva. Abre la terminal de la sesión y acepta. También aparece con el aviso del modo `full` (acéptalo una vez). |
+| `No hay ide run activo` | Levanta `ide run` en el workspace (o exporta `IDE_URL`). |
 | `claude_missing` | `claude` no está en el PATH del server. |
-| `setup failed` en un repo | Mirá la salida; arreglá el script; `ide script setup <repo>`. |
+| `setup failed` en un repo | Mira la salida; arregla el script; `ide script setup <repo>`. |
 | `⚠ no ejecutable` en un script | `chmod +x .ide/scripts/<repo>/<nombre>`. |
 | `⚠ error` en una sesión | `.session.toml` o el frontmatter de `TICKET.md` está roto; el mensaje dice cuál. |
 | `⚠ poll` en una revisión | `gh` falló (auth/red); el title muestra el último OK. `gh auth status`. |

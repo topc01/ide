@@ -1,6 +1,6 @@
 # CLAUDE.md — Agentic IDE (working name)
 
-Instrucciones para cualquier agente que trabaje en este repo. Leé también `README.md` y
+Instrucciones para cualquier agente que trabaje en este repo. Lee también `README.md` y
 `docs/` antes de tocar código.
 
 ## Qué es
@@ -19,7 +19,7 @@ como referencia de dominio**, no como base de código).
    La UI es prioridad del dueño del proyecto. (Cambiado 2026-07-09; ver
    `docs/superpowers/specs/2026-07-09-ui-shadcn-design.md`.)
 2. **TDD.** Test que falla → implementación mínima → test que pasa → commit. El plan ya viene
-   en pasos TDD; seguilos.
+   en pasos TDD; síguelos.
 3. **Rebanadas verticales.** Se construye por rebanadas (R0–R6, ver `docs/design/ROADMAP.md`),
    una a la vez. **R0 (Fundación) primero**; el resto se planifica sobre la realidad de R0.
    No planifiques rebanadas futuras en detalle antes de tiempo.
@@ -27,7 +27,7 @@ como referencia de dominio**, no como base de código).
    payload:{code,message}}`; el frontend muestra "desconectado", no datos viejos como vivos.
 5. **Extensibilidad primero.** Los 6 módulos del rail son plugins detrás de una interfaz
    común. Agregar un módulo (o un meta-agente futuro) = un `register` de cada lado.
-6. **Usá superpowers.** Antes de trabajo creativo, brainstorming; para ejecutar planes,
+6. **Usa superpowers.** Antes de trabajo creativo, brainstorming; para ejecutar planes,
    subagent-driven-development o executing-plans; para debugging, systematic-debugging.
 
 ## Decisiones de arquitectura ya tomadas (no re-litigar)

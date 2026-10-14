@@ -395,13 +395,13 @@ En `server/ide_server/capabilities/chat.py`, agregar la constante bajo `_LANG`:
 
 ```python
 REGEX_AGENT_PROMPT = (
-    "Sos un asistente experto en expresiones regulares. Tu tarea es ayudar al usuario a "
+    "Eres un asistente experto en expresiones regulares. Tu tarea es ayudar al usuario a "
     "construir el regex que necesita para buscar en su código.\n"
-    "- Usá SIEMPRE la sintaxis de regex de ripgrep (motor Rust `regex`), NO PCRE (sin "
+    "- Usa SIEMPRE la sintaxis de regex de ripgrep (motor Rust `regex`), NO PCRE (sin "
     "lookbehind, sin backreferences).\n"
-    "- Cuando propongas el regex final, escribilo en un bloque de código marcado como "
+    "- Cuando propongas el regex final, escríbelo en un bloque de código marcado como "
     "```regex``` (una sola línea con el patrón), para que la app lo pueda extraer.\n"
-    "- Explicá brevemente qué hace el patrón. Podés pedir aclaraciones y ofrecer variantes."
+    "- Explica brevemente qué hace el patrón. Puedes pedir aclaraciones y ofrecer variantes."
 )
 ```
 
@@ -770,7 +770,7 @@ export function SearchPanel() {
         <div className="min-h-0 flex-1 overflow-auto">
           <div className="mb-1 text-xs text-muted-foreground">
             {searchResults.total} resultado{searchResults.total === 1 ? "" : "s"} en {searchResults.files} archivo{searchResults.files === 1 ? "" : "s"}
-            {searchResults.truncated && " (mostrando los primeros — refiná la búsqueda)"}
+            {searchResults.truncated && " (mostrando los primeros — refina la búsqueda)"}
           </div>
           {searchResults.total === 0 && <div className="text-muted-foreground">Sin coincidencias</div>}
           {searchResults.matches.map((f) => (
@@ -843,11 +843,11 @@ import { extractRegex } from "./RegexAiTab";
 
 describe("extractRegex", () => {
   it("saca el patrón del bloque ```regex```", () => {
-    const md = "Probá esto:\n```regex\n\\bprint\\s*\\(\n```\nEso matchea…";
+    const md = "Prueba esto:\n```regex\n\\bprint\\s*\\(\n```\nEso matchea…";
     expect(extractRegex(md)).toBe("\\bprint\\s*\\(");
   });
   it("devuelve null si no hay bloque regex", () => {
-    expect(extractRegex("no hay patrón acá")).toBeNull();
+    expect(extractRegex("no hay patrón aquí")).toBeNull();
   });
   it("toma el último bloque si hay varios", () => {
     const md = "```regex\nfoo\n```\ny mejor:\n```regex\nbar\n```";
@@ -903,7 +903,7 @@ export function RegexAiTab({ id }: { id: string }) {
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-border p-2 text-xs text-muted-foreground">
-        Asistente de regex — describí qué querés buscar.
+        Asistente de regex — describe qué quieres buscar.
       </div>
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
         {c?.messages.map((m: any, i: number) => <MessageBubble key={i} msg={m} />)}
@@ -962,7 +962,7 @@ git commit -m "feat(search): RegexAiTab (chat de IA para regex) + puente Inserta
 
 ## Notas de integración (no son tareas)
 
-- **Composer**: su prop `onSend` es `(t, route?) => void`. En `RegexAiTab` lo llamamos sin `route` (ruteo Auto; default Claude). Verificar que `Composer` no exija `onStop` (en `ChatView` se pasa; acá se puede omitir o pasar un no-op si TS lo exige).
+- **Composer**: su prop `onSend` es `(t, route?) => void`. En `RegexAiTab` lo llamamos sin `route` (ruteo Auto; default Claude). Verificar que `Composer` no exija `onStop` (en `ChatView` se pasa; aquí se puede omitir o pasar un no-op si TS lo exige).
 - **`state/chat.ts`**: reusar tal cual (las convos se indexan por el `id` de sesión, así `airegex:<sid>` es una conversación aparte). Confirmar la forma de `MessageBubble`/`msg` (campo `role`/`text`) al implementar la Task 7; ajustar `lastAssistant` si el shape difiere.
 - **rg y `.gitignore`**: rg ignora `.gitignore` por default — es el comportamiento deseado. No pasar `-uu`.
 ```

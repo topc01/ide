@@ -77,7 +77,7 @@ export function TerminalPanel() {
         </div>
       ) : (
         <div className="mx-2.5 text-[11px] text-muted-foreground">
-          Seleccioná una sesión para abrir su terminal.
+          Selecciona una sesión para abrir su terminal.
         </div>
       )}
     </aside>

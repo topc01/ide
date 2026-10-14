@@ -50,9 +50,9 @@ Code en el PATH, logueado por suscripción (**sin `ANTHROPIC_API_KEY`**). Para e
 de fallar en silencio. Para las **revisiones de PR** (`ide session new --review`) hace falta
 [`gh`](https://cli.github.com/) logueado (`gh auth login`).
 
-**Confianza de carpeta:** Claude Code pide confirmar cada carpeta nueva. La primera vez, abrí
-`claude` en la carpeta del workspace y aceptá la confianza; si una sesión muestra
-**⚠ confiar carpeta**, entrá a su terminal y aceptá (el IDE nunca la acepta por vos).
+**Confianza de carpeta:** Claude Code pide confirmar cada carpeta nueva. La primera vez, abre
+`claude` en la carpeta del workspace y acepta la confianza; si una sesión muestra
+**⚠ confiar carpeta**, entra a su terminal y acepta (el IDE nunca la acepta por ti).
 
 ### Un comando levanta todo
 
@@ -72,7 +72,7 @@ cd server && uv run ide run --cwd <ws> --no-browser   # backend + frontend servi
 cd ui && npm run dev                                   # Vite en :5173 con hot-reload
 ```
 
-En dev abrí `:5173` (Vite); el WebSocket del frontend siempre pega a `:8787`.
+En dev abre `:5173` (Vite); el WebSocket del frontend siempre pega a `:8787`.
 
 ## Tests
 

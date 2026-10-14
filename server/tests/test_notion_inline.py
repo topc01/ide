@@ -20,11 +20,11 @@ def test_plain_and_styled_to_inline():
 
 
 def test_link_to_inline():
-    rt = [_rt("acá", link="https://x.com")]
+    rt = [_rt("aquí", link="https://x.com")]
     inline = notion_richtext_to_inline(rt)
     assert inline[0] == {
         "type": "link", "href": "https://x.com",
-        "content": [{"type": "text", "text": "acá", "styles": {}}]}
+        "content": [{"type": "text", "text": "aquí", "styles": {}}]}
 
 
 def test_roundtrip_inline_to_notion():

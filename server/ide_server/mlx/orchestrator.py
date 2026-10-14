@@ -23,7 +23,7 @@ class MlxRouter:
 
     async def decide(self, text: str, force: str | None = None) -> RouteDecision:
         # force: None = el router decide; "claude" = forzar Claude (sin tocar mlx).
-        # ("local" NO pasa por acá: se streamea vía stream_local.)
+        # ("local" NO pasa por aquí: se streamea vía stream_local.)
         if force == "claude":
             return RouteDecision(route="claude", reply=None)
         try:

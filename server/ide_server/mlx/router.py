@@ -34,6 +34,6 @@ class PromptRouter:
     async def answer_stream(self, text: str, emit) -> str:
         # respuesta directa del modelo local (sin clasificar), streameada token a token — para "forzar local"
         return await self._client.chat_stream([
-            {"role": "system", "content": "Respondé de forma directa y concisa."},
+            {"role": "system", "content": "Responde de forma directa y concisa."},
             {"role": "user", "content": text},
         ], emit)

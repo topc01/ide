@@ -33,7 +33,7 @@ export function SessionItem({ session }: { session: FolderSession }) {
           title={session.pollError
             ? `${session.pollError} (último OK: ${session.lastOk ?? "nunca"})` : undefined}>{extra}</Badge>}
         {session.attention === "trust" && <Badge variant="destructive"
-          title="Claude Code pide confirmar la carpeta: abrí la terminal y aceptá">⚠ confiar carpeta</Badge>}
+          title="Claude Code pide confirmar la carpeta: abre la terminal y acepta">⚠ confiar carpeta</Badge>}
         {(session.error || session.launchError) && (
           <span title={session.error ?? session.launchError ?? ""} className="text-destructive">⚠ error</span>)}
         {error && <span role="alert" title={error} className="text-destructive">⚠</span>}

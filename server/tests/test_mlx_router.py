@@ -31,7 +31,7 @@ async def test_prompt_router_local():
 
 @pytest.mark.asyncio
 async def test_prompt_router_claude():
-    d = await PromptRouter(_FakeClient("ROUTE_TO_CLAUDE"), "SYS").route("editá el archivo main.py")
+    d = await PromptRouter(_FakeClient("ROUTE_TO_CLAUDE"), "SYS").route("edita el archivo main.py")
     assert d == RouteDecision(route="claude", reply=None)
 
 

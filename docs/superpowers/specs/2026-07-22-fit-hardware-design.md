@@ -33,7 +33,7 @@ modelo**, con `llmfit`. Si `llmfit` no está instalado → sin badges (degrada, 
    catálogo; el backend corre `llmfit` concurrente (thread pool) y **cachea por repo_id** (el fit es
    estable por máquina).
 4. **Dep opcional:** `llmfit` no está en el PATH → todos `None` → panel sin badges (quizás un hint sutil
-   "instalá llmfit para ver el fit"). Nunca tumba el panel.
+   "instala llmfit para ver el fit"). Nunca tumba el panel.
 5. **Archivos nuevos en backend** (`models/fit.py`, `capabilities/models_fit.py`) — no re-editar los
    `mlx/*.py` que el dueño está puliendo con type hints.
 
