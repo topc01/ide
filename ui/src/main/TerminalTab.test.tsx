@@ -17,7 +17,7 @@ vi.mock("@xterm/addon-fit", () => ({ FitAddon: class { fit() {} } }));
 vi.mock("../transport/wsClient", () => ({ getWs: () => ({}) }));
 const subs: any = {};
 vi.mock("../transport/terminalChannel", () => ({
-  subscribeTerminal: (_ws: any, _id: string, onData: any) => { subs.onData = onData; },
+  subscribeTerminal: (_ws: any, _id: string, onData: any) => { subs.onData = onData; return () => {}; },
   writeTerminal: vi.fn(),
   resizeTerminal: vi.fn(),
 }));

@@ -19,12 +19,15 @@ export async function listTerminals(ws: WsClient, sessionId: string): Promise<Te
   return (await ws.request("terminal.list", { sessionId })).terminals;
 }
 export function subscribeTerminal(ws: WsClient, id: string,
-  onData: (bytes: Uint8Array) => void, onExit: () => void): void {
-  ws.on(`terminal.data.${id}`, (p: any) => {
+  onData: (bytes: Uint8Array) => void, onExit: () => void): () => void {
+  const dataCb = (p: any) => {
     const bin = atob(p.data);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     onData(bytes);
-  });
-  ws.on(`terminal.exit.${id}`, () => onExit());
+  };
+  const exitCb = () => onExit();
+  ws.on(`terminal.data.${id}`, dataCb);
+  ws.on(`terminal.exit.${id}`, exitCb);
+  return () => { ws.off(`terminal.data.${id}`, dataCb); ws.off(`terminal.exit.${id}`, exitCb); };
 }

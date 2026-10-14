@@ -17,11 +17,11 @@ export function TerminalTab({ id }: { id: string }) {
     if (ref.current) term.open(ref.current);
     try { fit.fit(); } catch { /* jsdom */ }
     resizeTerminal(getWs(), id, term.cols, term.rows);
-    subscribeTerminal(getWs(), id,
+    const unsubscribe = subscribeTerminal(getWs(), id,
       (bytes) => term.write(bytes),
       () => term.write("\r\n[proceso terminado]\r\n"));
     term.onData((d) => writeTerminal(getWs(), id, d));
-    return () => term.dispose();
+    return () => { unsubscribe(); term.dispose(); };
   }, [id]);
   return <div ref={ref} className="h-full w-full bg-terminal-bg" />;
 }

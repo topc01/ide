@@ -10,17 +10,22 @@ export class WsClient {
   private pending = new Map<string, Pending>();
   private listeners = new Map<string, ((p: any) => void)[]>();
   private openP: Promise<void>;
+  private closeListeners: (() => void)[] = [];
 
   constructor(url: string) {
     this.ws = new WebSocket(url);
     this.openP = new Promise<void>((resolve, reject) => {
       this.ws.onopen = () => resolve();
       this.ws.onerror = () => reject(new Error("WebSocket error antes de abrir"));
-      this.ws.onclose = () => reject(new Error("WebSocket cerrado antes de abrir"));
+      this.ws.onclose = () => {
+        reject(new Error("WebSocket cerrado antes de abrir"));   // no-op si ya abrió
+        this.closeListeners.forEach((cb) => cb());
+      };
     });
     this.ws.onmessage = (e) => this.onMessage(JSON.parse(e.data) as Envelope);
   }
   ready() { return this.openP; }
+  onClose(cb: () => void) { this.closeListeners.push(cb); }
 
   private onMessage(msg: Envelope) {
     if ((msg.type === "res" || msg.type === "error") && msg.id) {
