@@ -46,6 +46,7 @@ A partir de R6 el trabajo se descompuso en rebanadas más finas y se sumaron alg
 | Modelos: bring-up en vivo | mlx corre de verdad: arreglado el bug `model:"local"` (colgaba cada request); `DEFAULT_ROUTER_PROMPT` reescrito (clasificador → 7/7 con Qwen2.5-3B; 1B muy débil). `mlx-lm` instalado. | ✅ hecho |
 | Modelos: override manual | Selector Auto/Local/Claude en el composer; `chat.send` acepta `route`; forzar local/claude por mensaje. | ✅ hecho |
 | Modelos: streaming local | Reply local forzado streameado token-a-token (SSE de `mlx_lm.server`); degrada a Claude si mlx no arranca. | ✅ hecho |
+| Sesiones-carpeta | Simplificación: sesión = carpeta + claude interactivo, despacho por plantilla, scripts por repo, max_running, revisiones de PR con polling, sidebar con Queue. | ✅ hecho |
 
 ### Pendientes (requieren brainstorming/spec — ver HANDOFF)
 

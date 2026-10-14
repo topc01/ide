@@ -1,8 +1,17 @@
 # Handoff — estado del proyecto (Agentic IDE)
 
-> Última actualización: 2026-07-20. Documento vivo para retomar en otra sesión sin recontexto.
+> Última actualización: 2026-10-13. Documento vivo para retomar en otra sesión sin recontexto.
 
 ## Dónde estamos
+
+**Sesiones-carpeta: COMPLETO en `main`** (spec `specs/2026-10-13-sesiones-carpeta-design.md`).
+Sesión = `.ide/sessions/<id>/` con `claude` interactivo en PTY del server; worktrees por
+repo, scripts por repo, `max_running`, revisiones de PR, CLI `ide session|repo|script`.
+Verificado headless contra un server real (backend 442 tests, UI 200, build OK). Módulos
+viejos ocultos vía `[ui] modules`. Próximos pasos: (1) chequeo visual de la UI por el dueño
+(checklist del plan, Task 18); (2) chat propio sobre sesiones-carpeta; (3) re-habilitar los
+módulos ocultos sobre el nuevo `resolve_cwd`. Nota: en un dir nuevo `claude` puede pedir
+confianza de carpeta antes de procesar el prompt inicial.
 
 **`ide` multi-instancia + arranque de un comando: COMPLETO y mergeado** (merges `16ca898`
 single-launch, `83d1f7e` multi-instancia). `ide run` sirve frontend+backend en un puerto libre

@@ -47,7 +47,8 @@ Tres regiones (según el mockup, dirección visual **1a — Terminal/amber**):
 Code en el PATH, logueado por suscripción (**sin `ANTHROPIC_API_KEY`**). Para el módulo
 **Search** (buscar contenido) hace falta [`ripgrep`](https://github.com/BurntSushi/ripgrep)
 (`rg`) en el PATH (`brew install ripgrep`); si falta, el buscador avisa con `rg_missing` en vez
-de fallar en silencio.
+de fallar en silencio. Para las **revisiones de PR** (`ide session new --review`) hace falta
+[`gh`](https://cli.github.com/) logueado (`gh auth login`).
 
 ### Un comando levanta todo
 
