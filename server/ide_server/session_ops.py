@@ -80,11 +80,11 @@ _NOTION_ID_RE = re.compile(r"([0-9a-f]{32})(?:[?#/]|$)")
 
 
 def notion_session_id(url: str) -> str:
-    """Id de sesión derivado del page id de una URL de Notion (n-<8 hex>)."""
+    """Id de sesión derivado del page id de una URL de Notion (n-<últimos 10 hex>)."""
     m = _NOTION_ID_RE.search(url.strip().lower().replace("-", ""))
     if not m:
         raise SessionError("bad_notion_url", f"no encuentro el page id en la URL de Notion: {url!r}")
-    return f"n-{m.group(1)[:8]}"
+    return f"n-{m.group(1)[-10:]}"           # el final es la parte aleatoria (el prefijo se repite)
 
 
 def _existing(root: Path, sid: str, req: dict) -> dict | None:
@@ -92,7 +92,12 @@ def _existing(root: Path, sid: str, req: dict) -> dict | None:
     if not session_path(root, sid).exists():
         return None
     if req.get("if_missing"):
-        return {"session": read_session(root, sid), "log": "", "existed": True}
+        current = read_session(root, sid)
+        stored = current["meta"].get("notion_url")
+        if req.get("notion") and stored and stored != req["notion"]:
+            raise SessionError("id_collision",
+                               f"el id {sid} ya es de otro ticket ({stored}); pasá --id explícito")
+        return {"session": current, "log": "", "existed": True}
     if req.get("dry_run"):
         return None
     raise SessionError("session_exists", f"ya existe la sesión {sid}")

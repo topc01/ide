@@ -176,13 +176,13 @@ def test_notion_url_derives_id_and_notion_var(tmp_path):
     url = "https://www.notion.so/finnecto/Exportar-facturas-1a2b3c4d5e6f47a8b9c0d1e2f3a4b5c6?pvs=4"
     s = create_session(root, {"notion": url, "template": "ticket",
                               "vars": {"title": "Exportar"}})["session"]
-    assert s["id"] == "n-1a2b3c4d" and s["meta"]["notion_url"] == url
+    assert s["id"] == "n-e2f3a4b5c6" and s["meta"]["notion_url"] == url
 
 
 def test_notion_url_with_dashed_page_id(tmp_path):
     root = _ws(tmp_path)
     url = "https://www.notion.so/1a2b3c4d-5e6f-47a8-b9c0-d1e2f3a4b5c6"
-    assert create_session(root, {"notion": url, "prompt": ""})["session"]["id"] == "n-1a2b3c4d"
+    assert create_session(root, {"notion": url, "prompt": ""})["session"]["id"] == "n-e2f3a4b5c6"
 
 
 def test_notion_url_without_page_id_is_error(tmp_path):
@@ -235,3 +235,22 @@ def test_dry_run_review_does_not_call_gh(tmp_path):
                                 "dry_run": True}, runner=boom)
     assert res["dryRun"] is True and res["session"]["id"] == "pr-repo-a-9"
     assert not session_path(root, "pr-repo-a-9").exists()
+
+
+def test_notion_ids_with_shared_prefix_do_not_collide(tmp_path):
+    root = _ws(tmp_path)
+    a = create_session(root, {"notion": "https://www.notion.so/3f567263614681aeb6fdf8f25ff08372",
+                              "prompt": ""})["session"]["id"]
+    b = create_session(root, {"notion": "https://www.notion.so/3f567263614681bf83aadf2ab684e6d4",
+                              "prompt": ""})["session"]["id"]
+    assert a != b
+
+
+def test_if_missing_with_other_ticket_on_same_id_is_collision(tmp_path):
+    root = _ws(tmp_path)
+    create_session(root, {"id": "n-e2f3a4b5c6", "template": "ticket",
+                          "vars": {"title": "otro", "notion_url": "https://www.notion.so/otro"}})
+    with pytest.raises(SessionError) as e:
+        create_session(root, {"notion": "https://www.notion.so/1a2b3c4d5e6f47a8b9c0d1e2f3a4b5c6",
+                              "if_missing": True, "prompt": ""})
+    assert e.value.code == "id_collision"
