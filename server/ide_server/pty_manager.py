@@ -14,7 +14,7 @@ class PtyManager:
     def __init__(self) -> None:
         self._terms: dict[str, dict] = {}
 
-    def spawn(self, cwd: Path, argv: list[str]) -> str:
+    def spawn(self, cwd: Path, argv: list[str], env: dict[str, str] | None = None) -> str:
         tid = uuid.uuid4().hex[:12]
         pid, fd = pty.fork()
         if pid == 0:                            # hijo: stdio ya es el slave pty
@@ -23,7 +23,10 @@ class PtyManager:
             except OSError:
                 pass
             try:
-                os.execvp(argv[0], argv)
+                if env is None:
+                    os.execvp(argv[0], argv)
+                else:
+                    os.execvpe(argv[0], argv, env)
             except OSError:
                 os._exit(127)                   # execvp falló (comando inexistente)
         self._terms[tid] = {"pid": pid, "fd": fd}
