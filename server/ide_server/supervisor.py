@@ -8,8 +8,20 @@ from pathlib import Path
 from typing import Callable
 from ide_server.sessions_fs import SessionError, session_path, read_toml
 
-SpawnFn = Callable[[Path, list[str], dict[str, str], Callable[[], None]], str]
+SpawnFn = Callable[..., str]   # (cwd, argv, env, on_exit, *, on_output, on_input) -> tid
 KillFn = Callable[[str], None]
+
+# Claude Code pide confirmar la carpeta (o el modo bypass) la primera vez: la sesión queda
+# esperando y ocupa un cupo. Lo detectamos en el inicio de la salida (sin ANSI ni espacios,
+# porque el TUI a veces reemplaza espacios por movimientos de cursor).
+ATTENTION_HEAD = 8192
+_ANSI_RE = re.compile(rb"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])")
+_TRUST_NEEDLES = ("trustthefiles", "doyoutrust", "bypasspermissionsmode")
+
+
+def needs_trust(head: bytes) -> bool:
+    text = re.sub(r"\s+", "", _ANSI_RE.sub(b"", head).decode("utf-8", "replace")).lower()
+    return any(n in text for n in _TRUST_NEEDLES)
 
 
 def encode_project_dir(path: Path) -> str:
@@ -62,6 +74,8 @@ class Supervisor:
         self._running: dict[str, str] = {}
         self._queue: list[tuple[str, bool]] = []
         self._errors: dict[str, str] = {}
+        self._head: dict[str, bytes] = {}           # sid -> inicio de la salida del proceso
+        self._attention: dict[str, str] = {}        # sid -> "trust"
 
     def state(self, sid: str) -> str:
         if sid in self._running:
@@ -73,7 +87,8 @@ class Supervisor:
     def snapshot(self) -> dict[str, dict]:
         sids = set(self._running) | {q for q, _ in self._queue} | set(self._errors)
         return {sid: {"process": self.state(sid), "terminalId": self._running.get(sid),
-                      "launchError": self._errors.get(sid)} for sid in sids}
+                      "launchError": self._errors.get(sid),
+                      "attention": self._attention.get(sid)} for sid in sids}
 
     def start(self, sid: str, *, resume: bool | None = None) -> str:
         path = session_path(self._root, sid)
@@ -95,6 +110,7 @@ class Supervisor:
         self._queue = [(q, r) for q, r in self._queue if q != sid]
         self._errors.pop(sid, None)
         tid = self._running.pop(sid, None)
+        self._forget(sid)
         if tid is not None:
             self._kill(tid)
             self._drain()
@@ -110,15 +126,42 @@ class Supervisor:
                "IDE_WORKSPACE": str(self._root)}
         holder: dict[str, str] = {}
         tid = self._spawn(session_path(self._root, sid), argv, env,
-                          lambda: self._on_exit(sid, holder.get("tid")))
+                          lambda: self._on_exit(sid, holder.get("tid")),
+                          on_output=lambda data: self._on_output(sid, holder.get("tid"), data),
+                          on_input=lambda: self._on_input(sid, holder.get("tid")))
         holder["tid"] = tid
+        self._forget(sid)
         self._running[sid] = tid
         self._errors.pop(sid, None)
+
+    def _forget(self, sid: str) -> None:
+        self._head.pop(sid, None)
+        self._attention.pop(sid, None)
+
+    def _on_output(self, sid: str, tid: str | None, data: bytes) -> None:
+        if tid is None or self._running.get(sid) != tid or sid in self._attention:
+            return
+        head = self._head.get(sid, b"")
+        if len(head) >= ATTENTION_HEAD:
+            return
+        head = (head + data)[:ATTENTION_HEAD]
+        self._head[sid] = head
+        if needs_trust(head):
+            self._attention[sid] = "trust"
+            self._on_change()
+
+    def _on_input(self, sid: str, tid: str | None) -> None:
+        """El usuario escribió en la terminal: asumimos que respondió el diálogo."""
+        if tid is not None and self._running.get(sid) == tid and \
+                self._attention.pop(sid, None) is not None:
+            self._head[sid] = b""         # seguir mirando: puede venir otro diálogo (bypass)
+            self._on_change()
 
     def _on_exit(self, sid: str, tid: str | None) -> None:
         if tid is None or self._running.get(sid) != tid:
             return
         del self._running[sid]
+        self._forget(sid)
         self._drain()
         self._on_change()
 

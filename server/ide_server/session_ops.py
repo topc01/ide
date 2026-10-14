@@ -127,8 +127,8 @@ def _create_review(root: Path, url: str, permissions: str, runner: Runner) -> di
     return {"session": read_session(root, sid), "log": log.getvalue()}
 
 
-def delete_session(root: Path, sid: str, *, force: bool = False,
-                   stop: Callable[[str], None] | None = None) -> None:
+def check_delete(root: Path, sid: str, *, force: bool = False) -> list[str]:
+    """Valida que la sesión se puede borrar (sin cambios sin commitear salvo force)."""
     spath = require_session(root, sid)
     repos = [p.name for p in spath.iterdir() if p.is_symlink()]
     if not force:
@@ -137,15 +137,27 @@ def delete_session(root: Path, sid: str, *, force: bool = False,
         if dirty:
             raise SessionError("uncommitted_changes",
                                f"cambios sin commitear en {', '.join(dirty)} (usá --force)")
-    if stop is not None:
-        stop(sid)
-    for repo in repos:
+    return repos
+
+
+def remove_session(root: Path, sid: str, *, force: bool = False) -> None:
+    """Quita worktrees y carpeta (el proceso ya debe estar parado)."""
+    spath = require_session(root, sid)
+    for repo in [p.name for p in spath.iterdir() if p.is_symlink()]:
         rm_repo(root, sid, repo, force=force, out=io.StringIO())
     shutil.rmtree(spath)
     try:
         (root / ".ide" / "worktrees" / sid).rmdir()
     except OSError:
         pass
+
+
+def delete_session(root: Path, sid: str, *, force: bool = False,
+                   stop: Callable[[str], None] | None = None) -> None:
+    check_delete(root, sid, force=force)
+    if stop is not None:
+        stop(sid)
+    remove_session(root, sid, force=force)
 
 
 def refresh_review(root: Path, sid: str, *, runner: Runner = _run) -> dict:

@@ -54,21 +54,37 @@ class PtyManager:
         t = self._terms.get(tid)
         if not t:
             return False
+        if t.get("reaped"):
+            return False
         try:
             wpid, _ = os.waitpid(t["pid"], os.WNOHANG)
-            return wpid == 0
         except OSError:
-            return False
+            wpid = t["pid"]                     # ya no es hijo nuestro: tratarlo como cosechado
+        if wpid == 0:
+            return True
+        t["reaped"] = True                      # el pid quedó libre: nunca más le mandamos señales
+        return False
+
+    def reap(self, tid: str) -> None:
+        """Libera un proceso que ya terminó solo: cierra el fd sin mandar señales."""
+        t = self._terms.pop(tid, None)
+        if t:
+            self._close_fd(t)
 
     def close(self, tid: str) -> None:
         t = self._terms.pop(tid, None)
         if not t:
             return
-        try:
-            os.kill(t["pid"], signal.SIGKILL)
-            os.waitpid(t["pid"], 0)             # reap: evita zombie
-        except OSError:
-            pass
+        if not t.get("reaped"):
+            try:
+                os.kill(t["pid"], signal.SIGKILL)
+                os.waitpid(t["pid"], 0)         # reap: evita zombie
+            except OSError:
+                pass
+        self._close_fd(t)
+
+    @staticmethod
+    def _close_fd(t: dict) -> None:
         try:
             os.close(t["fd"])
         except OSError:

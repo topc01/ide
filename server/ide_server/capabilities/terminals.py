@@ -20,20 +20,29 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
     pty = pty or PtyManager()
     terms: dict[str, dict] = {}                 # tid -> {sessionId, cmd, cwd}
 
-    def _attach(tid: str, on_exit: Callable[[], None] | None = None) -> None:
+    def _attach(tid: str, on_exit: Callable[[], None] | None = None,
+                on_output: Callable[[bytes], None] | None = None) -> None:
         loop = asyncio.get_running_loop()
         fd = pty.fd(tid)
+
+        def _emit(data: bytes) -> None:
+            loop.create_task(manager.broadcast(
+                f"terminal.data.{tid}", {"data": base64.b64encode(data).decode()}))
+            if on_output is not None:
+                on_output(data)
 
         def _on_readable() -> None:
             data = pty.read(tid, timeout=0.0)
             if data:
-                loop.create_task(manager.broadcast(
-                    f"terminal.data.{tid}", {"data": base64.b64encode(data).decode()}))
+                _emit(data)
             if not pty.is_alive(tid):
                 try:
                     loop.remove_reader(fd)
                 except (OSError, ValueError):
                     pass
+                while data := pty.read(tid, timeout=0.0):     # lo que quedó en el buffer
+                    _emit(data)
+                pty.reap(tid)                                 # cierra el fd; el pid ya se cosechó
                 loop.create_task(manager.broadcast(f"terminal.exit.{tid}", {}))
                 if on_exit is not None:
                     on_exit()
@@ -41,17 +50,21 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
         loop.add_reader(fd, _on_readable)
 
     def spawn_process(cwd: Path, argv: list[str], env: dict[str, str],
-                      on_exit: Callable[[], None], session_id: str | None = None) -> str:
+                      on_exit: Callable[[], None], session_id: str | None = None,
+                      on_output: Callable[[bytes], None] | None = None,
+                      on_input: Callable[[], None] | None = None) -> str:
         tid = pty.spawn(cwd, argv, env=env)
-        terms[tid] = {"sessionId": session_id, "cmd": argv, "cwd": str(cwd)}
-        _attach(tid, on_exit)
+        terms[tid] = {"sessionId": session_id, "cmd": argv, "cwd": str(cwd),
+                      "on_input": on_input}
+        _attach(tid, on_exit, on_output)
         return tid
 
     def kill_process(tid: str) -> None:
-        try:
-            asyncio.get_running_loop().remove_reader(pty.fd(tid))
-        except (OSError, ValueError, KeyError, RuntimeError):
-            pass
+        if tid in pty.list_ids():               # ya cosechado/desconocido: no-op
+            try:
+                asyncio.get_running_loop().remove_reader(pty.fd(tid))
+            except (OSError, ValueError, KeyError, RuntimeError):
+                pass
         pty.close(tid)
         terms.pop(tid, None)
 
@@ -71,6 +84,9 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
 
     async def write_(payload: dict) -> dict:
         pty.write(payload["id"], base64.b64decode(payload["data"]))
+        on_input = terms.get(payload["id"], {}).get("on_input")
+        if on_input is not None:
+            on_input()
         return {"ok": True}
 
     async def resize_(payload: dict) -> dict:

@@ -15,10 +15,22 @@ class Rec:
 
 
 class FakeHooks:
-    def __init__(self): self.spawned, self.killed, self.n = [], [], 0
-    def spawn(self, cwd, argv, env, on_exit, session_id=None):
-        self.n += 1; self.spawned.append((cwd, argv, env)); return f"t{self.n}"
-    def kill(self, tid): self.killed.append(tid)
+    def __init__(self):
+        self.spawned, self.killed, self.n, self.outputs, self.kill_threads = [], [], 0, {}, []
+    def spawn(self, cwd, argv, env, on_exit, session_id=None, on_output=None, on_input=None):
+        self.n += 1; self.spawned.append((cwd, argv, env)); self.outputs[f"t{self.n}"] = on_output
+        return f"t{self.n}"
+    def kill(self, tid):
+        import threading
+        self.killed.append(tid); self.kill_threads.append(threading.current_thread())
+
+
+async def _until(cond, tries=200):
+    for _ in range(tries):
+        if cond():
+            return True
+        await asyncio.sleep(0.01)
+    return False
 
 
 def _ws(tmp_path):
@@ -33,10 +45,11 @@ def _ws(tmp_path):
 
 def _reg(root):
     reg, rec, hooks = Registry(), Rec(), FakeHooks()
+    box = {"fn": lambda: None}
     sup = Supervisor(root, spawn=hooks.spawn, kill=hooks.kill, server_url="u",
-                     home=root / "home", which=lambda c: "/x")
+                     home=root / "home", which=lambda c: "/x", on_change=lambda: box["fn"]())
     poller = PrPoller(root, interval=0)
-    cap.register(reg, root, rec, hooks=hooks, supervisor=sup, poller=poller)
+    box["fn"] = cap.register(reg, root, rec, hooks=hooks, supervisor=sup, poller=poller)
     return reg, rec, hooks, sup
 
 
@@ -51,8 +64,7 @@ async def test_new_starts_and_tree_reports_process(tmp_path):
     assert s["process"] == "running" and s["terminalId"] == "t1"
     assert tree["workspaceRepos"][0]["id"] == "repo-a"
     assert tree["scripts"]["repo-a"] == [{"name": "run", "executable": True}]
-    await asyncio.sleep(0)
-    assert any(c == "sessions.changed" for c, _ in rec.events)
+    assert await _until(lambda: any(c == "sessions.changed" for c, _ in rec.events))
 
 
 @pytest.mark.asyncio
@@ -106,3 +118,53 @@ async def test_doc_and_ui_config(tmp_path):
     doc = await reg.dispatch("sessions.doc", {"id": "a"})
     assert doc["name"] == "TICKET.md" and "status: analyzing" in doc["text"]
     assert (await reg.dispatch("ui.config", {}))["modules"] == ["sessions", "terminal"]
+
+
+@pytest.mark.asyncio
+async def test_tree_reports_trust_attention(tmp_path):                       # C2
+    reg, rec, hooks, _ = _reg(_ws(tmp_path))
+    await reg.dispatch("sessions.new", {"id": "a", "prompt": "p"})
+    assert (await reg.dispatch("sessions.tree", {}))["sessions"][0]["attention"] is None
+    rec.events.clear()
+    hooks.outputs["t1"](b"Do you trust the files in this folder?")
+    assert (await reg.dispatch("sessions.tree", {}))["sessions"][0]["attention"] == "trust"
+    assert await _until(lambda: any(c == "sessions.changed" and p["sessions"][0]["attention"]
+                                    for c, p in rec.events))
+
+
+@pytest.mark.asyncio
+async def test_blocking_work_runs_off_the_event_loop(tmp_path, monkeypatch):  # I3
+    import threading
+    root = _ws(tmp_path)
+    reg, _, hooks, _ = _reg(root)
+    main, seen = threading.current_thread(), {}
+
+    def spy(name, fn):
+        def wrapper(*a, **k):
+            seen[name] = threading.current_thread()
+            return fn(*a, **k)
+        monkeypatch.setattr(cap, name, wrapper)
+
+    for name in ("create_session", "list_sessions", "discover_repos", "list_scripts",
+                 "remove_session", "check_delete"):
+        spy(name, getattr(cap, name))
+    await reg.dispatch("sessions.new", {"id": "a", "prompt": "p"})
+    await reg.dispatch("sessions.tree", {})
+    await reg.dispatch("sessions.rm", {"id": "a"})
+    assert set(seen) == {"create_session", "list_sessions", "discover_repos", "list_scripts",
+                         "remove_session", "check_delete"}
+    assert all(t is not main for t in seen.values())
+    assert hooks.kill_threads == [main]                     # el supervisor sigue en el loop
+
+
+@pytest.mark.asyncio
+async def test_script_rejects_non_plain_names(tmp_path):
+    from ide_server.sessions_fs import SessionError
+    root = _ws(tmp_path)
+    reg, *_ = _reg(root)
+    await reg.dispatch("sessions.new", {"id": "a", "prompt": ""})
+    add_repo(root, "a", "repo-a", out=io.StringIO())
+    for bad in ("../run", "x/run", ".."):
+        with pytest.raises(SessionError) as e:
+            await reg.dispatch("sessions.script", {"id": "a", "repo": "repo-a", "name": bad})
+        assert e.value.code == "invalid_name"

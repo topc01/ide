@@ -5,7 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import TextIO
-from ide_server.sessions_fs import SessionError, session_path, read_toml, update_session_toml
+from ide_server.sessions_fs import (
+    SessionError, require_plain_name, session_path, read_toml, update_session_toml,
+)
 
 
 def scripts_dir(root: Path, repo: str) -> Path:
@@ -25,6 +27,8 @@ def has_script(root: Path, repo: str, name: str) -> bool:
 
 
 def script_argv(root: Path, repo: str, name: str) -> list[str]:
+    require_plain_name(repo, "repo")
+    require_plain_name(name, "script")
     path = scripts_dir(root, repo) / name
     if not path.is_file():
         raise SessionError("script_not_found", f"no existe el script {repo}/{name} ({path})")

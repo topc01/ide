@@ -30,3 +30,30 @@ async def test_hooks_kill(tmp_path):
     hooks.kill(tid)                              # reap sincrónico: no cuelga ni deja zombie
     await asyncio.sleep(0.1)
     assert exits == []                           # un kill explícito no dispara on_exit
+
+
+@pytest.mark.filterwarnings("ignore:This process .* forkpty")
+@pytest.mark.asyncio
+async def test_natural_exit_releases_pty_and_kill_is_noop(tmp_path):          # I7
+    from ide_server.pty_manager import PtyManager
+    pty, exited, chunks = PtyManager(), asyncio.Event(), []
+    hooks = term_cap.register(Registry(), tmp_path, Rec(), pty)
+    tid = hooks.spawn(tmp_path, ["sh", "-c", "echo hola"], {"PATH": "/bin:/usr/bin"}, exited.set,
+                      on_output=chunks.append)
+    await asyncio.wait_for(exited.wait(), 5)
+    assert tid not in pty.list_ids()
+    hooks.kill(tid)                              # ya cosechado: no-op, no explota
+    assert b"hola" in b"".join(chunks)
+
+
+@pytest.mark.filterwarnings("ignore:This process .* forkpty")
+@pytest.mark.asyncio
+async def test_write_calls_on_input(tmp_path):
+    reg, inputs = Registry(), []
+    hooks = term_cap.register(reg, tmp_path, Rec())
+    tid = hooks.spawn(tmp_path, ["cat"], {"PATH": "/bin:/usr/bin"}, lambda: None,
+                      on_input=lambda: inputs.append(1))
+    import base64
+    await reg.dispatch("terminal.write", {"id": tid, "data": base64.b64encode(b"\r").decode()})
+    assert inputs == [1]
+    hooks.kill(tid)

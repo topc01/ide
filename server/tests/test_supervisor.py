@@ -7,16 +7,18 @@ from ide_server.sessions_fs import create_session_dir, SessionError
 class FakePty:
     def __init__(self):
         self.spawned, self.killed, self.exits, self.n = [], [], {}, 0
+        self.outputs, self.inputs = {}, {}
 
     fail_for: set = set()
 
-    def spawn(self, cwd, argv, env, on_exit):
+    def spawn(self, cwd, argv, env, on_exit, on_output=None, on_input=None):
         if cwd.name in self.fail_for:
             raise RuntimeError(f"pty roto para {cwd.name}")
         self.n += 1
         tid = f"t{self.n}"
         self.spawned.append((tid, cwd, argv, env))
         self.exits[tid] = on_exit
+        self.outputs[tid], self.inputs[tid] = on_output, on_input
         return tid
 
     def kill(self, tid):
@@ -78,7 +80,8 @@ def test_start_spawns_with_env_and_exit_marks_stopped(tmp_path):
     assert cwd == root / ".ide" / "sessions" / "a" and argv[-1] == "hacé a"
     assert env["IDE_SESSION_ID"] == "a" and env["IDE_URL"] == "http://127.0.0.1:9"
     assert env["IDE_WORKSPACE"] == str(root)
-    assert sup.snapshot() == {"a": {"process": "running", "terminalId": tid, "launchError": None}}
+    assert sup.snapshot() == {"a": {"process": "running", "terminalId": tid, "launchError": None,
+                                   "attention": None}}
     pty.exits[tid]()
     assert sup.state("a") == "stopped" and changes
 
@@ -155,3 +158,37 @@ def test_stop_clears_stale_launch_error(tmp_path):
     assert sup.snapshot()["b"]["launchError"]
     sup.stop("b")
     assert "b" not in sup.snapshot()
+
+
+def test_trust_dialog_sets_attention_until_input_or_exit(tmp_path):          # C2
+    root, pty, changes = _mk(tmp_path, "a"), FakePty(), []
+    sup = _sup(root, pty, on_change=lambda: changes.append(1))
+    sup.start("a")
+    n = len(changes)
+    pty.outputs["t1"](b"\x1b[2J\x1b[1mDo\x1b[1Cyou\x1b[1Ctr")
+    assert sup.snapshot()["a"]["attention"] is None
+    pty.outputs["t1"](b"ust the files in this folder?")     # cruza chunks
+    assert sup.snapshot()["a"]["attention"] == "trust" and len(changes) == n + 1
+    pty.outputs["t1"](b"more")
+    assert len(changes) == n + 1                             # sin re-notificar
+    pty.inputs["t1"]()                                       # el usuario respondió
+    assert sup.snapshot()["a"]["attention"] is None and len(changes) == n + 2
+    pty.outputs["t1"](b"Bypass Permissions mode")          # segundo diálogo tras aceptar
+    assert sup.snapshot()["a"]["attention"] == "trust"
+    sup.stop("a"); sup.start("a")
+    pty.outputs["t2"](b"WARNING: Claude Code running in BYPASS PERMISSIONS MODE")
+    assert sup.snapshot()["a"]["attention"] == "trust"
+    pty.exits["t2"]()
+    assert "a" not in sup.snapshot()
+
+
+def test_attention_only_inspects_head_of_output(tmp_path):
+    root, pty = _mk(tmp_path, "a"), FakePty()
+    sup = _sup(root, pty)
+    sup.start("a")
+    pty.outputs["t1"](b"x" * 9000)
+    pty.outputs["t1"](b"Do you trust the files")
+    assert sup.snapshot()["a"]["attention"] is None
+    sup.stop("a"); sup.start("a")
+    pty.outputs["t1"](b"Do you trust the files")             # callback del proceso viejo
+    assert sup.snapshot()["a"]["attention"] is None

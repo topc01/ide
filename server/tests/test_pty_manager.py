@@ -37,3 +37,21 @@ def test_close_kills_process(tmp_path):
     with pytest.raises(ProcessLookupError):
         os.kill(pid, 0)                        # el proceso ya no existe
     assert tid not in m.list_ids()
+
+
+def test_natural_exit_reap_never_kills_reaped_pid(tmp_path, monkeypatch):    # I7
+    m = PtyManager()
+    tid = m.spawn(tmp_path, ["true"])
+    for _ in range(100):
+        if not m.is_alive(tid):
+            break
+        import time; time.sleep(0.02)
+    kills = []
+    monkeypatch.setattr(os, "kill", lambda *a: kills.append(a))
+    m.close(tid)                               # pid ya cosechado: no se manda señal (pid reusable)
+    assert kills == [] and tid not in m.list_ids()
+    m.close(tid)                               # desconocido: no-op
+    tid2 = m.spawn(tmp_path, ["true"])
+    m.reap(tid2)
+    assert tid2 not in m.list_ids()
+    m.reap("nope")
