@@ -27,6 +27,7 @@ export function NewFolderSessionModal() {
     if (modal === "review") return { review: prUrl.trim() };
     const base: NewSessionReq = {};
     if (id.trim()) base.id = id.trim();
+    else if (template === "ticket" && notionUrl.trim()) base.notion = notionUrl.trim();
     if (template === "ticket") {
       Object.assign(base, { template: "ticket", title,
         vars: { title, notion_url: notionUrl, body } });

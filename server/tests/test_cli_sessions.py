@@ -224,3 +224,46 @@ def test_cli_normalizes_session_ids(tmp_path):
     assert code == 1 and "id inválido" in err
     code, _, _ = _run(root, ["session", "rm", "T1", "--force"], http=FakeHttp(fail=True))
     assert code == 0 and not session_path(root, "t1").exists()
+
+
+def test_session_new_notion_if_missing_dry_run_flags(tmp_path):
+    root = _ws(tmp_path)
+    http = FakeHttp(body={"session": {"id": "n-1a2b3c4d"}, "process": "stopped",
+                          "dryRun": True, "existed": False, "prompt": "hola\nmundo", "log": ""})
+    code, out, _ = _run(root, ["session", "new", "--notion", "https://notion.so/x-1a2b3c4d5e6f47a8b9c0d1e2f3a4b5c6",
+                               "--if-missing", "--dry-run", "--template", "ticket"],
+                        env={"IDE_URL": "http://h:1"}, http=http)
+    assert code == 0
+    body = http.calls[0][1]
+    assert body["notion"].endswith("b5c6") and body["if_missing"] is True and body["dry_run"] is True
+    assert out.startswith("n-1a2b3c4d\tdry-run") and "hola" in out
+
+
+def test_session_new_existed_is_reported(tmp_path):
+    root = _ws(tmp_path)
+    http = FakeHttp(body={"session": {"id": "fin-1", "path": "/p"}, "process": "running",
+                          "existed": True, "log": ""})
+    code, out, _ = _run(root, ["session", "new", "--id", "fin-1", "--if-missing"],
+                        env={"IDE_URL": "http://h:1"}, http=http)
+    assert code == 0 and out.split()[:2] == ["fin-1", "existe"]
+
+
+def test_vars_file_and_stdin(tmp_path, monkeypatch):
+    root = _ws(tmp_path)
+    http = FakeHttp(body={"session": {"id": "x", "path": "/p"}, "process": "running", "log": ""})
+    vf = root / "v.json"; vf.write_text(json.dumps({"title": 'Título "raro" | con\nsalto'}))
+    _run(root, ["session", "new", "--id", "x", "--vars-file", str(vf), "--var", "notion_url=u"],
+         env={"IDE_URL": "http://h:1"}, http=http)
+    assert http.calls[0][1]["vars"] == {"title": 'Título "raro" | con\nsalto', "notion_url": "u"}
+    monkeypatch.setattr("sys.stdin", io.StringIO('{"title": "desde stdin"}'))
+    _run(root, ["session", "new", "--id", "y", "--vars-file", "-"],
+         env={"IDE_URL": "http://h:1"}, http=http)
+    assert http.calls[1][1]["vars"] == {"title": "desde stdin"}
+
+
+def test_vars_file_invalid_json(tmp_path):
+    root = _ws(tmp_path)
+    vf = root / "v.json"; vf.write_text("[1, 2]")
+    code, _, err = _run(root, ["session", "new", "--id", "x", "--vars-file", str(vf)],
+                        env={"IDE_URL": "http://h:1"}, http=FakeHttp())
+    assert code == 1 and "objeto JSON" in err

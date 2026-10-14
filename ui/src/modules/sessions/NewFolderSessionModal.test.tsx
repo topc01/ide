@@ -28,6 +28,18 @@ describe("NewFolderSessionModal", () => {
     expect(useFolders.getState().modal).toBe(null);
   });
 
+  it("sin id y con URL de Notion, el id lo deriva el server (notion)", async () => {
+    newSession.mockResolvedValue({ session: { id: "n-1a2b3c4d" }, process: "running" });
+    useFolders.setState({ modal: "session" });
+    render(<NewFolderSessionModal />);
+    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "T" } });
+    fireEvent.change(screen.getByLabelText("URL de Notion"), { target: { value: " https://notion.so/x " } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear" }));
+    await waitFor(() => expect(newSession).toHaveBeenCalled());
+    expect(newSession.mock.calls[0][1]).toMatchObject({ notion: "https://notion.so/x", template: "ticket" });
+    expect(newSession.mock.calls[0][1].id).toBeUndefined();
+  });
+
   it("muestra el error del server y no cierra", async () => {
     newSession.mockRejectedValue({ code: "session_exists", message: "ya existe la sesión fin-1" });
     useFolders.setState({ modal: "session" });

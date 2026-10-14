@@ -76,31 +76,72 @@ def _resolve_permissions(root: Path, req: dict) -> str:
     return "analyze" if permissions == "full" else permissions
 
 
+_NOTION_ID_RE = re.compile(r"([0-9a-f]{32})(?:[?#/]|$)")
+
+
+def notion_session_id(url: str) -> str:
+    """Id de sesión derivado del page id de una URL de Notion (n-<8 hex>)."""
+    m = _NOTION_ID_RE.search(url.strip().lower().replace("-", ""))
+    if not m:
+        raise SessionError("bad_notion_url", f"no encuentro el page id en la URL de Notion: {url!r}")
+    return f"n-{m.group(1)[:8]}"
+
+
+def _existing(root: Path, sid: str, req: dict) -> dict | None:
+    """Si la sesión ya existe: con if_missing/dry_run la devuelve; si no, error."""
+    if not session_path(root, sid).exists():
+        return None
+    if req.get("if_missing"):
+        return {"session": read_session(root, sid), "log": "", "existed": True}
+    if req.get("dry_run"):
+        return None
+    raise SessionError("session_exists", f"ya existe la sesión {sid}")
+
+
 def create_session(root: Path, req: dict, *, runner: Runner = _run) -> dict:
     permissions = _resolve_permissions(root, req)
     if req.get("review"):
-        return _create_review(root, req["review"], permissions, runner)
+        return _create_review(root, req, permissions, runner)
     kind = "main" if req.get("main") else "ticket"
-    sid = normalize_id(req["id"]) if req.get("id") else new_id(
-        lambda s: session_path(root, s).exists())
+    if req.get("id"):
+        sid = normalize_id(req["id"])
+    elif req.get("notion"):
+        sid = notion_session_id(req["notion"])
+    else:
+        sid = new_id(lambda s: session_path(root, s).exists())
+    if (found := _existing(root, sid, req)) is not None:
+        return found
     variables = {"id": sid, **(req.get("vars") or {})}
+    if req.get("notion"):
+        variables.setdefault("notion_url", req["notion"])
     prompt = (render_template(load_template(root, req["template"]), variables)
               if req.get("template") else req.get("prompt") or "")
     meta = None
     if kind == "ticket":
         meta = {"title": req.get("title") or variables.get("title"),
                 "notion_url": variables.get("notion_url")}
+    if req.get("dry_run"):
+        return {"session": {"id": sid, "kind": kind, "permissions": permissions,
+                            "title": (meta or {}).get("title")},
+                "prompt": prompt, "log": "", "dryRun": True,
+                "existed": session_path(root, sid).exists()}
     create_session_dir(root, sid=sid, kind=kind, permissions=permissions, prompt=prompt, meta=meta)
     return {"session": read_session(root, sid), "log": ""}
 
 
-def _create_review(root: Path, url: str, permissions: str, runner: Runner) -> dict:
+def _create_review(root: Path, req: dict, permissions: str, runner: Runner) -> dict:
+    url = req["review"]
     repo, number = parse_pr_url(url)
     if repo not in {r["id"] for r in discover_repos(root)}:
         raise SessionError("unknown_repo", f"el PR es de {repo}, que no está en el workspace")
     sid = normalize_id(f"pr-{repo}-{number}")
-    if session_path(root, sid).exists():
-        raise SessionError("session_exists", f"ya existe la sesión {sid}")
+    if (found := _existing(root, sid, req)) is not None:
+        return found
+    if req.get("dry_run"):
+        return {"session": {"id": sid, "kind": "review", "permissions": permissions,
+                            "title": None},
+                "prompt": "", "log": "", "dryRun": True,
+                "existed": session_path(root, sid).exists()}
     pr = _gh_pr(url, runner)
     author = "@" + pr["author"]["login"]
     prompt = render_template(load_template(root, "review"), {

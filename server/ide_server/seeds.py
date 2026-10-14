@@ -33,7 +33,7 @@ Estás en una sesión del IDE (`.ide/sessions/<id>/`). Los repos del workspace:
 - `ide repo rm <repo>`: lo quita.
 - `ide script <nombre> [<repo>]`: corre un script del repo (`run`, `test`, …).
 - `ide session ls [--json]`: lista sesiones y su estado.
-- `ide session new --id <id> --template ticket --var title=… --var notion_url=… --var body=…`:
+- `ide session new --if-missing --notion <url> --template ticket --vars-file -` (JSON por stdin):
   (solo la principal) lanza una sesión por ticket.
 - `ide session new --review <pr-url>`: (solo la principal) lanza una revisión de PR.
 
@@ -48,22 +48,22 @@ analyzing | blocked | questions | ready | in-progress | done). Las de revisión,
 TEMPLATE_MAIN = """\
 Sos la sesión principal de este workspace.
 
-1. Leé mi backlog en Notion: <URL de la base de tickets> (asignados a mí, no Done).
-2. Corré `ide session ls --json` y salteá los tickets que ya tienen sesión (id = id del ticket).
-3. Por cada ticket nuevo:
-   `ide session new --id <ticket-id> --template ticket --var title="…" --var notion_url="…" --var body="…"`
-4. PRs donde me pidieron review: `gh search prs --review-requested=@me --state=open --json url`.
-   Por cada uno sin sesión: `ide session new --review <url>`.
-5. Resumí lo que lanzaste. Para ver el estado de todo: leé `../*/TICKET.md` y `../*/REVIEW.md`.
+1. Tickets: consultá mi base de tickets en Notion: <URL o collection:// de la base>
+   (asignados a mí; Status en <estados que entran, ej. Backlog, To Do, In progress>).
+2. PRs: `gh search prs --review-requested=@me --state=open --json url,title,repository`.
+3. Probá cada uno con `--dry-run` y mostrame una tabla:
+   id | título | status | ¿ya tiene sesión? | acción. Esperá mi OK.
+4. Con OK, por cada ticket:
+   `ide session new --if-missing --notion <url del ticket> --template ticket --vars-file -`
+   pasando por stdin `{"title": "…"}` (JSON: así los títulos no se rompen en el shell).
+   Por cada PR: `ide session new --if-missing --review <url>`.
+5. Resumí lo lanzado. Estado general: leé `../*/TICKET.md` y `../*/REVIEW.md`.
 """
-
 TEMPLATE_TICKET = """\
 Sos la sesión del ticket {{id}}: "{{title}}" ({{notion_url}}).
 
-{{body}}
-
 Tu trabajo AHORA es analizar, no implementar:
-1. Leé ../CLAUDE.md (mapa de repos) y el ticket en Notion.
+1. Leé ../CLAUDE.md (mapa de repos) y el ticket en Notion ({{notion_url}}).
 2. Determiná scope y qué repos toca. Por cada uno: `ide repo add <repo>`.
 3. Escribí TICKET.md: Scope, Repos, Plan, Bloqueantes, Dudas.
    Cambiá `status` a blocked | questions | ready.

@@ -50,6 +50,10 @@ def _parser() -> argparse.ArgumentParser:
     new.add_argument("--prompt"); new.add_argument("--prompt-file")
     new.add_argument("--permissions", choices=["analyze", "full", "default"])
     new.add_argument("--review")
+    new.add_argument("--notion", help="URL del ticket en Notion (deriva el id: n-<8 hex>)")
+    new.add_argument("--vars-file", help="JSON con variables de la plantilla ('-' = stdin)")
+    new.add_argument("--if-missing", action="store_true", help="si ya existe, no hace nada")
+    new.add_argument("--dry-run", action="store_true", help="valida y muestra, sin crear")
     ls = s.add_parser("ls"); ls.add_argument("--json", action="store_true")
     for name in ("open", "stop"):
         s.add_parser(name).add_argument("id")
@@ -64,20 +68,35 @@ def _parser() -> argparse.ArgumentParser:
     return ap
 
 
+def _read_vars_file(path: str) -> dict:
+    try:
+        raw = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
+        data = json.loads(raw)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SessionError("bad_vars_file", f"no se pudo leer --vars-file: {exc}")
+    if not isinstance(data, dict):
+        raise SessionError("bad_vars_file", "--vars-file debe ser un objeto JSON {\"clave\": \"valor\"}")
+    return {str(k): "" if v is None else str(v) for k, v in data.items()}
+
+
 def _new_payload(a, env: dict) -> dict:
     body: dict = {}
     if env.get("IDE_SESSION_ID"):                # lo pide una sesión: el server valida permisos
         body["caller"] = env["IDE_SESSION_ID"]
-    for key in ("id", "title", "template", "permissions", "review"):
+    for key in ("id", "title", "template", "permissions", "review", "notion"):
         if getattr(a, key):
             body[key] = getattr(a, key)
-    if a.main:
-        body["main"] = True
+    for flag in ("main", "if_missing", "dry_run"):
+        if getattr(a, flag):
+            body[flag] = True
+    variables = _read_vars_file(a.vars_file) if a.vars_file else {}
     if a.var:
         bad = [v for v in a.var if "=" not in v]
         if bad:
             raise SessionError("bad_var", f"--var debe ser k=v (recibido: {', '.join(bad)})")
-        body["vars"] = dict(v.split("=", 1) for v in a.var)
+        variables.update(v.split("=", 1) for v in a.var)
+    if variables:
+        body["vars"] = variables
     if a.prompt_file:
         try:
             body["prompt"] = Path(a.prompt_file).read_text(encoding="utf-8")
@@ -158,7 +177,13 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
     if a.cmd == "new":
         data = _post(http, url, "/api/sessions", _new_payload(a, env),
                      timeout=600 if a.review else 120)     # review: gh + fetch + setup
-        out.write(f"{data['session']['id']}\t{data['process']}\t{data['session']['path']}\n")
+        sid = data["session"]["id"]
+        if data.get("dryRun"):
+            state = "dry-run (ya existe)" if data.get("existed") else "dry-run"
+            out.write(f"{sid}\t{state}\n{data.get('prompt', '')}\n")
+            return 0
+        state = "existe" if data.get("existed") else data["process"]
+        out.write(f"{sid}\t{state}\t{data['session'].get('path', '')}\n")
         if data.get("log"):
             out.write(data["log"])
         return 0

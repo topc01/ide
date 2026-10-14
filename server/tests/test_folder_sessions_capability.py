@@ -168,3 +168,16 @@ async def test_script_rejects_non_plain_names(tmp_path):
         with pytest.raises(SessionError) as e:
             await reg.dispatch("sessions.script", {"id": "a", "repo": "repo-a", "name": bad})
         assert e.value.code == "invalid_name"
+
+
+@pytest.mark.asyncio
+async def test_new_dry_run_and_if_missing_do_not_spawn(tmp_path):
+    reg, _, hooks, sup = _reg(_ws(tmp_path))
+    dry = await reg.dispatch("sessions.new", {"id": "a", "prompt": "p", "dry_run": True})
+    assert dry["dryRun"] is True and dry["process"] == "stopped" and hooks.spawned == []
+    await reg.dispatch("sessions.new", {"id": "a", "prompt": "p"})
+    assert len(hooks.spawned) == 1
+    sup.stop("a")
+    again = await reg.dispatch("sessions.new", {"id": "a", "prompt": "p", "if_missing": True})
+    assert again["existed"] is True and again["process"] == "stopped"
+    assert len(hooks.spawned) == 1

@@ -23,6 +23,7 @@ export interface NewSessionReq {
   id?: string; main?: boolean; title?: string; template?: string;
   vars?: Record<string, string>; prompt?: string;
   permissions?: "analyze" | "full" | "default"; review?: string;
+  notion?: string; if_missing?: boolean; dry_run?: boolean;
 }
 
 export const fetchSessions = (ws: WsClient): Promise<SessionsTree> => ws.request("sessions.tree", {});

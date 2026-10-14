@@ -66,6 +66,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     async def new(p: dict) -> dict:
         res = await asyncio.to_thread(create_session, root, p)
+        if res.get("dryRun") or res.get("existed"):
+            return {**res, "process": supervisor.state(res["session"]["id"])}
         process = supervisor.start(res["session"]["id"], resume=False)
         notify()
         return {**res, "process": process}

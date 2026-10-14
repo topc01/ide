@@ -169,3 +169,69 @@ def test_load_template_rejects_non_plain_names(tmp_path):
         with pytest.raises(SessionError) as e:
             create_session(root, {"id": "x", "template": bad})
         assert e.value.code == "invalid_name"
+
+
+def test_notion_url_derives_id_and_notion_var(tmp_path):
+    root = _ws(tmp_path)
+    url = "https://www.notion.so/finnecto/Exportar-facturas-1a2b3c4d5e6f47a8b9c0d1e2f3a4b5c6?pvs=4"
+    s = create_session(root, {"notion": url, "template": "ticket",
+                              "vars": {"title": "Exportar"}})["session"]
+    assert s["id"] == "n-1a2b3c4d" and s["meta"]["notion_url"] == url
+
+
+def test_notion_url_with_dashed_page_id(tmp_path):
+    root = _ws(tmp_path)
+    url = "https://www.notion.so/1a2b3c4d-5e6f-47a8-b9c0-d1e2f3a4b5c6"
+    assert create_session(root, {"notion": url, "prompt": ""})["session"]["id"] == "n-1a2b3c4d"
+
+
+def test_notion_url_without_page_id_is_error(tmp_path):
+    root = _ws(tmp_path)
+    with pytest.raises(SessionError) as e:
+        create_session(root, {"notion": "https://www.notion.so/finnecto", "prompt": ""})
+    assert e.value.code == "bad_notion_url"
+
+
+def test_if_missing_returns_existing_without_error(tmp_path):
+    root = _ws(tmp_path)
+    create_session(root, {"id": "fin-1", "prompt": "a"})
+    res = create_session(root, {"id": "FIN-1", "prompt": "b", "if_missing": True})
+    assert res["existed"] is True and res["session"]["id"] == "fin-1"
+    assert (session_path(root, "fin-1") / "PROMPT.md").read_text() == "a"
+
+
+def test_if_missing_review_skips_gh(tmp_path):
+    root = _ws(tmp_path)
+    (session_path(root, "pr-repo-a-7")).mkdir(parents=True)
+    (session_path(root, "pr-repo-a-7") / ".session.toml").write_text('kind = "review"\n')
+    def boom(argv):
+        raise AssertionError("no debe llamar a gh/git")
+    res = create_session(root, {"review": "https://github.com/acme/repo-a/pull/7",
+                                "if_missing": True}, runner=boom)
+    assert res["existed"] is True and res["session"]["id"] == "pr-repo-a-7"
+
+
+def test_dry_run_creates_nothing_and_previews_prompt(tmp_path):
+    root = _ws(tmp_path)
+    res = create_session(root, {"id": "FIN-2", "template": "ticket", "dry_run": True,
+                                "vars": {"title": "T", "notion_url": "u"}})
+    assert res["dryRun"] is True and res["session"]["id"] == "fin-2"
+    assert "fin-2" in res["prompt"] and res["existed"] is False
+    assert not session_path(root, "fin-2").exists()
+
+
+def test_dry_run_still_validates(tmp_path):
+    root = _ws(tmp_path)
+    with pytest.raises(SessionError) as e:
+        create_session(root, {"id": "x", "template": "nope", "dry_run": True})
+    assert e.value.code == "unknown_template"
+
+
+def test_dry_run_review_does_not_call_gh(tmp_path):
+    root = _ws(tmp_path)
+    def boom(argv):
+        raise AssertionError("dry-run no llama a gh")
+    res = create_session(root, {"review": "https://github.com/acme/repo-a/pull/9",
+                                "dry_run": True}, runner=boom)
+    assert res["dryRun"] is True and res["session"]["id"] == "pr-repo-a-9"
+    assert not session_path(root, "pr-repo-a-9").exists()

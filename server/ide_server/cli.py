@@ -122,7 +122,10 @@ COMANDOS
         Esta ayuda.
   ide session new [--id X] [--main] [--template t --var k=v …] [--prompt "…" | --prompt-file f]
                   [--permissions analyze|full|default] [--review <pr-url>]
+                  [--notion <url>] [--vars-file f.json|-] [--if-missing] [--dry-run]
         Crea una sesión-carpeta (.ide/sessions/<id>/) y lanza `claude` en ella (requiere `ide run`).
+        --notion deriva el id del page id (n-<8 hex>); --if-missing no falla si ya existe;
+        --dry-run valida y muestra el prompt sin crear nada; --vars-file lee variables en JSON.
   ide session ls [--json] | open <id> | stop <id> | rm <id> [--force]
   ide repo add <repo> [--branch b] | ide repo rm <repo> [--force]
         Agrega/quita un repo (worktree) a la sesión actual; corre su script `setup`/`archive`.

@@ -43,7 +43,7 @@ def test_seed_never_overwrites(tmp_path):
 def test_ticket_template_renders_with_dispatch_vars(tmp_path):
     seed_workspace(tmp_path)
     tpl = (tmp_path / ".ide" / "sessions" / "templates" / "ticket.md").read_text()
-    out = render_template(tpl, {"id": "fin-1", "title": "T", "notion_url": "u", "body": "b"})
+    out = render_template(tpl, {"id": "fin-1", "title": "T", "notion_url": "u"})
     assert "fin-1" in out and "TICKET.md" in out
 
 
