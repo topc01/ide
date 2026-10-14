@@ -29,7 +29,19 @@ def discover_repos(root: Path) -> list[dict]:
     return repos
 
 
+def _folder_session(root: Path, payload: dict) -> Path | None:
+    sid = payload.get("sessionId")
+    if not sid:
+        return None
+    path = root / ".ide" / "sessions" / sid
+    return path if (path / ".session.toml").is_file() else None
+
+
 def resolve_cwd(root: Path, payload: dict) -> Path:
+    folder = _folder_session(root, payload)
+    if folder is not None:
+        repo = payload.get("repoId")
+        return (folder / repo).resolve() if repo and (folder / repo).exists() else folder
     from ide_server.sessions_store import load_sessions, find_node
     if payload.get("sessionId"):
         node = find_node(load_sessions(root), payload["sessionId"])
@@ -45,6 +57,13 @@ def resolve_cwd(root: Path, payload: dict) -> Path:
 
 
 def resolve_repo(root: Path, payload: dict) -> Path:
+    folder = _folder_session(root, payload)
+    if folder is not None:
+        repos = [p.name for p in folder.iterdir() if p.is_symlink()]
+        repo = payload.get("repoId") or (repos[0] if len(repos) == 1 else None)
+        if repo is None:
+            raise KeyError("la sesión tiene 0 o varios repos: indicá repoId")
+        return root / repo
     from ide_server.sessions_store import load_sessions, find_node
     if payload.get("sessionId"):
         node = find_node(load_sessions(root), payload["sessionId"])

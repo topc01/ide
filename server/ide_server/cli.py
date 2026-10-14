@@ -87,7 +87,7 @@ def _launch(root: Path, host: str, port: int, web_dir, *, open_browser: bool, se
         opener(url)
     print(f"Workspace: {root}  →  {url}")
     try:
-        serve(create_app(root, web_dir), host, port)
+        serve(create_app(root, web_dir, server_url=url), host, port)
     finally:
         instances.unregister_instance(inst_path)
 
