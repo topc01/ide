@@ -9,9 +9,9 @@ import "./modules/graphite/register";
 import "./modules/notion/register";
 import "./modules/tasks/register";
 import "./modules/files/register";
-import { ActivityRail } from "./layout/ActivityRail";
-import { ContextPanel } from "./layout/ContextPanel";
-import { FolderSessionsPanel } from "./modules/sessions/FolderSessionsPanel";
+import { ActionMenu } from "./layout/ActionMenu";
+import { InnerSidebar } from "./layout/InnerSidebar";
+import { MainSidebar } from "./modules/sessions/MainSidebar";
 import { NewFolderSessionModal } from "./modules/sessions/NewFolderSessionModal";
 import { SettingsModal } from "./modules/settings/SettingsModal";
 import { MainPanel } from "./layout/MainPanel";
@@ -24,9 +24,9 @@ export default function App() {
   }, [setUiModules, setConnected]);
   return (
     <div className="flex h-full">
-      <FolderSessionsPanel />
-      <ActivityRail />
-      <ContextPanel />
+      <MainSidebar />
+      <ActionMenu />
+      <InnerSidebar />
       <MainPanel />
       <SettingsModal />
       <NewFolderSessionModal />

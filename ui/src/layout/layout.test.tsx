@@ -4,7 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import "../modules/search/register";
 import "../modules/terminal/register";
 import { useStore } from "../state/store";
-import { ActivityRail } from "./ActivityRail";
+import { ActionMenu } from "./ActionMenu";
 import { TabStrip } from "./TabStrip";
 
 describe("layout", () => {
@@ -12,12 +12,12 @@ describe("layout", () => {
     useStore.setState({ activePanel: "search" });
   });
 
-  it("ActivityRail muestra un botón por módulo", () => {
-    render(<ActivityRail />);
+  it("ActionMenu muestra un botón por módulo", () => {
+    render(<ActionMenu />);
     expect(screen.getByRole("button", { name: "Terminal" })).toBeInTheDocument();
   });
-  it("ActivityRail marca el módulo activo con la clase de primary", () => {
-    const { getByRole } = render(<ActivityRail />);
+  it("ActionMenu marca el módulo activo con la clase de primary", () => {
+    const { getByRole } = render(<ActionMenu />);
     const btn = getByRole("button", { name: "Search" });
     expect(btn.className).toContain("text-primary");   // clase Tailwind del activo
   });

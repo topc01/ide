@@ -1,4 +1,4 @@
-// ui/src/modules/sessions/FolderSessionsPanel.tsx
+// ui/src/modules/sessions/MainSidebar.tsx
 import { useEffect, useState } from "react";
 import { Plus, Star } from "lucide-react";
 import { useFolders } from "../../state/folders";
@@ -11,7 +11,7 @@ import { CustomizationsFooter } from "../settings/CustomizationsFooter";
 import { Queue, QueueSection, QueueSectionTrigger, QueueSectionLabel, QueueSectionContent, QueueList }
   from "../../components/ai-elements/queue";
 
-export function FolderSessionsPanel() {
+export function MainSidebar() {
   const { tree, connected, groupBy, setTree, setConnected, setActive, openModal } = useFolders();
   const [mainError, setMainError] = useState<string | null>(null);
 

@@ -3,7 +3,7 @@ import { getModules } from "../modules/registry";
 import { useFolders } from "../state/folders";
 import { ScrollArea } from "../components/ui/scroll-area";
 
-export function ContextPanel() {
+export function InnerSidebar() {
   const { activePanel } = useStore();
   const uiModules = useFolders((s) => s.uiModules);
   const visible = getModules().filter((m) => !uiModules || uiModules.includes(m.id));

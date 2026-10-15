@@ -1,4 +1,4 @@
-// ui/src/modules/sessions/FolderSessionsPanel.test.tsx
+// ui/src/modules/sessions/MainSidebar.test.tsx
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { useFolders } from "../../state/folders";
@@ -42,16 +42,16 @@ vi.mock("../../transport/folderSessions", async (orig) => ({
   stopSession: (...a: any[]) => stopSession(...a), newSession: (...a: any[]) => newSession(...a),
 }));
 
-import { FolderSessionsPanel } from "./FolderSessionsPanel";
+import { MainSidebar } from "./MainSidebar";
 
-describe("FolderSessionsPanel", () => {
+describe("MainSidebar", () => {
   beforeEach(() => {
     localStorage.clear();
     useFolders.setState({ groupBy: "none", activeId: null, scriptTabs: {}, connected: true, modal: null });
   });
 
   it("principal primero, sesiones, y revisiones aparte", async () => {
-    render(<FolderSessionsPanel />);
+    render(<MainSidebar />);
     await waitFor(() => screen.getByText("Exportar"));
     expect(screen.getByText("s-main1")).toBeInTheDocument();
     expect(screen.getByText("Revisiones")).toBeInTheDocument();
@@ -63,7 +63,7 @@ describe("FolderSessionsPanel", () => {
   });
 
   it("agrupar por estado desde el botón y persistir", async () => {
-    render(<FolderSessionsPanel />);
+    render(<MainSidebar />);
     await waitFor(() => screen.getByText("Exportar"));
     fireEvent.click(screen.getByLabelText("Agrupar"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Por estado" }));
@@ -73,7 +73,7 @@ describe("FolderSessionsPanel", () => {
   });
 
   it("repo con setup fallido y menú de scripts", async () => {
-    render(<FolderSessionsPanel />);
+    render(<MainSidebar />);
     await waitFor(() => screen.getByText("Exportar"));
     fireEvent.click(screen.getByText("Exportar"));
     expect(useFolders.getState().activeId).toBe("fin-1");
@@ -86,14 +86,14 @@ describe("FolderSessionsPanel", () => {
   });
 
   it("repo missing ofrece quitar", async () => {
-    render(<FolderSessionsPanel />);
+    render(<MainSidebar />);
     await waitFor(() => screen.getByText("Roto"));
     fireEvent.click(screen.getByRole("button", { name: "quitar" }));
     await waitFor(() => expect(rmRepo).toHaveBeenCalledWith(expect.anything(), "fin-2", "repo-a"));
   });
 
   it("evento sessions.changed actualiza y el cierre del WS muestra desconectado", async () => {
-    render(<FolderSessionsPanel />);
+    render(<MainSidebar />);
     await waitFor(() => screen.getByText("Exportar"));
     act(() => listeners["sessions.changed"]({ ...tree, sessions: tree.sessions.slice(0, 1) }));
     expect(screen.queryByText("Exportar")).not.toBeInTheDocument();
@@ -102,7 +102,7 @@ describe("FolderSessionsPanel", () => {
   });
 
   it("badge de confiar carpeta y título del poll con último OK", async () => {
-    render(<FolderSessionsPanel />);
+    render(<MainSidebar />);
     await waitFor(() => screen.getByText("Otro PR"));
     expect(screen.getByText("⚠ confiar carpeta")).toHaveAttribute("title",
       "Claude Code pide confirmar la carpeta: abre la terminal y acepta");
@@ -111,7 +111,7 @@ describe("FolderSessionsPanel", () => {
   });
 
   it("error al parar se muestra", async () => {
-    render(<FolderSessionsPanel />);
+    render(<MainSidebar />);
     await waitFor(() => screen.getByText("Otro PR"));
     fireEvent.click(screen.getByLabelText("Parar pr-repo-a-5"));
     expect(await screen.findByTitle("no se pudo parar")).toBeInTheDocument();
@@ -119,7 +119,7 @@ describe("FolderSessionsPanel", () => {
 
   it("error al crear la principal se muestra", async () => {
     fetchSessions.mockResolvedValueOnce({ ...tree, sessions: tree.sessions.slice(1) });
-    render(<FolderSessionsPanel />);
+    render(<MainSidebar />);
     await waitFor(() => screen.getByText("Exportar"));
     fireEvent.click(screen.getByText("Principal"));
     expect(await screen.findByTitle("ya existe la principal")).toBeInTheDocument();

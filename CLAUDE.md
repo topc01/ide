@@ -55,6 +55,17 @@ terminal, R3 chat).
 - `server/` — backend Python (paquete `ide_server`), gestionado con **`uv`**.
 - `ui/` — frontend React + Vite + TS.
 
+## Glosario de la UI (usar estos nombres en código, docs y conversación)
+
+De izquierda a derecha:
+
+| Nombre | Componente | Qué es |
+|---|---|---|
+| Sidebar principal | `MainSidebar` (`ui/src/modules/sessions/`) | sesiones (★ principal, tickets, revisiones) + customizaciones abajo |
+| Menú de acciones | `ActionMenu` (`ui/src/layout/`) | columna angosta de íconos: colapsar, módulos, prompts |
+| Sidebar interna | `InnerSidebar` (`ui/src/layout/`) | panel del módulo activo (ej. Terminal); colapsable |
+| Panel principal | `MainPanel` (`ui/src/layout/`) | la sesión abierta (tabs `claude`, `TICKET.md`, scripts) |
+
 ## Cómo correr los tests
 
 ```bash

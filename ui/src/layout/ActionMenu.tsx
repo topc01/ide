@@ -4,7 +4,7 @@ import { useFolders } from "../state/folders";
 import { cn } from "../lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "../components/ui/tooltip";
 
-export function ActivityRail() {
+export function ActionMenu() {
   const { activePanel, setActivePanel } = useStore();
   const uiModules = useFolders((s) => s.uiModules);
   const visibleModules = () => getModules().filter((m) => !uiModules || uiModules.includes(m.id));
