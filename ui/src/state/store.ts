@@ -14,6 +14,8 @@ interface State {
   fileTabs: Record<string, string>;          // clave (sessionId:path) -> tabId, para no reabrir el mismo archivo
   searchQuery: string; searchRegex: boolean; searchOptions: SearchOptions;
   searchResults: SearchResult | null; searchStatus: "idle" | "loading" | "done" | "error"; searchError: string | null;
+  innerSidebarOpen: boolean;                 // siempre arranca expandida (no se persiste)
+  toggleInnerSidebar: () => void;
   setRepos: (r: Repo[]) => void;
   setActivePanel: (p: PanelId) => void;
   openTab: (t: Tab) => void;
@@ -30,6 +32,8 @@ export const useStore = create<State>((set) => ({
   repos: [], activePanel: "search", openTabs: [], activeTabId: "chat", fileTabs: {},
   searchQuery: "", searchRegex: true, searchResults: null, searchStatus: "idle", searchError: null,
   searchOptions: { caseSensitive: false, wholeWord: false, include: "", exclude: "", context: 0 },
+  innerSidebarOpen: true,
+  toggleInnerSidebar: () => set((s) => ({ innerSidebarOpen: !s.innerSidebarOpen })),
   setRepos: (repos) => set({ repos }),
   setActivePanel: (activePanel) => set({ activePanel }),
   openTab: (t) => set((s) => ({
