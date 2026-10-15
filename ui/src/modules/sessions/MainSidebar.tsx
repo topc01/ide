@@ -7,6 +7,7 @@ import { getWs } from "../../transport/wsClient";
 import { getGrouper, groupSessions } from "./groupers";
 import { GroupMenu } from "./GroupMenu";
 import { SessionItem } from "./SessionItem";
+import { ReviewsSection } from "./ReviewsSection";
 import { cn } from "../../lib/utils";
 import { CustomizationsFooter } from "../settings/CustomizationsFooter";
 import { Queue, QueueSection, QueueSectionTrigger, QueueSectionLabel, QueueSectionContent, QueueList }
@@ -74,12 +75,7 @@ export function MainSidebar() {
           ))}
         </Queue>
 
-        <div className="mx-2.5 mt-3 flex items-center justify-between border-t border-border pt-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-          <span>Revisiones</span>
-          <button aria-label="Nueva revisión" onClick={() => openModal("review")}
-            className="hover:text-foreground"><Plus size={12} /></button>
-        </div>
-        <QueueList>{reviews.map((s) => <SessionItem key={s.id} session={s} />)}</QueueList>
+        <ReviewsSection sessions={reviews} />
       </div>
       <div className="mt-auto"><CustomizationsFooter /></div>
     </aside>

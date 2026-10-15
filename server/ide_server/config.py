@@ -35,7 +35,8 @@ def sessions_config(root: Path) -> dict:
 
 
 def reviews_config(root: Path) -> dict:
-    return {"poll_interval": 300, **load_workspace_config(root).get("reviews", {})}
+    return {"poll_interval": 300, "github_interval": 120, "github_org": None,
+            **load_workspace_config(root).get("reviews", {})}
 
 
 def ui_modules(root: Path) -> list[str]:

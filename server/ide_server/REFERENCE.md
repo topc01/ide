@@ -55,7 +55,7 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
             └── <repo> -> ../../worktrees/<id>/<repo>   # symlink relativo
 ```
 
-`ide init` **siembra** `sessions/CLAUDE.md`, `templates/*.md`, `prompts/tickets-y-prs.md`, `permissions/*.json` y
+`ide init` **siembra** `sessions/CLAUDE.md`, `templates/*.md`, `prompts/tickets-y-prs.md`, `prompts/review-pr.md`, `permissions/*.json` y
 `config.toml` **solo si no existen**: nunca pisa ediciones. Para volver a la semilla, borra el
 archivo y ejecuta `ide init`.
 
@@ -73,6 +73,8 @@ claude_command = "claude"         # comando base (se le agregan flags); útil pa
 
 [reviews]
 poll_interval = 300               # segundos entre polls de PRs con `gh`; 0 = desactivado
+github_interval = 120             # segundos entre polls de revisiones en GitHub (sección Revisiones); 0 = off
+# github_org = "MiOrg"            # org donde buscar; omitido = owners de los `origin` de los repos
 
 [ui]
 modules = ["sessions", "terminal", "prompts"]   # módulos visibles en el menú de acciones; ver abajo
@@ -177,6 +179,9 @@ requiere `prompts` en `[ui] modules`). Al hacer click se **pega en el input** de
 edita y manda con Enter. Deshabilitado si la sesión no está corriendo. Se releen al abrir el
 módulo (editar el archivo no requiere reiniciar).
 
+Excepción: `review-pr.md` sí usa `{{pr_url}}`, `{{title}}`, `{{author}}`, `{{repo}}`, `{{id}}`;
+lo envía el botón de revisión (ver §9b), no se pega a mano.
+
 `ide init` siembra `tickets-y-prs.md`: el despacho de la principal. Edítalo con la base
 (URL o `collection://…`), el filtro (asignado, estados que entran) y si debe pedir OK antes de
 lanzar (recomendado: `--dry-run` + tabla + esperar OK, luego `--if-missing`).
@@ -220,6 +225,28 @@ notion_url: https://www.notion.so/...
   revisiones `stale` (el PR tiene commits nuevos; "Refrescar" en la UI) / `merged` / `closed`;
   `attention: "trust"` (ver §10).
 
+## 9b. Revisiones de GitHub y barra de usage (UI)
+
+**Revisiones** (sidebar principal): cada `github_interval` s el server hace un `gh api graphql`
+(org-wide, no depende de la sesión abierta) y la UI muestra cards en dos grupos:
+**Pendientes** (PRs abiertos de la org con review pedida a vos) y **Pedí cambios** (PRs abiertos donde tu
+última review es `CHANGES_REQUESTED` y no te re-pidieron review). Si el PR ya tiene sesión
+(`pr-<repo>-<n>`) la card es la sesión; si no, una card del PR. Las sesiones de revisión que no
+están en GitHub van en **Otras**. Bajo el título, chips `@revisor N`: cuántos PRs abiertos de
+la org tienen review pedida a cada persona (los pedidos a equipos no cuentan; pagina hasta
+1000 PRs, el tope de la búsqueda de GitHub; si se pasa, se marca con `+`); el tuyo resaltado. En las pendientes, el botón de revisión (hover) envía
+`.ide/prompts/review-pr.md` (pega + Enter) a la sesión del PR: si no existe la crea (como
+`--review <url>`, con ese prompt en vez de la plantilla `review`); si está parada la retoma con el
+prompt; si está en cola falla con `queued`. Errores de `gh` se ven como `⚠ github`.
+
+**Barra inferior:** contexto de la sesión abierta (último turno de su transcript en
+`~/.claude/projects/`; ventana 1M si `model` de `~/.claude/settings.json` tiene `[1m]` o se pasó de
+200k) y las ventanas de 5 h y semanal con el tiempo hasta el reinicio. Los límites salen del
+endpoint OAuth de `/usage` (`api.anthropic.com/api/oauth/usage`, no documentado) con el token de
+Claude Code (`claudeAiOauth` en el llavero `Claude Code-credentials` o
+`~/.claude/.credentials.json`); el server lo consulta cada 15 s (ante 429 duplica la espera, tope
+5 min) y la UI lee cada 5 s. Sin tokens. Errores se ven como `⚠ límites: …`.
+
 ## 10. Problemas comunes
 
 Cada sesión fija su conversación de `claude`: `claude_session` (nueva con `--session-id`,
@@ -248,7 +275,7 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `bad_pr_url`, `forbidden`, `unknown_repo`, `repo_exists`, `repo_not_in_session`,
 `ambiguous_repo`, `uncommitted_changes`, `setup_failed`, `archive_failed`, `script_not_found`,
 `script_not_executable`, `script_failed`, `gh_failed`, `fetch_failed`, `checkout_failed`,
-`not_a_review`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
+`not_a_review`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`.
 
 ## 12. API (para integraciones)
@@ -259,4 +286,7 @@ snake_case: `id`, `notion`, `main`, `template`, `vars`, `prompt`, `title`, `perm
 409/400/500 con `{code, message}`.
 
 WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|script|doc|refreshReview|repoRm`,
-`ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `terminal.*`; evento `sessions.changed` (mismo payload que `sessions.tree`).
+`ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `reviews.github`
+(`{pending, changesRequested, me, reviewers: [{login, count}], reviewersTruncated, error, lastOk, orgs}`), `reviews.start` (`{url}` → `{id, created,
+process}`), `usage.get` (`{sessionId}` → `{context, limits}`), `terminal.*`; eventos
+`sessions.changed` (mismo payload que `sessions.tree`) y `reviews.github`.

@@ -1,5 +1,5 @@
 // ui/src/modules/sessions/SessionItem.tsx
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Square, Trash2 } from "lucide-react";
 import type { FolderSession } from "../../transport/folderSessions";
 import { stopSession } from "../../transport/folderSessions";
@@ -13,7 +13,7 @@ import { cn } from "../../lib/utils";
 
 const DOT = { running: ["●", "corriendo"], stopped: ["○", "parada"], queued: ["◌", "en cola"] } as const;
 
-export function SessionItem({ session }: { session: FolderSession }) {
+export function SessionItem({ session, actions }: { session: FolderSession; actions?: ReactNode }) {
   const { activeId, setActive } = useFolders();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +39,7 @@ export function SessionItem({ session }: { session: FolderSession }) {
           <span title={session.error ?? session.launchError ?? ""} className="text-destructive">⚠ error</span>)}
         {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
         <QueueItemActions>
+          {actions}
           {session.process !== "stopped" && (
             <QueueItemAction aria-label={`Parar ${session.id}`}
               onClick={(e) => {

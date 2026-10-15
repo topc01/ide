@@ -16,6 +16,7 @@ import { MainSidebar } from "./modules/sessions/MainSidebar";
 import { NewFolderSessionModal } from "./modules/sessions/NewFolderSessionModal";
 import { SettingsModal } from "./modules/settings/SettingsModal";
 import { MainPanel } from "./layout/MainPanel";
+import { StatusBar } from "./layout/StatusBar";
 
 export default function App() {
   const setUiModules = useFolders((s) => s.setUiModules);
@@ -24,11 +25,14 @@ export default function App() {
     fetchUiConfig(getWs()).then((c) => setUiModules(c.modules)).catch(() => setConnected(false));
   }, [setUiModules, setConnected]);
   return (
-    <div className="flex h-full">
-      <MainSidebar />
-      <ActionMenu />
-      <InnerSidebar />
-      <MainPanel />
+    <div className="flex h-full flex-col">
+      <div className="flex min-h-0 flex-1">
+        <MainSidebar />
+        <ActionMenu />
+        <InnerSidebar />
+        <MainPanel />
+      </div>
+      <StatusBar />
       <SettingsModal />
       <NewFolderSessionModal />
     </div>

@@ -12,6 +12,8 @@ claude_command = "claude"
 
 [reviews]
 poll_interval = 300               # segundos; 0 = sin polling de PRs
+github_interval = 120             # revisiones pendientes / con cambios pedidos en GitHub; 0 = off
+# github_org = "MiOrg"            # omitido = owners de los `origin` de los repos del workspace
 
 [ui]
 modules = ["sessions", "terminal", "prompts"]
@@ -60,6 +62,12 @@ Eres la sesión principal de este workspace.
    pasando por stdin `{"title": "…"}` (JSON: así los títulos no se rompen en el shell).
    Por cada PR: `ide session new --if-missing --review <url>`.
 5. Resume lo lanzado. Estado general: lee `../*/TICKET.md` y `../*/REVIEW.md`.
+"""
+# `.ide/prompts/review-pr.md`: el botón de revisión de la UI lo envía a la sesión del PR.
+PROMPT_REVIEW_PR = """\
+Review PR {{pr_url}} ("{{title}}" by {{author}}, repo {{repo}}) using the
+`finnecto-core:pr-review` skill (reviewer side). The `{{repo}}/` worktree is at the PR head.
+Keep REVIEW.md and its `status` up to date with your verdict.
 """
 TEMPLATE_TICKET = """\
 Eres la sesión del ticket {{id}}: "{{title}}" ({{notion_url}}).

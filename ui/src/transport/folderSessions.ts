@@ -49,3 +49,28 @@ export function onSessionsChanged(ws: WsClient, cb: (t: SessionsTree) => void): 
   ws.on("sessions.changed", handler);
   return () => ws.off("sessions.changed", handler);
 }
+
+export interface GhPr {
+  url: string; title: string; number: number; repo: string; author: string;
+  draft: boolean; updatedAt: string | null; sessionId: string;
+}
+export interface GithubReviews {
+  pending: GhPr[]; changesRequested: GhPr[]; error: string | null; lastOk: string | null; orgs: string[];
+  me: string | null; reviewers: { login: string; count: number }[]; reviewersTruncated: boolean;
+}
+export const fetchGithubReviews = (ws: WsClient): Promise<GithubReviews> => ws.request("reviews.github", {});
+export const startReview = (ws: WsClient, url: string): Promise<{ id: string; created: boolean; process: Process }> =>
+  ws.request("reviews.start", { url });
+export function onGithubReviews(ws: WsClient, cb: (r: GithubReviews) => void): () => void {
+  const handler = (p: GithubReviews) => cb(p);
+  ws.on("reviews.github", handler);
+  return () => ws.off("reviews.github", handler);
+}
+
+export interface UsageWindow { percent: number; resetsAt: string | null; }
+export interface Usage {
+  context: { used: number; window: number; model: string | null } | null;
+  limits: { fiveHour: UsageWindow | null; weekly: UsageWindow | null; error: string | null; lastOk: string | null };
+}
+export const fetchUsage = (ws: WsClient, sessionId: string | null): Promise<Usage> =>
+  ws.request("usage.get", { sessionId });

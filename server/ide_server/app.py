@@ -7,6 +7,8 @@ from fastapi.responses import JSONResponse
 from ide_server.capabilities import folder_sessions as folder_cap
 from ide_server.config import sessions_config, reviews_config
 from ide_server.pr_poller import PrPoller
+from ide_server.gh_reviews import GithubReviews
+from ide_server.claude_usage import LimitsPoller
 from ide_server.sessions_fs import SessionError
 from ide_server.supervisor import ClaudeAgents, Supervisor
 from ide_server.watcher import watch_workspace
@@ -49,11 +51,17 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         server_url=server_url or f"http://{settings.host}:{settings.port}",
         command=claude_command or scfg["claude_command"], max_running=scfg["max_running"],
         on_change=lambda: notify_box["fn"](),
-        agents=ClaudeAgents(claude_command or scfg["claude_command"]))
-    poller = PrPoller(root, interval=reviews_config(root)["poll_interval"],
-                      on_change=lambda: notify_box["fn"]())
+        agents=ClaudeAgents(claude_command or scfg["claude_command"]), write=hooks.write)
+    rcfg = reviews_config(root)
+    poller = PrPoller(root, interval=rcfg["poll_interval"], on_change=lambda: notify_box["fn"]())
+    gh_reviews = GithubReviews(root, interval=rcfg["github_interval"], org=rcfg["github_org"],
+                               on_change=lambda: notify_box["github"]())
+    limits = LimitsPoller()
     notify_box["fn"] = folder_cap.register(registry, root, manager, hooks=hooks,
-                                           supervisor=supervisor, poller=poller)
+                                           supervisor=supervisor, poller=poller,
+                                           gh_reviews=gh_reviews, limits=limits)
+    notify_box["github"] = lambda: asyncio.get_running_loop().create_task(
+        manager.broadcast("reviews.github", gh_reviews.state))
     mlx_router = build_mlx_router(root)
     hub = chat_cap.register(registry, root, manager, mlx_router=mlx_router)
     customizations_cap.register(registry, root)
@@ -79,6 +87,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         tasks = [
             asyncio.create_task(watch_workspace(root, lambda: notify_box["fn"](), stop_event=stop_bg)),
             asyncio.create_task(poller.run(stop_bg)),
+            asyncio.create_task(gh_reviews.run(stop_bg)),
+            asyncio.create_task(limits.run(stop_bg)),
         ]
         for t in tasks:
             t.add_done_callback(_log_done)

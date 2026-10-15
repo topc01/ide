@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Callable
 from ide_server.config import sessions_config
 from ide_server.repos_fs import add_repo, rm_repo, worktree_path, require_session
+from ide_server.prompts import load_prompt
 from ide_server.sessions_fs import (
     SessionError, create_session_dir, new_id, normalize_id, read_session, render_template,
     require_plain_name, session_path, sessions_dir, update_session_toml, read_toml,
@@ -149,8 +150,11 @@ def _create_review(root: Path, req: dict, permissions: str, runner: Runner) -> d
                 "existed": session_path(root, sid).exists()}
     pr = _gh_pr(url, runner)
     author = "@" + pr["author"]["login"]
-    prompt = render_template(load_template(root, "review"), {
-        "id": sid, "title": pr["title"], "pr_url": url, "author": author, "repo": repo})
+    variables = {"id": sid, "title": pr["title"], "pr_url": url, "author": author, "repo": repo}
+    # `prompt_file`: prompt de `.ide/prompts/` (p.ej. el botón de revisión) en vez de la plantilla
+    text = (load_prompt(root, req["prompt_file"]) if req.get("prompt_file")
+            else load_template(root, "review"))
+    prompt = render_template(text, variables)
     create_session_dir(root, sid=sid, kind="review", permissions=permissions, prompt=prompt,
                        meta={"title": pr["title"], "author": author, "pr_url": url})
     log = io.StringIO()

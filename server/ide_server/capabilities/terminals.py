@@ -14,6 +14,7 @@ from ide_server.workspace import resolve_cwd
 class TerminalHooks:
     spawn: Callable[..., str]
     kill: Callable[[str], None]
+    write: Callable[[str, bytes], None] | None = None
 
 
 def register(registry: Registry, root: Path, manager, pty: PtyManager | None = None) -> TerminalHooks:
@@ -107,4 +108,4 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
     register._pty = pty        # type: ignore[attr-defined]
     register._terms = terms    # type: ignore[attr-defined]
     register._manager = manager  # type: ignore[attr-defined]
-    return TerminalHooks(spawn=spawn_process, kill=kill_process)
+    return TerminalHooks(spawn=spawn_process, kill=kill_process, write=pty.write)

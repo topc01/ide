@@ -2,7 +2,7 @@
 """Prompts reutilizables (`.ide/prompts/*.md`): la UI los pega en el input de `claude`."""
 from __future__ import annotations
 from pathlib import Path
-from ide_server.sessions_fs import SessionError
+from ide_server.sessions_fs import SessionError, require_plain_name
 
 
 def prompts_dir(root: Path) -> Path:
@@ -20,3 +20,11 @@ def list_prompts(root: Path) -> list[dict]:
         except (OSError, UnicodeDecodeError) as exc:
             raise SessionError("bad_prompt", f"no se pudo leer {f}: {exc}") from exc
     return out
+
+
+def load_prompt(root: Path, name: str) -> str:
+    require_plain_name(name, "prompt")
+    f = prompts_dir(root) / f"{name}.md"
+    if not f.is_file():
+        raise SessionError("unknown_prompt", f"no existe el prompt {f}")
+    return f.read_text(encoding="utf-8")

@@ -4,15 +4,20 @@ import io
 import logging
 from pathlib import Path
 from typing import Callable
+from ide_server.claude_usage import LimitsPoller, session_context
 from ide_server.config import ui_modules
+from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
 from ide_server.pr_poller import PrPoller
-from ide_server.prompts import list_prompts
+from ide_server.prompts import list_prompts, load_prompt
 from ide_server.repos_fs import require_session, rm_repo, worktree_path
 from ide_server.scripts import list_scripts, script_argv, script_env
-from ide_server.session_ops import check_delete, create_session, refresh_review, remove_session
+from ide_server.session_ops import (
+    check_delete, create_session, parse_pr_url, refresh_review, remove_session,
+)
 from ide_server.sessions_fs import (
-    list_sessions, read_toml, require_plain_name, state_file, SessionError,
+    list_sessions, normalize_id, read_session, read_toml, render_template, require_plain_name,
+    session_path, state_file, SessionError,
 )
 from ide_server.supervisor import Supervisor
 from ide_server.workspace import discover_repos
@@ -21,7 +26,8 @@ log = logging.getLogger(__name__)
 
 
 def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supervisor,
-             poller: PrPoller) -> Callable[[], None]:
+             poller: PrPoller, gh_reviews: GithubReviews | None = None,
+             limits: LimitsPoller | None = None) -> Callable[[], None]:
 
     def build_tree(snap: dict, derived: dict) -> dict:
         """Lectura de disco + git: corre en un thread (no bloquea el loop)."""
@@ -124,7 +130,49 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def prompts(_p: dict) -> dict:
         return {"prompts": await asyncio.to_thread(list_prompts, root)}
 
+    async def github(_p: dict) -> dict:
+        return gh_reviews.state if gh_reviews else {"pending": [], "changesRequested": [], "me": None,
+                                                    "reviewers": [], "reviewersTruncated": False,
+                                                    "error": "polling de GitHub desactivado",
+                                                    "lastOk": None, "orgs": []}
+
+    async def review_start(p: dict) -> dict:
+        """Botón de revisión: manda `.ide/prompts/review-pr.md` a la sesión del PR (la crea si falta)."""
+        url = p["url"]
+        repo, number = parse_pr_url(url)
+        sid = normalize_id(f"pr-{repo}-{number}")
+        if not (session_path(root, sid) / ".session.toml").is_file():
+            await asyncio.to_thread(create_session, root,
+                                          {"review": url, "prompt_file": "review-pr"})
+            process = supervisor.start(sid, resume=False)
+            notify()
+            return {"id": sid, "created": True, "process": process}
+        s = await asyncio.to_thread(read_session, root, sid)
+        text = render_template(await asyncio.to_thread(load_prompt, root, "review-pr"), {
+            "id": sid, "pr_url": url, "repo": repo, "title": s.get("title") or "",
+            "author": s["meta"].get("author", "")})
+        state = supervisor.state(sid)
+        if state == "queued":
+            raise SessionError("queued", f"{sid} está en cola: espera a que arranque")
+        if state == "running":
+            supervisor.send(sid, text)
+        else:
+            state = supervisor.start(sid, prompt=text)
+        notify()
+        return {"id": sid, "created": False, "process": state}
+
+    async def usage(p: dict) -> dict:
+        ctx = None
+        sid = p.get("sessionId")
+        if sid:
+            require_plain_name(sid, "sesión")
+            ctx = await asyncio.to_thread(session_context, session_path(root, sid), Path.home())
+        lim = limits.state if limits else {"fiveHour": None, "weekly": None,
+                                           "error": "sin poller de límites", "lastOk": None}
+        return {"context": ctx, "limits": lim}
+
     for channel, handler in {
+        "reviews.github": github, "reviews.start": review_start, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.open": open_,
         "sessions.stop": stop, "sessions.rm": rm, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,

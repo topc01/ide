@@ -103,8 +103,13 @@ def latest_transcript_id(path: Path, home: Path) -> str | None:
     return max(files, key=lambda f: f.stat().st_mtime).stem if files else None
 
 
+def _positional(prompt: str) -> str:
+    return " " + prompt if prompt.startswith("-") else prompt   # que claude no lo lea como flag
+
+
 def build_argv(root: Path, sid: str, *, command: str, resume: bool,
-               claude_session: str | None = None, claude_name: str | None = None) -> list[str]:
+               claude_session: str | None = None, claude_name: str | None = None,
+               prompt: str | None = None) -> list[str]:
     path = session_path(root, sid)
     data = read_toml(path / ".session.toml")
     perm, kind = data.get("permissions", "default"), data.get("kind")
@@ -122,15 +127,16 @@ def build_argv(root: Path, sid: str, *, command: str, resume: bool,
         argv += ["--name", claude_name]
     if resume:
         argv += ["--resume", claude_session] if claude_session else ["--continue"]
+        if prompt:
+            argv.append(_positional(prompt))
     else:
         if claude_session:
             argv += ["--session-id", claude_session]
         prompt_file = path / "PROMPT.md"
-        prompt = prompt_file.read_text(encoding="utf-8").strip() if prompt_file.is_file() else ""
-        if prompt.startswith("-"):
-            prompt = " " + prompt                # que claude no lo lea como flag
+        prompt = prompt or (prompt_file.read_text(encoding="utf-8").strip()
+                            if prompt_file.is_file() else "")
         if prompt:
-            argv.append(prompt)
+            argv.append(_positional(prompt))
     return argv
 
 
@@ -141,13 +147,15 @@ class Supervisor:
                  command: str = "claude", max_running: int | None = None,
                  home: Path | None = None, on_change: Callable[[], None] | None = None,
                  which: Callable[[str], str | None] = shutil.which,
-                 agents: ClaudeAgents | None = None) -> None:
+                 agents: ClaudeAgents | None = None,
+                 write: Callable[[str, bytes], None] | None = None) -> None:
         self._root, self._spawn, self._kill = root, spawn, kill
         self._url, self._command, self._max = server_url, command, max_running
         self._home = home or Path.home()
         self._on_change = on_change or (lambda: None)
         self._which = which
         self._agents = agents            # None = no mirar sesiones de fondo (tests)
+        self._write = write
         self._running: dict[str, str] = {}
         self._queue: list[tuple[str, bool]] = []
         self._errors: dict[str, str] = {}
@@ -167,7 +175,7 @@ class Supervisor:
                       "launchError": self._errors.get(sid),
                       "attention": self._attention.get(sid)} for sid in sids}
 
-    def start(self, sid: str, *, resume: bool | None = None) -> str:
+    def start(self, sid: str, *, resume: bool | None = None, prompt: str | None = None) -> str:
         path = session_path(self._root, sid)
         if not (path / ".session.toml").is_file():
             raise SessionError("unknown_session", f"no existe la sesión {sid}")
@@ -176,10 +184,13 @@ class Supervisor:
         if resume is None:
             resume = has_history(path, self._home)
         if self._max is not None and len(self._running) >= self._max:
+            if prompt:
+                raise SessionError("queue_full", f"hay {self._max} sesiones corriendo (max_running): "
+                                                 f"no puedo lanzar {sid} con el prompt ahora")
             self._queue.append((sid, resume))
             self._on_change()
             return "queued"
-        self._launch(sid, resume)
+        self._launch(sid, resume, prompt)
         self._on_change()
         return "running"
 
@@ -202,7 +213,17 @@ class Supervisor:
             for a in self._agents.background(path):
                 self._agents.stop(a["id"])
 
-    def _launch(self, sid: str, resume: bool) -> None:
+    def send(self, sid: str, text: str) -> None:
+        """Escribe `text` en el input del `claude` que corre y lo envía (Enter)."""
+        tid = self._running.get(sid)
+        if tid is None or self._write is None:
+            raise SessionError("not_running", f"la sesión {sid} no está corriendo")
+        body = text.replace("\r\n", "\n").rstrip().split("\n")
+        self._write(tid, "\x1b\r".join(body).encode())   # Alt+Enter = salto de línea en claude
+        # el Enter aparte: pegado junto al texto, claude lo toma como parte del paste
+        threading.Timer(0.4, lambda: self._running.get(sid) == tid and self._write(tid, b"\r")).start()
+
+    def _launch(self, sid: str, resume: bool, prompt: str | None = None) -> None:
         path = session_path(self._root, sid)
         # Cada sesión fija su conversación de claude (`claude_session` en .session.toml): nueva
         # con --session-id, retomada con --resume <id>. Las viejas adoptan la más reciente.
@@ -215,7 +236,7 @@ class Supervisor:
             name = name or f"{sid} · {uuid.uuid4().hex[:8]}"
             update_session_toml(self._root, sid, lambda d: d.update(claude_session=cs, claude_name=name))
         argv = build_argv(self._root, sid, command=self._command, resume=resume,
-                          claude_session=cs, claude_name=name)
+                          claude_session=cs, claude_name=name, prompt=prompt)
         if resume and self._agents is not None:
             # sigue viva en segundo plano (p.ej. tras reiniciar el server): reengancharla, pero
             # SOLO si la lanzó el IDE (una lanzada a mano podría tener otros permisos)
@@ -223,6 +244,8 @@ class Supervisor:
                     if a.get("sessionId") == cs or a.get("name") == name]
             if mine:
                 argv = [*shlex.split(self._command), "attach", mine[0]]
+                if prompt:   # `attach` no recibe prompt: se escribe cuando el TUI ya cargó
+                    threading.Timer(3.0, lambda: sid in self._running and self.send(sid, prompt)).start()
         if self._which(argv[0]) is None:
             raise SessionError("claude_missing",
                                f"no se encontró `{argv[0]}` en el PATH (¿instalaste claude?)")
