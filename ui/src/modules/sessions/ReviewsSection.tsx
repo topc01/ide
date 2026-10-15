@@ -87,7 +87,7 @@ function ReviewersMenu({ gh }: { gh: GithubReviews | null }) {
         <div role="menu" className="absolute right-0 z-10 mt-1 w-56 rounded-md border border-border bg-popover p-1 normal-case tracking-normal shadow">
           <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">Revisores visibles</div>
           {members.length === 0 && <p className="px-2 py-1 text-xs text-muted-foreground">
-            {gh?.error ? "no se pudo leer la org" : "cargando miembros…"}</p>}
+            {gh?.error ? `no se pudo leer la org: ${gh.error}` : "cargando miembros…"}</p>}
           {members.map((m) => (
             <label key={m.login} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-accent">
               <input type="checkbox" className="accent-primary" checked={selected.has(m.login)}
