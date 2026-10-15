@@ -9,9 +9,10 @@ import shutil
 import subprocess
 import threading
 import time
+import uuid
 from pathlib import Path
 from typing import Callable
-from ide_server.sessions_fs import SessionError, session_path, read_toml
+from ide_server.sessions_fs import SessionError, session_path, read_toml, update_session_toml
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +62,8 @@ class ClaudeAgents:
     def __init__(self, command: str, run=subprocess.run) -> None:
         self._cmd, self._run = shlex.split(command), run
 
-    def background(self, cwd: Path) -> list[str]:
+    def background(self, cwd: Path) -> list[dict]:
+        """Sesiones de fondo en esa carpeta: {id (de `claude attach`), sessionId, name}."""
         try:
             out = self._run([*self._cmd, "agents", "--json", "--cwd", str(cwd)],
                             capture_output=True, text=True, timeout=10, env=clean_env(dict(os.environ)))
@@ -70,7 +72,8 @@ class ClaudeAgents:
             log.warning("no se pudo consultar `claude agents`: %s", exc)
             return []
         here = str(cwd.resolve())
-        return [a["id"] for a in items if a.get("kind") == "background" and a.get("id")
+        return [a for a in items
+                if a.get("kind") == "background" and a.get("id")
                 and str(Path(a.get("cwd", "")).resolve()) == here]
 
     def stop(self, agent_id: str) -> None:
@@ -85,12 +88,23 @@ def encode_project_dir(path: Path) -> str:
     return re.sub(r"[^A-Za-z0-9]", "-", str(path))
 
 
-def has_history(path: Path, home: Path) -> bool:
+def _transcripts(path: Path, home: Path) -> list[Path]:
     d = home / ".claude" / "projects" / encode_project_dir(path.resolve())
-    return d.is_dir() and any(d.glob("*.jsonl"))
+    return list(d.glob("*.jsonl")) if d.is_dir() else []
 
 
-def build_argv(root: Path, sid: str, *, command: str, resume: bool) -> list[str]:
+def has_history(path: Path, home: Path) -> bool:
+    return bool(_transcripts(path, home))
+
+
+def latest_transcript_id(path: Path, home: Path) -> str | None:
+    """La conversación que elegiría `claude --continue` (la más reciente de la carpeta)."""
+    files = _transcripts(path, home)
+    return max(files, key=lambda f: f.stat().st_mtime).stem if files else None
+
+
+def build_argv(root: Path, sid: str, *, command: str, resume: bool,
+               claude_session: str | None = None, claude_name: str | None = None) -> list[str]:
     path = session_path(root, sid)
     data = read_toml(path / ".session.toml")
     perm, kind = data.get("permissions", "default"), data.get("kind")
@@ -104,9 +118,13 @@ def build_argv(root: Path, sid: str, *, command: str, resume: bool) -> list[str]
     argv.append(f"--add-dir={root / '.ide' / 'worktrees' / sid}")
     if kind == "main":
         argv.append(f"--add-dir={root / '.ide' / 'sessions'}")
+    if claude_name:
+        argv += ["--name", claude_name]
     if resume:
-        argv.append("--continue")
+        argv += ["--resume", claude_session] if claude_session else ["--continue"]
     else:
+        if claude_session:
+            argv += ["--session-id", claude_session]
         prompt_file = path / "PROMPT.md"
         prompt = prompt_file.read_text(encoding="utf-8").strip() if prompt_file.is_file() else ""
         if prompt.startswith("-"):
@@ -181,15 +199,30 @@ class Supervisor:
     def _stop_background(self, path: Path) -> None:
         for _ in range(5):               # el daemon tarda un poco en registrarla como de fondo
             time.sleep(1)
-            for agent_id in self._agents.background(path):
-                self._agents.stop(agent_id)
+            for a in self._agents.background(path):
+                self._agents.stop(a["id"])
 
     def _launch(self, sid: str, resume: bool) -> None:
-        argv = build_argv(self._root, sid, command=self._command, resume=resume)
+        path = session_path(self._root, sid)
+        # Cada sesión fija su conversación de claude (`claude_session` en .session.toml): nueva
+        # con --session-id, retomada con --resume <id>. Las viejas adoptan la más reciente.
+        # `claude_name` (--name con un token aleatorio) marca los claude que lanzó el IDE: el
+        # daemon, al pasar una sesión a segundo plano, la bifurca con otro sessionId.
+        data = read_toml(path / ".session.toml")
+        cs, name = data.get("claude_session"), data.get("claude_name")
+        if not cs or not name:
+            cs = cs or (latest_transcript_id(path, self._home) if resume else None) or str(uuid.uuid4())
+            name = name or f"{sid} · {uuid.uuid4().hex[:8]}"
+            update_session_toml(self._root, sid, lambda d: d.update(claude_session=cs, claude_name=name))
+        argv = build_argv(self._root, sid, command=self._command, resume=resume,
+                          claude_session=cs, claude_name=name)
         if resume and self._agents is not None:
-            # sigue viva en segundo plano (p.ej. tras reiniciar el server): reengancharla
-            if bg := self._agents.background(session_path(self._root, sid)):
-                argv = [*shlex.split(self._command), "attach", bg[0]]
+            # sigue viva en segundo plano (p.ej. tras reiniciar el server): reengancharla, pero
+            # SOLO si la lanzó el IDE (una lanzada a mano podría tener otros permisos)
+            mine = [a["id"] for a in self._agents.background(path)
+                    if a.get("sessionId") == cs or a.get("name") == name]
+            if mine:
+                argv = [*shlex.split(self._command), "attach", mine[0]]
         if self._which(argv[0]) is None:
             raise SessionError("claude_missing",
                                f"no se encontró `{argv[0]}` en el PATH (¿instalaste claude?)")

@@ -49,7 +49,7 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
         ├── CLAUDE.md                   # mapa de repos + uso de `ide`; lo heredan TODAS las sesiones
         ├── templates/{ticket,review}.md   # §7
         └── <id>/                       # una sesión
-            ├── .session.toml           # kind, permissions, created, [ports], [setup], pr_url, reviewed_sha
+            ├── .session.toml           # kind, permissions, created, [ports], [setup], pr_url, reviewed_sha, claude_session, claude_name
             ├── PROMPT.md               # prompt inicial (plantilla renderizada)
             ├── TICKET.md | REVIEW.md   # estado + análisis (§9)
             └── <repo> -> ../../worktrees/<id>/<repo>   # symlink relativo
@@ -222,6 +222,10 @@ notion_url: https://www.notion.so/...
 
 ## 10. Problemas comunes
 
+Cada sesión fija su conversación de `claude`: `claude_session` (nueva con `--session-id`,
+retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más reciente) y
+`claude_name` (`--name "<id> · <token>"`, se ve en el borde del input).
+
 | Síntoma | Causa / solución |
 |---|---|
 | Sesión con badge **⚠ confiar carpeta** | Claude Code pregunta si confías en la carpeta nueva. Abre la terminal de la sesión y acepta. También aparece con el aviso del modo `full` (acéptalo una vez). |
@@ -232,7 +236,7 @@ notion_url: https://www.notion.so/...
 | `⚠ error` en una sesión | `.session.toml` o el frontmatter de `TICKET.md` está roto; el mensaje dice cuál. |
 | `⚠ poll` en una revisión | `gh` falló (auth/red); el title muestra el último OK. `gh auth status`. |
 | La UI dice "desconectado" | El server se cayó; lo de la pantalla puede estar viejo. |
-| Al reiniciar el server todas quedan `○` | Normal: no hay auto-resume. Click → Abrir: si la conversación sigue viva en segundo plano (el daemon de Claude Code la conserva al morir el PTY) se reengancha con `claude attach`; si no, `--continue`. **Parar** también detiene la de fondo. |
+| Al reiniciar el server todas quedan `○` | Normal: no hay auto-resume. Click → Abrir: si la conversación sigue viva en segundo plano (el daemon de Claude Code la conserva al morir el PTY) se reengancha con `claude attach` **solo si la lanzó el IDE** (coincide `claude_session` o `claude_name` de `.session.toml`; una lanzada a mano podría tener otros permisos); si no, `--resume <claude_session>`. **Parar** también detiene la de fondo. |
 | `⚠ error` "sigue en segundo plano" | No se pudo reenganchar: `claude agents` (attach o stop) y vuelve a Abrir. |
 | "Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION" | Server viejo lanzado desde dentro de un `claude`: el server actual limpia esas variables al lanzar sesiones; reinícialo. |
 
