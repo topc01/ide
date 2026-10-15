@@ -133,8 +133,18 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def github(_p: dict) -> dict:
         return gh_reviews.state if gh_reviews else {"pending": [], "changesRequested": [], "me": None,
                                                     "reviewers": [], "reviewersTruncated": False,
+                                                    "members": [], "selected": None,
                                                     "error": "polling de GitHub desactivado",
                                                     "lastOk": None, "orgs": []}
+
+    async def set_reviewers(p: dict) -> dict:
+        if gh_reviews is None:
+            raise SessionError("github_off", "polling de GitHub desactivado")
+        logins = p["logins"]
+        if not isinstance(logins, list):
+            raise SessionError("bad_request", "logins debe ser una lista")
+        await gh_reviews.set_selection(logins)
+        return gh_reviews.state
 
     async def review_start(p: dict) -> dict:
         """Botón de revisión: manda `.ide/prompts/review-pr.md` a la sesión del PR (la crea si falta)."""
@@ -172,7 +182,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"context": ctx, "limits": lim}
 
     for channel, handler in {
-        "reviews.github": github, "reviews.start": review_start, "usage.get": usage,
+        "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.open": open_,
         "sessions.stop": stop, "sessions.rm": rm, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,

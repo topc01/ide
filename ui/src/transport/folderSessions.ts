@@ -57,10 +57,13 @@ export interface GhPr {
 export interface GithubReviews {
   pending: GhPr[]; changesRequested: GhPr[]; error: string | null; lastOk: string | null; orgs: string[];
   me: string | null; reviewers: { login: string; count: number }[]; reviewersTruncated: boolean;
+  members: { login: string; name: string | null }[]; selected: string[] | null;
 }
 export const fetchGithubReviews = (ws: WsClient): Promise<GithubReviews> => ws.request("reviews.github", {});
 export const startReview = (ws: WsClient, url: string): Promise<{ id: string; created: boolean; process: Process }> =>
   ws.request("reviews.start", { url });
+export const setReviewers = (ws: WsClient, logins: string[]): Promise<GithubReviews> =>
+  ws.request("reviews.setReviewers", { logins });
 export function onGithubReviews(ws: WsClient, cb: (r: GithubReviews) => void): () => void {
   const handler = (p: GithubReviews) => cb(p);
   ws.on("reviews.github", handler);

@@ -233,8 +233,12 @@ notion_url: https://www.notion.so/...
 última review es `CHANGES_REQUESTED` y no te re-pidieron review). Si el PR ya tiene sesión
 (`pr-<repo>-<n>`) la card es la sesión; si no, una card del PR. Las sesiones de revisión que no
 están en GitHub van en **Otras**. Bajo el título, chips `@revisor N`: cuántos PRs abiertos de
-la org tienen review pedida a cada persona (los pedidos a equipos no cuentan; pagina hasta
-1000 PRs, el tope de la búsqueda de GitHub; si se pasa, se marca con `+`); el tuyo resaltado. En las pendientes, el botón de revisión (hover) envía
+la org tienen review pedida a cada **miembro de la org** (los pedidos a equipos y a gente de
+afuera no cuentan; pagina hasta 1000 PRs, el tope de la búsqueda de GitHub; si se pasa, se marca
+con `+`); el tuyo resaltado. El menú ⋯ de Revisiones elige qué miembros se ven (checkbox); se
+guarda en `.ide/reviews.json` (`{"reviewers": [...]}`); sin ese archivo se ven todos los que
+tienen pendientes. La sección se colapsa desde su título; Pendientes / Pedí cambios / Otras son
+grupos fijos. En las pendientes, el botón de revisión (hover) envía
 `.ide/prompts/review-pr.md` (pega + Enter) a la sesión del PR: si no existe la crea (como
 `--review <url>`, con ese prompt en vez de la plantilla `review`); si está parada la retoma con el
 prompt; si está en cola falla con `queued`. Errores de `gh` se ven como `⚠ github`.
@@ -275,7 +279,7 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `bad_pr_url`, `forbidden`, `unknown_repo`, `repo_exists`, `repo_not_in_session`,
 `ambiguous_repo`, `uncommitted_changes`, `setup_failed`, `archive_failed`, `script_not_found`,
 `script_not_executable`, `script_failed`, `gh_failed`, `fetch_failed`, `checkout_failed`,
-`not_a_review`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
+`not_a_review`, `github_off`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`.
 
 ## 12. API (para integraciones)
@@ -287,6 +291,6 @@ snake_case: `id`, `notion`, `main`, `template`, `vars`, `prompt`, `title`, `perm
 
 WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|script|doc|refreshReview|repoRm`,
 `ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `reviews.github`
-(`{pending, changesRequested, me, reviewers: [{login, count}], reviewersTruncated, error, lastOk, orgs}`), `reviews.start` (`{url}` → `{id, created,
+(`{pending, changesRequested, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.start` (`{url}` → `{id, created,
 process}`), `usage.get` (`{sessionId}` → `{context, limits}`), `terminal.*`; eventos
 `sessions.changed` (mismo payload que `sessions.tree`) y `reviews.github`.

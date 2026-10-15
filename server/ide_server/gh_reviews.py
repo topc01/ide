@@ -33,6 +33,8 @@ OPEN_PAGE = """query($open: String!, $after: String!) {
   open: search(type: ISSUE, first: 100, query: $open, after: $after) {
     issueCount pageInfo { hasNextPage endCursor } nodes { %s } }
 }""" % _FIELDS
+MEMBERS = """query($org: String!) { organization(login: $org) {
+  membersWithRole(first: 100) { nodes { login name } } } }"""
 MAX_PAGES = 10          # la búsqueda de GitHub no da más de 1000 resultados
 _REMOTE_RE = re.compile(r"github\.com[:/]([^/]+)/")
 
@@ -61,7 +63,35 @@ def _requested(n: dict) -> list[str]:
     return [l for r in nodes if (l := (r.get("requestedReviewer") or {}).get("login"))]
 
 
-def parse_result(data: dict) -> dict:
+def selection_file(root: Path) -> Path:
+    return root / ".ide" / "reviews.json"
+
+
+def read_selection(root: Path) -> list[str] | None:
+    """Revisores elegidos para los chips (`.ide/reviews.json`); None = todos los con pendientes."""
+    f = selection_file(root)
+    if not f.is_file():
+        return None
+    try:
+        sel = json.loads(f.read_text(encoding="utf-8")).get("reviewers")
+    except (OSError, ValueError, AttributeError) as exc:
+        raise ValueError(f"{f} inválido: {exc}") from exc
+    return [str(x) for x in sel] if isinstance(sel, list) else None
+
+
+def write_selection(root: Path, logins: list[str]) -> None:
+    f = selection_file(root)
+    data = {}
+    if f.is_file():
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except ValueError:
+            data = {}
+    data["reviewers"] = sorted({str(x) for x in logins}, key=str.lower)
+    f.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def parse_result(data: dict, members: set[str] | None = None) -> dict:
     d = data["data"]
     me = d["viewer"]["login"]
     open_prs = [n for n in d["open"]["nodes"] if n]
@@ -78,7 +108,8 @@ def parse_result(data: dict) -> dict:
     counts: dict[str, int] = {}
     for n in open_prs:
         for login in _requested(n):
-            counts[login] = counts.get(login, 0) + 1
+            if members is None or login in members:     # solo gente de la org
+                counts[login] = counts.get(login, 0) + 1
     reviewers = [{"login": k, "count": v}
                  for k, v in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0].lower()))]
     return {"pending": pending, "changesRequested": changes, "me": me, "reviewers": reviewers,
@@ -114,7 +145,26 @@ class GithubReviews:
         self._on_change = on_change or (lambda: None)
         self._clock = clock
         self.state: dict = {"pending": [], "changesRequested": [], "me": None, "reviewers": [],
-                            "reviewersTruncated": False, "error": None, "lastOk": None, "orgs": []}
+                            "reviewersTruncated": False, "members": [], "selected": None,
+                            "error": None, "lastOk": None, "orgs": []}
+
+    async def _members(self, orgs: list[str]) -> list[dict]:
+        out: dict[str, dict] = {}
+        for org in orgs:
+            code, raw, err = await self._gh(["api", "graphql", "-f", f"query={MEMBERS}", "-f", f"org={org}"])
+            if code != 0:
+                raise RuntimeError(f"no pude listar los miembros de {org}: {err.strip() or code}")
+            org_data = json.loads(raw)["data"]["organization"]
+            if org_data is None:
+                raise RuntimeError(f"{org} no es una organización de GitHub")
+            for m in org_data["membersWithRole"]["nodes"]:
+                out[m["login"]] = {"login": m["login"], "name": m.get("name")}
+        return sorted(out.values(), key=lambda m: m["login"].lower())
+
+    async def set_selection(self, logins: list[str]) -> None:
+        await asyncio.to_thread(write_selection, self._root, logins)
+        self.state = {**self.state, "selected": await asyncio.to_thread(read_selection, self._root)}
+        self._on_change()
 
     async def poll_once(self) -> None:
         orgs = [self._org] if self._org else await asyncio.to_thread(workspace_orgs, self._root)
@@ -126,15 +176,18 @@ class GithubReviews:
             base = f"is:pr is:open archived:false {scope}"
             try:
                 data = await fetch_all(self._gh, f"{base} reviewed-by:@me", base)
+                members = await self._members(orgs)
+                selected = await asyncio.to_thread(read_selection, self._root)
             except RuntimeError as exc:
                 self.state = {**prev, "error": str(exc)}
             except Exception as exc:  # noqa: BLE001 — queda marcado, nunca silencioso
                 self.state = {**prev, "error": f"respuesta inválida de gh: {exc}"}
             else:
                 try:
-                    res = parse_result(data)
+                    res = parse_result(data, {m["login"] for m in members})
                     ts = datetime.fromtimestamp(self._clock(), timezone.utc).isoformat(timespec="seconds")
-                    self.state = {**res, "error": None, "lastOk": ts, "orgs": orgs}
+                    self.state = {**res, "members": members, "selected": selected,
+                                  "error": None, "lastOk": ts, "orgs": orgs}
                 except Exception as exc:  # noqa: BLE001 — queda marcado, nunca silencioso
                     self.state = {**prev, "error": f"respuesta inválida de gh: {exc}"}
         if {k: v for k, v in self.state.items() if k != "lastOk"} != \
