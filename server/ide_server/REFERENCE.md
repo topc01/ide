@@ -75,7 +75,7 @@ claude_command = "claude"         # comando base (se le agregan flags); útil pa
 poll_interval = 300               # segundos entre polls de PRs con `gh`; 0 = desactivado
 
 [ui]
-modules = ["sessions", "terminal"]   # módulos visibles en el rail; ver abajo
+modules = ["sessions", "terminal", "prompts"]   # módulos visibles en el menú de acciones; ver abajo
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -83,7 +83,7 @@ modules = ["sessions", "terminal"]   # módulos visibles en el rail; ver abajo
 Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero) hacen
 fallar el arranque con un mensaje que nombra la clave.
 
-`[ui] modules`: ids disponibles `terminal`, `files`, `search`, `changes`, `graphite`, `tasks`,
+`[ui] modules`: ids disponibles `terminal`, `prompts`, `files`, `search`, `changes`, `graphite`, `tasks`,
 `notion`, y `chat`. Si `chat` **no** está, el área principal es la vista por sesión (terminal
 `claude` + doc + scripts); si está, vuelve el chat propio.
 
@@ -171,10 +171,11 @@ Puedes crear plantillas nuevas (`templates/x.md`) y usarlas con `--template x`. 
 ## 7b. Prompts (`.ide/prompts/*.md`)
 
 Texto libre (sin `{{variables}}`), uno por archivo; el nombre del archivo (sin `.md`) es el ítem
-del submenú **Prompts** del menú de acciones de la UI. Al elegirlo se **pega en el input** de
+del módulo **Prompts** (ícono en el menú de acciones; la lista aparece en la sidebar interna;
+requiere `prompts` en `[ui] modules`). Al hacer click se **pega en el input** de
 `claude` de la sesión abierta en el panel principal, **sin enviarlo**: el usuario lo revisa,
 edita y manda con Enter. Deshabilitado si la sesión no está corriendo. Se releen al abrir el
-submenú (editar el archivo no requiere reiniciar).
+módulo (editar el archivo no requiere reiniciar).
 
 `ide init` siembra `tickets-y-prs.md`: el despacho de la principal. Edítalo con la base
 (URL o `collection://…`), el filtro (asignado, estados que entran) y si debe pedir OK antes de

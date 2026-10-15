@@ -14,7 +14,7 @@ claude_command = "claude"
 poll_interval = 300               # segundos; 0 = sin polling de PRs
 
 [ui]
-modules = ["sessions", "terminal"]
+modules = ["sessions", "terminal", "prompts"]
 """
 
 

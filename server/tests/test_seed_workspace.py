@@ -54,4 +54,4 @@ def test_init_workspace_seeds_and_config(tmp_path):
     assert (tmp_path / ".ide" / "sessions" / "CLAUDE.md").is_file()
     assert not (tmp_path / ".ide" / "tasks").exists()
     assert sessions_config(tmp_path)["default_permissions"] == "analyze"
-    assert ui_modules(tmp_path) == ["sessions", "terminal"]
+    assert ui_modules(tmp_path) == ["sessions", "terminal", "prompts"]

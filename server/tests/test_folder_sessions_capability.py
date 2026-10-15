@@ -117,7 +117,7 @@ async def test_doc_and_ui_config(tmp_path):
     await reg.dispatch("sessions.new", {"id": "a", "title": "Hola"})
     doc = await reg.dispatch("sessions.doc", {"id": "a"})
     assert doc["name"] == "TICKET.md" and "status: analyzing" in doc["text"]
-    assert (await reg.dispatch("ui.config", {}))["modules"] == ["sessions", "terminal"]
+    assert (await reg.dispatch("ui.config", {}))["modules"] == ["sessions", "terminal", "prompts"]
 
 
 @pytest.mark.asyncio
