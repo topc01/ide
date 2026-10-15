@@ -232,7 +232,9 @@ notion_url: https://www.notion.so/...
 | `⚠ error` en una sesión | `.session.toml` o el frontmatter de `TICKET.md` está roto; el mensaje dice cuál. |
 | `⚠ poll` en una revisión | `gh` falló (auth/red); el title muestra el último OK. `gh auth status`. |
 | La UI dice "desconectado" | El server se cayó; lo de la pantalla puede estar viejo. |
-| Al reiniciar el server todas quedan `○` | Normal: no hay auto-resume. Click → Abrir (`--continue`). |
+| Al reiniciar el server todas quedan `○` | Normal: no hay auto-resume. Click → Abrir: si la conversación sigue viva en segundo plano (el daemon de Claude Code la conserva al morir el PTY) se reengancha con `claude attach`; si no, `--continue`. **Parar** también detiene la de fondo. |
+| `⚠ error` "sigue en segundo plano" | No se pudo reenganchar: `claude agents` (attach o stop) y vuelve a Abrir. |
+| "Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION" | Server viejo lanzado desde dentro de un `claude`: el server actual limpia esas variables al lanzar sesiones; reinícialo. |
 
 ## 11. Códigos de error (`{code, message}`)
 

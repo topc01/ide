@@ -22,8 +22,9 @@ export function SessionItem({ session }: { session: FolderSession }) {
   return (
     <QueueItem>
       <div onClick={() => setActive(session.id)}
-        className={cn("flex cursor-pointer items-center gap-1.5 px-2.5 py-1 text-xs hover:bg-accent",
-          activeId === session.id && "bg-accent")}>
+        aria-current={activeId === session.id || undefined}
+        className={cn("flex cursor-pointer items-center gap-1.5 border-l-2 border-transparent px-2 py-1 text-xs hover:bg-accent/60",
+          activeId === session.id && "border-primary bg-accent text-foreground")}>
         <span aria-label={label} className={cn(session.process === "running" ? "text-primary" : "text-muted-foreground")}>{dot}</span>
         <span className="font-mono text-[11px]">{session.id}</span>
         <span className="truncate text-muted-foreground">{session.title}</span>

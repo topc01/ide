@@ -1,12 +1,19 @@
 # server/ide_server/supervisor.py
 from __future__ import annotations
+import json
+import logging
 import os
 import re
 import shlex
 import shutil
+import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Callable
 from ide_server.sessions_fs import SessionError, session_path, read_toml
+
+log = logging.getLogger(__name__)
 
 SpawnFn = Callable[..., str]   # (cwd, argv, env, on_exit, *, on_output, on_input) -> tid
 KillFn = Callable[[str], None]
@@ -19,9 +26,59 @@ _ANSI_RE = re.compile(rb"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\
 _TRUST_NEEDLES = ("trustthefiles", "doyoutrust", "bypasspermissionsmode")
 
 
+def _flat(head: bytes) -> str:
+    return re.sub(r"\s+", "", _ANSI_RE.sub(b"", head).decode("utf-8", "replace")).lower()
+
+
 def needs_trust(head: bytes) -> bool:
-    text = re.sub(r"\s+", "", _ANSI_RE.sub(b"", head).decode("utf-8", "replace")).lower()
+    text = _flat(head)
     return any(n in text for n in _TRUST_NEEDLES)
+
+
+# `claude --continue` se niega si la conversación sigue viva en segundo plano (el daemon de
+# Claude Code la conserva cuando muere el PTY, p.ej. al reiniciar el server).
+def says_backgrounded(head: bytes) -> bool:
+    return "isrunninginthebackground" in _flat(head)
+
+
+# Marcadores que Claude Code pone en el entorno de sus procesos hijos. Si el server corre
+# dentro de una sesión de claude, cada sesión los heredaría: claude se cree sesión hija,
+# no guarda historial ("Transcript saving is off") y no se puede retomar.
+PARENT_CLAUDE_ENV = (
+    "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_CHILD_SESSION",
+    "CLAUDE_CODE_SESSION_ATTENDED", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
+    "CLAUDE_CODE_EXECPATH", "CLAUDE_PID", "CLAUDE_EFFORT",
+)
+
+
+def clean_env(base: dict[str, str]) -> dict[str, str]:
+    return {k: v for k, v in base.items() if k not in PARENT_CLAUDE_ENV}
+
+
+class ClaudeAgents:
+    """Sesiones de claude en segundo plano (`claude agents|stop`), por carpeta de sesión."""
+
+    def __init__(self, command: str, run=subprocess.run) -> None:
+        self._cmd, self._run = shlex.split(command), run
+
+    def background(self, cwd: Path) -> list[str]:
+        try:
+            out = self._run([*self._cmd, "agents", "--json", "--cwd", str(cwd)],
+                            capture_output=True, text=True, timeout=10, env=clean_env(dict(os.environ)))
+            items = json.loads(out.stdout or "[]") if out.returncode == 0 else []
+        except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+            log.warning("no se pudo consultar `claude agents`: %s", exc)
+            return []
+        here = str(cwd.resolve())
+        return [a["id"] for a in items if a.get("kind") == "background" and a.get("id")
+                and str(Path(a.get("cwd", "")).resolve()) == here]
+
+    def stop(self, agent_id: str) -> None:
+        try:
+            self._run([*self._cmd, "stop", agent_id], capture_output=True, timeout=10,
+                      env=clean_env(dict(os.environ)))
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            log.warning("no se pudo detener la sesión de fondo %s: %s", agent_id, exc)
 
 
 def encode_project_dir(path: Path) -> str:
@@ -65,12 +122,14 @@ class Supervisor:
     def __init__(self, root: Path, *, spawn: SpawnFn, kill: KillFn, server_url: str,
                  command: str = "claude", max_running: int | None = None,
                  home: Path | None = None, on_change: Callable[[], None] | None = None,
-                 which: Callable[[str], str | None] = shutil.which) -> None:
+                 which: Callable[[str], str | None] = shutil.which,
+                 agents: ClaudeAgents | None = None) -> None:
         self._root, self._spawn, self._kill = root, spawn, kill
         self._url, self._command, self._max = server_url, command, max_running
         self._home = home or Path.home()
         self._on_change = on_change or (lambda: None)
         self._which = which
+        self._agents = agents            # None = no mirar sesiones de fondo (tests)
         self._running: dict[str, str] = {}
         self._queue: list[tuple[str, bool]] = []
         self._errors: dict[str, str] = {}
@@ -114,15 +173,28 @@ class Supervisor:
         if tid is not None:
             self._kill(tid)
             self._drain()
+        if self._agents is not None:     # matar el PTY deja viva la sesión en el daemon de claude
+            threading.Thread(target=self._stop_background, args=(session_path(self._root, sid),),
+                             daemon=True).start()
         self._on_change()
+
+    def _stop_background(self, path: Path) -> None:
+        for _ in range(5):               # el daemon tarda un poco en registrarla como de fondo
+            time.sleep(1)
+            for agent_id in self._agents.background(path):
+                self._agents.stop(agent_id)
 
     def _launch(self, sid: str, resume: bool) -> None:
         argv = build_argv(self._root, sid, command=self._command, resume=resume)
+        if resume and self._agents is not None:
+            # sigue viva en segundo plano (p.ej. tras reiniciar el server): reengancharla
+            if bg := self._agents.background(session_path(self._root, sid)):
+                argv = [*shlex.split(self._command), "attach", bg[0]]
         if self._which(argv[0]) is None:
             raise SessionError("claude_missing",
                                f"no se encontró `{argv[0]}` en el PATH (¿instalaste claude?)")
         (self._root / ".ide" / "worktrees" / sid).mkdir(parents=True, exist_ok=True)  # --add-dir
-        env = {**os.environ, "IDE_SESSION_ID": sid, "IDE_URL": self._url,
+        env = {**clean_env(dict(os.environ)), "IDE_SESSION_ID": sid, "IDE_URL": self._url,
                "IDE_WORKSPACE": str(self._root)}
         holder: dict[str, str] = {}
         tid = self._spawn(session_path(self._root, sid), argv, env,
@@ -161,6 +233,9 @@ class Supervisor:
         if tid is None or self._running.get(sid) != tid:
             return
         del self._running[sid]
+        if says_backgrounded(self._head.get(sid, b"")):
+            self._errors[sid] = ("claude dice que la conversación sigue en segundo plano y no se "
+                                 "pudo reenganchar: revisa `claude agents` (attach o stop)")
         self._forget(sid)
         self._drain()
         self._on_change()

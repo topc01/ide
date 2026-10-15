@@ -7,12 +7,13 @@ import { getWs } from "../../transport/wsClient";
 import { getGrouper, groupSessions } from "./groupers";
 import { GroupMenu } from "./GroupMenu";
 import { SessionItem } from "./SessionItem";
+import { cn } from "../../lib/utils";
 import { CustomizationsFooter } from "../settings/CustomizationsFooter";
 import { Queue, QueueSection, QueueSectionTrigger, QueueSectionLabel, QueueSectionContent, QueueList }
   from "../../components/ai-elements/queue";
 
 export function MainSidebar() {
-  const { tree, connected, groupBy, setTree, setConnected, setActive, openModal } = useFolders();
+  const { tree, connected, groupBy, activeId, setTree, setConnected, setActive, openModal } = useFolders();
   const [mainError, setMainError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,7 +39,9 @@ export function MainSidebar() {
       <div className={connected ? "" : "opacity-50"}>
         <div className="flex items-center gap-1.5 px-2.5 pb-1 pt-2.5">
           {main ? (
-            <button onClick={() => setActive(main.id)} className="flex items-center gap-1.5 text-xs">
+            <button onClick={() => setActive(main.id)} aria-current={activeId === main.id || undefined}
+              className={cn("-my-1 -ml-1.5 flex items-center gap-1.5 rounded border-l-2 border-transparent py-1 pl-1 pr-2 text-xs hover:bg-accent/60",
+                activeId === main.id && "border-primary bg-accent")}>
               <Star size={12} className="text-primary" /><span className="font-mono">{main.id}</span>
               <span className="text-muted-foreground">{main.process}</span>
             </button>

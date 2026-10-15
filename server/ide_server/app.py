@@ -8,7 +8,7 @@ from ide_server.capabilities import folder_sessions as folder_cap
 from ide_server.config import sessions_config, reviews_config
 from ide_server.pr_poller import PrPoller
 from ide_server.sessions_fs import SessionError
-from ide_server.supervisor import Supervisor
+from ide_server.supervisor import ClaudeAgents, Supervisor
 from ide_server.watcher import watch_workspace
 from ide_server.worktrees import BranchOccupied
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -48,7 +48,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         root, spawn=hooks.spawn, kill=hooks.kill,
         server_url=server_url or f"http://{settings.host}:{settings.port}",
         command=claude_command or scfg["claude_command"], max_running=scfg["max_running"],
-        on_change=lambda: notify_box["fn"]())
+        on_change=lambda: notify_box["fn"](),
+        agents=ClaudeAgents(claude_command or scfg["claude_command"]))
     poller = PrPoller(root, interval=reviews_config(root)["poll_interval"],
                       on_change=lambda: notify_box["fn"]())
     notify_box["fn"] = folder_cap.register(registry, root, manager, hooks=hooks,
