@@ -24,6 +24,7 @@ KillFn = Callable[[str], None]
 # porque el TUI a veces reemplaza espacios por movimientos de cursor).
 ATTENTION_HEAD = 8192
 _ANSI_RE = re.compile(rb"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])")
+_CTRL_RE = re.compile(r"[\x00-\x09\x0b-\x1f\x7f-\x9f]")
 _TRUST_NEEDLES = ("trustthefiles", "doyoutrust", "bypasspermissionsmode")
 
 
@@ -218,7 +219,10 @@ class Supervisor:
         tid = self._running.get(sid)
         if tid is None or self._write is None:
             raise SessionError("not_running", f"la sesión {sid} no está corriendo")
-        body = text.replace("\r\n", "\n").rstrip().split("\n")
+        # sin caracteres de control (salvo \n): el texto trae datos de GitHub (p.ej. el título del
+        # PR) y un \r o un ESC se leerían como teclas en el TUI de claude
+        clean = _CTRL_RE.sub("", text.replace("\r\n", "\n").replace("\t", " "))
+        body = clean.rstrip().split("\n")
         self._write(tid, "\x1b\r".join(body).encode())   # Alt+Enter = salto de línea en claude
         # el Enter aparte: pegado junto al texto, claude lo toma como parte del paste
         threading.Timer(0.4, lambda: self._running.get(sid) == tid and self._write(tid, b"\r")).start()
