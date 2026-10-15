@@ -78,9 +78,9 @@ def fetch_limits(token: str) -> dict:
 
 
 class LimitsPoller:
-    """Ventanas de 5 h / semanal cada `interval` s; ante 429 duplica la espera (tope 5 min)."""
+    """Ventanas de 5 h / semanal cada `interval` s (el endpoint da 429 con 15 s); ante 429 duplica la espera (tope 5 min)."""
 
-    def __init__(self, *, interval: float = 15, home: Path | None = None,
+    def __init__(self, *, interval: float = 60, home: Path | None = None,
                  fetch: Callable[[], dict] | None = None,
                  clock: Callable[[], float] = time.time) -> None:
         self._interval, self._home = interval, home or Path.home()

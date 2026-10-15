@@ -20,42 +20,46 @@ export function SessionItem({ session, actions }: { session: FolderSession; acti
   const [dot, label] = DOT[session.process];
   const extra = session.pollError ? "⚠ poll" : session.prState;
   return (
-    <QueueItem>
+    <QueueItem className="px-2 py-0.5">
       <div onClick={() => setActive(session.id)}
         aria-current={activeId === session.id || undefined}
-        className={cn("flex cursor-pointer items-center gap-1.5 border-l-2 border-transparent px-2 py-1 text-xs hover:bg-accent/60",
+        className={cn("cursor-pointer rounded-md border border-border bg-background/40 px-2 py-1.5 text-xs hover:bg-accent/60",
           activeId === session.id && "border-primary bg-accent text-foreground")}>
-        <span aria-label={label} className={cn(session.process === "running" ? "text-primary" : "text-muted-foreground")}>{dot}</span>
-        <span className="font-mono text-[11px]">{session.id}</span>
-        <span className="truncate text-muted-foreground">{session.title}</span>
-        {session.meta.author && <span className="text-[10px] text-muted-foreground">{session.meta.author}</span>}
-        {session.status && <Badge variant="outline">{session.status}</Badge>}
-        {extra && <Badge variant={session.pollError ? "destructive" : "secondary"}
-          title={session.pollError
-            ? `${session.pollError} (último OK: ${session.lastOk ?? "nunca"})` : undefined}>{extra}</Badge>}
-        {session.attention === "trust" && <Badge variant="destructive"
-          title="Claude Code pide confirmar la carpeta: abre la terminal y acepta">⚠ confiar carpeta</Badge>}
-        {(session.error || session.launchError) && (
-          <span title={session.error ?? session.launchError ?? ""} className="text-destructive">⚠ error</span>)}
-        {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
-        <QueueItemActions>
-          {actions}
-          {session.process !== "stopped" && (
-            <QueueItemAction aria-label={`Parar ${session.id}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                setError(null);
-                stopSession(getWs(), session.id).catch((err: any) => setError(err?.message ?? String(err)));
-              }}>
-              <Square size={11} />
-            </QueueItemAction>)}
-          <QueueItemAction aria-label={`Borrar ${session.id}`}
-            onClick={(e) => { e.stopPropagation(); setConfirm(true); }}>
-            <Trash2 size={11} />
-          </QueueItemAction>
-        </QueueItemActions>
+        <div className="flex items-center gap-1.5">
+          <span aria-label={label} className={cn(session.process === "running" ? "text-primary" : "text-muted-foreground")}>{dot}</span>
+          <span className="min-w-0 flex-1 truncate" title={session.title ?? session.id}>{session.title ?? session.id}</span>
+          {(session.error || session.launchError) && (
+            <span title={session.error ?? session.launchError ?? ""} className="text-destructive">⚠</span>)}
+          {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
+          <QueueItemActions className="ml-0">
+            {actions}
+            {session.process !== "stopped" && (
+              <QueueItemAction aria-label={`Parar ${session.id}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setError(null);
+                  stopSession(getWs(), session.id).catch((err: any) => setError(err?.message ?? String(err)));
+                }}>
+                <Square size={11} />
+              </QueueItemAction>)}
+            <QueueItemAction aria-label={`Borrar ${session.id}`}
+              onClick={(e) => { e.stopPropagation(); setConfirm(true); }}>
+              <Trash2 size={11} />
+            </QueueItemAction>
+          </QueueItemActions>
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-4 text-[10px] text-muted-foreground">
+          {session.title && <span className="font-mono">{session.id}</span>}
+          {session.meta.author && <span>{session.meta.author}</span>}
+          {session.status && <Badge variant="outline" className="px-1 py-0 text-[10px]">{session.status}</Badge>}
+          {extra && <Badge variant={session.pollError ? "destructive" : "secondary"} className="px-1 py-0 text-[10px]"
+            title={session.pollError
+              ? `${session.pollError} (último OK: ${session.lastOk ?? "nunca"})` : undefined}>{extra}</Badge>}
+          {session.attention === "trust" && <Badge variant="destructive" className="px-1 py-0 text-[10px]"
+            title="Claude Code pide confirmar la carpeta: abre la terminal y acepta">⚠ confiar carpeta</Badge>}
+        </div>
+        {session.repos.map((r) => <RepoLine key={r.name} session={session} repo={r} />)}
       </div>
-      {session.repos.map((r) => <RepoLine key={r.name} session={session} repo={r} />)}
       <ConfirmRmDialog id={session.id} open={confirm} onClose={() => setConfirm(false)} />
     </QueueItem>
   );

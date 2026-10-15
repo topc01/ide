@@ -21,7 +21,7 @@ export function RepoLine({ session, repo }: { session: FolderSession; repo: Repo
     } catch (e: any) { setError(e?.message ?? String(e)); }
   };
   return (
-    <div className="relative flex items-center gap-1.5 py-0.5 pl-7 pr-2 text-[11px]">
+    <div onClick={(e) => e.stopPropagation()} className="relative flex items-center gap-1.5 pl-4 pt-0.5 text-[10px] text-muted-foreground">
       <span className={cn(repo.state === "missing" && "text-destructive line-through")}>{repo.name}</span>
       <span className="font-mono text-primary">{repo.branch ?? "(detached)"}</span>
       {repo.state === "missing" && <span className="text-destructive">missing</span>}

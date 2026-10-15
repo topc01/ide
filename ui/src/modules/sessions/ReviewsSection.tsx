@@ -35,19 +35,23 @@ function ReviewButton({ pr }: { pr: GhPr }) {
 /** PR de GitHub que todavía no tiene sesión. */
 function PrCard({ pr, reviewable }: { pr: GhPr; reviewable: boolean }) {
   return (
-    <QueueItem>
-      <div className="flex items-center gap-1.5 border-l-2 border-transparent px-2 py-1 text-xs hover:bg-accent/60">
-        <span className="text-muted-foreground" aria-label="sin sesión">◇</span>
-        <span className="font-mono text-[11px]">{pr.repo.replace(/^finnecto-/, "")}#{pr.number}</span>
-        <span className="truncate text-muted-foreground" title={pr.title}>{pr.title}</span>
-        <span className="text-[10px] text-muted-foreground">{pr.author}</span>
-        {pr.draft && <Badge variant="outline">draft</Badge>}
-        <QueueItemActions>
-          {reviewable && <ReviewButton pr={pr} />}
-          <QueueItemAction aria-label={`Abrir ${pr.sessionId} en GitHub`} asChild>
-            <a href={pr.url} target="_blank" rel="noreferrer"><ExternalLink size={11} /></a>
-          </QueueItemAction>
-        </QueueItemActions>
+    <QueueItem className="px-2 py-0.5">
+      <div className="rounded-md border border-dashed border-border px-2 py-1.5 text-xs hover:bg-accent/60">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground" aria-label="sin sesión">◇</span>
+          <span className="min-w-0 flex-1 truncate" title={pr.title}>{pr.title}</span>
+          <QueueItemActions className="ml-0">
+            {reviewable && <ReviewButton pr={pr} />}
+            <QueueItemAction aria-label={`Abrir ${pr.sessionId} en GitHub`} asChild>
+              <a href={pr.url} target="_blank" rel="noreferrer"><ExternalLink size={11} /></a>
+            </QueueItemAction>
+          </QueueItemActions>
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 pl-4 text-[10px] text-muted-foreground">
+          <span className="font-mono">{pr.repo}#{pr.number}</span>
+          <span>{pr.author}</span>
+          {pr.draft && <Badge variant="outline" className="px-1 py-0 text-[10px]">draft</Badge>}
+        </div>
       </div>
     </QueueItem>
   );

@@ -5,7 +5,7 @@ import { fetchUsage, type Usage, type UsageWindow } from "../transport/folderSes
 import { getWs } from "../transport/wsClient";
 import { cn } from "../lib/utils";
 
-const POLL_MS = 5000;   // solo lee estado del server (sin tokens); el server consulta límites cada 15 s
+const POLL_MS = 5000;   // solo lee estado del server (sin tokens); el server consulta límites cada 60 s
 
 function untilReset(iso: string | null, now: number): string {
   if (!iso) return "—";

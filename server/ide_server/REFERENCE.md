@@ -255,7 +255,7 @@ prompt; si está en cola falla con `queued`. Errores de `gh` se ven como `⚠ gi
 200k) y las ventanas de 5 h y semanal con el tiempo hasta el reinicio. Los límites salen del
 endpoint OAuth de `/usage` (`api.anthropic.com/api/oauth/usage`, no documentado) con el token de
 Claude Code (`claudeAiOauth` en el llavero `Claude Code-credentials` o
-`~/.claude/.credentials.json`); el server lo consulta cada 15 s (ante 429 duplica la espera, tope
+`~/.claude/.credentials.json`); el server lo consulta cada 60 s (ante 429 duplica la espera, tope
 5 min) y la UI lee cada 5 s. Sin tokens. Errores se ven como `⚠ límites: …`.
 
 ## 10. Problemas comunes
