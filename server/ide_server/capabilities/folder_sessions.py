@@ -13,7 +13,7 @@ from ide_server.prompts import list_prompts, load_prompt
 from ide_server.repos_fs import require_session, rm_repo, worktree_path
 from ide_server.scripts import list_scripts, script_argv, script_env
 from ide_server.session_ops import (
-    check_delete, create_session, parse_pr_url, refresh_review, remove_session,
+    archive_session, check_delete, create_session, parse_pr_url, refresh_review, remove_session,
 )
 from ide_server.sessions_fs import (
     list_sessions, normalize_id, read_session, read_toml, render_template, require_plain_name,
@@ -91,6 +91,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         await asyncio.to_thread(check_delete, root, p["id"], force=force)
         supervisor.stop(p["id"])                # en el loop: el supervisor no es thread-safe
         await asyncio.to_thread(remove_session, root, p["id"], force=force)
+        notify()
+        return {"ok": True}
+
+    async def archive(p: dict) -> dict:
+        require_session(root, p["id"])
+        supervisor.stop(p["id"])                # en el loop: el supervisor no es thread-safe
+        await asyncio.to_thread(archive_session, root, p["id"], force=bool(p.get("force")))
         notify()
         return {"ok": True}
 
@@ -184,7 +191,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.open": open_,
-        "sessions.stop": stop, "sessions.rm": rm, "sessions.script": script,
+        "sessions.stop": stop, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,
     }.items():

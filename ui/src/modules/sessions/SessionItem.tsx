@@ -1,6 +1,6 @@
 // ui/src/modules/sessions/SessionItem.tsx
 import { useState, type ReactNode } from "react";
-import { Square, Trash2 } from "lucide-react";
+import { Archive, Square } from "lucide-react";
 import type { FolderSession } from "../../transport/folderSessions";
 import { stopSession } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
@@ -8,7 +8,7 @@ import { useFolders } from "../../state/folders";
 import { QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
 import { Badge } from "../../components/ui/badge";
 import { RepoLine } from "./RepoLine";
-import { ConfirmRmDialog } from "./ConfirmRmDialog";
+import { ConfirmArchiveDialog } from "./ConfirmArchiveDialog";
 import { cn } from "../../lib/utils";
 
 const DOT = { running: ["●", "corriendo"], stopped: ["○", "parada"], queued: ["◌", "en cola"] } as const;
@@ -42,9 +42,9 @@ export function SessionItem({ session, actions }: { session: FolderSession; acti
                 }}>
                 <Square size={11} />
               </QueueItemAction>)}
-            <QueueItemAction aria-label={`Borrar ${session.id}`}
+            <QueueItemAction aria-label={`Archivar ${session.id}`} title="Archivar"
               onClick={(e) => { e.stopPropagation(); setConfirm(true); }}>
-              <Trash2 size={11} />
+              <Archive size={11} />
             </QueueItemAction>
           </QueueItemActions>
         </div>
@@ -60,7 +60,7 @@ export function SessionItem({ session, actions }: { session: FolderSession; acti
         </div>
         {session.repos.map((r) => <RepoLine key={r.name} session={session} repo={r} />)}
       </div>
-      <ConfirmRmDialog id={session.id} open={confirm} onClose={() => setConfirm(false)} />
+      <ConfirmArchiveDialog id={session.id} open={confirm} onClose={() => setConfirm(false)} />
     </QueueItem>
   );
 }

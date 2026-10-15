@@ -30,6 +30,8 @@ export const fetchSessions = (ws: WsClient): Promise<SessionsTree> => ws.request
 export const newSession = (ws: WsClient, req: NewSessionReq) => ws.request("sessions.new", req);
 export const openSession = (ws: WsClient, id: string) => ws.request("sessions.open", { id });
 export const stopSession = (ws: WsClient, id: string) => ws.request("sessions.stop", { id });
+export const archiveSession = (ws: WsClient, id: string, force = false) =>
+  ws.request("sessions.archive", { id, force });
 export const rmSession = (ws: WsClient, id: string, force = false) =>
   ws.request("sessions.rm", { id, force });
 export const runScript = (ws: WsClient, id: string, repo: string, name: string):

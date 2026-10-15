@@ -3,8 +3,10 @@ from __future__ import annotations
 import io
 import json
 import re
+import os
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 from ide_server.config import sessions_config
@@ -90,6 +92,9 @@ def notion_session_id(url: str) -> str:
 
 def _existing(root: Path, sid: str, req: dict) -> dict | None:
     """Si la sesión ya existe: con if_missing/dry_run la devuelve; si no, error."""
+    if archive_path(root, sid).exists():
+        raise SessionError("session_archived", f"la sesión {sid} está archivada "
+                                               f"(.ide/archive/sessions/{sid}); usa otro id")
     if not session_path(root, sid).exists():
         return None
     if req.get("if_missing"):
@@ -114,7 +119,7 @@ def create_session(root: Path, req: dict, *, runner: Runner = _run) -> dict:
     elif req.get("notion"):
         sid = notion_session_id(req["notion"])
     else:
-        sid = new_id(lambda s: session_path(root, s).exists())
+        sid = new_id(lambda s: session_path(root, s).exists() or archive_path(root, s).exists())
     if (found := _existing(root, sid, req)) is not None:
         return found
     variables = {"id": sid, **(req.get("vars") or {})}
@@ -226,3 +231,66 @@ def refresh_review(root: Path, sid: str, *, runner: Runner = _run) -> dict:
         raise SessionError("checkout_failed", f"checkout del head nuevo falló: {out.stderr.strip()}")
     update_session_toml(root, sid, lambda d: d.update(reviewed_sha=sha))
     return read_session(root, sid)
+
+
+def archive_path(root: Path, sid: str) -> Path:
+    return root / ".ide" / "archive" / "sessions" / sid
+
+
+def archived_worktree_path(root: Path, sid: str, repo: str) -> Path:
+    return root / ".ide" / "archive" / "worktrees" / sid / repo
+
+
+def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+    out = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True)
+    if out.returncode != 0:
+        raise SessionError("archive_failed",
+                           f"git {' '.join(args)} en {cwd} falló: {out.stderr.strip() or out.returncode}")
+    return out
+
+
+def archive_session(root: Path, sid: str, *, force: bool = False, out=None) -> None:
+    """Archiva (solo de ida): corre `archive` de cada repo, deja cada worktree en detach (la rama
+    queda libre; los cambios sin commitear se conservan), borra los ignorados (`git clean -fdX`) y
+    mueve worktrees y carpeta a `.ide/archive/`. El proceso ya debe estar parado."""
+    from ide_server.scripts import has_script, run_script
+    spath = require_session(root, sid)
+    dest = archive_path(root, sid)
+    if dest.exists():
+        raise SessionError("session_archived", f"ya hay una sesión archivada {sid} ({dest})")
+    repos = [p.name for p in spath.iterdir() if p.is_symlink()]
+    branches: dict[str, str] = {}
+    for repo in repos:
+        wt = worktree_path(root, sid, repo)
+        if not wt.exists():
+            continue
+        if has_script(root, repo, "archive"):
+            code = run_script(root, sid, repo, "archive", out=out or io.StringIO())
+            if code != 0 and not force:
+                raise SessionError("archive_failed",
+                                   f"archive de {repo} falló (exit {code}); archiva igual con force")
+        branch = _git(wt, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+        if branch != "HEAD":
+            branches[repo] = branch
+            _git(wt, "checkout", "--detach")
+        _git(wt, "clean", "-fdX")
+        target = archived_worktree_path(root, sid, repo)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        _git(root / repo, "worktree", "move", str(wt), str(target))
+
+    def _mark(d: dict) -> None:
+        d.pop("ports", None)                    # el archivo no ocupa puertos
+        d["archived"] = {"at": datetime.now().isoformat(timespec="seconds"), "branches": branches}
+    update_session_toml(root, sid, _mark)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(spath), str(dest))
+    for repo in repos:                          # symlinks → worktrees archivados
+        link = dest / repo
+        link.unlink(missing_ok=True)
+        target = archived_worktree_path(root, sid, repo)
+        if target.exists():
+            link.symlink_to(os.path.relpath(target, dest))
+    try:
+        (root / ".ide" / "worktrees" / sid).rmdir()
+    except OSError:
+        pass

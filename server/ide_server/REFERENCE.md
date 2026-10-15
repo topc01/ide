@@ -42,6 +42,7 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
 └── .ide/
     ├── config.toml                     # §4
     ├── permissions/{analyze,main,full}.json   # §5 (settings de claude, editables)
+    ├── archive/{sessions,worktrees}/<id>/  # sesiones archivadas (solo de ida)
     ├── prompts/*.md                    # §7b (prompts que la UI pega en el input de claude)
     ├── scripts/<repo>/<nombre>         # §8 (ejecutables)
     ├── worktrees/<id>/<repo>/          # worktrees reales (git worktree add)
@@ -151,6 +152,14 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 - `ide session ls [--json]`: sesiones desde disco (id, kind, status, proceso, título, repos, ⚠ error). El proceso sale `?` si no hay server.
 - `ide session open <id>` [server]: si está parada, la lanza con `claude --continue` (retoma la conversación de esa carpeta) o con `PROMPT.md` si no hay historia.
 - `ide session stop <id>` [server]: mata el proceso; carpeta y worktrees quedan.
+- **Archivar** (botón de la card en la UI; canal `sessions.archive {id, force}`; solo de ida, sin
+  CLI por ahora): para el proceso, corre `archive` de cada repo (si falla, se puede forzar), deja
+  cada worktree en **detach** (la rama queda libre; los cambios sin commitear se conservan), borra
+  los ignorados (`git clean -fdX`: `node_modules`, venvs…), mueve los worktrees a
+  `.ide/archive/worktrees/<id>/<repo>` (`git worktree move`) y la carpeta a
+  `.ide/archive/sessions/<id>`; libera `[ports]` y anota `[archived] at` + `branches` (rama de cada
+  repo antes del detach) en `.session.toml`. La conversación de `claude` no se puede retomar ahí
+  (Claude Code la guarda por path). Un id archivado no se puede reusar (`session_archived`).
 - `ide session rm <id> [--force]`: si hay cambios sin commitear en algún repo, **se niega antes de tocar nada** (`--force` lo fuerza); si no: para el proceso, corre `archive` de cada repo, quita los worktrees y borra la carpeta. Las branches quedan.
 
 ### Repos y scripts
@@ -286,7 +295,7 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `bad_pr_url`, `forbidden`, `unknown_repo`, `repo_exists`, `repo_not_in_session`,
 `ambiguous_repo`, `uncommitted_changes`, `setup_failed`, `archive_failed`, `script_not_found`,
 `script_not_executable`, `script_failed`, `gh_failed`, `fetch_failed`, `checkout_failed`,
-`not_a_review`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
+`not_a_review`, `session_archived`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`.
 
 ## 12. API (para integraciones)
@@ -296,7 +305,7 @@ snake_case: `id`, `notion`, `main`, `template`, `vars`, `prompt`, `title`, `perm
 `review`, `if_missing`, `dry_run`, `caller`), `POST /api/sessions/{id}/open|stop`. Errores:
 409/400/500 con `{code, message}`.
 
-WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|script|doc|refreshReview|repoRm`,
+WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|archive|script|doc|refreshReview|repoRm`,
 `ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `reviews.github`
 (`{pending, changesRequested, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.start` (`{url}` → `{id, created,
 process}`), `usage.get` (`{sessionId}` → `{context, limits}`), `terminal.*`; eventos
