@@ -259,6 +259,8 @@ grupos fijos. En las pendientes, el botón de revisión (hover) envía
 `--review <url>`, con ese prompt en vez de la plantilla `review`); si está parada la retoma con el
 prompt; si está en cola falla con `queued`. Errores de `gh` se ven como `⚠ github`.
 
+**Abrir sesión:** seleccionar una sesión parada en la sidebar la lanza (retoma su conversación); si falla queda "Reintentar".
+
 **Barra inferior:** contexto de la sesión abierta (último turno de su transcript en
 `~/.claude/projects/`; ventana 1M si `model` de `~/.claude/settings.json` tiene `[1m]` o se pasó de
 200k) y las ventanas de 5 h y semanal con el tiempo hasta el reinicio. Los límites salen del

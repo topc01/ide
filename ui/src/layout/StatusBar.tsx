@@ -59,11 +59,11 @@ export function StatusBar() {
   const ctxPct = ctx ? (ctx.used / ctx.window) * 100 : 0;
   const lim = usage?.limits;
   return (
-    <footer className="flex h-6 shrink-0 items-center gap-5 border-t border-border bg-card px-3 font-mono text-[11px]">
+    <footer className="flex h-8 shrink-0 items-center gap-5 overflow-x-auto whitespace-nowrap border-t border-border bg-card px-3 font-mono text-xs">
       {error ? (
         <span role="status" className="text-destructive" title={error}>usage: desconectado ({error})</span>
       ) : (
-        <div className={cn("flex items-center gap-5", !usage && "opacity-50")}>
+        <div className={cn("flex items-center gap-6 [&>*]:shrink-0", !usage && "opacity-50")}>
           <span className="flex items-center gap-1.5">
             <span className="text-muted-foreground">ctx{activeId ? ` ${activeId}` : ""}</span>
             {ctx ? (<>

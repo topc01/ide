@@ -29,6 +29,13 @@ export function SessionView() {
   const scripts = activeId ? scriptTabs[activeId] ?? [] : [];
 
   useEffect(() => { setTab("claude"); setError(null); }, [activeId]);
+  // Seleccionar una sesión parada la abre (una vez por selección; si falla queda el botón para reintentar)
+  const shouldOpen = !!session && session.process === "stopped" && !session.terminalId && !session.launchError;
+  useEffect(() => {
+    if (!activeId || !shouldOpen) return;
+    openSession(getWs(), activeId).catch((e: any) => setError(e?.message ?? String(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
   const visibleTerm = tab === "claude" ? session?.terminalId ?? null
     : tab === "doc" ? null : tab;
   useEffect(() => {
@@ -71,7 +78,9 @@ export function SessionView() {
             {session.process === "queued" ? <span className="text-muted-foreground">En cola (max_running)…</span> : (
               <>
                 {session.launchError && <p role="alert" className="text-xs text-destructive">{session.launchError}</p>}
-                <Button onClick={() => act(openSession(getWs(), session.id))}>Abrir</Button>
+                {session.launchError || error
+                  ? <Button onClick={() => { setError(null); act(openSession(getWs(), session.id)); }}>Reintentar</Button>
+                  : <span className="text-muted-foreground">abriendo…</span>}
               </>
             )}
           </div>
