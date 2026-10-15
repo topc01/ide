@@ -15,17 +15,26 @@ export function TerminalTab({ id }: { id: string }) {
     const fit = new FitAddon();
     term.loadAddon(fit);
     if (ref.current) term.open(ref.current);
-    try { fit.fit(); } catch { /* jsdom */ }
-    resizeTerminal(getWs(), id, term.cols, term.rows);
+    // Solo se avisa al PTY si está visible y el tamaño cambió: cada resize hace que `claude`
+    // borre y reimprima toda la conversación (parece que la sesión arrancó de nuevo), y oculta
+    // (`hidden`, 0x0) el fit daría un tamaño basura.
+    let last = "";
+    const sync = () => {
+      const el = ref.current;
+      if (el && (el.offsetWidth === 0 || el.offsetHeight === 0)) return;
+      try { fit.fit(); } catch { /* jsdom / sin layout */ }
+      const size = `${term.cols}x${term.rows}`;
+      if (size === last) return;
+      last = size;
+      resizeTerminal(getWs(), id, term.cols, term.rows);
+    };
+    sync();
     const unsubscribe = subscribeTerminal(getWs(), id,
       (bytes) => term.write(bytes),
       () => term.write("\r\n[proceso terminado]\r\n"));
     term.onData((d) => writeTerminal(getWs(), id, d));
     // re-ajustar al mostrarse (estaba `hidden` → 0x0) o al cambiar el tamaño del panel
-    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
-      try { fit.fit(); } catch { /* sin layout */ }
-      resizeTerminal(getWs(), id, term.cols, term.rows);
-    });
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
     if (ro && ref.current) ro.observe(ref.current);
     return () => { ro?.disconnect(); unsubscribe(); term.dispose(); };
   }, [id]);

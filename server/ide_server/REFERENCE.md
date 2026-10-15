@@ -75,6 +75,7 @@ claude_command = "claude"         # comando base (se le agregan flags); útil pa
 poll_interval = 300               # segundos entre polls de PRs con `gh`; 0 = desactivado
 github_interval = 120             # segundos entre polls de revisiones en GitHub (sección Revisiones); 0 = off
 # github_org = "MiOrg"            # org donde buscar; omitido = owners de los `origin` de los repos
+# plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
 modules = ["sessions", "terminal", "prompts"]   # módulos visibles en el menú de acciones; ver abajo
@@ -182,6 +183,12 @@ módulo (editar el archivo no requiere reiniciar).
 Excepción: `review-pr.md` sí usa `{{pr_url}}`, `{{title}}`, `{{author}}`, `{{repo}}`, `{{id}}`;
 lo envía el botón de revisión (ver §9b), no se pega a mano.
 
+`[reviews] plugins`: al lanzar una sesión de revisión el IDE escribe `enabledPlugins` en
+`.ide/sessions/<id>/.claude/settings.json` (config de proyecto del cwd de su `claude`), así que
+esos plugins se cargan solo en revisiones. Útil cuando los plugins están habilitados por repo y
+la sesión, que corre fuera de los repos, no los ve. Aplica también a revisiones existentes la
+próxima vez que se lanzan (las que ya corren hay que pararlas y abrirlas).
+
 `ide init` siembra `tickets-y-prs.md`: el despacho de la principal. Edítalo con la base
 (URL o `collection://…`), el filtro (asignado, estados que entran) y si debe pedir OK antes de
 lanzar (recomendado: `--dry-run` + tabla + esperar OK, luego `--if-missing`).
@@ -279,7 +286,7 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `bad_pr_url`, `forbidden`, `unknown_repo`, `repo_exists`, `repo_not_in_session`,
 `ambiguous_repo`, `uncommitted_changes`, `setup_failed`, `archive_failed`, `script_not_found`,
 `script_not_executable`, `script_failed`, `gh_failed`, `fetch_failed`, `checkout_failed`,
-`not_a_review`, `github_off`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
+`not_a_review`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`.
 
 ## 12. API (para integraciones)

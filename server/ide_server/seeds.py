@@ -14,6 +14,7 @@ claude_command = "claude"
 poll_interval = 300               # segundos; 0 = sin polling de PRs
 github_interval = 120             # revisiones pendientes / con cambios pedidos en GitHub; 0 = off
 # github_org = "MiOrg"            # omitido = owners de los `origin` de los repos del workspace
+# plugins = ["mi-plugin@mi-marketplace"]   # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
 modules = ["sessions", "terminal", "prompts"]

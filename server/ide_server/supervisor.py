@@ -12,6 +12,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Callable
+from ide_server.config import reviews_config
 from ide_server.sessions_fs import SessionError, session_path, read_toml, update_session_toml
 
 log = logging.getLogger(__name__)
@@ -106,6 +107,24 @@ def latest_transcript_id(path: Path, home: Path) -> str | None:
 
 def _positional(prompt: str) -> str:
     return " " + prompt if prompt.startswith("-") else prompt   # que claude no lo lea como flag
+
+
+def enable_plugins(session_dir: Path, plugins: list[str]) -> None:
+    """Plugins por sesión: `.claude/settings.json` en la carpeta de la sesión (el cwd de su
+    `claude`) es config de proyecto, así que solo esa sesión los carga."""
+    if not plugins:
+        return
+    f = session_dir / ".claude" / "settings.json"
+    data = {}
+    if f.is_file():
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            raise SessionError("bad_settings", f"{f} no es JSON válido: {exc}") from exc
+    wanted = {**data.get("enabledPlugins", {}), **{p: True for p in plugins}}
+    if wanted != data.get("enabledPlugins"):
+        f.parent.mkdir(exist_ok=True)
+        f.write_text(json.dumps({**data, "enabledPlugins": wanted}, indent=2) + "\n", encoding="utf-8")
 
 
 def build_argv(root: Path, sid: str, *, command: str, resume: bool,
@@ -234,6 +253,8 @@ class Supervisor:
         # `claude_name` (--name con un token aleatorio) marca los claude que lanzó el IDE: el
         # daemon, al pasar una sesión a segundo plano, la bifurca con otro sessionId.
         data = read_toml(path / ".session.toml")
+        if data.get("kind") == "review":
+            enable_plugins(path, list(reviews_config(self._root)["plugins"]))
         cs, name = data.get("claude_session"), data.get("claude_name")
         if not cs or not name:
             cs = cs or (latest_transcript_id(path, self._home) if resume else None) or str(uuid.uuid4())
