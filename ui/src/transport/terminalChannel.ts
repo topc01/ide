@@ -6,8 +6,18 @@ export function openTerminal(ws: WsClient,
   opts: { sessionId?: string; repoId?: string; cmd?: string[] }): Promise<{ id: string; cwd: string }> {
   return ws.request("terminal.open", opts);
 }
+// btoa solo acepta Latin-1: se codifica a UTF-8 antes (acentos, emojis).
+const toBase64 = (s: string) =>
+  btoa(Array.from(new TextEncoder().encode(s), (b) => String.fromCharCode(b)).join(""));
+
 export function writeTerminal(ws: WsClient, id: string, data: string): Promise<any> {
-  return ws.request("terminal.write", { id, data: btoa(data) });
+  return ws.request("terminal.write", { id, data: toBase64(data) });
+}
+
+// Pega texto en el input de `claude` sin enviarlo: cada salto de línea va como Option+Enter
+// (ESC+CR = nueva línea en el input). Un paste normal se colapsa en "[Pasted text #1]".
+export function typeIntoClaude(ws: WsClient, id: string, text: string): Promise<any> {
+  return writeTerminal(ws, id, text.replace(/\r\n/g, "\n").replace(/\s+$/, "").split("\n").join("\x1b\r"));
 }
 export function resizeTerminal(ws: WsClient, id: string, cols: number, rows: number): Promise<any> {
   return ws.request("terminal.resize", { id, cols, rows });

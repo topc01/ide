@@ -44,7 +44,7 @@ export function MainSidebar() {
             </button>
           ) : (
             <>
-              <button onClick={() => { setMainError(null); newSession(getWs(), { main: true, template: "main" })
+              <button onClick={() => { setMainError(null); newSession(getWs(), { main: true })
                   .then((r: any) => setActive(r.session.id))
                   .catch((e: any) => setMainError(e?.message ?? String(e))); }}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">

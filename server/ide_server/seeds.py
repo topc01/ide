@@ -46,7 +46,8 @@ analyzing | blocked | questions | ready | in-progress | done). Las de revisión,
 """
 
 
-TEMPLATE_MAIN = """\
+# `.ide/prompts/tickets-y-prs.md`: la principal arranca sin prompt; la UI lo pega a pedido.
+PROMPT_TICKETS_PRS = """\
 Eres la sesión principal de este workspace.
 
 1. Tickets: consulta mi base de tickets en Notion: <URL o collection:// de la base>

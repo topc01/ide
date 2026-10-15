@@ -7,6 +7,7 @@ from typing import Callable
 from ide_server.config import ui_modules
 from ide_server.plugins import Registry
 from ide_server.pr_poller import PrPoller
+from ide_server.prompts import list_prompts
 from ide_server.repos_fs import require_session, rm_repo, worktree_path
 from ide_server.scripts import list_scripts, script_argv, script_env
 from ide_server.session_ops import check_delete, create_session, refresh_review, remove_session
@@ -120,11 +121,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def ui_config(_p: dict) -> dict:
         return {"modules": ui_modules(root)}
 
+    async def prompts(_p: dict) -> dict:
+        return {"prompts": await asyncio.to_thread(list_prompts, root)}
+
     for channel, handler in {
         "sessions.tree": tree, "sessions.new": new, "sessions.open": open_,
         "sessions.stop": stop, "sessions.rm": rm, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
-        "ui.config": ui_config,
+        "ui.config": ui_config, "prompts.list": prompts,
     }.items():
         registry.register(channel, handler)
     return notify

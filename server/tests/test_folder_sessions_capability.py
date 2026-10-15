@@ -121,6 +121,13 @@ async def test_doc_and_ui_config(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_prompts_list(tmp_path):
+    reg, *_ = _reg(_ws(tmp_path))
+    names = [p["name"] for p in (await reg.dispatch("prompts.list", {}))["prompts"]]
+    assert names == ["tickets-y-prs"]
+
+
+@pytest.mark.asyncio
 async def test_tree_reports_trust_attention(tmp_path):                       # C2
     reg, rec, hooks, _ = _reg(_ws(tmp_path))
     await reg.dispatch("sessions.new", {"id": "a", "prompt": "p"})

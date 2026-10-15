@@ -256,13 +256,13 @@ def list_sessions(root: Path) -> list[dict]:
 def seed_workspace(root: Path) -> list[Path]:
     ide = root / ".ide"
     for d in (ide / "scripts", ide / "worktrees", sessions_dir(root) / "templates",
-              ide / "permissions"):
+              ide / "permissions", ide / "prompts"):
         d.mkdir(parents=True, exist_ok=True)
     files = {
         sessions_dir(root) / "CLAUDE.md": seeds.claude_md([r["id"] for r in discover_repos(root)]),
-        sessions_dir(root) / "templates" / "main.md": seeds.TEMPLATE_MAIN,
         sessions_dir(root) / "templates" / "ticket.md": seeds.TEMPLATE_TICKET,
         sessions_dir(root) / "templates" / "review.md": seeds.TEMPLATE_REVIEW,
+        ide / "prompts" / "tickets-y-prs.md": seeds.PROMPT_TICKETS_PRS,
         ide / "permissions" / "analyze.json": json.dumps(seeds.PERM_ANALYZE, indent=2) + "\n",
         ide / "permissions" / "main.json": json.dumps(seeds.PERM_MAIN, indent=2) + "\n",
         ide / "permissions" / "full.json": json.dumps(seeds.PERM_FULL, indent=2) + "\n",

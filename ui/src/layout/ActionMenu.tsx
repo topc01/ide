@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useStore } from "../state/store";
+import { PromptsMenu } from "./PromptsMenu";
 import { getModules } from "../modules/registry";
 import { useFolders } from "../state/folders";
 import { cn } from "../lib/utils";
@@ -43,6 +44,7 @@ export function ActionMenu() {
           <ActionButton key={m.id} label={m.title} icon={m.icon} active={activePanel === m.id}
             onClick={() => { setActivePanel(m.id); if (!innerSidebarOpen) toggleInnerSidebar(); }} />
         ))}
+        <PromptsMenu />
       </nav>
     </TooltipProvider>
   );

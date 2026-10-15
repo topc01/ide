@@ -42,11 +42,12 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
 └── .ide/
     ├── config.toml                     # §4
     ├── permissions/{analyze,main,full}.json   # §5 (settings de claude, editables)
+    ├── prompts/*.md                    # §7b (prompts que la UI pega en el input de claude)
     ├── scripts/<repo>/<nombre>         # §8 (ejecutables)
     ├── worktrees/<id>/<repo>/          # worktrees reales (git worktree add)
     └── sessions/
         ├── CLAUDE.md                   # mapa de repos + uso de `ide`; lo heredan TODAS las sesiones
-        ├── templates/{main,ticket,review}.md   # §7
+        ├── templates/{ticket,review}.md   # §7
         └── <id>/                       # una sesión
             ├── .session.toml           # kind, permissions, created, [ports], [setup], pr_url, reviewed_sha
             ├── PROMPT.md               # prompt inicial (plantilla renderizada)
@@ -54,7 +55,7 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
             └── <repo> -> ../../worktrees/<id>/<repo>   # symlink relativo
 ```
 
-`ide init` **siembra** `sessions/CLAUDE.md`, `templates/*.md`, `permissions/*.json` y
+`ide init` **siembra** `sessions/CLAUDE.md`, `templates/*.md`, `prompts/tickets-y-prs.md`, `permissions/*.json` y
 `config.toml` **solo si no existen**: nunca pisa ediciones. Para volver a la semilla, borra el
 archivo y ejecuta `ide init`.
 
@@ -161,14 +162,23 @@ un placeholder literal. Siempre disponible: `{{id}}`. Con `--notion`: `{{notion_
 
 | Plantilla | Variables | Uso |
 |---|---|---|
-| `main.md` | (ninguna obligatoria) | prompt de la principal: qué base de Notion leer, qué estados entran, cómo despachar |
 | `ticket.md` | `id`, `title`, `notion_url` | qué hace cada sesión de ticket (analizar, `ide repo add`, escribir `TICKET.md`) |
 | `review.md` | `id`, `title`, `pr_url`, `author`, `repo` (las completa el IDE con `gh`) | qué hace cada revisión |
 
-Para configurar el despacho edita `main.md`: la base (URL o `collection://…`), el filtro
-(asignado, estados que entran), y si debe pedir OK antes de lanzar (recomendado: `--dry-run` +
-tabla + esperar OK, luego `--if-missing`). Puedes crear plantillas nuevas (`templates/x.md`) y
-usarlas con `--template x`.
+Puedes crear plantillas nuevas (`templates/x.md`) y usarlas con `--template x`. La principal
+**no** usa plantilla: la ★ de la UI la crea sin prompt y arranca esperando al usuario.
+
+## 7b. Prompts (`.ide/prompts/*.md`)
+
+Texto libre (sin `{{variables}}`), uno por archivo; el nombre del archivo (sin `.md`) es el ítem
+del submenú **Prompts** del menú de acciones de la UI. Al elegirlo se **pega en el input** de
+`claude` de la sesión abierta en el panel principal, **sin enviarlo**: el usuario lo revisa,
+edita y manda con Enter. Deshabilitado si la sesión no está corriendo. Se releen al abrir el
+submenú (editar el archivo no requiere reiniciar).
+
+`ide init` siembra `tickets-y-prs.md`: el despacho de la principal. Edítalo con la base
+(URL o `collection://…`), el filtro (asignado, estados que entran) y si debe pedir OK antes de
+lanzar (recomendado: `--dry-run` + tabla + esperar OK, luego `--if-missing`).
 
 ## 8. Scripts por repo (`.ide/scripts/<repo>/<nombre>`)
 
@@ -227,7 +237,7 @@ notion_url: https://www.notion.so/...
 
 `invalid_id`, `invalid_kind`, `invalid_permissions`, `invalid_name`, `session_exists`,
 `main_exists`, `unknown_session`, `id_collision`, `id_exhausted`, `missing_vars`,
-`unknown_template`, `bad_var`, `bad_vars_file`, `bad_prompt_file`, `bad_notion_url`,
+`unknown_template`, `bad_prompt`, `bad_var`, `bad_vars_file`, `bad_prompt_file`, `bad_notion_url`,
 `bad_pr_url`, `forbidden`, `unknown_repo`, `repo_exists`, `repo_not_in_session`,
 `ambiguous_repo`, `uncommitted_changes`, `setup_failed`, `archive_failed`, `script_not_found`,
 `script_not_executable`, `script_failed`, `gh_failed`, `fetch_failed`, `checkout_failed`,
@@ -242,4 +252,4 @@ snake_case: `id`, `notion`, `main`, `template`, `vars`, `prompt`, `title`, `perm
 409/400/500 con `{code, message}`.
 
 WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|script|doc|refreshReview|repoRm`,
-`ui.config`, `terminal.*`; evento `sessions.changed` (mismo payload que `sessions.tree`).
+`ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `terminal.*`; evento `sessions.changed` (mismo payload que `sessions.tree`).

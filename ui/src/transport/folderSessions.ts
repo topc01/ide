@@ -39,6 +39,9 @@ export const fetchDoc = (ws: WsClient, id: string): Promise<{ name: string; text
 export const refreshReview = (ws: WsClient, id: string) => ws.request("sessions.refreshReview", { id });
 export const rmRepo = (ws: WsClient, id: string, repo: string, force = false) =>
   ws.request("sessions.repoRm", { id, repo, force });
+export interface PromptInfo { name: string; text: string; }
+export const fetchPrompts = (ws: WsClient): Promise<{ prompts: PromptInfo[] }> =>
+  ws.request("prompts.list", {});
 export const fetchUiConfig = (ws: WsClient): Promise<{ modules: string[] }> => ws.request("ui.config", {});
 
 export function onSessionsChanged(ws: WsClient, cb: (t: SessionsTree) => void): () => void {
