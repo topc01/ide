@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Archive, ExternalLink, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
-import { CardShell, DepsPause, DevTitle, RepoChips, devTone, repoShort } from "./DevCard";
+import { CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
 import { PrRow } from "./MyDevsSection";
 import { PersonChip } from "../../lib/people";
@@ -47,14 +47,11 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
       {/* con una PR (sin sesión) elegida, la sesión anterior ya no es el desarrollo activo */}
       <CardShell tone={tone} onClick={() => setActive(session.id)}
         selected={activeId === session.id && !activePrUrl || !!prs?.some((p) => p.url === activePrUrl)}>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-start gap-1.5">
           <span aria-label={label} title={`claude ${label}`}
             className={cn(session.process === "running" ? "text-primary" : "text-muted-foreground")}>{dot}</span>
-          {many || (!pr && repos.length > 1) ? <RepoChips repos={repos} /> : (
-            <span className="font-mono text-[11px] font-bold tracking-wide">
-              {pr ? `${repoShort(pr.repo)} #${pr.number}` : prLabel(session.prUrl) ?? session.id}</span>)}
-          {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
-          <span className="flex-1" />
+          <DevTitle devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])}
+            original={session.title ?? pr?.title ?? prLabel(session.prUrl) ?? session.id} />
           <DepsPause pr={pr} />
           {worst.ci && <CiMark pr={worst.ci} />}
           {(session.error || session.launchError) && (
@@ -84,7 +81,15 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
               </QueueItemAction>)}
           </QueueItemActions>
         </div>
-        <DevTitle devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])} original={session.title ?? session.id} />
+        {/* repos con su número: una chip por PR (con varias, por repo: las filas dan los números) */}
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          {many ? groups.map((g) => <RefChip key={g.repo} repo={g.repo} />)
+            : pr ? <RefChip repo={pr.repo} number={pr.number} />
+            : prLabel(session.prUrl) ? <span className="rounded border border-border px-1 font-mono text-[10px] font-bold">{prLabel(session.prUrl)}</span>
+            : repos.length ? repos.map((r) => <RefChip key={r} repo={r} />)
+            : <span className="font-mono text-[10px] text-muted-foreground">{session.id}</span>}
+          {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
+        </div>
         <CardMeta>
           {!many && pr?.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
           {session.prState === "stale" && <span className="text-sky-400"

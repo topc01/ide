@@ -86,17 +86,16 @@ export function DepsPause({ pr }: { pr?: GhPr }) {
   );
 }
 
-/** Título de un desarrollo, renombrable solo en el IDE (lápiz en hover o doble click; Enter guarda,
- *  Esc cancela, vacío vuelve al original). Con nombre propio, el original queda en el tooltip. */
-/** `onlyIfNamed`: sin nombre propio no muestra texto, solo el lápiz (p.ej. un stack: sus filas ya dicen todo). */
-export function DevTitle({ devKey, prs, original, onlyIfNamed = false }:
-  { devKey: string; prs?: GhPr[]; original: string; onlyIfNamed?: boolean }) {
+/** Título de la card: el nombre del desarrollo puesto en el IDE o, si no hay, el original (título de
+ *  la PR / del ticket). Renombrable con el lápiz (hover) o doble click; Enter guarda, Esc cancela,
+ *  vacío vuelve al original (que queda en el tooltip). */
+export function DevTitle({ devKey, prs, original }: { devKey?: string; prs?: GhPr[]; original: string }) {
   const names = useFolders((s) => s.tree.devNames);
-  const name = devName(names, devKey, prs);
+  const name = devKey ? devName(names, devKey, prs) : null;
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const save = () => {
-    if (draft === null) return;
+    if (draft === null || !devKey) return;
     const v = draft.trim();
     setDraft(null);
     if (v === (name ?? original)) return;
@@ -107,22 +106,27 @@ export function DevTitle({ devKey, prs, original, onlyIfNamed = false }:
       <input autoFocus value={draft} maxLength={120} aria-label="Nombre del desarrollo"
         onChange={(e) => setDraft(e.target.value)} onClick={(e) => e.stopPropagation()} onBlur={save}
         onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setDraft(null); }}
-        className="mt-0.5 w-full rounded border border-primary bg-background px-1 py-0.5 text-xs outline-none" />);
+        className="min-w-0 flex-1 rounded border border-primary bg-background px-1 py-0.5 text-xs font-semibold outline-none" />);
   }
-  const pencil = (
-    <button aria-label="Renombrar el desarrollo" title="Renombrar el desarrollo (solo en el IDE; vacío = el original)"
-      onClick={(e) => { e.stopPropagation(); setError(null); setDraft(name ?? original); }}
-      className="mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground opacity-0 hover:text-foreground group-hover/title:opacity-100 group-hover/card:opacity-100">
-      <Pencil size={10} /></button>);
-  if (onlyIfNamed && !name) return pencil;
   return (
-    <div className="group/title mt-0.5 flex items-start gap-1">
-      <span className={cn("line-clamp-2 min-w-0 flex-1 leading-snug", name && "text-foreground")}
+    <div className="group/title flex min-w-0 flex-1 items-start gap-1">
+      <span className="line-clamp-2 min-w-0 font-semibold leading-snug"
         title={name ? `${name}\n(original: ${original})` : original}
-        onDoubleClick={(e) => { e.stopPropagation(); setDraft(name ?? original); }}>{name ?? original}</span>
+        onDoubleClick={devKey ? (e) => { e.stopPropagation(); setDraft(name ?? original); } : undefined}>{name ?? original}</span>
       {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
-      {pencil}
+      {devKey && (
+        <button aria-label="Renombrar el desarrollo" title="Renombrar el desarrollo (solo en el IDE; vacío = el original)"
+          onClick={(e) => { e.stopPropagation(); setError(null); setDraft(name ?? original); }}
+          className="mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground opacity-0 hover:text-foreground group-hover/title:opacity-100">
+          <Pencil size={10} /></button>)}
     </div>);
+}
+
+/** Chip de una PR ("EMBED #2552") o de un repo ("API"), abajo del título de la card. */
+export function RefChip({ repo, number, title }: { repo: string; number?: number | null; title?: string }) {
+  return <span title={title ?? (number ? `${repo}#${number}` : repo)}
+    className="shrink-0 rounded border border-border px-1 font-mono text-[10px] font-bold tracking-wide text-foreground/90">
+    {repoShort(repo)}{number ? ` #${number}` : ""}</span>;
 }
 
 /** Chips de los repos de un desarrollo fullstack ("API · EMBED"). */

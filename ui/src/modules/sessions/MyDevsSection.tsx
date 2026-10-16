@@ -4,12 +4,12 @@ import { useFolders } from "../../state/folders";
 import { useDevTabs } from "../../state/devTabs";
 import type { FolderSession, GhPr, MergeJob } from "../../transport/folderSessions";
 import { QueueItem, QueueItemAction } from "../../components/ai-elements/queue";
-import { CardShell, DepsPause, DevTitle, devTone, repoShort } from "./DevCard";
+import { CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort } from "./DevCard";
 import { CiMark, PrCard, useGithubReviews } from "./ReviewsSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
 import { SessionItem } from "./SessionItem";
 import { GroupedSection, type Entry } from "./GroupedSection";
-import { deriveMine, devName, type Desarrollo } from "./desarrollos";
+import { deriveMine, type Desarrollo } from "./desarrollos";
 import { cn } from "../../lib/utils";
 
 const DOT: Record<string, string> = {
@@ -49,7 +49,6 @@ function StackCard({ d }: { d: Desarrollo }) {
   const { gh } = useGithubReviews();
   const activePrUrl = useFolders((s) => s.activePrUrl);
   const setActivePr = useFolders((s) => s.setActivePr);
-  const names = useFolders((s) => s.tree.devNames);
   const bottom = d.prs[0];
   const tone = devTone(bottom, gh?.merges?.[bottom.url]);
   return (
@@ -60,13 +59,13 @@ function StackCard({ d }: { d: Desarrollo }) {
         const last = t?.tabs.find((x) => x.id === t.active)?.url;
         setActivePr(last && d.prs.some((p) => p.url === last) ? last : bottom.url);
       }}>
-        <div className="group/card flex items-center gap-1.5">
-          <span className="font-mono text-[11px] font-bold tracking-wide">{repoShort(bottom.repo)}</span>
-          <span className="text-[11px] text-muted-foreground">stack de {d.prs.length}</span>
-          <span className="flex-1" />
-          <DevTitle devKey={d.key} prs={d.prs} original={bottom.title} onlyIfNamed />
+        <div className="flex items-start gap-1.5">
+          <DevTitle devKey={d.key} prs={d.prs} original={bottom.title} />
         </div>
-        {devName(names, d.key, d.prs) && <DevTitle devKey={d.key} prs={d.prs} original={bottom.title} />}
+        <div className="mt-1 flex items-center gap-1">
+          <RefChip repo={bottom.repo} />
+          <span className="text-[10px] text-muted-foreground">stack de {d.prs.length}</span>
+        </div>
         <div className="mt-1 space-y-0.5">
           {d.prs.map((p, i) => <PrRow key={p.url} pr={p} job={gh?.merges?.[p.url]} bottom={i === 0} />)}
         </div>

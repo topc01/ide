@@ -12,7 +12,7 @@ import { Badge } from "../../components/ui/badge";
 import { SessionItem } from "./SessionItem";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
-import { CardShell, DepsPause, DevTitle, devTone, repoShort } from "./DevCard";
+import { CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort } from "./DevCard";
 import { cn } from "../../lib/utils";
 import { PersonChip } from "../../lib/people";
 import { usePersistentOpen } from "../../lib/persist";
@@ -176,10 +176,8 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
     <QueueItem className="px-2 py-1">
       <CardShell tone={tone} selected={active} dashed
         onClick={() => { setActivePr(pr.url); if (openOnClick) window.open(pr.url, "_blank", "noopener"); }}>
-        <div className="flex items-center gap-1.5">
-          <span className="font-mono text-[11px] font-bold tracking-wide">{repoShort(pr.repo)} #{pr.number}</span>
-          {showAuthor && <PersonChip login={pr.author} title={`autor: ${pr.author}`} />}
-          <span className="flex-1" />
+        <div className="flex items-start gap-1.5">
+          <DevTitle devKey={devKey} prs={[pr]} original={pr.title} />
           <DepsPause pr={pr} />
           <CiMark pr={pr} />
           <QueueItemActions className="ml-0">
@@ -196,8 +194,10 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
             </QueueItemAction>
           </QueueItemActions>
         </div>
-        {devKey ? <DevTitle devKey={devKey} prs={[pr]} original={pr.title} />
-          : <div className="mt-0.5 line-clamp-2 leading-snug" title={pr.title}>{pr.title}</div>}
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          <RefChip repo={pr.repo} number={pr.number} />
+          {showAuthor && <PersonChip login={pr.author} title={`autor: ${pr.author}`} />}
+        </div>
         <CardMeta>
           {pr.draft && <span>draft</span>}
           {pr.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}

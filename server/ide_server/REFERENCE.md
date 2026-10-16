@@ -476,8 +476,11 @@ ticket cuyos worktrees están en esa rama, más el resto de su stack; (2) un sta
 (3) una PR suelta. Las sesiones sin PR también son desarrollos (grupo "Sin PR"). Con varias PRs la
 card muestra una fila por PR (de abajo hacia arriba: punto de review, número, título, CI, ⏸, y en
 hover Mergear en la de abajo de cada stack y abrir en GitHub; click en una fila = elegir esa PR).
-**Fullstack** (una sesión con worktrees de varios repos): el encabezado son los repos (`API · EMBED`)
-y las filas van agrupadas por repo y, dentro, por stack; cada repo/stack tiene su propio Mergear.
+**Título de toda card** (sesiones, PRs, stacks, también en Revisiones): el nombre del desarrollo puesto
+en el IDE o, si no hay, el título de la PR / del ticket; debajo, chips con repo y número
+(`EMBED #2552`; en un stack o fullstack, una chip por repo y los números en las filas).
+**Fullstack** (una sesión con worktrees de varios repos): chips `API` `EMBED` y las filas agrupadas
+por repo y, dentro, por stack; cada repo/stack tiene su propio Mergear.
 En una sesión con varias PRs el fondo lo da la peor review y la marca de CI el peor CI. Agrupa por
 estado (Merges, Devueltas, Esperando revisores, Sin revisores, Draft, Aprobadas, Sin PR); con varias
 PRs manda la **peor**: devuelta > sin revisores > esperando > draft > aprobada. También por repo o
