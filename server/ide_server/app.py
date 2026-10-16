@@ -10,6 +10,7 @@ from ide_server.config import sessions_config, reviews_config
 from ide_server.pr_poller import PrPoller
 from ide_server.gh_reviews import GithubReviews
 from ide_server.gh_merge import Merger
+from ide_server.db import Db
 from ide_server.claude_usage import LimitsPoller
 from ide_server.sessions_fs import SessionError
 from ide_server.supervisor import ClaudeAgents, Supervisor
@@ -56,11 +57,12 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         on_change=lambda: notify_box["fn"](),
         agents=ClaudeAgents(claude_command or scfg["claude_command"]), write=hooks.write)
     rcfg = reviews_config(root)
+    db = Db(root)
     poller = PrPoller(root, interval=rcfg["poll_interval"], on_change=lambda: notify_box["fn"]())
-    gh_reviews = GithubReviews(root, interval=rcfg["github_interval"], org=rcfg["github_org"],
+    gh_reviews = GithubReviews(root, interval=rcfg["github_interval"], org=rcfg["github_org"], db=db,
                                on_change=lambda: notify_box["github"]())
     limits = LimitsPoller()
-    merger = Merger(root, stacks=lambda: gh_reviews.state, on_change=lambda: notify_box["github"]())
+    merger = Merger(root, stacks=lambda: gh_reviews.state, db=db, on_change=lambda: notify_box["github"]())
     notify_box["fn"] = folder_cap.register(registry, root, manager, hooks=hooks,
                                            supervisor=supervisor, poller=poller,
                                            gh_reviews=gh_reviews, limits=limits, merger=merger)

@@ -43,6 +43,7 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
     ├── config.toml                     # §4
     ├── permissions/{analyze,main,full}.json   # §5 (settings de claude, editables)
     ├── archive/{sessions,worktrees}/<id>/  # sesiones archivadas (solo de ida)
+    ├── ide.db                          # base local (SQLite): cache de GitHub, merges, ajustes (§9c)
     ├── prompts/*.md                    # §7b (prompts que la UI pega en el input de claude)
     ├── scripts/<repo>/<nombre>         # §8 (ejecutables)
     ├── worktrees/<id>/<repo>/          # worktrees reales (git worktree add)
@@ -252,7 +253,7 @@ están en GitHub van en **Otras**. Bajo el título, chips `@revisor N`: cuántos
 la org tienen review pedida a cada **miembro de la org** (los pedidos a equipos y a gente de
 afuera no cuentan; pagina hasta 1000 PRs, el tope de la búsqueda de GitHub; si se pasa, se marca
 con `+`); el tuyo resaltado. El menú ⋯ de Revisiones elige qué miembros se ven (checkbox); se
-guarda en `.ide/reviews.json` (`{"reviewers": [...]}`); sin ese archivo se ven todos los que
+guarda en la base (`.ide/ide.db`); sin selección se ven todos los que
 tienen pendientes. La sección se colapsa desde su título; Pendientes / Pedí cambios / Otras son
 grupos fijos. En las pendientes, el botón de revisión (hover) envía
 `.ide/prompts/review-pr.md` (pega + Enter) a la sesión del PR: si no existe la crea (como
@@ -289,7 +290,7 @@ mergeada (24 h, en el grupo **Merges** de Mis PRs cuando ya no está abierta).
    a la base (`gh pr edit --base`); después borra la rama mergeada. Solo se reescriben PRs tuyas y
    no de forks: las ajenas (y las que estén encima) quedan sin tocar, la card lo marca como error y
    la rama mergeada no se borra (GitHub cerraría las que la apuntan).
-Los trabajos viven en `.ide/merges.json` (sobreviven reinicios; un rebase cortado por un reinicio
+Los trabajos viven en la base `.ide/ide.db` (sobreviven reinicios; un rebase cortado por un reinicio
 queda en error para reintentar). Errores: `not_bottom`, `not_approved`, `ci_failed`,
 `merge_pending`, `conflict`, `merge_failed`, `unknown_pr`, `no_merge`.
 
@@ -342,6 +343,20 @@ la sidebar. El desarrollo actual se muestra como card arriba del menú de accion
 interna (los empuja hacia abajo); click → lista de todos los desarrollos (Sesiones / Revisiones /
 Mis PRs) con buscador para cambiar. En el módulo GitHub, click en una PR del stack abre su
 desarrollo (su sesión, o la PR si está en las listas).
+
+## 9c. Base local (`.ide/ide.db`)
+
+SQLite (stdlib). Guarda las PRs abiertas de la org (nodo GraphQL completo), las PRs ya
+mergeadas/cerradas que se referencian como dependencia (no cambian más), los miembros de la org,
+los trabajos de merge y los ajustes (revisores visibles, marcas del poll). **Las sesiones no viven
+acá** (siguen en disco). Todo lo de GitHub es reconstruible: si la base se corrompe se renombra a
+`ide.db.bak` y se arma de nuevo. La primera vez migra `merges.json` y `reviews.json` (quedan como
+`.json.migrated`).
+
+**Poll de GitHub** (cada `github_interval`): incremental (`updated:>=` último poll − 1 min, abiertas
+y recién cerradas) + refresco por ID de lo dinámico (CI, conflicto, review: no cambian
+`updatedAt`) de las PRs relevantes (tuyas, las que revisás, sus stacks y dependencias) +
+resincronización completa cada 30 min y al arrancar. Miembros de la org: una vez por día.
 
 **Abrir sesión:** seleccionar una sesión parada en la sidebar la lanza (retoma su conversación); si falla queda "Reintentar".
 

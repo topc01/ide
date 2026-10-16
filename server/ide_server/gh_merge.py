@@ -7,7 +7,7 @@
 2. El vigilante (`run`) consulta las PRs con merge pendiente; cuando GitHub la mergea, restackea
    las de arriba: cada una se rebasea (`--onto`) sobre su nueva madre — las hijas directas sobre
    la base, con la base de la PR cambiada a esa — y al final se borra la rama mergeada.
-   Los trabajos viven en `.ide/merges.json` (sobreviven reinicios del server)."""
+   Los trabajos viven en la base (`.ide/ide.db`, tabla `merges`): sobreviven reinicios."""
 from __future__ import annotations
 import asyncio
 import json
@@ -18,16 +18,13 @@ import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
+from ide_server.db import Db
 from ide_server.sessions_fs import SessionError
 from ide_server.workspace import discover_repos
 
 log = logging.getLogger(__name__)
 WATCH_INTERVAL = 30
 ACTIVE = ("rebasing", "waiting", "waiting_ci", "merging", "restacking")
-
-
-def jobs_file(root: Path) -> Path:
-    return root / ".ide" / "merges.json"
 
 
 def merge_worktree(root: Path, repo: str) -> Path:
@@ -45,18 +42,18 @@ def _check(out: subprocess.CompletedProcess, what: str, code: str = "merge_faile
 
 
 class Merger:
-    def __init__(self, root: Path, *, stacks: Callable[[], dict],
+    def __init__(self, root: Path, *, stacks: Callable[[], dict], db: Db,
                  on_change: Callable[[], None] | None = None) -> None:
         """`stacks()`: estado actual de GitHubReviews (para saber quién está arriba de quién)."""
-        self._root, self._stacks = root, stacks
+        self._root, self._stacks, self._db = root, stacks, db
         self._notify_cb = on_change or (lambda: None)
         self._loop: asyncio.AbstractEventLoop | None = None
         self._locks: dict[str, threading.Lock] = {}
         self._jobs_lock = threading.RLock()     # los trabajos se tocan desde varios threads
         self.jobs: dict[str, dict] = self._load()
-        for url, j in self.jobs.items():        # un rebase que corría cuando se cortó el server
+        for url, j in list(self.jobs.items()):  # un rebase que corría cuando se cortó el server
             if j.get("state") == "rebasing":
-                j.update(state="error", error="se interrumpió (reinicio del server): reintenta")
+                self._update(url, state="error", error="se interrumpió (reinicio del server): reintenta")
 
     def _on_change(self) -> None:
         """Se llama desde threads (git/gh corren fuera del loop): se agenda en el loop."""
@@ -65,20 +62,12 @@ class Merger:
 
     # -- persistencia ------------------------------------------------------------------------
     def _load(self) -> dict[str, dict]:
-        f = jobs_file(self._root)
-        try:
-            return json.loads(f.read_text(encoding="utf-8")) if f.is_file() else {}
-        except (OSError, ValueError) as exc:
-            log.error("no se pudo leer %s: %s", f, exc)
-            return {}
-
-    def _save(self) -> None:
-        jobs_file(self._root).write_text(json.dumps(self.jobs, indent=2) + "\n", encoding="utf-8")
+        return self._db.merges()
 
     def _update(self, url: str, **fields) -> None:
         with self._jobs_lock:
             self.jobs[url] = {**self.jobs.get(url, {}), **fields}
-            self._save()
+            self._db.put_merge(url, self.jobs[url])
 
     def public(self) -> dict[str, dict]:
         keys = ("state", "error", "restacked", "repo", "number", "title", "above", "native",

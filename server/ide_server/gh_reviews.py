@@ -13,12 +13,13 @@ from pathlib import Path
 from typing import Callable
 from ide_server.pr_poller import GhRunner, _default_gh
 from ide_server import gh_deps
+from ide_server.db import Db
 from ide_server.sessions_fs import slugify
 from ide_server.workspace import discover_repos
 
 log = logging.getLogger(__name__)
 
-_FIELDS = """... on PullRequest { url title number isDraft updatedAt reviewDecision headRefName baseRefName body
+_FIELDS = """... on PullRequest { id state url title number isDraft updatedAt reviewDecision headRefName baseRefName body
   isCrossRepository repository { nameWithOwner }
   stack { id size } stackEntry { position }
   mergeable commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
@@ -28,18 +29,12 @@ _FIELDS = """... on PullRequest { url title number isDraft updatedAt reviewDecis
 # Pendientes y conteos salen de `reviewRequests` de los PRs abiertos: la búsqueda GraphQL
 # `review-requested:@me` omite PRs con review re-pedida.
 # Separadas: juntas tardan ~7 s y GitHub corta con 502 cerca de los 10 s.
-QUERY = """query($open: String!) {
+SEARCH = """query($q: String!, $after: String) {
   viewer { login }
-  open: search(type: ISSUE, first: 50, query: $open) {
+  s: search(type: ISSUE, first: 50, query: $q, after: $after) {
     issueCount pageInfo { hasNextPage endCursor } nodes { %s } }
 }""" % _FIELDS
-REVIEWED = """query($reviewed: String!) {
-  reviewed: search(type: ISSUE, first: 50, query: $reviewed) { nodes { %s } }
-}""" % _FIELDS
-OPEN_PAGE = """query($open: String!, $after: String!) {
-  open: search(type: ISSUE, first: 50, query: $open, after: $after) {
-    issueCount pageInfo { hasNextPage endCursor } nodes { %s } }
-}""" % _FIELDS
+NODES = """query($ids: [ID!]!) { nodes(ids: $ids) { %s } }""" % _FIELDS
 MEMBERS = """query($org: String!) { organization(login: $org) {
   membersWithRole(first: 100) { nodes { login name } } } }"""
 MAX_PAGES = 20          # páginas de 50: la búsqueda de GitHub no da más de 1000 resultados
@@ -149,34 +144,6 @@ def _requested(n: dict) -> list[str]:
     return [l for r in nodes if (l := (r.get("requestedReviewer") or {}).get("login"))]
 
 
-def selection_file(root: Path) -> Path:
-    return root / ".ide" / "reviews.json"
-
-
-def read_selection(root: Path) -> list[str] | None:
-    """Revisores elegidos para los chips (`.ide/reviews.json`); None = todos los con pendientes."""
-    f = selection_file(root)
-    if not f.is_file():
-        return None
-    try:
-        sel = json.loads(f.read_text(encoding="utf-8")).get("reviewers")
-    except (OSError, ValueError, AttributeError) as exc:
-        raise ValueError(f"{f} inválido: {exc}") from exc
-    return [str(x) for x in sel] if isinstance(sel, list) else None
-
-
-def write_selection(root: Path, logins: list[str]) -> None:
-    f = selection_file(root)
-    data = {}
-    if f.is_file():
-        try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-        except ValueError:
-            data = {}
-    data["reviewers"] = sorted({str(x) for x in logins}, key=str.lower)
-    f.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
-
 MY_GROUPS = ("returned", "waiting", "missing", "draft", "approved")
 
 
@@ -241,27 +208,61 @@ async def _graphql(gh: GhRunner, args: list[str]) -> str:
     raise RuntimeError("inalcanzable")
 
 
-async def fetch_all(gh: GhRunner, reviewed: str, open_q: str) -> dict:
-    """Primera página (viewer + reviewed + open) y el resto de `open` paginado."""
-    data = json.loads(await _graphql(gh, ["-f", f"query={QUERY}", "-f", f"open={open_q}"]))
-    data["data"]["reviewed"] = json.loads(await _graphql(
-        gh, ["-f", f"query={REVIEWED}", "-f", f"reviewed={reviewed}"]))["data"]["reviewed"]
-    page = data["data"]["open"]
-    for _ in range(MAX_PAGES - 1):
+async def search_all(gh: GhRunner, q: str) -> tuple[str | None, list[dict], int]:
+    """(login del viewer, nodos, total) de una búsqueda de PRs, paginada (tope de GitHub: 1000)."""
+    nodes: list[dict] = []
+    after, viewer, total = None, None, 0
+    for _ in range(MAX_PAGES):
+        args = ["-f", f"query={SEARCH}", "-f", f"q={q}"] + (["-f", f"after={after}"] if after else [])
+        d = json.loads(await _graphql(gh, args))["data"]
+        viewer, page = d["viewer"]["login"], d["s"]
+        total = page["issueCount"]
+        nodes += [n for n in page["nodes"] if n]
         if not page["pageInfo"]["hasNextPage"]:
             break
-        out = await _graphql(gh, ["-f", f"query={OPEN_PAGE}", "-f", f"open={open_q}",
-                                  "-f", f"after={page['pageInfo']['endCursor']}"])
-        page = json.loads(out)["data"]["open"]
-        data["data"]["open"]["nodes"] += page["nodes"]
-    return data
+        after = page["pageInfo"]["endCursor"]
+    return viewer, nodes, total
+
+
+async def fetch_nodes(gh: GhRunner, ids: list[str]) -> list[dict]:
+    """Refresco por ID (lo dinámico de las PRs relevantes), en lotes de 50."""
+    out: list[dict] = []
+    for i in range(0, len(ids), 50):
+        args = ["api", "graphql", "-f", f"query={NODES}"] + [
+            x for nid in ids[i:i + 50] for x in ("-f", f"ids[]={nid}")]
+        code, raw, err = await gh(args)
+        try:                                    # un ID que ya no existe da error, pero el resto viene
+            data = json.loads(raw).get("data") or {}
+        except ValueError:
+            data = {}
+        if "nodes" not in data:
+            raise RuntimeError(err.strip() or f"gh exit {code}")
+        out += [n for n in data["nodes"] if n]
+    return out
+
+
+FULL_EVERY = 30 * 60        # resincronización completa
+MEMBERS_EVERY = 24 * 3600   # miembros de la org
+_CLOSED = ("MERGED", "CLOSED")
+
+
+def _iso(t: float) -> str:
+    return datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _ref(n: dict) -> dict:
+    return {"url": n["url"], "title": n["title"], "number": n["number"], "state": n["state"]}
 
 
 class GithubReviews:
-    def __init__(self, root: Path, *, interval: int, org: str | None = None,
+    """Revisiones, Mis PRs, stacks y dependencias. La base (`.ide/ide.db`) guarda las PRs: el poll
+    es incremental (`updated:`), más un refresco de lo dinámico (CI, review) de las relevantes y
+    una resincronización completa cada 30 min. Ver spec 2026-10-16-desarrollos."""
+
+    def __init__(self, root: Path, *, interval: int, db: Db, org: str | None = None,
                  run_gh: GhRunner | None = None, on_change: Callable[[], None] | None = None,
                  clock: Callable[[], float] = time.time) -> None:
-        self._root, self._interval, self._org = root, interval, org
+        self._root, self._interval, self._org, self._db = root, interval, org, db
         self._gh = run_gh or _default_gh
         self._on_change = on_change or (lambda: None)
         self._clock = clock
@@ -271,7 +272,8 @@ class GithubReviews:
                             "error": None, "lastOk": None, "orgs": []}
 
     async def _members(self, orgs: list[str]) -> list[dict]:
-        out: dict[str, dict] = {}
+        if self._clock() - (self._db.get("members_at") or 0) < MEMBERS_EVERY and self._db.members(orgs):
+            return self._db.members(orgs)
         for org in orgs:
             code, raw, err = await self._gh(["api", "graphql", "-f", f"query={MEMBERS}", "-f", f"org={org}"])
             if code != 0:
@@ -279,9 +281,69 @@ class GithubReviews:
             org_data = json.loads(raw)["data"]["organization"]
             if org_data is None:
                 raise RuntimeError(f"{org} no es una organización de GitHub")
-            for m in org_data["membersWithRole"]["nodes"]:
-                out[m["login"]] = {"login": m["login"], "name": m.get("name")}
-        return sorted(out.values(), key=lambda m: m["login"].lower())
+            self._db.set_members(org, [{"login": m["login"], "name": m.get("name")}
+                                       for m in org_data["membersWithRole"]["nodes"]])
+        self._db.set("members_at", self._clock())
+        return self._db.members(orgs)
+
+    def _store(self, nodes: list[dict], now: float) -> None:
+        """Abiertas a `prs`; las que se cerraron o mergearon salen y quedan como referencia."""
+        self._db.upsert_prs([n for n in nodes if n.get("state") not in _CLOSED], _iso(now))
+        closed = [n for n in nodes if n.get("state") in _CLOSED]
+        self._db.delete_prs(n["url"] for n in closed)
+        self._db.put_refs({f"{n['repository']['nameWithOwner'].lower()}#{n['number']}": _ref(n) for n in closed})
+
+    async def _sync(self, scope: str) -> str:
+        """Trae a la base lo que cambió. Devuelve el login del viewer."""
+        now = self._clock()
+        last_full, last_inc = self._db.get("last_full") or 0, self._db.get("last_inc") or 0
+        if now - last_full >= FULL_EVERY:
+            me, nodes, total = await search_all(self._gh, f"is:pr is:open archived:false {scope}")
+            fresh = {n["url"] for n in nodes}
+            self._db.delete_prs(n["url"] for n in self._db.open_prs() if n["url"] not in fresh)
+            self._store(nodes, now)
+            self._db.set("truncated", total > len(nodes))
+            self._db.set("last_full", now)
+        else:
+            since = _iso(last_inc - 60)             # 1 min de solape: relojes y latencia
+            me, nodes, _ = await search_all(self._gh, f"is:pr archived:false {scope} updated:>={since}")
+            self._store(nodes, now)
+        self._db.set("last_inc", now)
+        self._db.set("me", me)
+        # lo dinámico (CI, conflicto, review) no cambia `updatedAt`: refrescar las relevantes
+        ids = self._relevant_ids(me)
+        if ids:
+            self._store(await fetch_nodes(self._gh, ids), now)
+        return me
+
+    def _relevant_ids(self, me: str) -> list[str]:
+        """Mías, las que reviso o me pidieron, las de sus stacks y sus dependencias abiertas."""
+        nodes = self._db.open_prs()
+        by_url = {n["url"]: n for n in nodes}
+        stacks = compute_stacks(nodes)
+        rel = {n["url"] for n in nodes
+               if (n.get("author") or {}).get("login") == me or me in _requested(n)
+               or any((r.get("author") or {}).get("login") == me
+                      for r in (n.get("latestOpinionatedReviews") or {}).get("nodes", []))}
+        ids = {stacks[u]["id"] for u in rel if u in stacks}
+        rel |= {u for u, st in stacks.items() if st["id"] in ids}
+        by_key = {(n["repository"]["nameWithOwner"].lower(), n["number"]): n["url"] for n in nodes}
+        for u in list(rel):
+            n = by_url[u]
+            for full, num in gh_deps.parse_deps(n.get("body"), *n["repository"]["nameWithOwner"].split("/", 1),
+                                                n["number"]):
+                if (k := (full.lower(), num)) in by_key:
+                    rel.add(by_key[k])
+        return [by_url[u]["id"] for u in rel if by_url[u].get("id")]
+
+    def _data(self, me: str) -> dict:
+        """El mismo formato de antes (`parse_result`), armado desde la base."""
+        nodes = self._db.open_prs()
+        reviewed = [n for n in nodes if any((r.get("author") or {}).get("login") == me
+                                            for r in (n.get("latestOpinionatedReviews") or {}).get("nodes", []))]
+        total = len(nodes) + (1 if self._db.get("truncated") else 0)
+        return {"data": {"viewer": {"login": me}, "reviewed": {"nodes": reviewed},
+                         "open": {"nodes": nodes, "issueCount": total}}}
 
     async def _annotate_deps(self, res: dict, data: dict) -> None:
         """Agrega a cada card `deps` (cadena de dependencias declaradas) y `depsPending`."""
@@ -291,11 +353,16 @@ class GithubReviews:
                            "state": "OPEN"} for n in prs}
         refs = {n["url"]: gh_deps.parse_deps(n.get("body"), *n["repository"]["nameWithOwner"].split("/", 1),
                                              n["number"]) for n in prs}
-        unknown = sorted({(full, num) for lst in refs.values() for full, num in lst
+        unknown = sorted({(full.lower(), num) for lst in refs.values() for full, num in lst
                           if (full.lower(), num) not in by_key})
-        found = await gh_deps.resolve(self._gh, unknown) if unknown else {}
+        cached = self._db.get_refs(f"{f}#{n}" for f, n in unknown)
+        missing = [(f, n) for f, n in unknown if f"{f}#{n}" not in cached]
+        found = await gh_deps.resolve(self._gh, missing) if missing else {}
+        # las mergeadas/cerradas no cambian más: quedan en la base
+        self._db.put_refs({f"{k[0]}#{k[1]}": v for k, v in found.items() if v.get("state") in _CLOSED})
         url_of = {k: n["url"] for k, n in by_key.items()}
-        for (full, num), pr in found.items():
+        for key, pr in [*((tuple(k.rsplit("#", 1)), v) for k, v in cached.items()), *found.items()]:
+            full, num = key[0], int(key[1])
             url_of[(full, num)] = pr["url"]
             info[pr["url"]] = {"repo": full.split("/", 1)[1], "number": pr["number"],
                                "title": pr["title"], "state": pr["state"]}
@@ -308,8 +375,8 @@ class GithubReviews:
             c["depsPending"] = sum(1 for d in c["deps"] if d["state"] != "MERGED" and not d["together"])
 
     async def set_selection(self, logins: list[str]) -> None:
-        await asyncio.to_thread(write_selection, self._root, logins)
-        self.state = {**self.state, "selected": await asyncio.to_thread(read_selection, self._root)}
+        self._db.set("reviewers", sorted({str(x) for x in logins}, key=str.lower))
+        self.state = {**self.state, "selected": self._db.get("reviewers")}
         self._on_change()
 
     async def poll_once(self) -> None:
@@ -319,24 +386,19 @@ class GithubReviews:
             self.state = {**prev, "error": "no hay org de GitHub: configura [reviews] github_org"}
         else:
             scope = " ".join(f"org:{o}" for o in orgs)
-            base = f"is:pr is:open archived:false {scope}"
             try:
-                data = await fetch_all(self._gh, f"{base} reviewed-by:@me", base)
+                me = await self._sync(scope)
                 members = await self._members(orgs)
-                selected = await asyncio.to_thread(read_selection, self._root)
+                data = self._data(me)
+                res = parse_result(data, {m["login"] for m in members})
+                await self._annotate_deps(res, data)
+                self.state = {**res, "members": members, "selected": self._db.get("reviewers"),
+                              "error": None, "lastOk": _iso(self._clock()), "orgs": orgs}
             except RuntimeError as exc:
                 self.state = {**prev, "error": str(exc)}
             except Exception as exc:  # noqa: BLE001 — queda marcado, nunca silencioso
+                log.exception("poll de GitHub")
                 self.state = {**prev, "error": f"respuesta inválida de gh: {exc}"}
-            else:
-                try:
-                    res = parse_result(data, {m["login"] for m in members})
-                    await self._annotate_deps(res, data)
-                    ts = datetime.fromtimestamp(self._clock(), timezone.utc).isoformat(timespec="seconds")
-                    self.state = {**res, "members": members, "selected": selected,
-                                  "error": None, "lastOk": ts, "orgs": orgs}
-                except Exception as exc:  # noqa: BLE001 — queda marcado, nunca silencioso
-                    self.state = {**prev, "error": f"respuesta inválida de gh: {exc}"}
         if {k: v for k, v in self.state.items() if k != "lastOk"} != \
            {k: v for k, v in prev.items() if k != "lastOk"}:
             self._on_change()
