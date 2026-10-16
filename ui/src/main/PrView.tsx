@@ -19,7 +19,9 @@ export function PrView({ url }: { url: string }) {
   if (!gh) return <div className="p-6 text-sm text-muted-foreground">cargando…</div>;
   if (!pr) return <div className="p-6 text-sm text-muted-foreground">La PR ya no está abierta.</div>;
   const toReview = gh.pending.some((p) => p.url === url);
-  const hasSession = sessions.some((s) => s.id === pr.sessionId || s.prUrl === pr.url);
+  const link = useFolders.getState().tree.devPrs?.[pr.url];       // vinculada a una sesión (pegajoso)
+  const hasSession = sessions.some((s) => s.id === pr.sessionId || s.prUrl === pr.url
+    || (!!link && !link.out && s.id === link.sid));
   return (
     <div className="max-w-4xl p-6">
       <h1 className="text-base font-semibold">{pr.title}</h1>

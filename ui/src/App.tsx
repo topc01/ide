@@ -9,6 +9,7 @@ import "./modules/graphite/register";
 import "./modules/notion/register";
 import "./modules/tasks/register";
 import "./modules/files/register";
+import "./modules/dev/register";
 import "./modules/prompts/register";
 import "./modules/github/register";
 import "./modules/review/register";

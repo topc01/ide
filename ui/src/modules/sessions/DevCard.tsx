@@ -124,9 +124,16 @@ export function DevTitle({ devKey, prs, original }: { devKey?: string; prs?: GhP
 }
 
 /** Chip de una PR ("EMBED #2552") o de un repo ("API"), abajo del título de la card. */
-export function RefChip({ repo, number, title }: { repo: string; number?: number | null; title?: string }) {
-  return <span title={title ?? (number ? `${repo}#${number}` : repo)}
-    className="shrink-0 rounded border border-border px-1 font-mono text-[10px] font-bold tracking-wide text-foreground/90">
+/** `pr`: chip de una PR del desarrollo: click la elige (abre su resumen); el punto es su review. */
+export function RefChip({ repo, number, title, pr }: { repo: string; number?: number | null; title?: string; pr?: GhPr }) {
+  const active = useFolders((s) => !!pr && s.activePrUrl === pr.url);
+  const setActivePr = useFolders((s) => s.setActivePr);
+  const dot = pr?.review ? { approved: "bg-emerald-500", changes: "bg-amber-400", review: "bg-sky-500" }[pr.review] : null;
+  return <span title={title ?? (pr ? `${pr.repo}#${pr.number}: ${pr.title}` : number ? `${repo}#${number}` : repo)}
+    onClick={pr ? (e) => { e.stopPropagation(); setActivePr(pr.url); } : undefined}
+    className={cn("inline-flex shrink-0 items-center gap-1 rounded border px-1 font-mono text-[10px] font-bold tracking-wide text-foreground/90",
+      active ? "border-primary" : "border-border", pr && "cursor-pointer hover:border-primary/60")}>
+    {dot && <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />}
     {repoShort(repo)}{number ? ` #${number}` : ""}</span>;
 }
 

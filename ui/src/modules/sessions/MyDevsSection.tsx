@@ -72,12 +72,8 @@ function StackCard({ d }: { d: Desarrollo }) {
           <DevTitle devKey={d.key} prs={d.prs} original={bottom.title} />
           <QueueItemActions className="ml-0"><HideToggle devKey={d.key} prs={d.prs} /></QueueItemActions>
         </div>
-        <div className="mt-1 flex items-center gap-1">
-          <RefChip repo={bottom.repo} />
-          <span className="text-[10px] text-muted-foreground">stack de {d.prs.length}</span>
-        </div>
-        <div className="mt-1 space-y-0.5">
-          {d.prs.map((p, i) => <PrRow key={p.url} pr={p} job={gh?.merges?.[p.url]} bottom={i === 0} />)}
+        <div className="mt-1 flex flex-wrap items-center gap-1" title={`stack de ${d.prs.length} (de abajo hacia arriba)`}>
+          {d.prs.map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)}
         </div>
       </CardShell>
     </QueueItem>

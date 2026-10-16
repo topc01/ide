@@ -5,14 +5,12 @@ import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
 import { CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
-import { PrRow } from "./MyDevsSection";
 import { PersonChip } from "../../lib/people";
 import { stopSession } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
 import { Badge } from "../../components/ui/badge";
-import { RepoLine } from "./RepoLine";
 import { ConfirmArchiveDialog } from "./ConfirmArchiveDialog";
 import { cn } from "../../lib/utils";
 
@@ -83,8 +81,8 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
         </div>
         {/* repos con su número: una chip por PR (con varias, por repo: las filas dan los números) */}
         <div className="mt-1 flex flex-wrap items-center gap-1">
-          {many ? groups.map((g) => <RefChip key={g.repo} repo={g.repo} />)
-            : pr ? <RefChip repo={pr.repo} number={pr.number} />
+          {many ? groups.flatMap((g) => g.stacks.flat()).map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)
+            : pr ? <RefChip repo={pr.repo} number={pr.number} pr={pr} />
             : prLabel(session.prUrl) ? <span className="rounded border border-border px-1 font-mono text-[10px] font-bold">{prLabel(session.prUrl)}</span>
             : repos.length ? repos.map((r) => <RefChip key={r} repo={r} />)
             : <span className="font-mono text-[10px] text-muted-foreground">{session.id}</span>}
@@ -99,16 +97,12 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
             title={`${session.pollError} (último OK: ${session.lastOk ?? "nunca"})`}>⚠ no se pudo consultar el PR</span>}
           {session.attention === "trust" && <span className="text-destructive"
             title="Claude Code pide confirmar la carpeta: abre la terminal y acepta">⚠ confiar carpeta</span>}
+          {/* el detalle de los worktrees está en el módulo Desarrollo */}
+          {session.repos.some((r) => r.state === "missing") && <span className="text-destructive"
+            title="Falta el worktree de algún repo: míralo en el módulo Desarrollo">⚠ falta un worktree</span>}
+          {session.repos.some((r) => r.setup === "failed") && <span className="text-destructive"
+            title="Falló el setup de algún repo: míralo en el módulo Desarrollo">✗ setup</span>}
         </CardMeta>
-        {/* por repo (fullstack) y por stack; Mergear en la de abajo de cada stack */}
-        {many && groups.map((g) => (
-          <div key={g.repo} className="mt-1 space-y-0.5">
-            {groups.length > 1 && <div className="font-mono text-[10px] text-muted-foreground">{repoShort(g.repo)}</div>}
-            {g.stacks.map((st) => st.map((p, i) => <PrRow key={p.url} pr={p} bottom={i === 0}
-              sessionId={isReview ? undefined : session.id} />))}
-          </div>))}
-        {/* el worktree solo importa en tickets (rama propia y scripts); en revisiones está en detach */}
-        {!isReview && session.repos.map((r) => <RepoLine key={r.name} session={session} repo={r} />)}
       </CardShell>
       <ConfirmArchiveDialog id={session.id} open={confirm} onClose={() => setConfirm(false)} />
     </QueueItem>

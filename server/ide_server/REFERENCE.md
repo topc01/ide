@@ -94,7 +94,7 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "terminal", "prompts", "stack", "review", "deps", "servers", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
+modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -102,7 +102,7 @@ modules = ["sessions", "terminal", "prompts", "stack", "review", "deps", "server
 Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero) hacen
 fallar el arranque con un mensaje que nombra la clave.
 
-`[ui] modules`: ids disponibles `terminal`, `prompts`, `stack`, `review`, `deps`, `servers`, `explorer`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
+`[ui] modules`: ids disponibles `dev`, `terminal`, `prompts`, `stack`, `review`, `deps`, `servers`, `explorer`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
 `notion`, y `chat`. Si `chat` **no** está, el área principal es la vista por sesión (terminal
 `claude` + doc + scripts); si está, vuelve el chat propio.
 
@@ -490,14 +490,17 @@ ticket cuyos worktrees están en esa rama, más el resto de su stack — **pegaj
 la PR en ese desarrollo (base, `kv` `devpr:<url>`) y sigue ahí aunque el worktree cambie de rama,
 hasta que se mergea/cierra; "sacar de este desarrollo" (hover de su fila) la deja aparte y no vuelve
 por rama (canal `dev.unlinkPr {id, url}`; `sessions.tree` trae `devPrs`); (2) un stack tuyo sin sesión;
-(3) una PR suelta. Las sesiones sin PR también son desarrollos (grupo "Sin PR"). Con varias PRs la
-card muestra una fila por PR (de abajo hacia arriba: punto de review, número, título, CI, ⏸, y en
-hover Mergear en la de abajo de cada stack y abrir en GitHub; click en una fila = elegir esa PR).
+(3) una PR suelta. Las sesiones sin PR también son desarrollos (grupo "Sin PR"). La card es compacta:
+título y una chip `REPO #n` por PR (punto = review; click = elegir esa PR). El detalle va en el
+módulo **Desarrollo** (id `dev`): las PRs por repo y stack (punto de review, número, título, CI, ⏸,
+y en hover Mergear en la de abajo de cada stack, abrir en GitHub y sacar del desarrollo) y los
+worktrees de la sesión (repo, rama, setup, ⋯ con sus scripts). En la card solo queda un aviso si
+falta un worktree o falló un setup.
 **Título de toda card** (sesiones, PRs, stacks, también en Revisiones): el nombre del desarrollo puesto
 en el IDE o, si no hay, el título de la PR / del ticket; debajo, chips con repo y número
 (`EMBED #2552`; en un stack o fullstack, una chip por repo y los números en las filas).
-**Fullstack** (una sesión con worktrees de varios repos): chips `API` `EMBED` y las filas agrupadas
-por repo y, dentro, por stack; cada repo/stack tiene su propio Mergear.
+**Fullstack** (una sesión con worktrees de varios repos): chips de cada PR (`API #4654` `EMBED #2553`);
+en el módulo Desarrollo, agrupadas por repo y stack, cada repo/stack con su propio Mergear.
 En una sesión con varias PRs el fondo lo da la peor review y la marca de CI el peor CI. Agrupa por
 estado (Merges, Devueltas, Esperando revisores, Sin revisores, Draft, Aprobadas, Sin PR); con varias
 PRs manda la **peor**: devuelta > sin revisores > esperando > draft > aprobada. También por repo o
