@@ -204,8 +204,8 @@ copian a su `.claude/skills/` (skills de proyecto del cwd de su `claude`). `ide 
   qué es tuyo, si ya tiene sesión) y **espera tu OK**; después lanza `ide session new --if-missing
   --notion <url> --template ticket` por cada uno. Cada sesión hace su revisión preliminar
   (`TICKET.md`) y suma sus worktrees con `ide repo add`. No escribe en Notion. El perfil `main`
-  permite las herramientas de Notion necesarias (MCP de claude.ai o del plugin) y `echo` (los
-  títulos van por `--vars-file -`).
+  permite las herramientas de Notion necesarias (MCP de claude.ai o del plugin); el título va con
+  `--var "title=…"` (sin pipes ni `echo`: los títulos vienen de Notion y no se les da shell libre).
 
 ## 7b. Prompts (`.ide/prompts/*.md`)
 

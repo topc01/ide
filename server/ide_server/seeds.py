@@ -94,15 +94,15 @@ con las mismas reglas.
 
 ## 3. Tabla y OK
 Por cada ticket, prueba sin crear nada:
-`echo '{"title": "<Tarea>"}' | ide session new --dry-run --notion <url> --template ticket --vars-file -`
-(usa JSON por stdin: así los títulos con comillas no se rompen). Muestra una tabla:
+`ide session new --dry-run --notion <url> --template ticket --var "title=<Tarea>"`
+(escapa las comillas dobles del título con `\\"`; no uses pipes ni redirecciones). Muestra una tabla:
 `sesión | ticket | prioridad | size | por qué es tuyo (asignado / célula) | ¿ya tiene sesión?`
 en el orden de la cola (`Order`). **Espera mi OK** y que te diga cuáles lanzar (por defecto, todos
 los que no tienen sesión).
 
 ## 4. Lanzar
 Por cada ticket elegido:
-`echo '{"title": "<Tarea>"}' | ide session new --if-missing --notion <url> --template ticket --vars-file -`
+`ide session new --if-missing --notion <url> --template ticket --var "title=<Tarea>"`
 Cada sesión arranca con su carpeta y su `TICKET.md`, analiza el ticket (revisión preliminar:
 scope, repos, plan, bloqueantes, dudas) y suma con `ide repo add <repo>` los worktrees que
 necesite. Nunca dupliques: `--if-missing` devuelve la existente.
@@ -160,7 +160,7 @@ PERM_ANALYZE = {"permissions": {
 # La principal = analyze + despachar sesiones (el server igual le niega `full`) + leer el
 # Backlog de Notion para /backlog (con el MCP de claude.ai o el del plugin de Notion).
 PERM_MAIN = {"permissions": {
-    "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)", "Bash(echo:*)",
+    "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)",
               *[f"mcp__{srv}__notion-{t}" for srv in ("claude_ai_Notion", "plugin_Notion_notion")
                 for t in ("get-self", "query-data-sources", "query-database-view", "fetch", "search")]],
     "deny": list(PERM_ANALYZE["permissions"]["deny"]),
