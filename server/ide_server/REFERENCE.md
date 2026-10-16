@@ -393,8 +393,17 @@ lleva un contorno claro. Al pasar el mouse, el estado en palabras.
 dependen (cadena completa: ✓ mergeada, ◌ abierta, ✗ cerrada, ⇄ van juntas, "vía X" indirecta) y
 qué PRs abiertas las declaran como dependencia.
 
-**Secciones Revisiones y Mis PRs** (misma estructura): título colapsable con el total, grupos
-colapsables y la misma card. El ⚙ de cada sección (y el de la sidebar principal, para Sesiones)
+**Mis desarrollos** (reemplaza a la lista de sesiones de ticket y a "Mis PRs"): una card por
+desarrollo. Regla (spec 2026-10-16-desarrollos, P1), cada PR en un solo desarrollo: (1) la sesión de
+ticket cuyos worktrees están en esa rama, más el resto de su stack; (2) un stack tuyo sin sesión;
+(3) una PR suelta. Las sesiones sin PR también son desarrollos (grupo "Sin PR"). Con varias PRs la
+card muestra una fila por PR (de abajo hacia arriba: punto de review, número, título, CI, ⏸, y en
+hover Mergear en la de abajo y abrir en GitHub; click en una fila = elegir esa PR); fondo y borde
+siguen a la PR de abajo. Agrupa por estado de la PR de abajo (Merges, Devueltas, Esperando
+revisores, Sin revisores, Draft, Aprobadas, Sin PR), por repo o sin agrupar (⚙).
+
+**Secciones Revisiones y Mis desarrollos** (misma estructura): título colapsable con el total, grupos
+colapsables y la misma card. El ⚙ de cada sección (y el de la sidebar principal, para Mis desarrollos)
 abre el **módulo Configuración** (id `config`) en esa sección: **agrupar por** estado, repo, stack
 (con el título de la PR de abajo), autor (solo Revisiones) o sin agrupar; en Revisiones también
 los revisores visibles en los chips. El agrupado se recuerda por navegador. La card seleccionada

@@ -19,7 +19,7 @@ export function desarrollos(sessions: FolderSession[], gh: GithubReviews | null)
     if (!prs.has(p.url)) { prs.set(p.url, p); groupOf.set(p.url, group); }
   });
   add(gh?.pending, "Revisiones"); add(gh?.changesRequested, "Revisiones");
-  Object.values(gh?.mine ?? {}).forEach((l) => add(l, "Mis PRs"));
+  Object.values(gh?.mine ?? {}).forEach((l) => add(l, "Mis desarrollos"));
   const bySession = new Map([...prs.values()].map((p) => [p.sessionId, p]));
   const out: Desarrollo[] = sessions.map((s) => ({
     kind: "session", key: `s:${s.id}`, session: s, pr: bySession.get(s.id),
@@ -32,7 +32,7 @@ export function desarrollos(sessions: FolderSession[], gh: GithubReviews | null)
   return out;
 }
 
-const GROUPS = ["Sesiones", "Revisiones", "Mis PRs"];
+const GROUPS = ["Sesiones", "Mis desarrollos", "Revisiones"];
 const titleOf = (d: Desarrollo) => d.kind === "session" ? d.session.title ?? d.session.id : d.pr.title;
 
 function DevLine({ d }: { d: Desarrollo }) {

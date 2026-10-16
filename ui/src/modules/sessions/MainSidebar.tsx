@@ -4,19 +4,15 @@ import { Plus, Star } from "lucide-react";
 import { useFolders } from "../../state/folders";
 import { fetchSessions, newSession, onSessionsChanged } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
-import { getGrouper, groupSessions } from "./groupers";
 import { ConfigButton } from "./GroupedSection";
 import { OffscreenMarker, useOffscreenSelected } from "./OffscreenMarker";
-import { SessionItem } from "./SessionItem";
 import { ReviewsSection } from "./ReviewsSection";
-import { MyPrsSection } from "./MyPrsSection";
+import { MyDevsSection } from "./MyDevsSection";
 import { cn } from "../../lib/utils";
 import { CustomizationsFooter } from "../settings/CustomizationsFooter";
-import { Queue, QueueSection, QueueSectionTrigger, QueueSectionLabel, QueueSectionContent, QueueList }
-  from "../../components/ai-elements/queue";
 
 export function MainSidebar() {
-  const { tree, connected, groupBy, activeId, setTree, setConnected, setActive, openModal } = useFolders();
+  const { tree, connected, activeId, setTree, setConnected, setActive, openModal } = useFolders();
   const [mainError, setMainError] = useState<string | null>(null);
   const activePrUrl = useFolders((s) => s.activePrUrl);
   const scrollRef = useRef<HTMLElement>(null);
@@ -33,7 +29,6 @@ export function MainSidebar() {
   const main = tree.sessions.find((s) => s.kind === "main");
   const tickets = tree.sessions.filter((s) => s.kind !== "main" && s.kind !== "review");
   const reviews = tree.sessions.filter((s) => s.kind === "review");
-  const groups = groupSessions(tickets, getGrouper(groupBy));
 
   return (
     <aside ref={scrollRef} className="flex w-[300px] flex-col overflow-auto border-r border-border bg-card">
@@ -64,26 +59,15 @@ export function MainSidebar() {
             </>
           )}
           <div className="ml-auto flex items-center gap-1">
-            <ConfigButton id="sessions" title="Sesiones" />
+            <ConfigButton id="mine" title="Mis desarrollos" />
             <button aria-label="Nueva sesión" title="Nueva sesión" onClick={() => openModal("session")}
               className="grid h-5 w-5 place-items-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><Plus size={13} /></button>
           </div>
         </div>
 
-        <Queue>
-          {groups.map(({ section, items }) => (
-            <QueueSection key={`${groupBy}-${section.id}`} defaultOpen={section.defaultOpen}
-              persistKey={`sessions.${groupBy}.${section.id}`}>
-              <QueueSectionTrigger><QueueSectionLabel label={section.label} count={items.length} /></QueueSectionTrigger>
-              <QueueSectionContent>
-                <QueueList>{items.map((s) => <SessionItem key={s.id} session={s} />)}</QueueList>
-              </QueueSectionContent>
-            </QueueSection>
-          ))}
-        </Queue>
+        <MyDevsSection tickets={tickets} />
 
         <ReviewsSection sessions={reviews} />
-        <MyPrsSection />
       </div>
       <OffscreenMarker where={offscreen} side="below" container={scrollRef} />
       <div className="mt-auto"><CustomizationsFooter /></div>

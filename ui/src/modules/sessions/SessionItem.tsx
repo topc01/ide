@@ -4,6 +4,7 @@ import { Archive, ExternalLink, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta } from "./ReviewsSection";
 import { CardShell, DepsPause, devTone, repoShort } from "./DevCard";
+import { PrRow } from "./MyDevsSection";
 import { PersonChip } from "../../lib/people";
 import { stopSession } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
@@ -24,8 +25,11 @@ function prLabel(url?: string | null): string | null {
   return m ? `${repoShort(m[1])} #${m[2]}` : null;
 }
 
-export function SessionItem({ session, actions, pr, onlyActions = false }:
-  { session: FolderSession; actions?: ReactNode; pr?: GhPr; onlyActions?: boolean }) {
+/** `prs`: las PRs del desarrollo de la sesión (Mis desarrollos); con más de una se muestran como filas. */
+export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = false }:
+  { session: FolderSession; actions?: ReactNode; pr?: GhPr; prs?: GhPr[]; onlyActions?: boolean }) {
+  const pr = prProp ?? prs?.[0];
+  const many = (prs?.length ?? 0) > 1;
   const { activeId, activePrUrl, setActive } = useFolders();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,12 +39,13 @@ export function SessionItem({ session, actions, pr, onlyActions = false }:
   return (
     <QueueItem className="px-2 py-1">
       {/* con una PR (sin sesión) elegida, la sesión anterior ya no es el desarrollo activo */}
-      <CardShell tone={tone} selected={activeId === session.id && !activePrUrl} onClick={() => setActive(session.id)}>
+      <CardShell tone={tone} onClick={() => setActive(session.id)}
+        selected={activeId === session.id && !activePrUrl || !!prs?.some((p) => p.url === activePrUrl)}>
         <div className="flex items-center gap-1.5">
           <span aria-label={label} title={`claude ${label}`}
             className={cn(session.process === "running" ? "text-primary" : "text-muted-foreground")}>{dot}</span>
           <span className="font-mono text-[11px] font-bold tracking-wide">
-            {pr ? `${repoShort(pr.repo)} #${pr.number}` : prLabel(session.prUrl) ?? session.id}</span>
+            {pr && !many ? `${repoShort(pr.repo)} #${pr.number}` : prLabel(session.prUrl) ?? session.id}</span>
           {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
           <span className="flex-1" />
           <DepsPause pr={pr} />
@@ -82,6 +87,10 @@ export function SessionItem({ session, actions, pr, onlyActions = false }:
           {session.attention === "trust" && <span className="text-destructive"
             title="Claude Code pide confirmar la carpeta: abre la terminal y acepta">⚠ confiar carpeta</span>}
         </CardMeta>
+        {many && (
+          <div className="mt-1 space-y-0.5">
+            {prs!.map((p, i) => <PrRow key={p.url} pr={p} bottom={i === 0} />)}
+          </div>)}
         {/* el worktree solo importa en tickets (rama propia y scripts); en revisiones está en detach */}
         {!isReview && session.repos.map((r) => <RepoLine key={r.name} session={session} repo={r} />)}
       </CardShell>

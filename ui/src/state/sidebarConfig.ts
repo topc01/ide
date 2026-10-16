@@ -18,7 +18,7 @@ interface State {
 }
 
 export const useSidebarConfig = create<State>((set) => ({
-  groupBy: { reviews: read("reviews"), myprs: read("myprs") },
+  groupBy: { reviews: read("reviews"), mine: read("mine") },
   focus: null,
   setGroupBy: (id, g) => {
     try { localStorage.setItem(KEY(id), g); } catch { /* solo memoria */ }
