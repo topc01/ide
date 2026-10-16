@@ -281,7 +281,8 @@ class Supervisor:
         tid = self._spawn(session_path(self._root, sid), argv, env,
                           lambda: self._on_exit(sid, holder.get("tid")),
                           on_output=lambda data: self._on_output(sid, holder.get("tid"), data),
-                          on_input=lambda: self._on_input(sid, holder.get("tid")))
+                          on_input=lambda: self._on_input(sid, holder.get("tid")),
+                          persist_key=f"claude-{sid}")   # su pantalla sobrevive a un reinicio del server
         holder["tid"] = tid
         self._forget(sid)
         self._running[sid] = tid

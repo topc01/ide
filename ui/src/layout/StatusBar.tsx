@@ -44,6 +44,14 @@ export function StatusBar() {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [update, setUpdate] = useState<{ pending: boolean; idleBefore: number } | null>(null);
+  useEffect(() => {
+    const ws = getWs();
+    ws.request("server.status", {}).then(setUpdate).catch(() => { /* server viejo */ });
+    const cb = (p: any) => setUpdate(p);
+    ws.on("server.update", cb);
+    return () => ws.off("server.update", cb);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -74,6 +82,13 @@ export function StatusBar() {
           </span>
           <Window label="5h" w={lim?.fiveHour ?? null} now={now} />
           <Window label="semana" w={lim?.weekly ?? null} now={now} />
+          {update?.pending && (
+            <span className="flex items-center gap-1.5 text-sky-400"
+              title={`Se reinicia solo cuando nadie tecleó en una terminal por ${update.idleBefore} s; las conversaciones de claude siguen.`}>
+              ⟳ versión nueva: se reinicia cuando dejes de escribir
+              <button title="Reiniciar el IDE ya con la versión nueva" onClick={() => getWs().request("server.restart", {}).catch(() => {})}
+                className="rounded border border-sky-400/60 px-1 hover:bg-sky-400/10">reiniciar ahora</button>
+            </span>)}
           {lim?.error && <span role="alert" className="text-destructive"
             title={`${lim.error} (último OK: ${lim.lastOk ?? "nunca"})`}>⚠ límites: {lim.error}</span>}
         </div>

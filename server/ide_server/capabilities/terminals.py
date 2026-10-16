@@ -2,6 +2,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -10,6 +11,7 @@ from ide_server.pty_manager import PtyManager
 from ide_server.workspace import resolve_cwd
 
 REPLAY_BYTES = 2 * 1024 * 1024
+RESTART_MARK = b"\r\n\x1b[2m-- el IDE se reinicio: lo de arriba es de antes del reinicio --\x1b[0m\r\n"
 
 
 @dataclass
@@ -17,6 +19,8 @@ class TerminalHooks:
     spawn: Callable[..., str]
     kill: Callable[[str], None]
     write: Callable[[str, bytes], None] | None = None
+    last_input: Callable[[], float] | None = None   # cuándo se tecleó por última vez (cualquier terminal)
+    save_history: Callable[[], None] | None = None  # persiste el historial de las terminales con clave
 
 
 def register(registry: Registry, root: Path, manager, pty: PtyManager | None = None) -> TerminalHooks:
@@ -26,6 +30,23 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
     # abre en el navegador con el proceso ya corriendo arranca con esto en vez de vacía.
     history: dict[str, bytearray] = {}
     emitted: dict[str, int] = {}
+    # Terminales con `persist_key` (el `claude` de cada sesión): su historial se guarda en disco y
+    # sobrevive a un reinicio del server (al relanzarse arranca con lo de antes).
+    hist_dir = root / ".ide" / "terminals"
+    saved: dict[str, int] = {}                  # tid -> `emitted` cuando se guardó
+    state = {"last_input": 0.0}
+
+    def _hist_file(key: str) -> Path:
+        return hist_dir / f"{key}.log"
+
+    def save_history() -> None:
+        for tid, t in list(terms.items()):
+            key = t.get("persist_key")
+            if not key or saved.get(tid) == emitted.get(tid):
+                continue
+            hist_dir.mkdir(parents=True, exist_ok=True)
+            _hist_file(key).write_bytes(bytes(history.get(tid, b"")))
+            saved[tid] = emitted.get(tid, 0)
 
     def _attach(tid: str, on_exit: Callable[[], None] | None = None,
                 on_output: Callable[[bytes], None] | None = None) -> None:
@@ -55,6 +76,9 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
                 while data := pty.read(tid, timeout=0.0):     # lo que quedó en el buffer
                     _emit(data)
                 pty.reap(tid)                                 # cierra el fd; el pid ya se cosechó
+                if key := terms.get(tid, {}).get("persist_key"):  # terminó solo: no es un reinicio
+                    _hist_file(key).unlink(missing_ok=True)
+                    saved.pop(tid, None)
                 loop.create_task(manager.broadcast(f"terminal.exit.{tid}", {}))
                 if on_exit is not None:
                     on_exit()
@@ -64,10 +88,15 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
     def spawn_process(cwd: Path, argv: list[str], env: dict[str, str],
                       on_exit: Callable[[], None], session_id: str | None = None,
                       on_output: Callable[[bytes], None] | None = None,
-                      on_input: Callable[[], None] | None = None) -> str:
+                      on_input: Callable[[], None] | None = None,
+                      persist_key: str | None = None) -> str:
         tid = pty.spawn(cwd, argv, env=env)
         terms[tid] = {"sessionId": session_id, "cmd": argv, "cwd": str(cwd),
-                      "on_input": on_input}
+                      "on_input": on_input, "persist_key": persist_key}
+        if persist_key and _hist_file(persist_key).is_file():   # viene de un reinicio del server
+            old = _hist_file(persist_key).read_bytes()[-REPLAY_BYTES:]
+            history[tid] = bytearray(old + RESTART_MARK)
+            emitted[tid] = len(history[tid])
         _attach(tid, on_exit, on_output)
         return tid
 
@@ -77,10 +106,14 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
                 asyncio.get_running_loop().remove_reader(pty.fd(tid))
             except (OSError, ValueError, KeyError, RuntimeError):
                 pass
+        key = terms.get(tid, {}).get("persist_key")
         pty.close(tid)
         terms.pop(tid, None)
         history.pop(tid, None)
         emitted.pop(tid, None)
+        saved.pop(tid, None)
+        if key:                                 # se paró a propósito: no es un reinicio del server
+            _hist_file(key).unlink(missing_ok=True)
 
     async def open_(payload: dict) -> dict:
         cwd = resolve_cwd(root, payload)
@@ -98,6 +131,7 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
 
     async def write_(payload: dict) -> dict:
         pty.write(payload["id"], base64.b64decode(payload["data"]))
+        state["last_input"] = time.time()
         on_input = terms.get(payload["id"], {}).get("on_input")
         if on_input is not None:
             on_input()
@@ -131,4 +165,5 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
     register._pty = pty        # type: ignore[attr-defined]
     register._terms = terms    # type: ignore[attr-defined]
     register._manager = manager  # type: ignore[attr-defined]
-    return TerminalHooks(spawn=spawn_process, kill=kill_process, write=pty.write)
+    return TerminalHooks(spawn=spawn_process, kill=kill_process, write=pty.write,
+                         last_input=lambda: state["last_input"], save_history=save_history)

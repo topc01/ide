@@ -11,6 +11,7 @@ from ide_server.pr_poller import PrPoller
 from ide_server.gh_reviews import GithubReviews
 from ide_server.gh_merge import Merger
 from ide_server.db import Db
+from ide_server.updater import Updater
 from ide_server.claude_usage import LimitsPoller
 from ide_server.sessions_fs import SessionError
 from ide_server.supervisor import ClaudeAgents, Supervisor
@@ -82,6 +83,31 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     mlx_config_cap.register(registry, root)
     models_fit_cap.register(registry, root)
 
+    updater = Updater(last_input=hooks.last_input, before_restart=hooks.save_history,
+                      notify=lambda st: manager.broadcast("server.update", st))
+
+    async def server_status(_p: dict) -> dict:
+        return updater.status()
+
+    async def server_restart(_p: dict) -> dict:
+        updater.restart_now()
+        return {"ok": True}
+
+    registry.register("server.status", server_status)
+    registry.register("server.restart", server_restart)
+
+    async def save_history_loop(stop: asyncio.Event) -> None:
+        """El historial de las terminales de `claude` se guarda seguido (sobrevive a un corte)."""
+        while not stop.is_set():
+            try:
+                await asyncio.wait_for(stop.wait(), 30)
+            except asyncio.TimeoutError:
+                pass
+            try:
+                await asyncio.to_thread(hooks.save_history)
+            except Exception:  # noqa: BLE001
+                log.exception("no se pudo guardar el historial de las terminales")
+
     stop_bg = asyncio.Event()
 
     def _log_done(t: asyncio.Task) -> None:
@@ -96,6 +122,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             asyncio.create_task(gh_reviews.run(stop_bg)),
             asyncio.create_task(limits.run(stop_bg)),
             asyncio.create_task(merger.run(stop_bg)),
+            asyncio.create_task(updater.run(stop_bg)),
+            asyncio.create_task(save_history_loop(stop_bg)),
         ]
         for t in tasks:
             t.add_done_callback(_log_done)
@@ -103,6 +131,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             yield
         finally:
             stop_bg.set()
+            try:
+                hooks.save_history()            # la pantalla de cada claude, para después del reinicio
+            except Exception:  # noqa: BLE001
+                log.exception("no se pudo guardar el historial de las terminales")
             for t in tasks:
                 t.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
@@ -110,6 +142,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
                 await mlx_router.aclose()
 
     app = FastAPI(title="Agentic IDE", lifespan=lifespan)
+    app.state.updater = updater
     app.add_middleware(
         CORSMiddleware, allow_origins=settings.cors_origins,
         allow_methods=["*"], allow_headers=["*"],

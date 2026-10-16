@@ -6,6 +6,7 @@ import socket
 import subprocess
 import sys
 import webbrowser
+from ide_server.updater import RESTART_CODE, SUPERVISED_ENV
 from pathlib import Path
 from ide_server import instances
 from ide_server.workspace import find_workspace_root
@@ -79,7 +80,7 @@ def _ensure_root(cwd: Path) -> Path:
     return root
 
 
-def _launch(root: Path, host: str, port: int, web_dir, *, open_browser: bool, serve, opener) -> None:
+def _launch(root: Path, host: str, port: int, web_dir, *, open_browser: bool, serve, opener) -> int:
     from ide_server.app import create_app
     url = f"http://{host}:{port}"
     inst_path = instances.register_instance(Path.home(), port=port, host=host,
@@ -87,10 +88,48 @@ def _launch(root: Path, host: str, port: int, web_dir, *, open_browser: bool, se
     if open_browser:
         opener(url)
     print(f"Workspace: {root}  →  {url}")
+    app = create_app(root, web_dir, server_url=url)
     try:
-        serve(create_app(root, web_dir, server_url=url), host, port)
+        serve(app, host, port)
     finally:
         instances.unregister_instance(inst_path)
+    # pidió reiniciarse (versión nueva instalada): el supervisor lo relanza
+    return RESTART_CODE if getattr(app.state, "updater", None) and app.state.updater.restart_requested else 0
+
+
+def _supervise(root: Path, port: int, *, open_browser: bool, opener) -> int:
+    """`ide run`: corre el server como hijo y lo relanza si pide reiniciarse (versión nueva) o se
+    cae. Las conversaciones de `claude` siguen vivas en su daemon y la UI se reconecta sola."""
+    import time
+    if open_browser:
+        opener(f"http://127.0.0.1:{port}")
+    env = {**os.environ, SUPERVISED_ENV: "1"}
+    argv = [sys.executable, "-m", "ide_server.cli", "run", "--cwd", str(root), "--port", str(port),
+            "--no-browser"]
+    crashes: list[float] = []
+    while True:
+        child = subprocess.Popen(argv, env=env)
+        try:
+            code = child.wait()
+        except KeyboardInterrupt:
+            child.terminate()
+            try:
+                child.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                child.kill()
+            return 0
+        if code == RESTART_CODE:
+            print("ide: versión nueva instalada, relanzando el server…", flush=True)
+            continue
+        if code == 0:
+            return 0
+        now = time.time()
+        crashes = [t for t in crashes if now - t < 300] + [now]
+        if len(crashes) > 5:
+            print(f"ide: el server se cayó {len(crashes)} veces en 5 min (código {code}); me detengo")
+            return code
+        print(f"ide: el server se cayó (código {code}); relanzando en {2 ** len(crashes)} s…", flush=True)
+        time.sleep(2 ** len(crashes))
 
 
 HELP_TEXT = """\
@@ -171,6 +210,8 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--dev", action="store_true")
     parser.add_argument("--port", type=int, default=None)
+    parser.add_argument("--no-supervise", action="store_true",
+                        help="sin supervisor: no se relanza solo al instalar una versión nueva")
     args = parser.parse_args(argv)
     cwd = Path(args.cwd).resolve()
 
@@ -226,12 +267,17 @@ def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner
             print("dev: levanta la UI aparte con `ide ui --dev` (Vite en http://localhost:5173)")
         else:
             port = args.port if args.port is not None else find_free_port(host, settings.port)
-        _launch(root, host, port, web_dir, open_browser=False, serve=serve, opener=opener)
-        return 0
+        return _launch(root, host, port, web_dir, open_browser=False, serve=serve, opener=opener)
 
     # command == "run"
     if web_dir is None:
         print("frontend no buildeado; ejecuta `ide build` (o `npm run build` en ui/).")
     port = args.port if args.port is not None else find_free_port(host, settings.port)
-    _launch(root, host, port, web_dir, open_browser=not args.no_browser, serve=serve, opener=opener)
-    return 0
+    if os.environ.get(SUPERVISED_ENV) == "1" or args.no_supervise:
+        return _launch(root, host, port, web_dir, open_browser=not args.no_browser, serve=serve,
+                       opener=opener)
+    return _supervise(root, port, open_browser=not args.no_browser, opener=opener)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

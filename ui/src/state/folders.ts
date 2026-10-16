@@ -4,6 +4,17 @@ import { useSessions } from "./sessions";
 
 export interface ScriptTab { terminalId: string; label: string; }
 const GROUP_KEY = "ide.groupBy";
+const DEV_KEY = "ide.desarrollo";             // desarrollo abierto: sobrevive a recargas/reinicios
+
+function readDev(): { activeId: string | null; activePrUrl: string | null } {
+  try {
+    const v = JSON.parse(localStorage.getItem(DEV_KEY) ?? "null");
+    return { activeId: v?.activeId ?? null, activePrUrl: v?.activePrUrl ?? null };
+  } catch { return { activeId: null, activePrUrl: null }; }
+}
+function saveDev(activeId: string | null, activePrUrl: string | null) {
+  try { localStorage.setItem(DEV_KEY, JSON.stringify({ activeId, activePrUrl })); } catch { /* solo memoria */ }
+}
 
 function readGroupBy(): string {
   try { return localStorage.getItem(GROUP_KEY) ?? "none"; } catch { return "none"; }
@@ -24,12 +35,14 @@ interface State {
 }
 
 export const useFolders = create<State>((set) => ({
-  tree: { sessions: [], workspaceRepos: [], scripts: {} }, connected: true, activeId: null, activePrUrl: null,
+  tree: { sessions: [], workspaceRepos: [], scripts: {} }, connected: true, ...readDev(),
   groupBy: readGroupBy(), modal: null, uiModules: null, scriptTabs: {},
   setTree: (tree) => set({ tree, connected: true }),
   setConnected: (connected) => set({ connected }),
-  setActive: (activeId) => { useSessions.getState().setActive(activeId); set({ activeId, activePrUrl: null }); },
-  setActivePr: (activePrUrl) => set({ activePrUrl }),
+  setActive: (activeId) => {
+    useSessions.getState().setActive(activeId); set({ activeId, activePrUrl: null }); saveDev(activeId, null);
+  },
+  setActivePr: (activePrUrl) => set((s) => { saveDev(s.activeId, activePrUrl); return { activePrUrl }; }),
   setGroupBy: (groupBy) => {
     try { localStorage.setItem(GROUP_KEY, groupBy); } catch { /* storage bloqueado: solo memoria */ }
     set({ groupBy });

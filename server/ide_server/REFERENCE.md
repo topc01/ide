@@ -22,6 +22,7 @@ Requisitos de runtime: `claude` (logueado), `git`, `gh` (solo para revisiones de
 ide init            # crea .ide/ en el directorio actual (lo hace solo `ide run` si falta)
 ide run             # levanta server + UI en http://127.0.0.1:8787 (o el siguiente puerto libre)
 ide run --no-browser --port 8790
+ide run --no-supervise   # sin supervisor (no se relanza solo con versiones nuevas)
 ide ls              # instancias corriendo (url, workspace, pid)
 ide docs            # esta referencia
 ```
@@ -30,6 +31,17 @@ El **workspace** es el directorio que contiene `.ide/` y los repos (cada subdire
 es un repo del workspace). `ide` lo encuentra subiendo desde el cwd hasta el primer `.ide/` (o por
 la env `IDE_WORKSPACE`). **Ojo:** correrlo desde un directorio sin `.ide/` propio puede encontrar
 uno viejo más arriba (ej. `~/.ide`).
+
+**Auto-actualización:** `ide run` es un supervisor: corre el server como proceso hijo y lo relanza
+en el mismo puerto si se cae o si se instala una versión nueva del IDE (`uv tool install
+--reinstall`). El server vigila la huella de su código instalado; al cambiar avisa en la barra
+inferior ("versión nueva: se reinicia cuando dejes de escribir", con **reiniciar ahora**) y se
+reinicia cuando nadie tecleó en una terminal por 60 s. Las conversaciones de `claude` siguen vivas
+en su daemon (se reenganchan al abrir la sesión); la pantalla de cada `claude` se guarda en
+`.ide/terminals/claude-<sesión>.log` (cada 30 s y al cerrar) y al volver se muestra con una marca
+de reinicio; la página espera a que el server vuelva y se recarga sola (recuerda el desarrollo
+abierto). `ide run --no-supervise` corre sin supervisor (sin auto-actualización); `ide server`
+tampoco usa supervisor.
 
 Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`). Plantillas,
 `sessions/CLAUDE.md`, scripts y perfiles de permisos se leen **en cada uso** (sin reiniciar).
@@ -425,7 +437,8 @@ snake_case: `id`, `notion`, `main`, `template`, `vars`, `prompt`, `title`, `perm
 409/400/500 con `{code, message}`.
 
 WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|archive|script|doc|refreshReview|repoRm`,
-`ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `terminal.replay` (`{id}` → `{data, end}`), `reviews.github`
+`ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `terminal.replay` (`{id}` → `{data, end}`),
+`server.status` (`{pending, supervised, idleBefore}`), `server.restart`; evento `server.update`, `reviews.github`
 (`{pending, changesRequested, mine: {returned, waiting, missing, draft, approved}` (cada PR con `deps`, `depsPending`), stacks: {<id>: [pr…]}, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.merge` / `reviews.mergeRetry` (`{url}`), `reviews.discussion` (`{url}`), `reviews.start` (`{url}` → `{id, created,
 process}`), `usage.get` (`{sessionId}` → `{context, limits}`), `terminal.*`; eventos
 `sessions.changed` (mismo payload que `sessions.tree`) y `reviews.github`.
