@@ -166,15 +166,15 @@ class Merger:
         return self.public()[url]
 
     def _start(self, url: str) -> None:
-        """Rebase + push; después espera el CI (nativo) o arma `gh pr merge --auto` (no nativo)."""
+        """Rebase + push; después el vigilante espera el CI y pide el merge."""
         j = self.jobs[url]
         try:
             with self._lock(j["repo"]):
                 wt = self._wt(j["repo"], j.get("full_repo"))
                 old, new = self._rebase(wt, j["head"], f"origin/{j['base']}")
-                if not j.get("native"):
-                    _check(_run(["gh", "pr", "merge", url, "--squash", "--auto"], wt), "gh pr merge --auto")
-            self._update(url, old_sha=old, head_sha=new, state="waiting_ci" if j.get("native") else "waiting")
+            # sin `gh pr merge --auto`: justo después del push GitHub todavía calcula si es mergeable
+            # y lo rechaza. El IDE espera el CI y recién ahí pide el merge (igual para todas).
+            self._update(url, old_sha=old, head_sha=new, state="waiting_ci")
         except SessionError as exc:
             self._update(url, state="error", error=str(exc))
         except Exception as exc:  # noqa: BLE001 — queda en la card, nunca silencioso
@@ -197,7 +197,7 @@ class Merger:
         return {**data, "ci": ci}
 
     def _merge_async(self, url: str, j: dict, head_sha: str) -> None:
-        """Stack nativo: `PUT .../merge-async` (squash) con el CI ya en verde."""
+        """`PUT .../merge-async` (squash) con el CI ya en verde (obligatorio para stacks nativos)."""
         out = _run(["gh", "api", "-X", "PUT", f"repos/{j['full_repo']}/pulls/{j['number']}/merge-async",
                     "-f", "merge_method=squash", "-f", f"sha={head_sha}"])
         try:
@@ -206,7 +206,7 @@ class Merger:
             res = {}
         status, details = res.get("status"), res.get("details") or {}
         if status == "merged":
-            self._update(url, state="done", merged=True, merged_at=datetime.now().isoformat(timespec="seconds"))
+            self._merged(url)
         elif status in ("pending", "enqueued") or details.get("uuid"):
             self._update(url, state="merging", uuid=details.get("uuid"))
         else:
@@ -255,6 +255,14 @@ class Merger:
             return
         self._update(url, state="done", merged_at=datetime.now().isoformat(timespec="seconds"))
 
+    def _merged(self, url: str) -> None:
+        """GitHub ya la mergeó: si el stack es nativo GitHub mueve las de arriba; si no, el IDE."""
+        if self.jobs[url].get("native") or not self.jobs[url].get("above"):
+            self._update(url, state="done", merged=True,
+                         merged_at=datetime.now().isoformat(timespec="seconds"))
+        else:
+            self._restack(url)
+
     def _step(self, url: str, j: dict) -> bool:
         """Avanza un trabajo un paso. Devuelve si cambió algo."""
         state = j.get("state")
@@ -273,14 +281,14 @@ class Merger:
         if state == "waiting_ci":               # nativo: el IDE espera el CI y pide el merge
             st = self._pr_status(url)
             if st["state"] == "MERGED":
-                self._update(url, state="done", merged=True, merged_at=datetime.now().isoformat(timespec="seconds"))
+                self._merged(url)
             elif st["state"] == "CLOSED":
                 self._update(url, state="error", error="la PR se cerró sin mergear")
             elif st.get("mergeable") == "CONFLICTING":
                 self._update(url, state="error", error=f"conflicto con {j['base']}: resuélvelo y reintenta")
             elif st["ci"] == "failure":
                 self._update(url, state="error", error="el CI falló: arréglalo y reintenta")
-            elif st["ci"] == "success":
+            elif st["ci"] == "success" and st.get("mergeable") == "MERGEABLE":
                 self._merge_async(url, j, st["headRefOid"])
             else:
                 return False
@@ -295,7 +303,7 @@ class Merger:
                     return True
             st = self._pr_status(url)
             if st["state"] == "MERGED":
-                self._update(url, state="done", merged=True, merged_at=datetime.now().isoformat(timespec="seconds"))
+                self._merged(url)
                 return True
             return False
         if state == "restacking":               # no nativo, quedó a medias: seguir

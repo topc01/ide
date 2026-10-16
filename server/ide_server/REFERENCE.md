@@ -279,16 +279,16 @@ bloquea: valida, cierra el diálogo y sigue en segundo plano; la card muestra el
 mergeada (24 h, en el grupo **Merges** de Mis PRs cuando ya no está abierta).
 1. En un worktree propio por repo (`.ide/worktrees/_merge/<repo>`, detached) rebasea la rama
    sobre `origin/<base>` y la empuja con `--force-with-lease` (si hay conflicto aborta: `conflict`).
-2. **Stack nativo de GitHub** (la PR trae `stack`): el IDE espera a que el CI pase (cada 30 s) y
-   recién ahí pide `PUT /repos/{o}/{r}/pulls/{n}/merge-async` (squash; único endpoint que GitHub
-   acepta para PRs de stacks); GitHub rebasea y re-apunta solo las de arriba. Si el CI falla o hay
-   conflicto, error.
-   **Sin stack nativo**: `gh pr merge --squash --auto` (GitHub mergea cuando pasa el CI) y, cuando
-   se mergea, el IDE restackea las de arriba en orden: cada una `git rebase --onto <nueva madre>
-   <sha viejo de la madre>` + push `--force-with-lease`; la de encima pasa a apuntar a la base
-   (`gh pr edit --base`); después borra la rama mergeada. Solo se reescriben PRs tuyas y no de
-   forks: las ajenas (y las que estén encima) quedan sin tocar, la card lo marca como error y la
-   rama mergeada no se borra (GitHub cerraría las que la apuntan).
+2. El IDE espera (cada 30 s) a que el CI pase y la PR sea mergeable, y recién ahí pide
+   `PUT /repos/{o}/{r}/pulls/{n}/merge-async` (squash). Es el único endpoint que GitHub acepta para
+   PRs de stacks nativos, y evita `gh pr merge --auto` (que justo después del push falla con "not
+   mergeable" porque GitHub todavía está calculando). Si el CI falla o hay conflicto, error.
+3. Ya mergeada: si la PR está en un **stack nativo** (trae `stack`), GitHub rebasea y re-apunta
+   solo las de arriba. Si no, el IDE restackea las de arriba en orden: cada una `git rebase --onto
+   <nueva madre> <sha viejo de la madre>` + push `--force-with-lease`; la de encima pasa a apuntar
+   a la base (`gh pr edit --base`); después borra la rama mergeada. Solo se reescriben PRs tuyas y
+   no de forks: las ajenas (y las que estén encima) quedan sin tocar, la card lo marca como error y
+   la rama mergeada no se borra (GitHub cerraría las que la apuntan).
 Los trabajos viven en `.ide/merges.json` (sobreviven reinicios; un rebase cortado por un reinicio
 queda en error para reintentar). Errores: `not_bottom`, `not_approved`, `ci_failed`,
 `merge_pending`, `conflict`, `merge_failed`, `unknown_pr`, `no_merge`.
