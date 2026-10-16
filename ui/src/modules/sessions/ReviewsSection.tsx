@@ -12,7 +12,7 @@ import { Badge } from "../../components/ui/badge";
 import { SessionItem } from "./SessionItem";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
-import { CardShell, DepsLine, devTone, repoShort } from "./DevCard";
+import { CardShell, DepsPause, devTone, repoShort } from "./DevCard";
 import { cn } from "../../lib/utils";
 import { PersonChip } from "../../lib/people";
 import { usePersistentOpen } from "../../lib/persist";
@@ -176,6 +176,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
           <span className="font-mono text-[11px] font-bold tracking-wide">{repoShort(pr.repo)} #{pr.number}</span>
           {showAuthor && <PersonChip login={pr.author} title={`autor: ${pr.author}`} />}
           <span className="flex-1" />
+          <DepsPause pr={pr} />
           <QueueItemActions className="ml-0">
             {reviewable && <ReviewButton pr={pr} />}
             {merge && canMerge(pr) && !(merge.job && MERGE_ACTIVE.includes(merge.job.state))
@@ -189,7 +190,6 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
         <CardMeta>
           {pr.draft && <span>draft</span>}
           {pr.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
-          <DepsLine pr={pr} />
           {merge && <MergeStatus url={pr.url} job={merge.job} />}
           {showReviewers && pr.reviewers?.map((r) => <ReviewerChip key={r.login} login={r.login} state={r.state} />)}
         </CardMeta>

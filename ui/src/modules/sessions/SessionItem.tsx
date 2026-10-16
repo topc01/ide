@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Archive, ExternalLink, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta } from "./ReviewsSection";
-import { CardShell, DepsLine, devTone, repoShort } from "./DevCard";
+import { CardShell, DepsPause, devTone, repoShort } from "./DevCard";
 import { PersonChip } from "../../lib/people";
 import { stopSession } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
@@ -42,6 +42,7 @@ export function SessionItem({ session, actions, pr, onlyActions = false }:
             {pr ? `${repoShort(pr.repo)} #${pr.number}` : prLabel(session.prUrl) ?? session.id}</span>
           {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
           <span className="flex-1" />
+          <DepsPause pr={pr} />
           {(session.error || session.launchError) && (
             <span title={session.error ?? session.launchError ?? ""} className="text-destructive">⚠</span>)}
           {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
@@ -72,7 +73,6 @@ export function SessionItem({ session, actions, pr, onlyActions = false }:
         <div className="mt-0.5 line-clamp-2 leading-snug" title={session.title ?? session.id}>{session.title ?? session.id}</div>
         <CardMeta>
           {pr?.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
-          <DepsLine pr={pr} />
           {session.prState === "stale" && <span className="text-sky-400"
             title="El PR tiene commits nuevos desde tu revisión: abre la sesión y toca Refrescar">⟳ commits nuevos desde tu revisión</span>}
           {session.prState === "closed" && <span>PR cerrada</span>}

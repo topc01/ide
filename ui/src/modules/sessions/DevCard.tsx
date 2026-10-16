@@ -1,5 +1,6 @@
 // ui/src/modules/sessions/DevCard.tsx
 import type { ReactNode } from "react";
+import { Pause } from "lucide-react";
 import type { GhPr, MergeJob } from "../../transport/folderSessions";
 import { cn } from "../../lib/utils";
 
@@ -7,7 +8,7 @@ import { cn } from "../../lib/utils";
 export interface Tone {
   bg: "approved" | "changes" | "review" | "merged" | null;
   blocked: boolean;                 // aprobada pero bloqueada (dependencias o no es la de abajo)
-  border: "ci-running" | "ci-failed" | "merging" | "blocked" | null;
+  border: "ci-running" | "ci-failed" | "merging" | null;
   label: string;                    // lo mismo en palabras (tooltip)
 }
 
@@ -34,7 +35,6 @@ export function devTone(pr?: GhPr, job?: MergeJob, opts: { merged?: boolean; sta
   else if (pr?.ci === "failure") { border = "ci-failed"; words.push(pr.conflict ? "conflicto con la base" : "CI falló"); }
   else if (pr?.ci === "pending") { border = "ci-running"; words.push("CI corriendo"); }
   else if (pr?.ci === "success") words.push("CI ✓");
-  if (!border && blocked) border = "blocked";
   if (job?.state === "error") words.push(`error al mergear: ${job.error ?? ""}`);
   return { bg, blocked, border, label: words.filter(Boolean).join(" · ") };
 }
@@ -44,9 +44,7 @@ const BG: Record<NonNullable<Tone["bg"]>, string> = {
   review: "bg-sky-500/[0.07]", merged: "bg-purple-500/[0.09]",
 };
 const SPIN: Record<string, string> = { "ci-running": "#fbbf24", merging: "#a855f7" };
-// bordes fijos (2 px): rojo CI falló; café bloqueada (no se confunde con el amarillo de cambios
-// pedidos, que es de fondo, ni con el amarillo que gira del CI corriendo)
-const FIXED: Record<string, string> = { "ci-failed": "bg-red-500", blocked: "bg-[#a0522d]" };
+const FIXED: Record<string, string> = { "ci-failed": "bg-red-500" };   // borde fijo (2 px)
 
 /** Cascarón de las cards de la sidebar (sesiones y PRs): fondo = review, borde = CI/merge,
  *  contorno claro = seleccionada. */
@@ -80,10 +78,15 @@ export function CardShell({ tone, selected, dashed, onClick, children }:
 /** "finnecto-api" → "API" (el repo tiene que leerse de un vistazo). */
 export const repoShort = (repo: string | null | undefined) => (repo ?? "").replace(/^finnecto-/, "").toUpperCase();
 
-/** Dependencias pendientes como "N dependencias" (el detalle está en el módulo Dependencias). */
-export function DepsLine({ pr }: { pr?: GhPr }) {
-  const n = pr?.depsPending ?? 0;
-  if (!n) return null;
-  return <span className="text-amber-300" title="Falta mergear estas PRs antes: ver el módulo Dependencias">
-    {n} dependencia{n > 1 ? "s" : ""}</span>;
+/** ⏸ N en la esquina de la card: N dependencias sin mergear (el detalle, en el módulo Dependencias). */
+export function DepsPause({ pr }: { pr?: GhPr }) {
+  const pending = (pr?.deps ?? []).filter((d) => d.state !== "MERGED" && !d.together);
+  if (!pending.length) return null;
+  const names = pending.map((d) => `${(d.repo ?? "").replace(/^finnecto-/, "")}#${d.number}`).join(", ");
+  return (
+    <span title={`Esperando ${pending.length} dependencia${pending.length > 1 ? "s" : ""} sin mergear: ${names}`}
+      className="flex shrink-0 items-center gap-0.5 rounded bg-amber-400/15 px-1 font-mono text-[11px] font-bold text-amber-300">
+      <Pause size={11} strokeWidth={3} />{pending.length}
+    </span>
+  );
 }

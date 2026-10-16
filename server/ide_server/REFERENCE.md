@@ -380,13 +380,13 @@ resincronización completa cada 30 min y al arrancar. Miembros de la org: una ve
 
 **Cards de la sidebar** (sesiones y PRs, mismo cascarón): arriba **repo y número** (`API #4581`,
 en negrita; en Revisiones el autor como chip; ● ○ = `claude` corriendo/parado), después el título
-y una línea de detalle (posición en el stack `◫ 2/4`, "N dependencias" pendientes, "⟳ commits
+y una línea de detalle (posición en el stack `◫ 2/4`, "⟳ commits
 nuevos desde tu revisión", estado del merge; en Mis PRs, los revisores como chips con su estado:
 ✓ aprobó, ✗ pidió cambios, ◌ pendiente). Cada persona tiene siempre el mismo color de chip (también
 en los chips de conteo de Revisiones). **Fondo** tenue = review: verde aprobada, amarillo cambios
-pedidos, azul esperando revisor, morado mergeada. **Borde** (2 px) = CI/merge/bloqueo, en este
-orden: morado girando mergeando, rojo CI falló o conflicto, amarillo girando CI corriendo, café
-aprobada pero bloqueada (dependencias pendientes o no es la de abajo de su stack). La seleccionada
+pedidos, azul esperando revisor, morado mergeada. **Borde** (2 px) = CI/merge, en este orden:
+morado girando mergeando, rojo CI falló o conflicto, amarillo girando CI corriendo. **⏸ N** en la
+esquina superior derecha: N dependencias sin mergear (al pasar el mouse, cuáles). La seleccionada
 lleva un contorno claro. Al pasar el mouse, el estado en palabras.
 
 **Módulo Dependencias** (menú de acciones, id `deps`): para las PRs del desarrollo actual, de qué
