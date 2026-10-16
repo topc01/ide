@@ -123,6 +123,15 @@ class Db:
     def dev_names(self) -> dict[str, str]:
         return self.with_prefix("devname:")
 
+    def hidden_devs(self) -> list[str]:
+        return sorted(self.with_prefix("devhidden:"))
+
+    def set_dev_hidden(self, key: str, hidden: bool) -> None:
+        if hidden:
+            self.set(f"devhidden:{key}", True)
+        else:
+            self.delete(f"devhidden:{key}")
+
     def set_dev_name(self, key: str, name: str | None) -> None:
         if name:
             self.set(f"devname:{key}", name)

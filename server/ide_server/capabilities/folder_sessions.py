@@ -55,6 +55,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                           **derived.get(s["id"], {})})
         repos = discover_repos(root)
         return {"sessions": sessions, "workspaceRepos": repos, "devNames": db.dev_names() if db else {},
+                "devHidden": db.hidden_devs() if db else [],
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
 
     async def tree_payload() -> dict:
@@ -222,6 +223,19 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"ok": True}
 
+    async def dev_hide(p: dict) -> dict:
+        """Ocultar/mostrar un desarrollo en Mis desarrollos (va al grupo "Ocultos"; solo el IDE)."""
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        key = p.get("key")
+        if not isinstance(key, str) or not re.match(r"^(s|st|p):.{1,300}$", key):
+            raise SessionError("bad_request", f"clave de desarrollo inválida: {key!r}")
+        db.set_dev_hidden(key, bool(p.get("hidden")))
+        db.event(datetime.now().isoformat(timespec="seconds"), "ide", "hidden" if p.get("hidden") else "shown",
+                 dev=key[2:] if key.startswith("s:") else None, data={"key": key})
+        notify()
+        return {"ok": True}
+
     async def _sessions_now() -> list[dict]:
         return (await tree_payload())["sessions"]
 
@@ -292,7 +306,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
-        "dev.status": dev_status, "dev.rename": dev_rename, "dev.list": dev_list, "dev.show": dev_show,
+        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,

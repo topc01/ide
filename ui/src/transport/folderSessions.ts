@@ -19,7 +19,11 @@ export interface ScriptInfo { name: string; executable: boolean; }
 export interface SessionsTree {
   sessions: FolderSession[]; workspaceRepos: Repo[]; scripts: Record<string, ScriptInfo[]>;
   devNames?: Record<string, string>;    // nombre puesto en el IDE, por clave de desarrollo (s:/st:/p:)
+  devHidden?: string[];                 // desarrollos ocultos en Mis desarrollos (grupo "Ocultos")
 }
+/** Ocultar / volver a mostrar un desarrollo en Mis desarrollos (solo el IDE). */
+export const hideDev = (ws: WsClient, key: string, hidden: boolean): Promise<{ ok: boolean }> =>
+  ws.request("dev.hide", { key, hidden });
 /** Nombre del desarrollo solo para el IDE; `name` vacío = volver al original. */
 export const renameDev = (ws: WsClient, key: string, name: string): Promise<{ ok: boolean }> =>
   ws.request("dev.rename", { key, name });

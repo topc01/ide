@@ -165,10 +165,11 @@ function OpenPrButton({ pr }: { pr: GhPr }) {
 
 /** PR de GitHub sin sesión. Click = seleccionarla (o abrirla, según la sección); botones en hover.
  *  `showAuthor`: en Revisiones (de quién es); `showReviewers`: en Mis PRs (quién la revisa). */
-/** `devKey`: la PR es un desarrollo (Mis desarrollos): su título se puede renombrar. */
-export function PrCard({ pr, reviewable = false, openOnClick = false, merge, showAuthor = false, showReviewers = false, devKey }:
+/** `devKey`: la PR es un desarrollo (Mis desarrollos): su título se puede renombrar. `extraActions`:
+ *  más acciones de hover (p.ej. ocultar). */
+export function PrCard({ pr, reviewable = false, openOnClick = false, merge, showAuthor = false, showReviewers = false, devKey, extraActions }:
   { pr: GhPr; reviewable?: boolean; openOnClick?: boolean; merge?: { job?: MergeJob; above: number };
-    showAuthor?: boolean; showReviewers?: boolean; devKey?: string }) {
+    showAuthor?: boolean; showReviewers?: boolean; devKey?: string; extraActions?: React.ReactNode }) {
   const active = useFolders((s) => s.activePrUrl === pr.url);
   const setActivePr = useFolders((s) => s.setActivePr);
   const tone = devTone(pr, merge?.job);
@@ -182,6 +183,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
           <CiMark pr={pr} />
           <QueueItemActions className="ml-0">
             {reviewable && <ReviewButton pr={pr} />}
+            {extraActions}
             {merge && canMerge(pr) && !(merge.job && MERGE_ACTIVE.includes(merge.job.state))
               && merge.job?.state !== "done" && <MergeButton pr={pr} above={merge.above} />}
             {merge?.job?.state === "done" && (

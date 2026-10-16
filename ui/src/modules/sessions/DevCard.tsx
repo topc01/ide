@@ -1,11 +1,12 @@
 // ui/src/modules/sessions/DevCard.tsx
 import { useState, type ReactNode } from "react";
-import { Pause, Pencil } from "lucide-react";
-import { renameDev, type GhPr, type MergeJob } from "../../transport/folderSessions";
+import { Eye, EyeOff, Pause, Pencil } from "lucide-react";
+import { hideDev, renameDev, type GhPr, type MergeJob } from "../../transport/folderSessions";
+import { QueueItemAction } from "../../components/ai-elements/queue";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
-import { devName } from "./desarrollos";
+import { devName, isHidden } from "./desarrollos";
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
 export interface Tone {
@@ -134,4 +135,16 @@ export function RepoChips({ repos }: { repos: string[] }) {
   return <span className="flex min-w-0 items-center gap-1 font-mono text-[11px] font-bold tracking-wide">
     {repos.map((r, i) => <span key={r} className="flex items-center gap-1">
       {i > 0 && <span className="font-normal text-muted-foreground">·</span>}{repoShort(r)}</span>)}</span>;
+}
+
+/** Ocultar / mostrar un desarrollo en Mis desarrollos (acción de hover de la card). */
+export function HideToggle({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
+  const hidden = useFolders((s) => s.tree.devHidden);
+  const marked = isHidden(hidden, devKey, prs);
+  const label = marked ? "Volver a mostrar en Mis desarrollos" : "Ocultar (pasa al grupo Ocultos de Mis desarrollos)";
+  return (
+    <QueueItemAction aria-label={label} title={label}
+      onClick={(e) => { e.stopPropagation(); hideDev(getWs(), marked ?? devKey, !marked).catch(() => {}); }}>
+      {marked ? <Eye size={11} /> : <EyeOff size={11} />}
+    </QueueItemAction>);
 }

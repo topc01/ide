@@ -507,6 +507,11 @@ la base (`kv`, clave `devname:<s:sesión | st:stack | p:url>`); si una PR o stac
 tener sesión, la sesión lo hereda. Lo muestran las cards, el selector de desarrollo (y su búsqueda) e
 `ide dev ls`/`show` (campo `name`). Canal `dev.rename {key, name}`; `sessions.tree` trae `devNames`.
 
+**Ocultar un desarrollo:** el ojo tachado (hover de la card en Mis desarrollos) lo pasa al grupo
+**Ocultos**, al final de la sección y cerrado de entrada (no cuenta en el total); ahí el ojo lo vuelve
+a mostrar. Solo el IDE (base, `kv` `devhidden:<clave>`; misma herencia de clave que el nombre). Los
+merges recientes no se ocultan. Canal `dev.hide {key, hidden}`; `sessions.tree` trae `devHidden`.
+
 **Secciones Revisiones y Mis desarrollos** (misma estructura): título colapsable con el total, grupos
 colapsables y la misma card. El ⚙ de cada sección (y el de la sidebar principal, para Mis desarrollos)
 abre el **módulo Configuración** (id `config`; cada sección es una card colapsable, recordada) en esa sección: **agrupar por** estado, repo, stack

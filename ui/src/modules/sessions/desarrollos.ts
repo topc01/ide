@@ -46,6 +46,17 @@ export function worstPr(prs: GhPr[]): { review?: GhPr; ci?: GhPr } {
   return { review: [...prs].sort((a, b) => rv(a) - rv(b))[0], ci: [...prs].sort((a, b) => ci(a) - ci(b))[0] };
 }
 
+/** Claves con las que se pudo marcar un desarrollo: la suya y, si cambió de clave (una PR que ahora
+ *  tiene sesión), las de su stack y sus PRs. */
+export function devKeys(key: string, prs: GhPr[] = []): string[] {
+  return [key, ...prs.flatMap((p) => [...(p.stack ? [`st:${p.stack.id}`] : []), `p:${p.url}`])];
+}
+/** ¿Está oculto? (marcado con su clave o con la de su stack/PRs). */
+export function isHidden(hidden: string[] | undefined, key: string, prs: GhPr[] = []): string | null {
+  if (!hidden?.length) return null;
+  return devKeys(key, prs).find((k) => hidden.includes(k)) ?? null;
+}
+
 /** Nombre puesto en el IDE; si el desarrollo cambió de clave (la PR ahora tiene sesión), el de su stack o PRs. */
 export function devName(names: Record<string, string> | undefined, key: string, prs: GhPr[] = []): string | null {
   if (!names) return null;

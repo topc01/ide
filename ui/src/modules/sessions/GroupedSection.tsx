@@ -76,9 +76,10 @@ export function ConfigButton({ id, title }: { id: string; title: string }) {
 
 /** Sección de la sidebar (Revisiones, Mis PRs): título colapsable con total, "agrupar por",
  *  grupos colapsables (recordados) y la misma card para todo. */
-export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, beforeGroups, status }:
+/** `hidden`: entradas ocultas; van aparte, en un grupo "Ocultos" al final (cerrado de entrada). */
+export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, beforeGroups, status, hidden = [] }:
   { id: string; title: string; entries: Entry[]; statuses: [string, string][];
-    gh: GithubReviews | null; headerExtra?: ReactNode; beforeGroups?: ReactNode; status?: ReactNode }) {
+    gh: GithubReviews | null; headerExtra?: ReactNode; beforeGroups?: ReactNode; status?: ReactNode; hidden?: Entry[] }) {
   const [open, setOpen] = usePersistentOpen(id);
   const by = useSidebarConfig((s) => s.groupBy[id] ?? "status");
   const groups = groupsOf(entries, by, statuses, gh);
@@ -106,6 +107,13 @@ export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, 
             </QueueSectionTrigger>
             <QueueSectionContent><QueueList>{g.items.map((e) => <div key={e.key}>{e.render()}</div>)}</QueueList></QueueSectionContent>
           </QueueSection>))}
+        {hidden.length > 0 && (
+          <QueueSection defaultOpen={false} persistKey={`${id}.hidden`} className="mt-1 opacity-70">
+            <QueueSectionTrigger title="Desarrollos ocultos (el ojo de cada card los vuelve a mostrar)">
+              <QueueSectionLabel label="Ocultos" count={hidden.length} />
+            </QueueSectionTrigger>
+            <QueueSectionContent><QueueList>{hidden.map((e) => <div key={e.key}>{e.render()}</div>)}</QueueList></QueueSectionContent>
+          </QueueSection>)}
       </Collapsible.Content>
     </Collapsible.Root>
   );

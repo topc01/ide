@@ -3,13 +3,13 @@ import { ExternalLink } from "lucide-react";
 import { useFolders } from "../../state/folders";
 import { useDevTabs } from "../../state/devTabs";
 import type { FolderSession, GhPr, MergeJob } from "../../transport/folderSessions";
-import { QueueItem, QueueItemAction } from "../../components/ai-elements/queue";
-import { CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort } from "./DevCard";
+import { QueueItem, QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
+import { CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort } from "./DevCard";
 import { CiMark, PrCard, useGithubReviews } from "./ReviewsSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
 import { SessionItem } from "./SessionItem";
 import { GroupedSection, type Entry } from "./GroupedSection";
-import { deriveMine, type Desarrollo } from "./desarrollos";
+import { deriveMine, isHidden, type Desarrollo } from "./desarrollos";
 import { cn } from "../../lib/utils";
 
 const DOT: Record<string, string> = {
@@ -61,6 +61,7 @@ function StackCard({ d }: { d: Desarrollo }) {
       }}>
         <div className="flex items-start gap-1.5">
           <DevTitle devKey={d.key} prs={d.prs} original={bottom.title} />
+          <QueueItemActions className="ml-0"><HideToggle devKey={d.key} prs={d.prs} /></QueueItemActions>
         </div>
         <div className="mt-1 flex items-center gap-1">
           <RefChip repo={bottom.repo} />
@@ -83,17 +84,20 @@ const STATUSES: [string, string][] = [
 export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
   const { gh, error } = useGithubReviews();
   const devs = deriveMine(tickets, gh);
+  const hiddenKeys = useFolders((s) => s.tree.devHidden);
   const ghError = error ?? gh?.error;
-  const entries: Entry[] = devs.map((d) => ({
+  const all: (Entry & { hidden: boolean })[] = devs.map((d) => ({
     key: d.key, pr: d.prs[0], session: d.session, status: d.status,
-    render: () => d.session ? <SessionItem session={d.session} prs={d.prs} />
+    hidden: d.status !== "merges" && !!isHidden(hiddenKeys, d.key, d.prs),
+    render: () => d.session ? <SessionItem session={d.session} prs={d.prs} actions={<HideToggle devKey={d.key} prs={d.prs} />} />
       : d.prs.length > 1 ? <StackCard d={d} />
-      : <PrCard pr={d.prs[0]} devKey={d.key} showReviewers merge={{
+      : <PrCard pr={d.prs[0]} devKey={d.key} showReviewers extraActions={<HideToggle devKey={d.key} prs={d.prs} />} merge={{
           job: d.job ?? gh?.merges?.[d.prs[0].url],
           above: d.prs[0].stack ? d.prs[0].stack.size - d.prs[0].stack.position : 0 }} />,
   }));
   return (
-    <GroupedSection id="mine" title="Mis desarrollos" entries={entries} gh={gh}
+    <GroupedSection id="mine" title="Mis desarrollos" entries={all.filter((e) => !e.hidden)}
+      hidden={all.filter((e) => e.hidden)} gh={gh}
       statuses={STATUSES.filter(([k]) => k !== "merges" || devs.some((d) => d.status === "merges"))}
       status={<>
         {ghError && <span role="alert" className="truncate text-[10px] text-destructive"
