@@ -1,6 +1,7 @@
 // ui/src/modules/sessions/MyDevsSection.tsx
 import { ExternalLink } from "lucide-react";
 import { useFolders } from "../../state/folders";
+import { useDevTabs } from "../../state/devTabs";
 import type { FolderSession, GhPr, MergeJob } from "../../transport/folderSessions";
 import { QueueItem, QueueItemAction } from "../../components/ai-elements/queue";
 import { CardShell, DepsPause, devTone, repoShort } from "./DevCard";
@@ -52,7 +53,12 @@ function StackCard({ d }: { d: Desarrollo }) {
   const tone = devTone(bottom, gh?.merges?.[bottom.url]);
   return (
     <QueueItem className="px-2 py-1">
-      <CardShell tone={tone} selected={d.prs.some((p) => p.url === activePrUrl)} dashed onClick={() => setActivePr(bottom.url)}>
+      <CardShell tone={tone} selected={d.prs.some((p) => p.url === activePrUrl)} dashed onClick={() => {
+        // volver al stack como lo dejaste: la PR de la tab activa (si no, la de abajo)
+        const t = useDevTabs.getState().byDev[`st:${bottom.stack?.id}`];
+        const last = t?.tabs.find((x) => x.id === t.active)?.url;
+        setActivePr(last && d.prs.some((p) => p.url === last) ? last : bottom.url);
+      }}>
         <div className="flex items-center gap-1.5">
           <span className="font-mono text-[11px] font-bold tracking-wide">{repoShort(bottom.repo)}</span>
           <span className="text-[11px] text-muted-foreground">stack de {d.prs.length}</span>

@@ -11,12 +11,14 @@ import { allPrs, CiMark, DepsList, ReviewerChips, StackBadge, useGithubReviews }
 export function PrView({ url }: { url: string }) {
   const { gh } = useGithubReviews();
   const setActive = useFolders((s) => s.setActive);
+  const sessions = useFolders((s) => s.tree.sessions);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const pr = gh ? allPrs(gh).find((p) => p.url === url) : undefined;
   if (!gh) return <div className="p-6 text-sm text-muted-foreground">cargando…</div>;
   if (!pr) return <div className="p-6 text-sm text-muted-foreground">La PR ya no está abierta.</div>;
   const toReview = gh.pending.some((p) => p.url === url);
+  const hasSession = sessions.some((s) => s.id === pr.sessionId || s.prUrl === pr.url);
   return (
     <div className="max-w-3xl p-6">
       <h1 className="text-base font-semibold">{pr.title}</h1>
@@ -47,7 +49,7 @@ export function PrView({ url }: { url: string }) {
       </div>
       {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
       <p className="mt-4 text-xs text-muted-foreground">
-        Esta PR no tiene sesión. Comentarios y discusiones: módulo Revisión · stack: módulo Stack.</p>
+        {hasSession ? "" : "Esta PR no tiene sesión. "}Comentarios y discusiones: módulo Revisión · stack: módulo Stack.</p>
     </div>
   );
 }

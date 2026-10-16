@@ -5,10 +5,11 @@ import type { FolderSession, RepoInfo } from "../../transport/folderSessions";
 import { rmRepo, runScript } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
+import { scriptTab, useDevTabs } from "../../state/devTabs";
 import { cn } from "../../lib/utils";
 
 export function RepoLine({ session, repo }: { session: FolderSession; repo: RepoInfo }) {
-  const { tree, addScriptTab, setActive } = useFolders();
+  const { tree, setActive } = useFolders();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scripts = tree.scripts[repo.name] ?? [];
@@ -16,8 +17,8 @@ export function RepoLine({ session, repo }: { session: FolderSession; repo: Repo
     setOpen(false);
     try {
       const { terminalId } = await runScript(getWs(), session.id, repo.name, name);
-      addScriptTab(session.id, { terminalId, label: `${repo.name}:${name}` });
       setActive(session.id);
+      useDevTabs.getState().open(`s:${session.id}`, scriptTab(terminalId, `${repo.name}:${name}`));   // tab del desarrollo
     } catch (e: any) { setError(e?.message ?? String(e)); }
   };
   return (
