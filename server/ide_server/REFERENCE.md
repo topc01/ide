@@ -92,7 +92,7 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "terminal", "prompts", "github", "review", "deps"]   # módulos visibles en el menú de acciones; ver abajo
+modules = ["sessions", "terminal", "prompts", "github", "review", "deps", "config"]   # módulos visibles en el menú de acciones; ver abajo
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -100,7 +100,7 @@ modules = ["sessions", "terminal", "prompts", "github", "review", "deps"]   # m�
 Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero) hacen
 fallar el arranque con un mensaje que nombra la clave.
 
-`[ui] modules`: ids disponibles `terminal`, `prompts`, `github`, `review`, `deps`, `files`, `search`, `changes`, `graphite`, `tasks`,
+`[ui] modules`: ids disponibles `terminal`, `prompts`, `github`, `review`, `deps`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
 `notion`, y `chat`. Si `chat` **no** está, el área principal es la vista por sesión (terminal
 `claude` + doc + scripts); si está, vuelve el chat propio.
 
@@ -264,7 +264,7 @@ notion_url: https://www.notion.so/...
 están en GitHub van en **Otras**. Bajo el título, chips `@revisor N`: cuántos PRs abiertos de
 la org tienen review pedida a cada **miembro de la org** (los pedidos a equipos y a gente de
 afuera no cuentan; pagina hasta 1000 PRs, el tope de la búsqueda de GitHub; si se pasa, se marca
-con `+`); el tuyo resaltado. El menú ⋯ de Revisiones elige qué miembros se ven (checkbox); se
+con `+`); el tuyo resaltado. El módulo Configuración (⚙ de Revisiones) elige qué miembros se ven (checkbox); se
 guarda en la base (`.ide/ide.db`); sin selección se ven todos los que
 tienen pendientes. La sección se colapsa desde su título; Pendientes / Pedí cambios / Otras son
 grupos fijos. En las pendientes, el botón de revisión (hover) envía
@@ -390,6 +390,13 @@ lleva un contorno claro. Al pasar el mouse, el estado en palabras.
 **Módulo Dependencias** (menú de acciones, id `deps`): para las PRs del desarrollo actual, de qué
 dependen (cadena completa: ✓ mergeada, ◌ abierta, ✗ cerrada, ⇄ van juntas, "vía X" indirecta) y
 qué PRs abiertas las declaran como dependencia.
+
+**Secciones Revisiones y Mis PRs** (misma estructura): título colapsable con el total, grupos
+colapsables y la misma card. El ⚙ de cada sección (y el de la sidebar principal, para Sesiones)
+abre el **módulo Configuración** (id `config`) en esa sección: **agrupar por** estado, repo, stack
+(con el título de la PR de abajo), autor (solo Revisiones) o sin agrupar; en Revisiones también
+los revisores visibles en los chips. El agrupado se recuerda por navegador. La card seleccionada
+lleva contorno de acento y una barrita a la izquierda.
 
 **Secciones:** qué secciones están abiertas o cerradas (Revisiones, Mis PRs y sus grupos, grupos
 de sesiones, secciones del módulo Revisión) se recuerda entre recargas, por navegador

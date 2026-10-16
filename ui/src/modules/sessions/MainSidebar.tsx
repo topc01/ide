@@ -5,7 +5,7 @@ import { useFolders } from "../../state/folders";
 import { fetchSessions, newSession, onSessionsChanged } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { getGrouper, groupSessions } from "./groupers";
-import { GroupMenu } from "./GroupMenu";
+import { ConfigButton } from "./GroupedSection";
 import { SessionItem } from "./SessionItem";
 import { ReviewsSection } from "./ReviewsSection";
 import { MyPrsSection } from "./MyPrsSection";
@@ -59,7 +59,7 @@ export function MainSidebar() {
             </>
           )}
           <div className="ml-auto flex items-center gap-1">
-            <GroupMenu />
+            <ConfigButton id="sessions" title="Sesiones" />
             <button aria-label="Nueva sesión" title="Nueva sesión" onClick={() => openModal("session")}
               className="text-muted-foreground hover:text-foreground"><Plus size={13} /></button>
           </div>

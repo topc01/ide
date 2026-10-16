@@ -57,11 +57,14 @@ export function CardShell({ tone, selected, dashed, onClick, children }:
     <div onClick={onClick} title={tone.label} aria-current={selected || undefined}
       className={cn("cursor-pointer rounded-md p-[2px]",
         !spin && (tone.border ? FIXED[tone.border] : dashed ? "" : "bg-border"),
-        selected && "outline outline-2 outline-offset-2 outline-foreground/70")}
+        // ring (box-shadow) y no outline: tailwind-merge descartaba `outline` junto a `outline-2`
+        selected && "relative ring-2 ring-primary ring-offset-2 ring-offset-card")}
       style={spin ? {
         background: `conic-gradient(from var(--spin-angle), ${spin} 0deg, ${spin} 70deg, rgba(255,255,255,.10) 140deg, rgba(255,255,255,.10) 360deg)`,
         animation: "spin-border 2.4s linear infinite",
       } : undefined}>
+      {/* seleccionado: barrita de acento a la izquierda, además del contorno */}
+      {selected && <span aria-hidden className="absolute -left-[9px] top-1/2 h-7 w-1 -translate-y-1/2 rounded-full bg-primary" />}
       <div className={cn("rounded-[4px] bg-card text-xs", dashed && !spin && !tone.border
         && "border-2 border-dashed border-border")}>
         <div className={cn("rounded-[4px] px-2 py-1.5", tone.bg && BG[tone.bg])}>

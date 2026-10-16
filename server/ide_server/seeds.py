@@ -17,7 +17,7 @@ github_interval = 120             # revisiones pendientes / con cambios pedidos 
 # plugins = ["mi-plugin@mi-marketplace"]   # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "terminal", "prompts", "github", "review", "deps"]
+modules = ["sessions", "terminal", "prompts", "github", "review", "deps", "config"]
 """
 
 
