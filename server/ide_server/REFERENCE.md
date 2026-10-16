@@ -385,8 +385,10 @@ worktree está, para cambiarla de rama ahí).
 
 **Descripción de la PR (resumen):** el resumen de cada PR muestra su descripción, pedida fresca a
 GitHub al abrirlo (canal `pr.body {url}` → `{body, state}`), **Renderizado** (markdown GFM: tablas,
-checkboxes, links en otra pestaña) o **Crudo**. **Editar** abre el markdown en un textarea;
-**Guardar en GitHub** la reemplaza (canal `pr.bodySave {url, body}`, `gh pr edit --body-file -`) y
+checkboxes, links en otra pestaña) o **Crudo** (toggle a la derecha). En Crudo el markdown se edita
+directo; en Renderizado las casillas se marcan con click. Los cambios quedan pendientes ("cambios sin
+guardar", Renderizado muestra el borrador) hasta **Guardar**, que se habilita solo si hay cambios y
+reemplaza la descripción en GitHub (canal `pr.bodySave {url, body}`, `gh pr edit --body-file -`) y
 deja el evento `pr-body-edited` (actor `ide`) en el historial; **Cancelar** descarta.
 
 **Panel principal con una PR:** si el desarrollo es una PR sin sesión, el panel principal muestra

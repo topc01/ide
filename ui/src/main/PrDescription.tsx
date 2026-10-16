@@ -7,11 +7,15 @@ import { getWs } from "../transport/wsClient";
 import { Button } from "../components/ui/button";
 import { cn } from "../lib/utils";
 
-/** Descripción de la PR: renderizada o en crudo, y editable (guardar = `gh pr edit` en GitHub). */
+const TASK_RE = /^(\s*(?:[-*+]|\d+[.)])\s+)\[( |x|X)\]/gm;
+
+/** Descripción de la PR: renderizada o en crudo; en crudo se edita directo y "Guardar" (habilitado
+ *  si hay cambios) la sube a GitHub (`gh pr edit`). Renderizado muestra el borrador si hay
+ *  cambios y sus casillas se marcan con click (también quedan como cambio). */
 export function PrDescription({ url }: { url: string }) {
   const [body, setBody] = useState<string | null>(null);
   const [view, setView] = useState<"rendered" | "raw">("rendered");
-  const [draft, setDraft] = useState<string | null>(null);      // null = no se está editando
+  const [draft, setDraft] = useState<string | null>(null);      // null = sin cambios
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const load = useCallback(() => {
@@ -20,41 +24,54 @@ export function PrDescription({ url }: { url: string }) {
   }, [url]);
   useEffect(() => { setBody(null); setDraft(null); load(); }, [load]);
 
+  const text = draft ?? body ?? "";
+  const dirty = draft !== null && draft !== body;
   const save = () => {
-    if (draft === null) return;
+    if (!dirty) return;
     setSaving(true); setError(null);
     savePrBody(getWs(), url, draft).then(() => { setBody(draft); setDraft(null); })
       .catch((e: any) => setError(e?.message ?? String(e))).finally(() => setSaving(false));
   };
-  const tab = (v: "rendered" | "raw", label: string) => (
-    <button title={`Ver la descripción ${label.toLowerCase()}`} onClick={() => setView(v)} disabled={draft !== null}
-      className={cn("rounded px-2 py-0.5 text-xs", view === v && draft === null ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
+  // casillas de tareas: la n-ésima del render es el n-ésimo "- [ ]" del markdown
+  const toggleTask = (n: number) => {
+    let i = 0;
+    setDraft(text.replace(TASK_RE, (m, pre: string, mark: string) =>
+      i++ === n ? `${pre}[${mark === " " ? "x" : " "}]` : m));
+  };
+  let task = 0;
+  const tab = (v: "rendered" | "raw", label: string, tip: string) => (
+    <button title={tip} onClick={() => setView(v)}
+      className={cn("rounded px-2 py-0.5 text-xs", view === v ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
       {label}</button>);
 
   return (
     <div className="mt-5">
       <div className="mb-2 flex items-center gap-1 border-b border-border pb-1">
-        <span className="mr-2 text-[10px] uppercase tracking-wide text-muted-foreground">Descripción</span>
-        {tab("rendered", "Renderizado")}{tab("raw", "Crudo")}
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Descripción</span>
+        {dirty && <span className="ml-2 text-[10px] text-primary">cambios sin guardar</span>}
         <span className="flex-1" />
-        {draft === null ? (
-          <Button size="sm" variant="ghost" disabled={body === null} title="Editar la descripción (se guarda en GitHub)"
-            onClick={() => setDraft(body ?? "")}>Editar</Button>
-        ) : (<>
-          <Button size="sm" variant="ghost" title="Descartar los cambios" onClick={() => setDraft(null)} disabled={saving}>Cancelar</Button>
-          <Button size="sm" title="Guardar la descripción en GitHub (gh pr edit)" onClick={save} disabled={saving || draft === body}>
-            {saving ? "Guardando…" : "Guardar en GitHub"}</Button>
-        </>)}
+        <Button size="sm" className="mr-2 h-6 px-2 text-xs" disabled={!dirty || saving} onClick={save}
+          title="Guardar la descripción en GitHub (gh pr edit); se habilita si hay cambios">
+          {saving ? "Guardando…" : "Guardar"}</Button>
+        {tab("rendered", "Renderizado", "Ver la descripción renderizada")}
+        {tab("raw", "Crudo", "Ver y editar el markdown de la descripción")}
       </div>
       {error && <p role="alert" className="mb-2 text-xs text-destructive">{error}</p>}
       {body === null && !error && <p className="text-xs text-muted-foreground">cargando…</p>}
-      {draft !== null ? (
-        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} spellCheck={false}
-          className="h-[60vh] w-full resize-y rounded-md border border-border bg-background p-3 font-mono text-xs outline-none focus:border-primary" />
-      ) : body !== null && (body.trim() === "" ? <p className="text-xs text-muted-foreground">Sin descripción.</p>
-        : view === "raw" ? <pre className="whitespace-pre-wrap break-words rounded-md bg-muted/40 p-3 font-mono text-xs">{body}</pre>
+      {body !== null && (view === "raw" ? (
+        <textarea value={text} onChange={(e) => setDraft(e.target.value)} spellCheck={false} disabled={saving}
+          placeholder="Sin descripción." title="Markdown de la descripción: edítalo y usa Guardar"
+          className="min-h-40 w-full resize-y rounded-md border border-border bg-muted/40 p-3 font-mono text-xs text-foreground outline-none [field-sizing:content] focus:border-primary" />
+      ) : text.trim() === "" ? <p className="text-xs text-muted-foreground">Sin descripción.</p>
         : <div className="md"><ReactMarkdown remarkPlugins={[remarkGfm]}
-            components={{ a: ({ node: _n, ...p }) => <a {...p} target="_blank" rel="noreferrer" /> }}>{body}</ReactMarkdown></div>)}
+            components={{
+              a: ({ node: _n, ...p }) => <a {...p} target="_blank" rel="noreferrer" />,
+              input: ({ node: _n, ...p }) => {
+                if (p.type !== "checkbox") return <input {...p} />;
+                const n = task++;
+                return <input type="checkbox" checked={!!p.checked} disabled={saving} className="cursor-pointer"
+                  title="Marcar/desmarcar (queda como cambio; usa Guardar)" onChange={() => toggleTask(n)} />;
+              } }}>{text}</ReactMarkdown></div>)}
     </div>
   );
 }
