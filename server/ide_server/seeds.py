@@ -33,7 +33,7 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
 
 ## Herramientas del IDE (por Bash)
 
-- `ide repo add <repo> [--branch b]`: agrega el repo a tu sesión como worktree (corre su `setup`).
+- `ide repo add <repo> [--branch b]`: agrega el repo a tu sesión como worktree (corre su `setup` si existe).
 - `ide repo rm <repo>`: lo quita.
 - `ide script <nombre> [<repo>]`: corre un script del repo (`run`, `test`, …).
 - `ide session ls [--json]`: lista sesiones y su estado.
@@ -48,6 +48,29 @@ El **estado** de cada sesión vive en la base del IDE: cámbialo con `ide status
 questions | ready | in-progress | done. Revisión: reviewing | commented | approved |
 changes-requested. `TICKET.md` / `REVIEW.md` guardan el análisis (y el `title` si está vacío).
 La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide dev show <id>`.
+
+## Desarrollos, repos y dependencias
+
+- Un **desarrollo** es tu sesión: sus worktrees y las PRs de las ramas de esos worktrees (el IDE
+  las asocia solo, por repo y rama). Si el ticket toca varios repos (p.ej. api + embed), agrega
+  cada uno con `ide repo add <repo>`: el desarrollo queda **fullstack** (una card, PRs por repo).
+  Usa el mismo nombre de rama en todos los repos del desarrollo.
+- **Dependencias entre PRs** (del mismo repo o de otro): decláralas en la descripción de la PR,
+  en la sección `## Dependencias` (la de la plantilla de PR), una por línea:
+  `finnecto-api#4581`, `owner/repo#N`, `#N` (= mismo repo) o la URL de la PR. Reglas que aplica el IDE:
+  - En una línea "merge en orden: A → B → este PR → C" solo cuenta lo que va **antes** de "este PR".
+  - Si dos PRs dependen una de la otra, "van juntas" (se mergean juntas).
+  - Fuera de la sección también vale una frase como "Depende de finnecto-api#4624"
+    ("no depende de …" no cuenta). Las casillas `[ ]`/`[x]` se ignoran.
+  - El IDE las muestra (⏸ N pendientes) y avisa al mergear, pero no lo bloquea.
+  - Para escribirlas: `gh pr edit <url> --body-file <archivo>` (edita la sección; no borres el resto).
+  - En el TICKET.md, en **Plan**, deja el orden de merge entre repos.
+- **Servidores para probar:** los scripts por repo están en `.ide/scripts/<repo>/` (api: `build`,
+  `run`; embed: `install`, `run`, `point-api`). Los servidores que quedan corriendo (`run`) los
+  levanta el usuario desde el módulo **Servidores** del IDE (corren aparte y sobreviven a un
+  reinicio): pídeselo en vez de correrlos tú con `ide script` (que espera a que terminen).
+  Para que el embed hable con la api de tu sesión: en el `.env.local` del embed,
+  `VITE_API_PROXY_TARGET=http://localhost:<API_PORT>` (el `API_PORT` está en el `.env` de la api).
 """
 
 
@@ -127,8 +150,11 @@ Eres la sesión del ticket {{id}} ({{notion_url}}).
 Tu trabajo AHORA es analizar, no implementar:
 1. Lee ../CLAUDE.md (mapa de repos) y el ticket en Notion ({{notion_url}}).
 2. Si el frontmatter de TICKET.md no tiene `title:`, ponle el título del ticket.
-3. Determina scope y qué repos toca. Por cada uno: `ide repo add <repo>`.
-4. Escribe TICKET.md: Scope, Repos, Plan, Bloqueantes, Dudas.
+3. Determina scope y qué repos toca. Por cada uno: `ide repo add <repo>` (varios = fullstack;
+   misma rama en todos).
+4. Escribe TICKET.md: Scope, Repos, Plan (con el orden de merge entre repos/PRs y sus
+   dependencias), Bloqueantes, Dudas. Al abrir PRs, declara sus dependencias en la sección
+   `## Dependencias` de cada una (ver ../CLAUDE.md).
    Cambia el estado con `ide status blocked|questions|ready` (no edites el `status:` del archivo).
 5. Detente y espera instrucciones.
 """

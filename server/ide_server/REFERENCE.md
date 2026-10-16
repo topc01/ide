@@ -62,7 +62,7 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
     ├── worktrees/<id>/<repo>/          # worktrees reales (git worktree add)
     ├── worktrees/wt-<repo>-<n>/<repo>/ # §8b: worktree de una PR sin sesión (detach)
     └── sessions/
-        ├── CLAUDE.md                   # mapa de repos + uso de `ide`; lo heredan TODAS las sesiones
+        ├── CLAUDE.md                   # mapa de repos + uso de `ide` + desarrollos/dependencias/servidores; lo heredan TODAS las sesiones
         ├── templates/{ticket,review}.md   # §7
         └── <id>/                       # una sesión
             ├── .session.toml           # kind, permissions, created, [ports], [setup], pr_url, reviewed_sha, claude_session, claude_name
