@@ -109,6 +109,17 @@ def _positional(prompt: str) -> str:
     return " " + prompt if prompt.startswith("-") else prompt   # que claude no lo lea como flag
 
 
+def install_skills(root: Path, session_dir: Path) -> None:
+    """Skills del IDE (`.ide/skills/*`, p.ej. /backlog) en la sesión principal: se copian a su
+    `.claude/skills/` (skills de proyecto del cwd de su claude) en cada lanzamiento."""
+    src = root / ".ide" / "skills"
+    if not src.is_dir():
+        return
+    for skill in src.iterdir():
+        if (skill / "SKILL.md").is_file():
+            shutil.copytree(skill, session_dir / ".claude" / "skills" / skill.name, dirs_exist_ok=True)
+
+
 def enable_plugins(session_dir: Path, plugins: list[str]) -> None:
     """Plugins por sesión: `.claude/settings.json` en la carpeta de la sesión (el cwd de su
     `claude`) es config de proyecto, así que solo esa sesión los carga."""
@@ -255,6 +266,8 @@ class Supervisor:
         data = read_toml(path / ".session.toml")
         if data.get("kind") == "review":
             enable_plugins(path, list(reviews_config(self._root)["plugins"]))
+        if data.get("kind") == "main":
+            install_skills(self._root, path)
         cs, name = data.get("claude_session"), data.get("claude_name")
         if not cs or not name:
             cs = cs or (latest_transcript_id(path, self._home) if resume else None) or str(uuid.uuid4())

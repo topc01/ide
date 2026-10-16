@@ -64,6 +64,53 @@ Eres la sesión principal de este workspace.
    Por cada PR: `ide session new --if-missing --review <url>`.
 5. Resume lo lanzado. Estado general: lee `../*/TICKET.md` y `../*/REVIEW.md`.
 """
+# `.ide/skills/backlog/SKILL.md`: la sesión principal la tiene como `/backlog` (el IDE la copia).
+SKILL_BACKLOG = """\
+---
+name: backlog
+description: Usar en la sesión principal del IDE cuando el usuario pide "/backlog", "trae mis tickets", "despacha el backlog" o "qué tengo en el backlog". Busca en Notion (DB Desarrollo) los tickets en Backlog donde el usuario está en Asignee o en Células, muestra una tabla y, con su OK, crea una sesión del IDE por ticket (ide session new --notion) para que cada una haga la revisión preliminar y sume los worktrees que necesite.
+---
+
+# /backlog — del Backlog de Notion a sesiones del IDE
+
+No modifiques nada en Notion: solo se lee.
+
+## 1. Quién soy
+`notion-get-self` → tu uuid de Notion (`<uuid>`).
+
+## 2. Una sola consulta (la cuota SQL de Notion es de ~5 queries)
+Con `notion-query-data-sources`:
+```sql
+SELECT "Tarea", "Status", "Priority", "Size", "Type", "Cliente", "Order", "Asignee", "Células", url
+FROM "collection://09c1d0bc-d451-45fe-a6ac-a8c9ed587eae"
+WHERE "Status" = 'Backlog'
+  AND ("Asignee" LIKE '%<uuid>%' OR "Células" LIKE '%<uuid>%')
+ORDER BY ("Order" IS NULL), "Order" ASC
+```
+`Asignee` y `Células` son campos de personas: el ticket es tuyo si estás en cualquiera de los dos.
+Si la cuota está agotada (`entitlement_required`), usa `notion-query-database-view` sobre la vista
+"Todos" (`view://20d67263-6146-8020-b55e-000c484e6cae`), pagina todo seguido y filtra en local
+con las mismas reglas.
+
+## 3. Tabla y OK
+Por cada ticket, prueba sin crear nada:
+`echo '{"title": "<Tarea>"}' | ide session new --dry-run --notion <url> --template ticket --vars-file -`
+(usa JSON por stdin: así los títulos con comillas no se rompen). Muestra una tabla:
+`sesión | ticket | prioridad | size | por qué es tuyo (asignado / célula) | ¿ya tiene sesión?`
+en el orden de la cola (`Order`). **Espera mi OK** y que te diga cuáles lanzar (por defecto, todos
+los que no tienen sesión).
+
+## 4. Lanzar
+Por cada ticket elegido:
+`echo '{"title": "<Tarea>"}' | ide session new --if-missing --notion <url> --template ticket --vars-file -`
+Cada sesión arranca con su carpeta y su `TICKET.md`, analiza el ticket (revisión preliminar:
+scope, repos, plan, bloqueantes, dudas) y suma con `ide repo add <repo>` los worktrees que
+necesite. Nunca dupliques: `--if-missing` devuelve la existente.
+
+## 5. Resumen
+Lanzadas, ya existían y errores (con el mensaje). El estado de cada una se ve en `../*/TICKET.md`.
+"""
+
 # `.ide/prompts/review-pr.md`: el botón de revisión de la UI lo envía a la sesión del PR.
 PROMPT_REVIEW_PR = """\
 Review PR {{pr_url}} ("{{title}}" by {{author}}, repo {{repo}}) using the
@@ -110,9 +157,12 @@ PERM_ANALYZE = {"permissions": {
     "deny": ["Bash(git diff --output:*)", "Bash(git log --output:*)"],
 }}
 
-# La principal = analyze + despachar sesiones (el server igual le niega `full`).
+# La principal = analyze + despachar sesiones (el server igual le niega `full`) + leer el
+# Backlog de Notion para /backlog (con el MCP de claude.ai o el del plugin de Notion).
 PERM_MAIN = {"permissions": {
-    "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)"],
+    "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)", "Bash(echo:*)",
+              *[f"mcp__{srv}__notion-{t}" for srv in ("claude_ai_Notion", "plugin_Notion_notion")
+                for t in ("get-self", "query-data-sources", "query-database-view", "fetch", "search")]],
     "deny": list(PERM_ANALYZE["permissions"]["deny"]),
 }}
 

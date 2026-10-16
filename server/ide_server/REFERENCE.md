@@ -69,7 +69,7 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
             └── <repo> -> ../../worktrees/<id>/<repo>   # symlink relativo
 ```
 
-`ide init` **siembra** `sessions/CLAUDE.md`, `templates/*.md`, `prompts/tickets-y-prs.md`, `prompts/review-pr.md`, `permissions/*.json` y
+`ide init` **siembra** `sessions/CLAUDE.md`, `templates/*.md`, `prompts/tickets-y-prs.md`, `prompts/review-pr.md`, `skills/backlog/SKILL.md`, `permissions/*.json` y
 `config.toml` **solo si no existen**: nunca pisa ediciones. Para volver a la semilla, borra el
 archivo y ejecuta `ide init`.
 
@@ -192,6 +192,20 @@ un placeholder literal. Siempre disponible: `{{id}}`. Con `--notion`: `{{notion_
 
 Puedes crear plantillas nuevas (`templates/x.md`) y usarlas con `--template x`. La principal
 **no** usa plantilla: la ★ de la UI la crea sin prompt y arranca esperando al usuario.
+
+## 7a. Skills del IDE (`.ide/skills/<nombre>/SKILL.md`)
+
+Skills de Claude Code que el IDE instala en la **sesión principal**: en cada lanzamiento se
+copian a su `.claude/skills/` (skills de proyecto del cwd de su `claude`). `ide init` siembra:
+
+- **`/backlog`**: busca en Notion (DB Desarrollo, una sola consulta SQL: la cuota es de ~5) los
+  tickets en `Backlog` donde estás en `Asignee` o en `Células` (ambos campos de personas), los
+  prueba con `ide session new --dry-run`, muestra una tabla (sesión, ticket, prioridad, size, por
+  qué es tuyo, si ya tiene sesión) y **espera tu OK**; después lanza `ide session new --if-missing
+  --notion <url> --template ticket` por cada uno. Cada sesión hace su revisión preliminar
+  (`TICKET.md`) y suma sus worktrees con `ide repo add`. No escribe en Notion. El perfil `main`
+  permite las herramientas de Notion necesarias (MCP de claude.ai o del plugin) y `echo` (los
+  títulos van por `--vars-file -`).
 
 ## 7b. Prompts (`.ide/prompts/*.md`)
 

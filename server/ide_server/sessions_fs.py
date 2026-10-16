@@ -256,7 +256,7 @@ def list_sessions(root: Path) -> list[dict]:
 def seed_workspace(root: Path) -> list[Path]:
     ide = root / ".ide"
     for d in (ide / "scripts", ide / "worktrees", sessions_dir(root) / "templates",
-              ide / "permissions", ide / "prompts"):
+              ide / "permissions", ide / "prompts", ide / "skills" / "backlog"):
         d.mkdir(parents=True, exist_ok=True)
     files = {
         sessions_dir(root) / "CLAUDE.md": seeds.claude_md([r["id"] for r in discover_repos(root)]),
@@ -264,6 +264,7 @@ def seed_workspace(root: Path) -> list[Path]:
         sessions_dir(root) / "templates" / "review.md": seeds.TEMPLATE_REVIEW,
         ide / "prompts" / "tickets-y-prs.md": seeds.PROMPT_TICKETS_PRS,
         ide / "prompts" / "review-pr.md": seeds.PROMPT_REVIEW_PR,
+        ide / "skills" / "backlog" / "SKILL.md": seeds.SKILL_BACKLOG,
         ide / "permissions" / "analyze.json": json.dumps(seeds.PERM_ANALYZE, indent=2) + "\n",
         ide / "permissions" / "main.json": json.dumps(seeds.PERM_MAIN, indent=2) + "\n",
         ide / "permissions" / "full.json": json.dumps(seeds.PERM_FULL, indent=2) + "\n",
