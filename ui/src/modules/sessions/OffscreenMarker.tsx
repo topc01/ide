@@ -48,7 +48,7 @@ function useProximity(container: RefObject<HTMLElement | null>, side: "above" | 
   return level;
 }
 
-/** Raya horizontal de acento, fija arriba o abajo, cuando el desarrollo seleccionado quedó fuera de
+/** Píldora horizontal de acento (centrada, bordes redondeados), fija arriba o abajo, cuando el desarrollo seleccionado quedó fuera de
  *  la vista; click = scroll hasta él. */
 export function OffscreenMarker({ where, side, container }:
   { where: "above" | "below" | null; side: "above" | "below"; container: RefObject<HTMLElement | null> }) {
@@ -60,14 +60,14 @@ export function OffscreenMarker({ where, side, container }:
   const head = selected?.querySelector(".font-bold")?.textContent?.trim();
   const title = selected?.querySelector(".line-clamp-2")?.textContent?.trim();
   const go = () => selected?.scrollIntoView({ block: "center", behavior: "smooth" });
-  const size = ["h-[3px]", "h-1.5", "h-2.5"][Math.min(level, 2)];
+  const size = ["h-1 w-14", "h-1.5 w-24", "h-2 w-36"][Math.min(level, 2)];   // píldora centrada
   return (
     <div className={`sticky z-20 h-0 ${side === "above" ? "top-0" : "bottom-0"}`}>
       {level < 3 ? (
         <button aria-label="Ir al desarrollo seleccionado"
           title={`El desarrollo seleccionado está más ${side === "above" ? "arriba" : "abajo"}: click para ir`}
           onClick={go}
-          className={`absolute inset-x-0 bg-primary transition-all duration-150 ${size} ${side === "above" ? "top-0" : "bottom-0"}`} />
+          className={`absolute left-1/2 -translate-x-1/2 rounded-full bg-primary transition-all duration-150 ${size} ${side === "above" ? "top-1" : "bottom-1"}`} />
       ) : (
         <button aria-label="Ir al desarrollo seleccionado" title="Click para ir al desarrollo seleccionado" onClick={go}
           className={`absolute inset-x-1 animate-in fade-in zoom-in-95 rounded-md border-2 border-primary bg-card px-2 py-1.5 text-left text-xs shadow-lg shadow-black/40 ${side === "above" ? "top-1" : "bottom-1"}`}>
