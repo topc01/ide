@@ -13,6 +13,7 @@ import { SessionItem } from "./SessionItem";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
 import { CardShell, DepsLine, devTone, repoShort } from "./DevCard";
 import { cn } from "../../lib/utils";
+import { PersonChip } from "../../lib/people";
 import { usePersistentOpen } from "../../lib/persist";
 
 /** Botón de revisión: envía `.ide/prompts/review-pr.md` a la sesión del PR (la crea si falta). */
@@ -131,15 +132,21 @@ export function CiMark({ pr }: { pr: GhPr }) {
 }
 
 /** Quién revisa la PR, con el color de su estado. */
+const REVIEW_ICON = {
+  requested: ["◌", "review pedida"], approved: ["✓", "aprobó"], changes: ["✗", "pidió cambios"],
+} as const;
+
+/** Revisor: chip con el color de la persona y su estado como ícono (✓ aprobó, ✗ cambios, ◌ pendiente). */
+export function ReviewerChip({ login, state }: { login: string; state: "requested" | "approved" | "changes" }) {
+  const [icon, label] = REVIEW_ICON[state];
+  return <PersonChip login={login} title={`${login}: ${label}`}><span className="font-bold">{icon}</span></PersonChip>;
+}
+
 export function ReviewerChips({ pr }: { pr: GhPr }) {
   if (!pr.reviewers?.length) return null;
   return (
     <div className="mt-1 flex flex-wrap gap-1 pl-4" aria-label="revisores">
-      {pr.reviewers.map((r) => {
-        const [cls, label] = REVIEWER_TONE[r.state];
-        return <span key={r.login} title={`${r.login}: ${label}`}
-          className={cn("rounded-full border px-1.5 font-mono text-[10px]", cls)}>{r.login}</span>;
-      })}
+      {pr.reviewers.map((r) => <ReviewerChip key={r.login} login={r.login} state={r.state} />)}
     </div>
   );
 }
@@ -151,8 +158,6 @@ function OpenPrButton({ pr }: { pr: GhPr }) {
     </QueueItemAction>
   );
 }
-
-const REVIEWER_TEXT = { requested: "text-sky-400", approved: "text-emerald-400", changes: "text-amber-300" } as const;
 
 /** PR de GitHub sin sesión. Click = seleccionarla (o abrirla, según la sección); botones en hover.
  *  `showAuthor`: en Revisiones (de quién es); `showReviewers`: en Mis PRs (quién la revisa). */
@@ -168,7 +173,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
         onClick={() => { setActivePr(pr.url); if (openOnClick) window.open(pr.url, "_blank", "noopener"); }}>
         <div className="flex items-center gap-1.5">
           <span className="font-mono text-[11px] font-bold tracking-wide">{repoShort(pr.repo)} #{pr.number}</span>
-          {showAuthor && <span className="truncate text-[11px] text-foreground/80">{pr.author}</span>}
+          {showAuthor && <PersonChip login={pr.author} title={`autor: ${pr.author}`} />}
           <span className="flex-1" />
           <QueueItemActions className="ml-0">
             {reviewable && <ReviewButton pr={pr} />}
@@ -185,10 +190,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
           {pr.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
           <DepsLine pr={pr} />
           {merge && <MergeStatus url={pr.url} job={merge.job} />}
-          {showReviewers && pr.reviewers?.map((r) => (
-            <span key={r.login} className={REVIEWER_TEXT[r.state]}
-              title={`${r.login}: ${{ requested: "review pedida", approved: "aprobó", changes: "pidió cambios" }[r.state]}`}>
-              {r.login}</span>))}
+          {showReviewers && pr.reviewers?.map((r) => <ReviewerChip key={r.login} login={r.login} state={r.state} />)}
         </CardMeta>
       </CardShell>
     </QueueItem>
@@ -298,11 +300,10 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
         {chips.length > 0 && (
           <div className="mx-2.5 mt-1.5 flex flex-wrap gap-1" aria-label="Revisiones pendientes por revisor">
             {chips.map((r) => (
-              <span key={r.login} title={`${r.count} revisiones pendientes${gh!.reviewersTruncated ? " (o más: GitHub corta la búsqueda en 1000 PRs)" : ""}`}
-                className={cn("flex items-center gap-1 rounded-full border px-1.5 py-px font-mono text-[10px]",
-                  r.login === gh!.me ? "border-primary text-primary" : "border-border text-muted-foreground")}>
-                {r.login}<span className="text-foreground">{r.count}{gh!.reviewersTruncated ? "+" : ""}</span>
-              </span>))}
+              <PersonChip key={r.login} login={r.login} strong={r.login === gh!.me}
+                title={`${r.login}: ${r.count} revisiones pendientes${gh!.reviewersTruncated ? " (o más: GitHub corta la búsqueda en 1000 PRs)" : ""}`}>
+                <span className="text-foreground">{r.count}{gh!.reviewersTruncated ? "+" : ""}</span>
+              </PersonChip>))}
           </div>)}
         <Group label="Pendientes" count={gh?.pending.length ?? 0}>
           <PrList prs={gh?.pending ?? []} byId={byId} reviewable />

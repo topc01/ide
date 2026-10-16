@@ -7,7 +7,7 @@ import { cn } from "../../lib/utils";
 export interface Tone {
   bg: "approved" | "changes" | "review" | "merged" | null;
   blocked: boolean;                 // aprobada pero bloqueada (dependencias o no es la de abajo)
-  border: "ci-running" | "ci-failed" | "merging" | null;
+  border: "ci-running" | "ci-failed" | "merging" | "blocked" | null;
   label: string;                    // lo mismo en palabras (tooltip)
 }
 
@@ -34,16 +34,19 @@ export function devTone(pr?: GhPr, job?: MergeJob, opts: { merged?: boolean; sta
   else if (pr?.ci === "failure") { border = "ci-failed"; words.push(pr.conflict ? "conflicto con la base" : "CI falló"); }
   else if (pr?.ci === "pending") { border = "ci-running"; words.push("CI corriendo"); }
   else if (pr?.ci === "success") words.push("CI ✓");
+  if (!border && blocked) border = "blocked";
   if (job?.state === "error") words.push(`error al mergear: ${job.error ?? ""}`);
   return { bg, blocked, border, label: words.filter(Boolean).join(" · ") };
 }
 
 const BG: Record<NonNullable<Tone["bg"]>, string> = {
-  approved: "bg-emerald-500/[0.13]", changes: "bg-amber-400/[0.13]",
-  review: "bg-sky-500/[0.13]", merged: "bg-purple-500/[0.16]",
+  approved: "bg-emerald-500/[0.07]", changes: "bg-amber-400/[0.07]",
+  review: "bg-sky-500/[0.07]", merged: "bg-purple-500/[0.09]",
 };
-const STRIPES = "repeating-linear-gradient(135deg, rgba(16,185,129,.20) 0 7px, rgba(16,185,129,.05) 7px 14px)";
 const SPIN: Record<string, string> = { "ci-running": "#fbbf24", merging: "#a855f7" };
+// bordes fijos (2 px): rojo CI falló; café bloqueada (no se confunde con el amarillo de cambios
+// pedidos, que es de fondo, ni con el amarillo que gira del CI corriendo)
+const FIXED: Record<string, string> = { "ci-failed": "bg-red-500", blocked: "bg-[#a0522d]" };
 
 /** Cascarón de las cards de la sidebar (sesiones y PRs): fondo = review, borde = CI/merge,
  *  contorno claro = seleccionada. */
@@ -52,17 +55,16 @@ export function CardShell({ tone, selected, dashed, onClick, children }:
   const spin = tone.border && SPIN[tone.border];
   return (
     <div onClick={onClick} title={tone.label} aria-current={selected || undefined}
-      className={cn("cursor-pointer rounded-md p-px",
-        !spin && (tone.border === "ci-failed" ? "bg-red-500" : dashed ? "" : "bg-border"),
+      className={cn("cursor-pointer rounded-md p-[2px]",
+        !spin && (tone.border ? FIXED[tone.border] : dashed ? "" : "bg-border"),
         selected && "outline outline-2 outline-offset-2 outline-foreground/70")}
       style={spin ? {
         background: `conic-gradient(from var(--spin-angle), ${spin} 0deg, ${spin} 70deg, rgba(255,255,255,.10) 140deg, rgba(255,255,255,.10) 360deg)`,
         animation: "spin-border 2.4s linear infinite",
       } : undefined}>
-      <div className={cn("rounded-[5px] bg-card px-2 py-1.5 text-xs", dashed && !spin && tone.border !== "ci-failed"
-        && "border border-dashed border-border")}>
-        <div className={cn("-m-2 -my-1.5 rounded-[5px] px-2 py-1.5", tone.bg && BG[tone.bg])}
-          style={tone.blocked ? { backgroundImage: STRIPES } : undefined}>
+      <div className={cn("rounded-[4px] bg-card text-xs", dashed && !spin && !tone.border
+        && "border-2 border-dashed border-border")}>
+        <div className={cn("rounded-[4px] px-2 py-1.5", tone.bg && BG[tone.bg])}>
           {children}
         </div>
       </div>
@@ -73,17 +75,10 @@ export function CardShell({ tone, selected, dashed, onClick, children }:
 /** "finnecto-api" → "API" (el repo tiene que leerse de un vistazo). */
 export const repoShort = (repo: string | null | undefined) => (repo ?? "").replace(/^finnecto-/, "").toUpperCase();
 
-/** Dependencias en palabras: "⛓ espera a api#4592, embed#2512 (+2)" · "⇄ va con api#4602". */
+/** Dependencias pendientes como "N dependencias" (el detalle está en el módulo Dependencias). */
 export function DepsLine({ pr }: { pr?: GhPr }) {
-  if (!pr?.deps?.length) return null;
-  const name = (d: { repo: string | null; number: number | null }) => `${(d.repo ?? "").replace(/^finnecto-/, "")}#${d.number}`;
-  const pending = pr.deps.filter((d) => d.state !== "MERGED" && !d.together);
-  const together = pr.deps.filter((d) => d.together);
-  const list = (xs: typeof pending) => xs.slice(0, 2).map(name).join(", ") + (xs.length > 2 ? ` (+${xs.length - 2})` : "");
-  return (<>
-    {pending.length > 0 && <span className="text-amber-300" title={`Falta mergear: ${pending.map(name).join(", ")}`}>
-      ⛓ espera a {list(pending)}</span>}
-    {together.length > 0 && <span className="text-sky-400" title={`Se piden mutuamente: ${together.map(name).join(", ")}`}>
-      ⇄ va con {list(together)}</span>}
-  </>);
+  const n = pr?.depsPending ?? 0;
+  if (!n) return null;
+  return <span className="text-amber-300" title="Falta mergear estas PRs antes: ver el módulo Dependencias">
+    {n} dependencia{n > 1 ? "s" : ""}</span>;
 }

@@ -4,6 +4,7 @@ import { Archive, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta } from "./ReviewsSection";
 import { CardShell, DepsLine, devTone, repoShort } from "./DevCard";
+import { PersonChip } from "../../lib/people";
 import { stopSession } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
@@ -39,7 +40,7 @@ export function SessionItem({ session, actions, pr, onlyActions = false }:
             className={cn(session.process === "running" ? "text-primary" : "text-muted-foreground")}>{dot}</span>
           <span className="font-mono text-[11px] font-bold tracking-wide">
             {pr ? `${repoShort(pr.repo)} #${pr.number}` : prLabel(session.prUrl) ?? session.id}</span>
-          {isReview && session.meta.author && <span className="truncate text-[11px] text-foreground/80">{session.meta.author}</span>}
+          {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
           <span className="flex-1" />
           {(session.error || session.launchError) && (
             <span title={session.error ?? session.launchError ?? ""} className="text-destructive">⚠</span>)}

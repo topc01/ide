@@ -12,6 +12,7 @@ import "./modules/files/register";
 import "./modules/prompts/register";
 import "./modules/github/register";
 import "./modules/review/register";
+import "./modules/deps/register";
 import { ActionMenu } from "./layout/ActionMenu";
 import { InnerSidebar } from "./layout/InnerSidebar";
 import { MainSidebar } from "./modules/sessions/MainSidebar";

@@ -92,7 +92,7 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "terminal", "prompts", "github", "review"]   # módulos visibles en el menú de acciones; ver abajo
+modules = ["sessions", "terminal", "prompts", "github", "review", "deps"]   # módulos visibles en el menú de acciones; ver abajo
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -100,7 +100,7 @@ modules = ["sessions", "terminal", "prompts", "github", "review"]   # módulos v
 Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero) hacen
 fallar el arranque con un mensaje que nombra la clave.
 
-`[ui] modules`: ids disponibles `terminal`, `prompts`, `github`, `review`, `files`, `search`, `changes`, `graphite`, `tasks`,
+`[ui] modules`: ids disponibles `terminal`, `prompts`, `github`, `review`, `deps`, `files`, `search`, `changes`, `graphite`, `tasks`,
 `notion`, y `chat`. Si `chat` **no** está, el área principal es la vista por sesión (terminal
 `claude` + doc + scripts); si está, vuelve el chat propio.
 
@@ -377,13 +377,19 @@ y recién cerradas) + refresco por ID de lo dinámico (CI, conflicto, review: no
 resincronización completa cada 30 min y al arrancar. Miembros de la org: una vez por día.
 
 **Cards de la sidebar** (sesiones y PRs, mismo cascarón): arriba **repo y número** (`API #4581`,
-en negrita; en Revisiones también el autor; ● ○ = `claude` corriendo/parado), después el título y
-una línea de detalle (posición en el stack `◫ 2/4`, dependencias en palabras "⛓ espera a …" / "⇄ va
-con …", "⟳ commits nuevos desde tu revisión", estado del merge; en Mis PRs, los revisores en color).
-**Fondo** = review: verde aprobada (con **rayas** si está bloqueada por dependencias o no es la de
-abajo de su stack), amarillo cambios pedidos, azul esperando revisor, morado mergeada. **Borde** =
-CI/merge: rojo CI falló o conflicto, amarillo girando CI corriendo, morado girando mergeando. La
-seleccionada lleva un contorno claro. Al pasar el mouse, el estado en palabras.
+en negrita; en Revisiones el autor como chip; ● ○ = `claude` corriendo/parado), después el título
+y una línea de detalle (posición en el stack `◫ 2/4`, "N dependencias" pendientes, "⟳ commits
+nuevos desde tu revisión", estado del merge; en Mis PRs, los revisores como chips con su estado:
+✓ aprobó, ✗ pidió cambios, ◌ pendiente). Cada persona tiene siempre el mismo color de chip (también
+en los chips de conteo de Revisiones). **Fondo** tenue = review: verde aprobada, amarillo cambios
+pedidos, azul esperando revisor, morado mergeada. **Borde** (2 px) = CI/merge/bloqueo, en este
+orden: morado girando mergeando, rojo CI falló o conflicto, amarillo girando CI corriendo, café
+aprobada pero bloqueada (dependencias pendientes o no es la de abajo de su stack). La seleccionada
+lleva un contorno claro. Al pasar el mouse, el estado en palabras.
+
+**Módulo Dependencias** (menú de acciones, id `deps`): para las PRs del desarrollo actual, de qué
+dependen (cadena completa: ✓ mergeada, ◌ abierta, ✗ cerrada, ⇄ van juntas, "vía X" indirecta) y
+qué PRs abiertas las declaran como dependencia.
 
 **Secciones:** qué secciones están abiertas o cerradas (Revisiones, Mis PRs y sus grupos, grupos
 de sesiones, secciones del módulo Revisión) se recuerda entre recargas, por navegador
