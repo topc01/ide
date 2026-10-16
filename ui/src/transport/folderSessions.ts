@@ -67,10 +67,17 @@ export interface GithubReviews {
   members: { login: string; name: string | null }[]; selected: string[] | null;
   mine: Partial<Record<"returned" | "waiting" | "missing" | "draft" | "approved", GhPr[]>>;
   stacks?: Record<string, GhPr[]>;      // id del stack -> PRs de abajo hacia arriba
+  merges?: Record<string, MergeJob>;    // url -> merge armado desde el IDE
 }
 export const fetchGithubReviews = (ws: WsClient): Promise<GithubReviews> => ws.request("reviews.github", {});
 export const startReview = (ws: WsClient, url: string): Promise<{ id: string; created: boolean; process: Process }> =>
   ws.request("reviews.start", { url });
+export interface MergeJob {
+  state: "waiting" | "restacking" | "done" | "error"; error: string | null; restacked: string[] | null;
+  repo?: string; number?: number; title?: string; above?: { url: string }[];
+}
+export const mergePr = (ws: WsClient, url: string): Promise<MergeJob> => ws.request("reviews.merge", { url });
+export const retryMerge = (ws: WsClient, url: string) => ws.request("reviews.mergeRetry", { url });
 export const setReviewers = (ws: WsClient, logins: string[]): Promise<GithubReviews> =>
   ws.request("reviews.setReviewers", { logins });
 export function onGithubReviews(ws: WsClient, cb: (r: GithubReviews) => void): () => void {

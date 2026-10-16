@@ -8,6 +8,7 @@ from ide_server.capabilities import folder_sessions as folder_cap
 from ide_server.config import sessions_config, reviews_config
 from ide_server.pr_poller import PrPoller
 from ide_server.gh_reviews import GithubReviews
+from ide_server.gh_merge import Merger
 from ide_server.claude_usage import LimitsPoller
 from ide_server.sessions_fs import SessionError
 from ide_server.supervisor import ClaudeAgents, Supervisor
@@ -57,11 +58,12 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     gh_reviews = GithubReviews(root, interval=rcfg["github_interval"], org=rcfg["github_org"],
                                on_change=lambda: notify_box["github"]())
     limits = LimitsPoller()
+    merger = Merger(root, stacks=lambda: gh_reviews.state, on_change=lambda: notify_box["github"]())
     notify_box["fn"] = folder_cap.register(registry, root, manager, hooks=hooks,
                                            supervisor=supervisor, poller=poller,
-                                           gh_reviews=gh_reviews, limits=limits)
+                                           gh_reviews=gh_reviews, limits=limits, merger=merger)
     notify_box["github"] = lambda: asyncio.get_running_loop().create_task(
-        manager.broadcast("reviews.github", gh_reviews.state))
+        manager.broadcast("reviews.github", {**gh_reviews.state, "merges": merger.public()}))
     mlx_router = build_mlx_router(root)
     hub = chat_cap.register(registry, root, manager, mlx_router=mlx_router)
     customizations_cap.register(registry, root)
@@ -89,6 +91,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             asyncio.create_task(poller.run(stop_bg)),
             asyncio.create_task(gh_reviews.run(stop_bg)),
             asyncio.create_task(limits.run(stop_bg)),
+            asyncio.create_task(merger.run(stop_bg)),
         ]
         for t in tasks:
             t.add_done_callback(_log_done)

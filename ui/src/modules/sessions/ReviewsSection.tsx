@@ -4,12 +4,13 @@ import { ChevronRight, ExternalLink, Layers2, MoreHorizontal, Plus, ScanEye } fr
 import { Collapsible } from "radix-ui";
 import { useFolders } from "../../state/folders";
 import {
-  fetchGithubReviews, onGithubReviews, setReviewers, startReview, type FolderSession, type GhPr, type GithubReviews,
+  fetchGithubReviews, onGithubReviews, setReviewers, startReview, type MergeJob, type FolderSession, type GhPr, type GithubReviews,
 } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { QueueList, QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
 import { Badge } from "../../components/ui/badge";
 import { SessionItem } from "./SessionItem";
+import { canMerge, MergeButton, MergeStatus } from "./MergeControls";
 import { cn } from "../../lib/utils";
 
 /** Botón de revisión: envía `.ide/prompts/review-pr.md` a la sesión del PR (la crea si falta). */
@@ -93,8 +94,9 @@ export function ReviewerChips({ pr }: { pr: GhPr }) {
 
 /** PR de GitHub sin sesión. Click = seleccionarla (el módulo GitHub muestra su stack); abrir en
  *  GitHub con el botón del hover, igual que en las demás cards. */
-export function PrCard({ pr, reviewable = false, openOnClick = false }:
-  { pr: GhPr; reviewable?: boolean; openOnClick?: boolean }) {
+export function PrCard({ pr, reviewable = false, openOnClick = false, merge }:
+  { pr: GhPr; reviewable?: boolean; openOnClick?: boolean;
+    merge?: { job?: MergeJob; above: number } }) {
   const active = useFolders((s) => s.activePrUrl === pr.url);
   const setActivePr = useFolders((s) => s.setActivePr);
   return (
@@ -109,6 +111,8 @@ export function PrCard({ pr, reviewable = false, openOnClick = false }:
           <CiMark pr={pr} />
           <QueueItemActions className="ml-0">
             {reviewable && <ReviewButton pr={pr} />}
+            {merge && canMerge(pr) && merge.job?.state !== "waiting" && merge.job?.state !== "restacking"
+              && <MergeButton pr={pr} above={merge.above} />}
             <QueueItemAction aria-label={`Abrir ${pr.sessionId} en GitHub`} title="Abrir en GitHub" asChild>
               <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
             </QueueItemAction>
@@ -119,6 +123,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false }:
           <span>{pr.author}</span>
           {pr.draft && <Badge variant="outline" className="px-1 py-0 text-[10px]">draft</Badge>}
           <StackBadge pr={pr} />
+          {merge && <MergeStatus url={pr.url} job={merge.job} />}
         </div>
         <ReviewerChips pr={pr} />
       </div>

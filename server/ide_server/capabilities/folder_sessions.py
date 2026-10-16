@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable
 from ide_server.claude_usage import LimitsPoller, session_context
 from ide_server.config import ui_modules
+from ide_server.gh_merge import Merger
 from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
 from ide_server.pr_poller import PrPoller
@@ -27,7 +28,7 @@ log = logging.getLogger(__name__)
 
 def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supervisor,
              poller: PrPoller, gh_reviews: GithubReviews | None = None,
-             limits: LimitsPoller | None = None) -> Callable[[], None]:
+             limits: LimitsPoller | None = None, merger: Merger | None = None) -> Callable[[], None]:
 
     def build_tree(snap: dict, derived: dict) -> dict:
         """Lectura de disco + git: corre en un thread (no bloquea el loop)."""
@@ -138,11 +139,23 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"prompts": await asyncio.to_thread(list_prompts, root)}
 
     async def github(_p: dict) -> dict:
-        return gh_reviews.state if gh_reviews else {"pending": [], "changesRequested": [], "me": None,
+        merges = merger.public() if merger else {}
+        return {**gh_reviews.state, "merges": merges} if gh_reviews else {"pending": [], "changesRequested": [], "me": None,
                                                     "reviewers": [], "reviewersTruncated": False,
                                                     "members": [], "selected": None, "mine": {}, "stacks": {},
                                                     "error": "polling de GitHub desactivado",
                                                     "lastOk": None, "orgs": []}
+
+    async def merge(p: dict) -> dict:
+        if merger is None:
+            raise SessionError("github_off", "merge desactivado")
+        return await asyncio.to_thread(merger.merge, p["url"])
+
+    async def merge_retry(p: dict) -> dict:
+        if merger is None:
+            raise SessionError("github_off", "merge desactivado")
+        merger.retry(p["url"])
+        return {"ok": True}
 
     async def set_reviewers(p: dict) -> dict:
         if gh_reviews is None:
@@ -189,7 +202,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"context": ctx, "limits": lim}
 
     for channel, handler in {
-        "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers, "usage.get": usage,
+        "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
+        "reviews.merge": merge, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.open": open_,
         "sessions.stop": stop, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,

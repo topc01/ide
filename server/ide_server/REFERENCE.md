@@ -271,6 +271,20 @@ colapsan. Cada card muestra quién la revisa (chips: azul review pedida, verde a
 pidió cambios; una review re-pedida cuenta como pedida). Si la PR es parte de un stack, la card
 muestra su posición (`2/4`, 1 = la de abajo).
 
+**Mergear** (hover en Mis PRs; solo PRs aprobadas que son la de abajo de su stack o no están en
+uno; deshabilitado si el CI falló; pide confirmación; canal `reviews.merge {url}`):
+1. En un worktree propio por repo (`.ide/worktrees/_merge/<repo>`, detached) rebasea la rama
+   sobre `origin/<base>` y la empuja con `--force-with-lease` (si hay conflicto aborta: `conflict`).
+2. `gh pr merge --squash --auto`: GitHub mergea cuando pasa el CI; nunca se mergea directo.
+3. Un vigilante (cada 30 s) ve cuándo se mergeó y restackea las PRs de arriba en orden: cada una
+   `git rebase --onto <nueva madre> <sha viejo de la madre>` + push `--force-with-lease`; la de
+   encima pasa a apuntar a la base (`gh pr edit --base`). Después borra la rama mergeada.
+Los trabajos viven en `.ide/merges.json` (sobreviven reinicios). La card muestra `auto-merge ◌`,
+`restack…`, `mergeada ✓` o `⚠ merge` (con reintentar: `reviews.mergeRetry {url}`, sigue desde
+donde quedó). Cuando la PR ya se mergeó y desapareció de las listas, su restack se ve en el grupo
+**Merges** de Mis PRs. Errores: `not_bottom`, `not_approved`, `ci_failed`, `merge_pending`,
+`conflict`, `merge_failed`, `unknown_pr`, `no_merge`.
+
 **Stacks (sin Graphite):** una PR está en un stack si su rama base es la rama (head) de otra PR
 abierta del mismo repo; se calculan sobre todas las PRs abiertas de la org en cada poll. Si un
 stack se ramifica, la posición sigue el orden en profundidad.
@@ -319,7 +333,8 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `bad_pr_url`, `forbidden`, `unknown_repo`, `repo_exists`, `repo_not_in_session`,
 `ambiguous_repo`, `uncommitted_changes`, `setup_failed`, `archive_failed`, `script_not_found`,
 `script_not_executable`, `script_failed`, `gh_failed`, `fetch_failed`, `checkout_failed`,
-`not_a_review`, `session_archived`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
+`not_a_review`, `session_archived`, `not_bottom`, `not_approved`, `ci_failed`, `merge_pending`,
+`conflict`, `merge_failed`, `unknown_pr`, `no_merge`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`.
 
 ## 12. API (para integraciones)
@@ -331,6 +346,6 @@ snake_case: `id`, `notion`, `main`, `template`, `vars`, `prompt`, `title`, `perm
 
 WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|archive|script|doc|refreshReview|repoRm`,
 `ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `reviews.github`
-(`{pending, changesRequested, mine: {returned, waiting, missing, draft, approved}, stacks: {<id>: [pr…]}, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.start` (`{url}` → `{id, created,
+(`{pending, changesRequested, mine: {returned, waiting, missing, draft, approved}, stacks: {<id>: [pr…]}, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.merge` / `reviews.mergeRetry` (`{url}`), `reviews.start` (`{url}` → `{id, created,
 process}`), `usage.get` (`{sessionId}` → `{context, limits}`), `terminal.*`; eventos
 `sessions.changed` (mismo payload que `sessions.tree`) y `reviews.github`.
