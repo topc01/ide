@@ -1,6 +1,6 @@
 // ui/src/modules/sessions/ReviewsSection.tsx
 import { useEffect, useState } from "react";
-import { ChevronRight, ExternalLink, Layers2, Link2, MoreHorizontal, Plus, ScanEye } from "lucide-react";
+import { Check, ChevronRight, ExternalLink, Layers2, Link2, Loader2, MoreHorizontal, Plus, ScanEye, X } from "lucide-react";
 import { Collapsible } from "radix-ui";
 import { useFolders } from "../../state/folders";
 import {
@@ -124,12 +124,15 @@ export function DepsList({ pr, onlyPending = false }: { pr: GhPr; onlyPending?: 
 /** CI de la PR: ✓ pasó, ✗ falló (tests, conflicto con la base, …), ◌ corriendo. */
 export function CiMark({ pr }: { pr: GhPr }) {
   if (!pr.ci) return null;
-  const [mark, cls, label] = pr.ci === "success" ? ["✓", "text-emerald-400", "CI pasó"]
-    : pr.ci === "pending" ? ["◌", "text-amber-300", "CI corriendo"]
-    // rojo puro (no el `destructive` terracota del tema) y con fondo: tiene que saltar a la vista
-    : ["✗", "rounded-sm bg-red-500/20 px-1 text-[12px] leading-4 text-red-500 ring-1 ring-red-500/60",
-       pr.conflict ? "conflicto con la base" : "CI falló"];
-  return <span aria-label={label} title={label} className={cn("shrink-0 font-mono font-bold", cls)}>{mark}</span>;
+  // marca de esquina (como el ⏸): ✓ verde pasó · ✗ roja falló/conflicto · ⟳ amarilla corriendo
+  const [Icon, cls, label] = pr.ci === "success" ? [Check, "bg-emerald-500/15 text-emerald-400", "CI pasó"]
+    : pr.ci === "pending" ? [Loader2, "bg-amber-400/15 text-amber-300", "CI corriendo"]
+    : [X, "bg-red-500/20 text-red-500", pr.conflict ? "conflicto con la base" : "CI falló"];
+  return (
+    <span aria-label={label} title={label} className={cn("grid h-[18px] w-[18px] shrink-0 place-items-center rounded", cls)}>
+      <Icon size={12} strokeWidth={3} className={pr.ci === "pending" ? "animate-spin" : undefined} />
+    </span>
+  );
 }
 
 /** Quién revisa la PR, con el color de su estado. */
@@ -177,6 +180,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
           {showAuthor && <PersonChip login={pr.author} title={`autor: ${pr.author}`} />}
           <span className="flex-1" />
           <DepsPause pr={pr} />
+          <CiMark pr={pr} />
           <QueueItemActions className="ml-0">
             {reviewable && <ReviewButton pr={pr} />}
             {merge && canMerge(pr) && !(merge.job && MERGE_ACTIVE.includes(merge.job.state))

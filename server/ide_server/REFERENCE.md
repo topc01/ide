@@ -392,9 +392,10 @@ y una línea de detalle (posición en el stack `◫ 2/4`, "⟳ commits
 nuevos desde tu revisión", estado del merge; en Mis PRs, los revisores como chips con su estado:
 ✓ aprobó, ✗ pidió cambios, ◌ pendiente). Cada persona tiene siempre el mismo color de chip (también
 en los chips de conteo de Revisiones). **Fondo** tenue = review: verde aprobada, amarillo cambios
-pedidos, azul esperando revisor, morado mergeada. **Borde** (2 px) = CI/merge, en este orden:
-morado girando mergeando, rojo CI falló o conflicto, amarillo girando CI corriendo. **⏸ N** en la
-esquina superior derecha: N dependencias sin mergear (al pasar el mouse, cuáles). La seleccionada
+pedidos, azul esperando revisor, morado mergeada (también mientras se mergea). En la **esquina
+superior derecha**: **⏸ N** = N dependencias sin mergear (al pasar el mouse, cuáles) y la marca de
+**CI**: ✓ verde pasó, ✗ roja falló o hay conflicto, ⟳ amarilla girando corriendo (la misma marca en
+filas de stack, selector, módulo Stack y resumen). El borde es siempre el normal. La seleccionada
 lleva un contorno claro. Al pasar el mouse, el estado en palabras.
 
 **Módulo Dependencias** (menú de acciones, id `deps`): para las PRs del desarrollo actual, de qué

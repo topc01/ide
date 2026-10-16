@@ -43,29 +43,21 @@ const BG: Record<NonNullable<Tone["bg"]>, string> = {
   approved: "bg-emerald-500/[0.07]", changes: "bg-amber-400/[0.07]",
   review: "bg-sky-500/[0.07]", merged: "bg-purple-500/[0.09]",
 };
-const SPIN: Record<string, string> = { "ci-running": "#fbbf24", merging: "#a855f7" };
-const FIXED: Record<string, string> = { "ci-failed": "bg-red-500" };   // borde fijo (2 px)
-
-/** Cascarón de las cards de la sidebar (sesiones y PRs): fondo = review, borde = CI/merge,
- *  contorno claro = seleccionada. */
+/** Cascarón de las cards de la sidebar (sesiones y PRs): fondo = review; el CI va como marca en la
+ *  esquina (CiMark), no en el borde; contorno de acento = seleccionada. */
 export function CardShell({ tone, selected, dashed, onClick, children }:
   { tone: Tone; selected: boolean; dashed?: boolean; onClick?: () => void; children: ReactNode }) {
-  const spin = tone.border && SPIN[tone.border];
   return (
     <div onClick={onClick} title={tone.label} aria-current={selected || undefined}
       className={cn("cursor-pointer rounded-md p-[2px] transition-[margin,filter] duration-150 ease-out",
         // inactivas más angostas (se ensanchan en hover); la activa ocupa todo el ancho
         selected ? "mx-0" : "mx-2 hover:mx-0 hover:brightness-110",
-        !spin && (tone.border ? FIXED[tone.border] : dashed ? "" : "bg-border"),
+        dashed ? "" : "bg-border",
         // ring (box-shadow) y no outline: tailwind-merge descartaba `outline` junto a `outline-2`
-        selected && "relative ring-2 ring-primary ring-offset-2 ring-offset-card")}
-      style={spin ? {
-        background: `conic-gradient(from var(--spin-angle), ${spin} 0deg, ${spin} 70deg, rgba(255,255,255,.10) 140deg, rgba(255,255,255,.10) 360deg)`,
-        animation: "spin-border 2.4s linear infinite",
-      } : undefined}>
+        selected && "relative ring-2 ring-primary ring-offset-2 ring-offset-card")}>
       {/* seleccionado: barrita de acento a la izquierda, además del contorno */}
       {selected && <span aria-hidden className="absolute -left-[9px] top-1/2 h-7 w-1 -translate-y-1/2 rounded-full bg-primary" />}
-      <div className={cn("rounded-[4px] bg-card text-xs", dashed && !spin && !tone.border
+      <div className={cn("rounded-[4px] bg-card text-xs", dashed
         && "border-2 border-dashed border-border")}>
         <div className={cn("rounded-[4px] px-2 py-1.5", tone.bg && BG[tone.bg])}>
           {children}

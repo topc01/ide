@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from "react";
 import { Archive, ExternalLink, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
-import { CardMeta } from "./ReviewsSection";
+import { CardMeta, CiMark } from "./ReviewsSection";
 import { CardShell, DepsPause, devTone, repoShort } from "./DevCard";
 import { PrRow } from "./MyDevsSection";
 import { PersonChip } from "../../lib/people";
@@ -49,6 +49,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
           <span className="flex-1" />
           <DepsPause pr={pr} />
+          {pr && !many && <CiMark pr={pr} />}
           {(session.error || session.launchError) && (
             <span title={session.error ?? session.launchError ?? ""} className="text-destructive">⚠</span>)}
           {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
