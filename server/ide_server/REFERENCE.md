@@ -343,8 +343,9 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 
 ## 12. API (para integraciones)
 
-Seguridad: el WebSocket y `/api/*` rechazan requests de navegador cuyo `Origin` no sea la propia
-UI (mismo host) o `IDE_CORS_ORIGINS` (dev): cualquier página que visites podría si no hablarle a
+Seguridad: el WebSocket y `/api/*` exigen `Host` loopback (`localhost`, `127.0.0.1`, `::1`;
+frena DNS rebinding) y rechazan requests de navegador cuyo `Origin` no sea la propia UI (mismo
+host) o `IDE_CORS_ORIGINS` (dev): cualquier página que visites podría si no hablarle a
 `localhost`. Sin `Origin` (CLI, scripts) se acepta. Rechazo: WS cerrado con 1008, HTTP 403
 `forbidden_origin`.
 

@@ -37,6 +37,7 @@ from ide_server.mlx.orchestrator import build_mlx_router
 from ide_server.models.downloader import ModelDownloader
 
 log = logging.getLogger(__name__)
+LOOPBACK = {"localhost", "127.0.0.1", "::1"}
 
 
 def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | None = None,
@@ -152,10 +153,15 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         """Los navegadores dejan a cualquier página abrir un WebSocket o hacer un POST simple a
         localhost (CORS no lo frena): solo se acepta la propia UI (mismo host) o los orígenes de
         dev. Sin Origin = cliente no navegador (CLI), se acepta."""
+        # Host loopback siempre: si no, un dominio que resuelve a 127.0.0.1 (DNS rebinding) tendría
+        # Origin == Host y pasaría el chequeo de "mismo host".
+        host = conn.headers.get("host", "")
+        if urlparse(f"//{host}").hostname not in LOOPBACK:
+            return False
         origin = conn.headers.get("origin")
         if origin is None:
             return True
-        return urlparse(origin).netloc == conn.headers.get("host", "") or origin in settings.cors_origins
+        return urlparse(origin).netloc == host or origin in settings.cors_origins
 
     @app.middleware("http")
     async def _same_origin(request, call_next):
