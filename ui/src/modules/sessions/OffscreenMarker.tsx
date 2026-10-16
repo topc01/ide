@@ -28,15 +28,18 @@ export function useOffscreenSelected(container: RefObject<HTMLElement | null>, k
   return where;
 }
 
-/** Raya amarilla fija arriba/abajo cuando el desarrollo seleccionado quedó fuera de la vista. */
+/** Barrita de acento (la misma de la card activa) fija arriba o abajo a la izquierda cuando el
+ *  desarrollo seleccionado quedó fuera de la vista; click = scroll hasta él. */
 export function OffscreenMarker({ where, side, container }:
   { where: "above" | "below" | null; side: "above" | "below"; container: RefObject<HTMLElement | null> }) {
   if (where !== side) return null;
   return (
-    <button aria-label="Ir al desarrollo seleccionado"
-      title={`El desarrollo seleccionado está más ${side === "above" ? "arriba" : "abajo"}: click para ir`}
-      onClick={() => container.current?.querySelector<HTMLElement>('[aria-current="true"]')
-        ?.scrollIntoView({ block: "center", behavior: "smooth" })}
-      className={`sticky z-20 block h-1.5 w-full shrink-0 bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,.6)] transition-[height] hover:h-2.5 ${side === "above" ? "top-0" : "bottom-0"}`} />
+    <div className={`sticky z-20 h-0 ${side === "above" ? "top-0" : "bottom-0"}`}>
+      <button aria-label="Ir al desarrollo seleccionado"
+        title={`El desarrollo seleccionado está más ${side === "above" ? "arriba" : "abajo"}: click para ir`}
+        onClick={() => container.current?.querySelector<HTMLElement>('[aria-current="true"]')
+          ?.scrollIntoView({ block: "center", behavior: "smooth" })}
+        className={`absolute left-0.5 h-7 w-1 rounded-full bg-primary transition-all hover:h-9 hover:w-1.5 ${side === "above" ? "top-1" : "bottom-1"}`} />
+    </div>
   );
 }

@@ -26,7 +26,7 @@ function prLabel(url?: string | null): string | null {
 
 export function SessionItem({ session, actions, pr, onlyActions = false }:
   { session: FolderSession; actions?: ReactNode; pr?: GhPr; onlyActions?: boolean }) {
-  const { activeId, setActive } = useFolders();
+  const { activeId, activePrUrl, setActive } = useFolders();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dot, label] = DOT[session.process];
@@ -34,7 +34,8 @@ export function SessionItem({ session, actions, pr, onlyActions = false }:
   const isReview = session.kind === "review";
   return (
     <QueueItem className="px-2 py-1">
-      <CardShell tone={tone} selected={activeId === session.id} onClick={() => setActive(session.id)}>
+      {/* con una PR (sin sesión) elegida, la sesión anterior ya no es el desarrollo activo */}
+      <CardShell tone={tone} selected={activeId === session.id && !activePrUrl} onClick={() => setActive(session.id)}>
         <div className="flex items-center gap-1.5">
           <span aria-label={label} title={`claude ${label}`}
             className={cn(session.process === "running" ? "text-primary" : "text-muted-foreground")}>{dot}</span>
