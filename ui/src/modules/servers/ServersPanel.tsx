@@ -62,7 +62,7 @@ export function ServersPanel() {
       {!place.exists && place.pr && (
         <div className="mx-2.5 rounded-md border border-dashed border-border p-2.5">
           <p className="text-muted-foreground">Esta PR no tiene sesión. Para levantarla, el IDE crea un worktree en el head de
-            la PR (en detach: no ocupa la rama) y corre su <span className="font-mono">setup</span>.</p>
+            la PR (en detach: no ocupa la rama); después corre lo que necesites (install, build, run).</p>
           <Button size="sm" className="mt-2" disabled={busy !== null}
             title={`Crear .ide/worktrees/${place.place}/${place.pr.repo} en el head de la PR`}
             onClick={() => act("ensure", ensurePrWorktree(getWs(), place.pr!.url).then((r) => {
