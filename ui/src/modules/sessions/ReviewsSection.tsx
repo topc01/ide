@@ -1,10 +1,10 @@
 // ui/src/modules/sessions/ReviewsSection.tsx
 import { useEffect, useState } from "react";
-import { Check, ChevronRight, ExternalLink, Layers2, Link2, Loader2, MoreHorizontal, Plus, ScanEye, X } from "lucide-react";
+import { Archive, Check, ChevronRight, ExternalLink, Layers2, Link2, Loader2, MoreHorizontal, Plus, ScanEye, X } from "lucide-react";
 import { Collapsible } from "radix-ui";
 import { useFolders } from "../../state/folders";
 import {
-  fetchGithubReviews, onGithubReviews, setReviewers, startReview, type MergeJob, type FolderSession, type GhPr, type GithubReviews,
+  dismissMerge, fetchGithubReviews, onGithubReviews, setReviewers, startReview, type MergeJob, type FolderSession, type GhPr, type GithubReviews,
 } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { QueueList, QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
@@ -185,6 +185,11 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
             {reviewable && <ReviewButton pr={pr} />}
             {merge && canMerge(pr) && !(merge.job && MERGE_ACTIVE.includes(merge.job.state))
               && merge.job?.state !== "done" && <MergeButton pr={pr} above={merge.above} />}
+            {merge?.job?.state === "done" && (
+              <QueueItemAction aria-label={`Archivar ${pr.repo}#${pr.number}`} title="Archivar (sacarla de la lista; no toca GitHub)"
+                onClick={(e) => { e.stopPropagation(); dismissMerge(getWs(), pr.url).catch(() => {}); }}>
+                <Archive size={11} />
+              </QueueItemAction>)}
             <QueueItemAction aria-label={`Abrir ${pr.repo}#${pr.number} en GitHub`} title="Abrir en GitHub" asChild>
               <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
             </QueueItemAction>
@@ -267,7 +272,7 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
     const s = byId.get(pr.sessionId);
     return { key: pr.url, pr, session: s, status, render: () => s
       // pendientes de revisar: solo revisar y abrir en GitHub (sin parar/archivar)
-      ? <SessionItem session={s} pr={pr} onlyActions={reviewable}
+      ? <SessionItem session={s} pr={pr} onlyActions={reviewable} noArchive={status === "changes"}
           actions={reviewable ? <><ReviewButton pr={pr} /><OpenPrButton pr={pr} /></> : null} />
       : <PrCard pr={pr} reviewable={reviewable} showAuthor /> };
   };

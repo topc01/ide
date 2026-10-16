@@ -338,6 +338,18 @@ class Merger:
         if changed:
             self._on_change()
 
+    def dismiss(self, url: str) -> None:
+        """Archivar un merge terminado (mergeado o con error): sale de la lista. No toca GitHub."""
+        j = self.jobs.get(url)
+        if not j:
+            raise SessionError("no_merge", "no hay un merge para archivar")
+        if j.get("state") in ACTIVE:
+            raise SessionError("merge_pending", "el merge sigue en curso: no se puede archivar todavía")
+        with self._jobs_lock:
+            self.jobs.pop(url, None)
+            self._db.delete_merge(url)
+        self._on_change()
+
     def retry(self, url: str) -> None:
         """Reintenta un merge con error: si ya se mergeó sigue el restack; si no, desde el rebase."""
         j = self.jobs.get(url)

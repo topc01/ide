@@ -258,7 +258,7 @@ notion_url: https://www.notion.so/...
 
 **Revisiones** (sidebar principal): cada `github_interval` s el server hace un `gh api graphql`
 (org-wide, no depende de la sesión abierta) y la UI muestra cards en dos grupos:
-**Pendientes** (PRs abiertos de la org con review pedida a vos) y **Pedí cambios** (PRs abiertos donde tu
+**Pendientes** (PRs abiertos de la org con review pedida a vos) y **Pedí cambios** (sus sesiones no se pueden archivar: siguen vivas hasta la próxima ronda; PRs abiertos donde tu
 última review con veredicto es `CHANGES_REQUESTED`; las respuestas en hilos no la tapan y no te re-pidieron review). Si el PR ya tiene sesión
 (`pr-<repo>-<n>`) la card es la sesión; si no, una card del PR. Las sesiones de revisión que no
 están en esas dos listas van en **Aprobé** (PR abierta y tu última review es aprobación; si
@@ -291,7 +291,8 @@ están en uno; nunca PRs desde forks; el `origin` local del repo tiene que ser e
 GitHub; deshabilitado si el CI falló; pide confirmación; canal `reviews.merge {url}`). No
 bloquea: valida, cierra el diálogo y sigue en segundo plano; la card muestra el paso y se pinta
 **ámbar** mergeando, **roja** con error (reintentar: `reviews.mergeRetry {url}`) y **morada**
-mergeada (24 h, en el grupo **Merges** de Mis PRs cuando ya no está abierta).
+mergeada (24 h, en el grupo **Merges** de Mis desarrollos cuando ya no está abierta; ahí se puede
+**archivar**: sale de la lista, canal `reviews.mergeDismiss {url}`, no toca GitHub).
 1. En un worktree propio por repo (`.ide/worktrees/_merge/<repo>`, detached) rebasea la rama
    sobre `origin/<base>` y la empuja con `--force-with-lease` (si hay conflicto aborta: `conflict`).
    Si la rama arrastra commits de una PR madre que ya se mergeó con squash (estaba apilada y

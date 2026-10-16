@@ -150,6 +150,10 @@ class Db:
             rows = self._conn.execute("SELECT url, job FROM merges").fetchall()
         return {u: json.loads(j) for u, j in rows}
 
+    def delete_merge(self, url: str) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM merges WHERE url = ?", (url,))
+
     def put_merge(self, url: str, job: dict) -> None:
         with self._lock:
             self._conn.execute("INSERT OR REPLACE INTO merges VALUES (?, ?)", (url, json.dumps(job)))

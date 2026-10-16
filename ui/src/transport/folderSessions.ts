@@ -85,6 +85,7 @@ export interface MergeJob {
   native?: boolean; merged_at?: string | null; url?: string;
 }
 export const mergePr = (ws: WsClient, url: string): Promise<MergeJob> => ws.request("reviews.merge", { url });
+export const dismissMerge = (ws: WsClient, url: string) => ws.request("reviews.mergeDismiss", { url });
 export const retryMerge = (ws: WsClient, url: string) => ws.request("reviews.mergeRetry", { url });
 export interface Discussion {
   url: string; title: string; number: number; state: "OPEN" | "MERGED" | "CLOSED"; draft: boolean;

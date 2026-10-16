@@ -26,8 +26,9 @@ function prLabel(url?: string | null): string | null {
 }
 
 /** `prs`: las PRs del desarrollo de la sesión (Mis desarrollos); con más de una se muestran como filas. */
-export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = false }:
-  { session: FolderSession; actions?: ReactNode; pr?: GhPr; prs?: GhPr[]; onlyActions?: boolean }) {
+/** `noArchive`: sin botón archivar (p.ej. revisiones donde pediste cambios: siguen vivas). */
+export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = false, noArchive = false }:
+  { session: FolderSession; actions?: ReactNode; pr?: GhPr; prs?: GhPr[]; onlyActions?: boolean; noArchive?: boolean }) {
   const pr = prProp ?? prs?.[0];
   const many = (prs?.length ?? 0) > 1;
   const { activeId, activePrUrl, setActive } = useFolders();
@@ -70,7 +71,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
                 }}>
                 <Square size={11} />
               </QueueItemAction>)}
-            {!onlyActions && (
+            {!onlyActions && !noArchive && (
               <QueueItemAction aria-label={`Archivar ${session.id}`} title="Archivar"
                 onClick={(e) => { e.stopPropagation(); setConfirm(true); }}>
                 <Archive size={11} />

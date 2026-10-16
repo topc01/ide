@@ -161,6 +161,12 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         merger.retry(p["url"])
         return {"ok": True}
 
+    async def merge_dismiss(p: dict) -> dict:
+        if merger is None:
+            raise SessionError("github_off", "merge desactivado")
+        merger.dismiss(p["url"])
+        return {"ok": True}
+
     async def set_reviewers(p: dict) -> dict:
         if gh_reviews is None:
             raise SessionError("github_off", "polling de GitHub desactivado")
@@ -207,7 +213,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
-        "reviews.merge": merge, "reviews.discussion": discussion, "reviews.mergeRetry": merge_retry, "usage.get": usage,
+        "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.open": open_,
         "sessions.stop": stop, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
