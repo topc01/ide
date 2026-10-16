@@ -5,6 +5,7 @@
 worktree; se resuelven (symlinks incluidos) y lo que cae afuera se rechaza."""
 from __future__ import annotations
 import os
+import tempfile
 from pathlib import Path
 from ide_server.repos_fs import worktree_path
 from ide_server.sessions_fs import SessionError, require_plain_name
@@ -86,9 +87,17 @@ def write(root: Path, place: str, repo: str, rel: str, text: str, mtime: int | N
         raise SessionError("changed_on_disk", f"{rel} cambió en disco desde que lo abriste: recárgalo")
     if not p.parent.is_dir():
         raise SessionError("bad_path", f"no existe la carpeta de {rel}")
-    tmp = p.with_name(f".{p.name}.ide-tmp")
-    tmp.write_text(text, encoding="utf-8")
-    if p.exists():
-        os.chmod(tmp, p.stat().st_mode)
-    os.replace(tmp, p)
+    # temporal con nombre aleatorio y creado en exclusiva (O_EXCL): un nombre fijo podría venir en el
+    # repo como symlink (p.ej. en una PR ajena) y la escritura saldría del worktree
+    fd, tmp_name = tempfile.mkstemp(dir=p.parent, prefix=f".{p.name}.", suffix=".ide-tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        if p.exists():
+            os.chmod(tmp, p.stat().st_mode)
+        os.replace(tmp, p)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     return {"mtime": p.stat().st_mtime_ns}
