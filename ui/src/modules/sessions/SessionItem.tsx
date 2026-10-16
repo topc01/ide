@@ -14,8 +14,10 @@ import { cn } from "../../lib/utils";
 
 const DOT = { running: ["●", "corriendo"], stopped: ["○", "parada"], queued: ["◌", "en cola"] } as const;
 
-/** `pr`: la PR de GitHub de la sesión (si se conoce): agrega su posición en el stack. */
-export function SessionItem({ session, actions, pr }: { session: FolderSession; actions?: ReactNode; pr?: GhPr }) {
+/** `pr`: la PR de GitHub de la sesión (si se conoce): agrega su posición en el stack.
+ *  `onlyActions`: el hover muestra solo `actions` (sin parar/archivar). */
+export function SessionItem({ session, actions, pr, onlyActions = false }:
+  { session: FolderSession; actions?: ReactNode; pr?: GhPr; onlyActions?: boolean }) {
   const { activeId, setActive } = useFolders();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export function SessionItem({ session, actions, pr }: { session: FolderSession; 
           {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
           <QueueItemActions className="ml-0">
             {actions}
-            {session.process !== "stopped" && (
+            {!onlyActions && session.process !== "stopped" && (
               <QueueItemAction aria-label={`Parar ${session.id}`}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -44,10 +46,11 @@ export function SessionItem({ session, actions, pr }: { session: FolderSession; 
                 }}>
                 <Square size={11} />
               </QueueItemAction>)}
-            <QueueItemAction aria-label={`Archivar ${session.id}`} title="Archivar"
-              onClick={(e) => { e.stopPropagation(); setConfirm(true); }}>
-              <Archive size={11} />
-            </QueueItemAction>
+            {!onlyActions && (
+              <QueueItemAction aria-label={`Archivar ${session.id}`} title="Archivar"
+                onClick={(e) => { e.stopPropagation(); setConfirm(true); }}>
+                <Archive size={11} />
+              </QueueItemAction>)}
           </QueueItemActions>
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-4 text-[10px] text-muted-foreground">

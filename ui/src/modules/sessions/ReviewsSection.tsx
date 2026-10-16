@@ -94,6 +94,14 @@ export function ReviewerChips({ pr }: { pr: GhPr }) {
   );
 }
 
+function OpenPrButton({ pr }: { pr: GhPr }) {
+  return (
+    <QueueItemAction aria-label={`Abrir ${pr.repo}#${pr.number} en GitHub`} title="Abrir en GitHub" asChild>
+      <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
+    </QueueItemAction>
+  );
+}
+
 /** PR de GitHub sin sesión. Click = seleccionarla (el módulo GitHub muestra su stack); abrir en
  *  GitHub con el botón del hover, igual que en las demás cards. */
 export function PrCard({ pr, reviewable = false, openOnClick = false, merge }:
@@ -138,7 +146,9 @@ function PrList({ prs, byId, reviewable }: { prs: GhPr[]; byId: Map<string, Fold
     <QueueList>
       {prs.map((pr) => {
         const s = byId.get(pr.sessionId);
-        return s ? <SessionItem key={pr.url} session={s} pr={pr} actions={reviewable ? <ReviewButton pr={pr} /> : null} />
+        // pendientes de revisar: solo revisar y abrir en GitHub (sin parar/archivar)
+        return s ? <SessionItem key={pr.url} session={s} pr={pr} onlyActions={reviewable}
+          actions={reviewable ? <><ReviewButton pr={pr} /><OpenPrButton pr={pr} /></> : null} />
           : <PrCard key={pr.url} pr={pr} reviewable={reviewable} />;
       })}
     </QueueList>
