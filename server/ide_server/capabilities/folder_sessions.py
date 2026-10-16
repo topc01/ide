@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable
 from ide_server.claude_usage import LimitsPoller, session_context
 from ide_server.config import ui_modules
+from ide_server.gh_discussion import fetch_discussion
 from ide_server.gh_merge import Merger
 from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
@@ -146,6 +147,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                                                     "error": "polling de GitHub desactivado",
                                                     "lastOk": None, "orgs": []}
 
+    async def discussion(p: dict) -> dict:
+        return await asyncio.to_thread(fetch_discussion, p["url"])
+
     async def merge(p: dict) -> dict:
         if merger is None:
             raise SessionError("github_off", "merge desactivado")
@@ -203,7 +207,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
-        "reviews.merge": merge, "reviews.mergeRetry": merge_retry, "usage.get": usage,
+        "reviews.merge": merge, "reviews.discussion": discussion, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.open": open_,
         "sessions.stop": stop, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,

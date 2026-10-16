@@ -79,7 +79,7 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "terminal", "prompts", "github"]   # módulos visibles en el menú de acciones; ver abajo
+modules = ["sessions", "terminal", "prompts", "github", "review"]   # módulos visibles en el menú de acciones; ver abajo
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -87,7 +87,7 @@ modules = ["sessions", "terminal", "prompts", "github"]   # módulos visibles en
 Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero) hacen
 fallar el arranque con un mensaje que nombra la clave.
 
-`[ui] modules`: ids disponibles `terminal`, `prompts`, `github`, `files`, `search`, `changes`, `graphite`, `tasks`,
+`[ui] modules`: ids disponibles `terminal`, `prompts`, `github`, `review`, `files`, `search`, `changes`, `graphite`, `tasks`,
 `notion`, y `chat`. Si `chat` **no** está, el área principal es la vista por sesión (terminal
 `claude` + doc + scripts); si está, vuelve el chat propio.
 
@@ -300,6 +300,14 @@ pendientes), amarillo pidieron cambios (y no re-pediste review), sin color sin r
 `repo#número · autor`; las PRs del stack que no son tuyas ni te tienen como revisor van tachadas y
 atenuadas. El título muestra el total; los grupos se colapsan.
 
+**Módulo Revisión** (menú de acciones, id `review`): para las PRs del desarrollo actual (la PR
+elegida, o las de las ramas de la sesión) muestra el estado (veredicto, CI con los checks que
+fallaron y su log, conflicto, revisores), los **hilos en el código** (abiertos primero, con
+`archivo:línea`; resueltos colapsados; desactualizados marcados) y la **conversación** (reviews
+con veredicto o texto + comentarios generales, por fecha). Se pide a GitHub a demanda (canal
+`reviews.discussion {url}`) al abrirlo y cada 60 s mientras está abierto (o con ↻). El texto se
+muestra limpio (sin HTML ni imágenes), los largos recortados con "ver más".
+
 **Desarrollos y selector:** un *desarrollo* es una sesión o una PR sin sesión de las listas de
 la sidebar. El desarrollo actual se muestra como card arriba del menú de acciones y la sidebar
 interna (los empuja hacia abajo); click → lista de todos los desarrollos (Sesiones / Revisiones /
@@ -364,6 +372,6 @@ snake_case: `id`, `notion`, `main`, `template`, `vars`, `prompt`, `title`, `perm
 
 WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|archive|script|doc|refreshReview|repoRm`,
 `ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `reviews.github`
-(`{pending, changesRequested, mine: {returned, waiting, missing, draft, approved}, stacks: {<id>: [pr…]}, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.merge` / `reviews.mergeRetry` (`{url}`), `reviews.start` (`{url}` → `{id, created,
+(`{pending, changesRequested, mine: {returned, waiting, missing, draft, approved}, stacks: {<id>: [pr…]}, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.merge` / `reviews.mergeRetry` (`{url}`), `reviews.discussion` (`{url}`), `reviews.start` (`{url}` → `{id, created,
 process}`), `usage.get` (`{sessionId}` → `{context, limits}`), `terminal.*`; eventos
 `sessions.changed` (mismo payload que `sessions.tree`) y `reviews.github`.

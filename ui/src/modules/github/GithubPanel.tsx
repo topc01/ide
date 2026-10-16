@@ -13,6 +13,16 @@ const REVIEW = {
   changes: ["bg-amber-400", "pidieron cambios"],
 } as const;
 
+/** URLs de las PRs del desarrollo: la PR elegida, o las de las ramas de la sesión abierta. */
+export function desarrolloPrs(session: FolderSession | undefined, activePrUrl: string | null,
+                              gh: GithubReviews): GhPr[] {
+  const prs = allPrs(gh);
+  if (activePrUrl) return prs.filter((p) => p.url === activePrUrl);
+  if (!session) return [];
+  return prs.filter((p) => p.sessionId === session.id
+    || session.repos.some((r) => r.branch && p.repo === r.name && p.head === r.branch));
+}
+
 /** Las PRs de la sesión: la del PR revisado, o las de las ramas de sus repos; cada una con su stack. */
 function sessionStacks(s: FolderSession, gh: GithubReviews): { own: Set<string>; stacks: GhPr[][] } {
   const prs = allPrs(gh);

@@ -78,6 +78,19 @@ export interface MergeJob {
 }
 export const mergePr = (ws: WsClient, url: string): Promise<MergeJob> => ws.request("reviews.merge", { url });
 export const retryMerge = (ws: WsClient, url: string) => ws.request("reviews.mergeRetry", { url });
+export interface Discussion {
+  url: string; title: string; number: number; state: "OPEN" | "MERGED" | "CLOSED"; draft: boolean;
+  decision: string | null; conflict: boolean; head: string; base: string;
+  ci: "success" | "failure" | "pending" | null;
+  checks: { name: string | null; url: string | null; state: "success" | "failure" | "pending" }[];
+  reviewers: { login: string; state: string }[];
+  conversation: { kind: "review" | "comment"; author: string; state: string | null; body: string;
+                  at: string | null; url: string | null }[];
+  threads: { resolved: boolean; outdated: boolean; path: string | null; line: number | null;
+             comments: { author: string; body: string; at: string | null; url: string | null }[] }[];
+}
+export const fetchDiscussion = (ws: WsClient, url: string): Promise<Discussion> =>
+  ws.request("reviews.discussion", { url });
 export const setReviewers = (ws: WsClient, logins: string[]): Promise<GithubReviews> =>
   ws.request("reviews.setReviewers", { logins });
 export function onGithubReviews(ws: WsClient, cb: (r: GithubReviews) => void): () => void {
