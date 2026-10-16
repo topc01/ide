@@ -60,22 +60,27 @@ export function OffscreenMarker({ where, side, container }:
   const head = selected?.querySelector(".font-bold")?.textContent?.trim();
   const title = selected?.querySelector(".line-clamp-2")?.textContent?.trim();
   const go = () => selected?.scrollIntoView({ block: "center", behavior: "smooth" });
-  const size = ["h-1 w-14", "h-1.5 w-24", "h-2 w-36"][Math.min(level, 2)];   // píldora centrada
+  // un solo elemento que se transforma (píldora → card): ancho, alto, radio y fondo animados; el
+  // texto aparece con un fundido cuando la forma ya casi creció
+  const shape = [
+    "h-1 w-14 rounded-full bg-primary", "h-1.5 w-24 rounded-full bg-primary",
+    "h-2 w-36 rounded-full bg-primary",
+    "h-[68px] w-[calc(100%-8px)] rounded-md bg-card ring-2 ring-primary shadow-lg shadow-black/40",
+  ][level];
+  const open = level === 3;
   return (
     <div className={`sticky z-20 h-0 ${side === "above" ? "top-0" : "bottom-0"}`}>
-      {level < 3 ? (
-        <button aria-label="Ir al desarrollo seleccionado"
-          title={`El desarrollo seleccionado está más ${side === "above" ? "arriba" : "abajo"}: click para ir`}
-          onClick={go}
-          className={`absolute left-1/2 -translate-x-1/2 rounded-full bg-primary transition-all duration-150 ${size} ${side === "above" ? "top-1" : "bottom-1"}`} />
-      ) : (
-        <button aria-label="Ir al desarrollo seleccionado" title="Click para ir al desarrollo seleccionado" onClick={go}
-          className={`absolute inset-x-1 animate-in fade-in zoom-in-95 rounded-md border-2 border-primary bg-card px-2 py-1.5 text-left text-xs shadow-lg shadow-black/40 ${side === "above" ? "top-1" : "bottom-1"}`}>
-          <div className="font-mono text-[11px] font-bold">{head}</div>
-          {title && <div className="line-clamp-2 leading-snug">{title}</div>}
+      <button aria-label="Ir al desarrollo seleccionado"
+        title={open ? "Click para ir al desarrollo seleccionado"
+          : `El desarrollo seleccionado está más ${side === "above" ? "arriba" : "abajo"}: click para ir`}
+        onClick={go}
+        className={`absolute left-1/2 -translate-x-1/2 overflow-hidden text-left text-xs transition-all duration-300 ease-out ${shape} ${side === "above" ? "top-1" : "bottom-1"}`}>
+        <div className={`px-2 py-1.5 transition-opacity ${open ? "opacity-100 delay-150 duration-200" : "opacity-0 duration-75"}`}>
+          <div className="truncate font-mono text-[11px] font-bold">{head}</div>
+          {title && <div className="truncate leading-snug">{title}</div>}
           <div className="mt-0.5 text-[10px] text-muted-foreground">{side === "above" ? "↑ más arriba" : "↓ más abajo"} · click para ir</div>
-        </button>
-      )}
+        </div>
+      </button>
     </div>
   );
 }

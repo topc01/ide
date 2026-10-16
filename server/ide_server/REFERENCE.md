@@ -401,7 +401,7 @@ los revisores visibles en los chips. El agrupado se recuerda por navegador. La c
 lleva contorno de acento, una barrita a la izquierda y ocupa todo el ancho; las demás son un poco
 más angostas y se ensanchan al pasar el mouse. Si la seleccionada queda fuera de la zona visible de
 la sidebar, aparece una píldora horizontal de acento, centrada, fija arriba o abajo (según dónde quedó): crece
-al acercar el puntero y muy cerca se despliega en una mini-card con repo, número y título; click =
+al acercar el puntero y muy cerca se transforma (animado) en una mini-card con repo, número y título; click =
 scroll hasta centrarla.
 
 **Secciones:** qué secciones están abiertas o cerradas (Revisiones, Mis PRs y sus grupos, grupos
