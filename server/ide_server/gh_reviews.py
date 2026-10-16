@@ -17,7 +17,7 @@ from ide_server.workspace import discover_repos
 
 log = logging.getLogger(__name__)
 
-_FIELDS = """... on PullRequest { url title number isDraft updatedAt reviewDecision
+_FIELDS = """... on PullRequest { url title number isDraft updatedAt reviewDecision headRefName baseRefName
   repository { name } author { login }
   latestReviews(first: 30) { nodes { state author { login } } }
   reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } } }"""
@@ -50,12 +50,53 @@ def workspace_orgs(root: Path) -> list[str]:
     return sorted(orgs)
 
 
-def _card(n: dict) -> dict:
+def review_state(n: dict) -> str | None:
+    """approved | changes | review (con reviews pedidas pendientes) | None (sin review)."""
+    decision = n.get("reviewDecision")
+    if decision == "APPROVED":
+        return "approved"
+    if decision == "CHANGES_REQUESTED":
+        return "changes"
+    return "review" if _requested(n) else None
+
+
+def compute_stacks(prs: list[dict]) -> dict[str, dict]:
+    """Stacks de GitHub: una PR está en un stack si su base es la rama (head) de otra PR abierta
+    del mismo repo. Devuelve url -> {id (url de la base del stack), position (1 = la de abajo),
+    size}; solo PRs en stacks de 2 o más. Si el stack se ramifica, el orden es en profundidad."""
+    by_head = {(n["repository"]["name"], n["headRefName"]): n for n in prs if n.get("headRefName")}
+    children: dict[str, list[dict]] = {}
+    roots = []
+    for n in prs:
+        parent = by_head.get((n["repository"]["name"], n.get("baseRefName")))
+        if parent is not None and parent is not n:
+            children.setdefault(parent["url"], []).append(n)
+        else:
+            roots.append(n)
+    out: dict[str, dict] = {}
+    for root in roots:
+        order, todo, seen = [], [root], set()
+        while todo:
+            n = todo.pop()
+            if n["url"] in seen:                # ciclo de bases: se corta
+                continue
+            seen.add(n["url"])
+            order.append(n)
+            todo.extend(sorted(children.get(n["url"], []), key=lambda c: -c["number"]))
+        if len(order) > 1:
+            for i, n in enumerate(order):
+                out[n["url"]] = {"id": root["url"], "position": i + 1, "size": len(order)}
+    return out
+
+
+def _card(n: dict, stacks: dict[str, dict] | None = None) -> dict:
     return {"url": n["url"], "title": n["title"], "number": n["number"],
             "repo": n["repository"]["name"], "author": "@" + ((n.get("author") or {}).get("login") or "?"),
             "draft": bool(n.get("isDraft")), "updatedAt": n.get("updatedAt"),
             # mismo id que `ide session new --review` (para cruzar la card con su sesión)
-            "sessionId": slugify(f"pr-{n['repository']['name']}-{n['number']}")}
+            "sessionId": slugify(f"pr-{n['repository']['name']}-{n['number']}"),
+            "head": n.get("headRefName"), "base": n.get("baseRefName"), "review": review_state(n),
+            "stack": (stacks or {}).get(n["url"])}
 
 
 def _requested(n: dict) -> list[str]:
@@ -110,7 +151,9 @@ def parse_result(data: dict, members: set[str] | None = None) -> dict:
     d = data["data"]
     me = d["viewer"]["login"]
     open_prs = [n for n in d["open"]["nodes"] if n]
-    pending = [_card(n) for n in open_prs if me in _requested(n)]
+    stack_info = compute_stacks(open_prs)
+    card = lambda n: _card(n, stack_info)  # noqa: E731
+    pending = [card(n) for n in open_prs if me in _requested(n)]
     seen = {p["url"] for p in pending}
     changes = []
     for n in d["reviewed"]["nodes"]:
@@ -118,7 +161,7 @@ def parse_result(data: dict, members: set[str] | None = None) -> dict:
             continue
         mine = [r for r in n["latestReviews"]["nodes"] if (r.get("author") or {}).get("login") == me]
         if mine and mine[-1]["state"] == "CHANGES_REQUESTED":
-            changes.append(_card(n))
+            changes.append(card(n))
     # revisiones pendientes por revisor (solo personas; los pedidos a equipos no cuentan)
     counts: dict[str, int] = {}
     for n in open_prs:
@@ -130,9 +173,15 @@ def parse_result(data: dict, members: set[str] | None = None) -> dict:
     mine: dict[str, list] = {g: [] for g in MY_GROUPS}
     for n in open_prs:
         if (n.get("author") or {}).get("login") == me:
-            mine[my_pr_group(n)].append(_card(n))
+            mine[my_pr_group(n)].append(card(n))
+    stacks: dict[str, list] = {}
+    for n in open_prs:
+        if (info := stack_info.get(n["url"])) is not None:
+            stacks.setdefault(info["id"], []).append(card(n))
+    for prs in stacks.values():
+        prs.sort(key=lambda c: c["stack"]["position"])
     return {"pending": pending, "changesRequested": changes, "me": me, "reviewers": reviewers,
-            "mine": mine,
+            "mine": mine, "stacks": stacks,
             "reviewersTruncated": d["open"]["issueCount"] > len(d["open"]["nodes"])}
 
 
@@ -165,7 +214,7 @@ class GithubReviews:
         self._on_change = on_change or (lambda: None)
         self._clock = clock
         self.state: dict = {"pending": [], "changesRequested": [], "me": None, "reviewers": [],
-                            "mine": {g: [] for g in MY_GROUPS},
+                            "mine": {g: [] for g in MY_GROUPS}, "stacks": {},
                             "reviewersTruncated": False, "members": [], "selected": None,
                             "error": None, "lastOk": None, "orgs": []}
 

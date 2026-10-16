@@ -40,4 +40,4 @@ def reviews_config(root: Path) -> dict:
 
 
 def ui_modules(root: Path) -> list[str]:
-    return list(load_workspace_config(root).get("ui", {}).get("modules", ["sessions", "terminal", "prompts"]))
+    return list(load_workspace_config(root).get("ui", {}).get("modules", ["sessions", "terminal", "prompts", "github"]))

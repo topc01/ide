@@ -55,12 +55,16 @@ export function onSessionsChanged(ws: WsClient, cb: (t: SessionsTree) => void): 
 export interface GhPr {
   url: string; title: string; number: number; repo: string; author: string;
   draft: boolean; updatedAt: string | null; sessionId: string;
+  head: string | null; base: string | null;
+  review: "approved" | "changes" | "review" | null;
+  stack: { id: string; position: number; size: number } | null;
 }
 export interface GithubReviews {
   pending: GhPr[]; changesRequested: GhPr[]; error: string | null; lastOk: string | null; orgs: string[];
   me: string | null; reviewers: { login: string; count: number }[]; reviewersTruncated: boolean;
   members: { login: string; name: string | null }[]; selected: string[] | null;
   mine: Partial<Record<"returned" | "waiting" | "missing" | "draft" | "approved", GhPr[]>>;
+  stacks?: Record<string, GhPr[]>;      // id del stack -> PRs de abajo hacia arriba
 }
 export const fetchGithubReviews = (ws: WsClient): Promise<GithubReviews> => ws.request("reviews.github", {});
 export const startReview = (ws: WsClient, url: string): Promise<{ id: string; created: boolean; process: Process }> =>

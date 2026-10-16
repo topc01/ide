@@ -140,7 +140,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def github(_p: dict) -> dict:
         return gh_reviews.state if gh_reviews else {"pending": [], "changesRequested": [], "me": None,
                                                     "reviewers": [], "reviewersTruncated": False,
-                                                    "members": [], "selected": None, "mine": {},
+                                                    "members": [], "selected": None, "mine": {}, "stacks": {},
                                                     "error": "polling de GitHub desactivado",
                                                     "lastOk": None, "orgs": []}
 

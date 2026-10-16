@@ -1,6 +1,6 @@
 // ui/src/modules/sessions/ReviewsSection.tsx
 import { useEffect, useState } from "react";
-import { ChevronRight, ExternalLink, MoreHorizontal, Plus, ScanEye } from "lucide-react";
+import { ChevronRight, ExternalLink, Layers2, MoreHorizontal, Plus, ScanEye } from "lucide-react";
 import { Collapsible } from "radix-ui";
 import { useFolders } from "../../state/folders";
 import {
@@ -41,7 +41,8 @@ export function useGithubReviews(): { gh: GithubReviews | null; error: string | 
     fetchGithubReviews(ws).then(setGh).catch((e: any) => setError(e?.message ?? String(e)));
     return onGithubReviews(ws, (r) => { setGh(r); setError(null); });
   }, []);
-  return { gh, error };
+  // recién arrancado, el server todavía no consultó GitHub: es "cargando", no "cero PRs"
+  return { gh: gh && (gh.lastOk || gh.error) ? gh : null, error };
 }
 
 /** PR de GitHub sin sesión. `link`: toda la card abre la PR. */
@@ -65,6 +66,8 @@ export function PrCard({ pr, reviewable = false, link = false }: { pr: GhPr; rev
           <span className="font-mono">{pr.repo}#{pr.number}</span>
           <span>{pr.author}</span>
           {pr.draft && <Badge variant="outline" className="px-1 py-0 text-[10px]">draft</Badge>}
+          {pr.stack && <span className="flex items-center gap-0.5 text-primary" title="posición en el stack (1 = la de abajo)">
+            <Layers2 size={10} />{pr.stack.position}/{pr.stack.size}</span>}
         </div>
       </div>
     </QueueItem>
