@@ -147,12 +147,13 @@ class Merger:
             wt = self._wt(pr["repo"], pr.get("fullRepo"))
             old, _new = self._rebase(wt, pr["head"], f"origin/{pr['base']}")
             _check(_run(["gh", "pr", "merge", url, "--squash", "--auto"], wt), "gh pr merge --auto")
-        above = [{"url": p["url"], "head": p["head"], "base": p["base"], "number": p["number"]}
+        above = [{"url": p["url"], "head": p["head"], "base": p["base"], "number": p["number"],
+                  "author": p.get("author"), "fork": bool(p.get("fork"))}
                  for p in stack if p["stack"]["position"] > 1]
         self._update(url, state="waiting", error=None, repo=pr["repo"], full_repo=pr.get("fullRepo"),
                      head=pr["head"],
                      number=pr["number"], title=pr["title"],
-                     base=pr["base"], old_sha=old, above=above, restacked=[],
+                     base=pr["base"], old_sha=old, above=above, restacked=[], me=me,
                      at=datetime.now().isoformat(timespec="seconds"))
         self._on_change()
         return self.public()[url]
@@ -167,11 +168,17 @@ class Merger:
             # rama -> [sha viejo, a dónde va ahora, nueva base]; la mergeada "se convierte" en su
             # base. Se persiste: si falla a la mitad, el reintento sigue desde ahí.
             moved = j.get("moved") or {j["head"]: [j["old_sha"], f"origin/{j['base']}", j["base"]]}
+            skipped = []
             for p in j["above"]:
                 if p["url"] in j.get("restacked", []):
                     continue
+                # solo se reescriben ramas tuyas y del repo base (el push es forzado)
+                if p.get("fork") or not j.get("me") or p.get("author") != f"@{j['me']}":
+                    skipped.append(f"#{p['number']} (de {p.get('author') or '?'})")
+                    continue
                 parent = moved.get(p["base"])
-                if parent is None:              # su madre no se movió (stack ramificado raro)
+                if parent is None:              # su madre no se movió (ajena o stack ramificado)
+                    skipped.append(f"#{p['number']} (encima de una PR que no se movió)")
                     continue
                 old_parent, onto, new_base = parent
                 old, new = self._rebase(wt, p["head"], onto, upstream=old_parent)
@@ -181,9 +188,16 @@ class Merger:
                 moved[p["head"]] = [old, new, p["head"]]
                 self._update(url, moved=moved,
                              restacked=[*self.jobs[url].get("restacked", []), p["url"]])
-            out = _run(["git", "push", "origin", "--delete", j["head"]], wt)   # ya pudo borrarla GitHub
-            if out.returncode != 0 and "remote ref does not exist" not in out.stderr:
-                log.warning("no se pudo borrar la rama %s: %s", j["head"], out.stderr.strip())
+            # si quedó una PR sin mover apuntando a la rama mergeada, borrarla la cerraría en GitHub
+            if not skipped:
+                out = _run(["git", "push", "origin", "--delete", j["head"]], wt)   # ya pudo borrarla GitHub
+                if out.returncode != 0 and "remote ref does not exist" not in out.stderr:
+                    log.warning("no se pudo borrar la rama %s: %s", j["head"], out.stderr.strip())
+        if skipped:
+            self._update(url, state="error", error="mergeada, pero no restackeé "
+                         + ", ".join(skipped) + ": muévelas a mano o avísale a su autor (no borré "
+                         + j["head"] + " para que GitHub no las cierre)")
+            return
         self._update(url, state="done")
 
     def poll_once(self) -> None:

@@ -279,7 +279,9 @@ GitHub; deshabilitado si el CI falló; pide confirmación; canal `reviews.merge 
 2. `gh pr merge --squash --auto`: GitHub mergea cuando pasa el CI; nunca se mergea directo.
 3. Un vigilante (cada 30 s) ve cuándo se mergeó y restackea las PRs de arriba en orden: cada una
    `git rebase --onto <nueva madre> <sha viejo de la madre>` + push `--force-with-lease`; la de
-   encima pasa a apuntar a la base (`gh pr edit --base`). Después borra la rama mergeada.
+   encima pasa a apuntar a la base (`gh pr edit --base`). Después borra la rama mergeada. Solo se
+reescriben PRs tuyas y no de forks: las ajenas (y las que estén encima) quedan sin tocar, la card
+lo marca como `⚠ merge` y la rama mergeada no se borra (GitHub cerraría las que la apuntan).
 Los trabajos viven en `.ide/merges.json` (sobreviven reinicios). La card muestra `auto-merge ◌`,
 `restack…`, `mergeada ✓` o `⚠ merge` (con reintentar: `reviews.mergeRetry {url}`, sigue desde
 donde quedó). Cuando la PR ya se mergeó y desapareció de las listas, su restack se ve en el grupo
