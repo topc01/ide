@@ -271,8 +271,9 @@ colapsan. Cada card muestra quién la revisa (chips: azul review pedida, verde a
 pidió cambios; una review re-pedida cuenta como pedida). Si la PR es parte de un stack, la card
 muestra su posición (`2/4`, 1 = la de abajo).
 
-**Mergear** (hover en Mis PRs; solo PRs aprobadas que son la de abajo de su stack o no están en
-uno; deshabilitado si el CI falló; pide confirmación; canal `reviews.merge {url}`):
+**Mergear** (hover en Mis PRs; solo PRs tuyas, aprobadas, que son la de abajo de su stack o no
+están en uno; nunca PRs desde forks; el `origin` local del repo tiene que ser el mismo repo de
+GitHub; deshabilitado si el CI falló; pide confirmación; canal `reviews.merge {url}`):
 1. En un worktree propio por repo (`.ide/worktrees/_merge/<repo>`, detached) rebasea la rama
    sobre `origin/<base>` y la empuja con `--force-with-lease` (si hay conflicto aborta: `conflict`).
 2. `gh pr merge --squash --auto`: GitHub mergea cuando pasa el CI; nunca se mergea directo.
@@ -336,10 +337,16 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `ambiguous_repo`, `uncommitted_changes`, `setup_failed`, `archive_failed`, `script_not_found`,
 `script_not_executable`, `script_failed`, `gh_failed`, `fetch_failed`, `checkout_failed`,
 `not_a_review`, `session_archived`, `not_bottom`, `not_approved`, `ci_failed`, `merge_pending`,
-`conflict`, `merge_failed`, `unknown_pr`, `no_merge`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
+`conflict`, `merge_failed`, `unknown_pr`, `no_merge`, `not_yours`, `fork_pr`, `repo_mismatch`,
+`forbidden_origin`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`.
 
 ## 12. API (para integraciones)
+
+Seguridad: el WebSocket y `/api/*` rechazan requests de navegador cuyo `Origin` no sea la propia
+UI (mismo host) o `IDE_CORS_ORIGINS` (dev): cualquier página que visites podría si no hablarle a
+`localhost`. Sin `Origin` (CLI, scripts) se acepta. Rechazo: WS cerrado con 1008, HTTP 403
+`forbidden_origin`.
 
 HTTP: `GET /api/sessions` (árbol), `POST /api/sessions` (body = flags de `session new` en
 snake_case: `id`, `notion`, `main`, `template`, `vars`, `prompt`, `title`, `permissions`,

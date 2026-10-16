@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import subprocess
 import threading
 from datetime import datetime
@@ -81,9 +82,15 @@ class Merger:
     def _lock(self, repo: str) -> threading.Lock:
         return self._locks.setdefault(repo, threading.Lock())
 
-    def _wt(self, repo: str) -> Path:
+    def _wt(self, repo: str, full_repo: str | None) -> Path:
         if repo not in {r["id"] for r in discover_repos(self._root)}:
             raise SessionError("unknown_repo", f"{repo} no está en el workspace: no puedo rebasear")
+        # el repo local tiene que ser el mismo de GitHub (no otro con el mismo nombre)
+        url = _check(_run(["git", "-C", str(self._root / repo), "remote", "get-url", "origin"]),
+                     f"{repo} no tiene remote origin")
+        slug = re.sub(r"\.git$", "", re.split(r"github\.com[:/]", url)[-1]) if "github.com" in url else ""
+        if not full_repo or slug.lower() != full_repo.lower():
+            raise SessionError("repo_mismatch", f"el origin de {repo} ({url}) no es {full_repo}")
         wt = merge_worktree(self._root, repo)
         if not wt.exists():
             wt.parent.mkdir(parents=True, exist_ok=True)
@@ -123,6 +130,11 @@ class Merger:
 
     def merge(self, url: str) -> dict:
         pr, stack = self._find(url)
+        me = self._stacks().get("me")
+        if not me or pr.get("author") != f"@{me}":
+            raise SessionError("not_yours", "solo se mergean tus PRs")
+        if pr.get("fork") or any(p.get("fork") for p in stack):
+            raise SessionError("fork_pr", "PRs desde forks no se mergean ni restackean desde el IDE")
         if pr.get("stack") and pr["stack"]["position"] != 1:
             raise SessionError("not_bottom", "solo se mergea la PR de abajo del stack")
         if pr.get("review") != "approved":
@@ -132,12 +144,13 @@ class Merger:
         if self.jobs.get(url, {}).get("state") in ("waiting", "restacking"):
             raise SessionError("merge_pending", "ya hay un merge en curso para esta PR")
         with self._lock(pr["repo"]):
-            wt = self._wt(pr["repo"])
+            wt = self._wt(pr["repo"], pr.get("fullRepo"))
             old, _new = self._rebase(wt, pr["head"], f"origin/{pr['base']}")
             _check(_run(["gh", "pr", "merge", url, "--squash", "--auto"], wt), "gh pr merge --auto")
         above = [{"url": p["url"], "head": p["head"], "base": p["base"], "number": p["number"]}
                  for p in stack if p["stack"]["position"] > 1]
-        self._update(url, state="waiting", error=None, repo=pr["repo"], head=pr["head"],
+        self._update(url, state="waiting", error=None, repo=pr["repo"], full_repo=pr.get("fullRepo"),
+                     head=pr["head"],
                      number=pr["number"], title=pr["title"],
                      base=pr["base"], old_sha=old, above=above, restacked=[],
                      at=datetime.now().isoformat(timespec="seconds"))
@@ -150,7 +163,7 @@ class Merger:
         j = self.jobs[url]
         self._update(url, state="restacking", merged=True, error=None)
         with self._lock(j["repo"]):
-            wt = self._wt(j["repo"])
+            wt = self._wt(j["repo"], j.get("full_repo"))
             # rama -> [sha viejo, a dónde va ahora, nueva base]; la mergeada "se convierte" en su
             # base. Se persiste: si falla a la mitad, el reintento sigue desde ahí.
             moved = j.get("moved") or {j["head"]: [j["old_sha"], f"origin/{j['base']}", j["base"]]}

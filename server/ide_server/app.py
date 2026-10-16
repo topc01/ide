@@ -3,6 +3,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlparse
 from fastapi.responses import JSONResponse
 from ide_server.capabilities import folder_sessions as folder_cap
 from ide_server.config import sessions_config, reviews_config
@@ -147,8 +148,29 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_stop(sid: str):
         return await _http("sessions.stop", {"id": sid})
 
+    def _origin_ok(conn) -> bool:
+        """Los navegadores dejan a cualquier página abrir un WebSocket o hacer un POST simple a
+        localhost (CORS no lo frena): solo se acepta la propia UI (mismo host) o los orígenes de
+        dev. Sin Origin = cliente no navegador (CLI), se acepta."""
+        origin = conn.headers.get("origin")
+        if origin is None:
+            return True
+        return urlparse(origin).netloc == conn.headers.get("host", "") or origin in settings.cors_origins
+
+    @app.middleware("http")
+    async def _same_origin(request, call_next):
+        if request.url.path.startswith("/api/") and not _origin_ok(request):
+            log.warning("request rechazada: Origin %s", request.headers.get("origin"))
+            return JSONResponse({"code": "forbidden_origin", "message": "origen no permitido"},
+                                status_code=403)
+        return await call_next(request)
+
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket) -> None:
+        if not _origin_ok(ws):
+            log.warning("WebSocket rechazado: Origin %s", ws.headers.get("origin"))
+            await ws.close(code=1008)
+            return
         await manager.connect(ws)
         try:
             while True:

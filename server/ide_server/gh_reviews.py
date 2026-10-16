@@ -18,6 +18,7 @@ from ide_server.workspace import discover_repos
 log = logging.getLogger(__name__)
 
 _FIELDS = """... on PullRequest { url title number isDraft updatedAt reviewDecision headRefName baseRefName
+  isCrossRepository repository { nameWithOwner }
   mergeable commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
   repository { name } author { login }
   latestOpinionatedReviews(first: 30) { nodes { state author { login } } }
@@ -67,6 +68,8 @@ def compute_stacks(prs: list[dict]) -> dict[str, dict]:
     """Stacks de GitHub: una PR está en un stack si su base es la rama (head) de otra PR abierta
     del mismo repo. Devuelve url -> {id (url de la base del stack), position (1 = la de abajo),
     size}; solo PRs en stacks de 2 o más. Si el stack se ramifica, el orden es en profundidad."""
+    # las PRs desde forks no apilan: su rama no está en el repo base (mismo nombre ≠ misma rama)
+    prs = [n for n in prs if not n.get("isCrossRepository")]
     by_head = {(n["repository"]["name"], n["headRefName"]): n for n in prs if n.get("headRefName")}
     children: dict[str, list[dict]] = {}
     roots = []
@@ -123,6 +126,7 @@ def _card(n: dict, stacks: dict[str, dict] | None = None) -> dict:
             # mismo id que `ide session new --review` (para cruzar la card con su sesión)
             "sessionId": slugify(f"pr-{n['repository']['name']}-{n['number']}"),
             "head": n.get("headRefName"), "base": n.get("baseRefName"), "review": review_state(n),
+            "fullRepo": n["repository"].get("nameWithOwner"), "fork": bool(n.get("isCrossRepository")),
             "stack": (stacks or {}).get(n["url"]), "reviewers": pr_reviewers(n),
             "ci": ci_state(n), "conflict": n.get("mergeable") == "CONFLICTING"}
 
