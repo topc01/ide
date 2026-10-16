@@ -2,9 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { useFolders } from "../state/folders";
-import { claudeTab, docTab, summaryTab, useDevTabs, type DevTab } from "../state/devTabs";
+import { claudeTab, docTab, scriptTab, summaryTab, useDevTabs, type DevTab } from "../state/devTabs";
 import type { FolderSession, GhPr } from "../transport/folderSessions";
-import { openSession, refreshReview } from "../transport/folderSessions";
+import { openSession, refreshReview, startReview } from "../transport/folderSessions";
+import { openTerminal } from "../transport/terminalChannel";
 import { getWs } from "../transport/wsClient";
 import { allPrs, useGithubReviews } from "../modules/sessions/ReviewsSection";
 import { deriveMine } from "../modules/sessions/desarrollos";
@@ -79,6 +80,7 @@ function ClaudeTab({ session }: { session: FolderSession }) {
 export function DevTabsView() {
   const dev = useCurrentDev();
   const { activePrUrl, setActivePr, setActive } = useFolders();
+  const { gh } = useGithubReviews();
   const { byDev, open, close, focus } = useDevTabs();
   // la tab activa y "lo elegido" van juntos: una tab de resumen elige esa PR; claude/doc/script, la sesión
   const select = (t: DevTab, how: "focus" | "open") => {
@@ -88,6 +90,8 @@ export function DevTabsView() {
     else if (!t.url && dev.session && activePrUrl) setActive(dev.session.id);
   };
   const [menu, setMenu] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // al elegir: la PR elegida abre/enfoca su resumen; una sesión sin tabs arranca con `claude`
   useEffect(() => {
@@ -106,6 +110,18 @@ export function DevTabsView() {
   const active = state.tabs.find((t) => t.id === state.active) ?? null;
   const s = dev.session;
   const docName = s?.kind === "review" ? "REVIEW.md" : s?.kind === "ticket" ? "TICKET.md" : null;
+  // acciones que crean algo nuevo (además de reabrir tabs cerradas)
+  const run = (what: string, p: Promise<void>) => {
+    setBusy(what); setActionError(null); setMenu(false);
+    p.catch((e: any) => setActionError(e?.message ?? String(e))).finally(() => setBusy(null));
+  };
+  const newTerminal = () => run("terminal", openTerminal(getWs(), { sessionId: s!.id }).then((r: any) => {
+    const n = (state.tabs.filter((t) => t.label.startsWith("terminal")).length) + 1;
+    open(dev.key, scriptTab(r.id, n > 1 ? `terminal ${n}` : "terminal"));
+  }));
+  const reviewPr = dev.prs.find((p) => p.url === activePrUrl) ?? dev.prs[0];
+  const canReview = !s && !!reviewPr && !!gh?.me && reviewPr.author !== `@${gh.me}`;
+  const newReview = () => run("review", startReview(getWs(), reviewPr!.url).then((r) => { setActive(r.id); }));
   const candidates: DevTab[] = [
     ...(s ? [claudeTab(s.id)] : []),
     ...(s && docName ? [docTab(s.id, docName)] : []),
@@ -125,12 +141,25 @@ export function DevTabsView() {
               className="rounded p-0.5 opacity-0 hover:bg-accent group-hover/tab:opacity-100"><X size={11} /></button>
           </span>))}
         <div className="relative flex items-center px-1">
-          <button aria-label="Abrir tab" title="Abrir otra tab de este desarrollo" disabled={!candidates.length}
+          <button aria-label="Nueva tab" title="Nueva tab: terminal, sesión de revisión o reabrir una cerrada"
             onClick={() => setMenu((m) => !m)}
             className="grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30">
             <Plus size={13} /></button>
-          {menu && candidates.length > 0 && (
-            <div role="menu" className="absolute left-0 top-full z-30 mt-1 w-48 rounded-md border border-border bg-popover p-1 shadow">
+          {busy && <span className="ml-1 text-[11px] text-muted-foreground">{busy === "terminal" ? "abriendo terminal…" : "creando sesión…"}</span>}
+          {actionError && <span role="alert" title={actionError} className="ml-1 text-[11px] text-destructive">⚠ {actionError}</span>}
+          {menu && (
+            <div role="menu" className="absolute left-0 top-full z-30 mt-1 w-56 rounded-md border border-border bg-popover p-1 shadow">
+              <div className="px-2 pb-0.5 pt-1 text-[10px] uppercase tracking-wide text-muted-foreground">Crear</div>
+              {s ? (
+                <button role="menuitem" title="Shell en la carpeta de la sesión (donde están sus worktrees)" onClick={newTerminal}
+                  className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-accent">Terminal nueva</button>
+              ) : canReview ? (
+                <button role="menuitem" title={`Crear la sesión de revisión de ${prLabel(reviewPr!)} y abrir su claude`} onClick={newReview}
+                  className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-accent">Sesión de revisión ({prLabel(reviewPr!)})</button>
+              ) : (
+                <p className="px-2 py-1 text-[11px] text-muted-foreground">Sin sesión: para una terminal, crea primero una sesión.</p>
+              )}
+              {candidates.length > 0 && <div className="px-2 pb-0.5 pt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">Reabrir</div>}
               {candidates.map((t) => (
                 <button key={t.id} role="menuitem" title={`Abrir ${t.label}`}
                   onClick={() => { select(t, "open"); setMenu(false); }}

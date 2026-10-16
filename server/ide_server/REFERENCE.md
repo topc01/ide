@@ -355,8 +355,9 @@ muestra limpio (sin HTML ni imágenes), los largos recortados con "ver más".
 **resumen** de cada PR y las terminales de los scripts. Al cambiar de desarrollo cambia la fila y al
 volver está como la dejaste (también tras recargar; las de scripts no, mueren con el server). La
 primera vez, una sesión abre `claude` y una PR su resumen; click en una fila de PR abre/enfoca su
-resumen. El `+` abre lo que falta (doc, resúmenes de las otras PRs del desarrollo); × cierra la tab
-sin parar nada. Sin límite de tabs.
+resumen. El `+` **crea**: una **terminal nueva** (shell en la carpeta de la sesión; varias), o en una
+PR de otro sin sesión su **sesión de revisión** (se abre su `claude`); y **reabre** lo cerrado
+(doc, resúmenes de las otras PRs del desarrollo). × cierra la tab sin parar nada. Sin límite de tabs.
 
 **Panel principal con una PR:** si el desarrollo es una PR sin sesión, el panel principal muestra
 la PR (título, rama, stack, CI, revisores), el botón para abrirla en GitHub y, si te toca
