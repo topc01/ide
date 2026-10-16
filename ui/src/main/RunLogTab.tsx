@@ -63,11 +63,9 @@ export function RunLogTab({ place, repo, name }: { place: string; repo: string; 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-border px-3 py-1 text-xs">
-        <RunState run={run} />
         <span className="font-mono">{repo}/{name}</span>
         <span className="text-muted-foreground">{place}</span>
-        {run?.state === "exited" && <span className={run.exitCode ? "text-destructive" : "text-muted-foreground"}>exit {run.exitCode}</span>}
-        {run?.state === "lost" && <span className="text-destructive" title="El proceso ya no existe y no dejó código de salida (kill -9, reinicio de la máquina)">murió</span>}
+        <RunState run={run} />
         <span className="flex gap-1.5"><RunUrls run={run} /></span>
         <span className="flex-1" />
         {err && <span role="alert" className="text-destructive" title={err}>⚠ {err}</span>}

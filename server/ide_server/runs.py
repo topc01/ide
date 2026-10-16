@@ -27,7 +27,7 @@ STOP_GRACE = 15                                 # segundos entre SIGTERM y SIGKI
 _URL_RE = re.compile(r"https?://(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):\d+/?")
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 # el wrapper anota el código de salida: así se sabe cómo terminó aunque el IDE se haya reiniciado
-_WRAPPER = '"$@"; echo $? > "$IDE_RUN_EXIT"'
+_WRAPPER = '"$@"; c=$?; echo $c > "$IDE_RUN_EXIT"; printf "\\n[terminó: exit %s]\\n" "$c"'
 
 
 def runs_dir(root: Path) -> Path:
@@ -181,6 +181,8 @@ class Runner:
             except ProcessLookupError:
                 pass
         try:
+            with open(d / "log", "ab") as log:   # que el log diga cómo terminó
+                log.write(b"\n[parado por el IDE]\n")
             meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
             meta["ended"] = datetime.now().isoformat(timespec="seconds")
             (d / "meta.json").write_text(json.dumps(meta), encoding="utf-8")

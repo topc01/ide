@@ -271,7 +271,8 @@ otro nombre (`build`) y se corre a mano desde Servidores.
 ## 8b. Servidores y Archivos (UI)
 
 **Servidores** (menú de acciones, id `servers`): los scripts de cada repo del desarrollo actual
-(menos `archive`) con ▶/■, estado (corriendo · parando · parado · terminó con exit N · murió) y los
+(menos `archive`) con ▶/■, estado en palabras (● corriendo · ◌ parando · ✓ terminó · ✗ falló (exit N) ·
+■ parado · ⚠ murió; en el tooltip cuándo empezó/terminó; también en la tab del log) y los
 links `localhost:<puerto>` que el script anunció en su salida. Click en uno abre su **log** en una
 tab del panel principal (solo lectura; se reinicia en cada corrida; ▶/■ también desde ahí). Abajo,
 lo que corre en **otros** desarrollos (con ■).
@@ -281,7 +282,8 @@ cierra la UI. Cada corrida vive en `.ide/runs/<lugar>/<repo>/<nombre>/` (`log`, 
 pid, `exit` con el código). Corre en su propio grupo de procesos, cwd = el worktree, con el env de
 §8 más `FORCE_COLOR=1`; stdin `/dev/null` (un script que pregunta no puede: pasa el valor por
 archivo). Parar = SIGTERM al grupo y SIGKILL a los 15 s. "Murió" = ya no existe y no dejó código
-(kill -9, reinicio de la máquina). Archivar o borrar una sesión (o quitar un repo) **para sus
+(kill -9, reinicio de la máquina). El log termina con `[terminó: exit N]` o `[parado por el IDE]`; las
+terminales del IDE (scripts del ⋯, `claude`) también escriben `[terminó: exit N]` al terminar. Archivar o borrar una sesión (o quitar un repo) **para sus
 servidores** antes de correr `archive`.
 
 **PR sin sesión:** Servidores ofrece **Preparar**: crea `.ide/worktrees/wt-<repo>-<n>/<repo>` en

@@ -44,7 +44,7 @@ export function TerminalTab({ id }: { id: string }) {
     let ready = false;
     const unsubscribe = subscribeTerminal(getWs(), id,
       (bytes, end) => { if (ready) writeAfter(bytes, end); else queued.push([bytes, end]); },
-      () => term.write("\r\n[proceso terminado]\r\n"));
+      () => { /* el server ya escribió "[terminó: exit N]" en la salida */ });
     replayTerminal(getWs(), id)
       .then(({ bytes, end }) => { term.write(bytes); replayed = end; })
       .catch(() => { /* server viejo sin replay: solo lo nuevo */ })

@@ -15,6 +15,8 @@ import { PrView } from "./PrView";
 import { DocTab } from "./DocTab";
 import { RunLogTab } from "./RunLogTab";
 import { FileTab } from "./FileTab";
+import { useRuns } from "../transport/runs";
+import { RunState } from "../modules/servers/ServersPanel";
 import { Button } from "../components/ui/button";
 import { cn } from "../lib/utils";
 
@@ -61,6 +63,7 @@ export function DevTabsView() {
   const { activePrUrl, setActivePr, setActive } = useFolders();
   const { gh } = useGithubReviews();
   const { byDev, open, close, focus } = useDevTabs();
+  const runs = useRuns();                       // estado de los scripts para las tabs de log
   // la tab activa y "lo elegido" van juntos: una tab de resumen elige esa PR; claude/doc/script, la sesión
   const select = (t: DevTab, how: "focus" | "open") => {
     if (!dev) return;
@@ -118,7 +121,10 @@ export function DevTabsView() {
           <span key={t.id} className={cn("group/tab flex items-center gap-1 border-b-2 pl-3 pr-1 text-xs",
             t.id === state.active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
             <button role="tab" aria-selected={t.id === state.active} title={t.label} className="py-1.5"
-              onClick={() => select(t, "focus")}>{t.label}</button>
+              onClick={() => select(t, "focus")}>
+              {t.kind === "run" && <span className="mr-1"><RunState compact
+                run={runs.state?.runs.find((r) => r.place === t.place && r.repo === t.repo && r.name === t.name)} /></span>}
+              {t.label}</button>
             <button aria-label={`Cerrar ${t.label}`} title={`Cerrar ${t.label} (no para nada: claude sigue)`}
               onClick={() => close(dev.key, t.id)}
               className="rounded p-0.5 opacity-0 hover:bg-accent group-hover/tab:opacity-100"><X size={11} /></button>

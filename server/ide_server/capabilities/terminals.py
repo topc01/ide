@@ -75,6 +75,8 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
                     pass
                 while data := pty.read(tid, timeout=0.0):     # lo que quedó en el buffer
                     _emit(data)
+                code = pty.exit_code(tid)                     # que la pantalla diga cómo terminó
+                _emit(f"\r\n\x1b[2m[terminó: exit {code if code is not None else '?'}]\x1b[0m\r\n".encode())
                 pty.reap(tid)                                 # cierra el fd; el pid ya se cosechó
                 if key := terms.get(tid, {}).get("persist_key"):  # terminó solo: no es un reinicio
                     _hist_file(key).unlink(missing_ok=True)

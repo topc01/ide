@@ -13,19 +13,38 @@ import { cn } from "../../lib/utils";
 import { useDevPlace } from "./place";
 
 const HIDDEN = new Set(["archive"]);            // corre solo al archivar / quitar el worktree
-const STATE: Record<Run["state"], [string, string]> = {
-  running: ["corriendo", "bg-emerald-400"], stopping: ["parando…", "bg-amber-300"],
-  stopped: ["parado", "bg-muted-foreground/50"], exited: ["terminó", "bg-muted-foreground/50"],
-  lost: ["murió", "bg-destructive"],
-};
 const alive = (r?: Run) => r?.state === "running" || r?.state === "stopping";
 
-export function RunState({ run }: { run?: Run }) {
-  if (!run) return <span className="h-1.5 w-1.5 shrink-0 rounded-full border border-muted-foreground/40" title="no se ha corrido" />;
-  const [label, tone] = STATE[run.state];
-  const bad = run.state === "exited" && run.exitCode !== 0;
-  return <span title={run.state === "exited" ? `terminó (exit ${run.exitCode})` : label}
-    className={cn("h-1.5 w-1.5 shrink-0 rounded-full", bad ? "bg-destructive" : tone, run.state === "running" && "animate-pulse")} />;
+const ago = (iso: string | null) => {
+  if (!iso) return "";
+  const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
+  return s < 60 ? "hace segundos" : s < 3600 ? `hace ${Math.round(s / 60)} min` : s < 86400 ? `hace ${Math.round(s / 3600)} h`
+    : `hace ${Math.round(s / 86400)} d`;
+};
+
+/** Estado de un script en palabras: corriendo · parando · ✓ terminó · ✗ falló (exit N) · parado · murió. */
+export function runState(run?: Run): { text: string; icon: string; cls: string; tip: string } {
+  if (!run) return { text: "sin correr", icon: "○", cls: "text-muted-foreground", tip: "todavía no se corrió" };
+  const when = `empezó ${ago(run.started)}${run.ended ? ` · terminó ${ago(run.ended)}` : ""}`;
+  switch (run.state) {
+    case "running": return { text: "corriendo", icon: "●", cls: "text-emerald-400", tip: `sigue corriendo · ${when}` };
+    case "stopping": return { text: "parando…", icon: "◌", cls: "text-amber-300", tip: "se le pidió parar (SIGKILL a los 15 s)" };
+    case "stopped": return { text: "parado", icon: "■", cls: "text-muted-foreground", tip: `lo paraste · ${when}` };
+    case "lost": return { text: "murió", icon: "⚠", cls: "text-destructive",
+      tip: "el proceso ya no existe y no dejó código de salida (kill -9, reinicio de la máquina)" };
+    default: return run.exitCode === 0
+      ? { text: "terminó", icon: "✓", cls: "text-emerald-400", tip: `terminó bien (exit 0) · ${when}` }
+      : { text: `falló (exit ${run.exitCode})`, icon: "✗", cls: "text-destructive", tip: `terminó con error (exit ${run.exitCode}) · ${when}` };
+  }
+}
+
+/** `compact`: solo el ícono (p.ej. en la etiqueta de una tab). */
+export function RunState({ run, compact = false }: { run?: Run; compact?: boolean }) {
+  const st = runState(run);
+  return (
+    <span title={st.tip} className={cn("inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[10px]", st.cls)}>
+      <span className={cn(run?.state === "running" && "animate-pulse")}>{st.icon}</span>{!compact && st.text}
+    </span>);
 }
 
 export function RunUrls({ run }: { run?: Run }) {
@@ -84,8 +103,8 @@ export function ServersPanel() {
                 <div key={s.name} role="button" tabIndex={0} title={run ? `Ver el log de ${s.name}` : `${s.name}: todavía no se corrió`}
                   onClick={() => run && openLog(repo, s.name)}
                   className={cn("group flex items-center gap-2 px-2.5 py-1", run && "cursor-pointer hover:bg-accent/60")}>
+                  <span className="w-20 shrink-0 truncate font-mono" title={s.name}>{s.name}</span>
                   <RunState run={run} />
-                  <span className="font-mono">{s.name}</span>
                   {!s.executable && <span className="text-destructive" title={`chmod +x .ide/scripts/${repo}/${s.name}`}>⚠ no ejecutable</span>}
                   <span className="flex min-w-0 flex-1 flex-wrap gap-1.5"><RunUrls run={run} /></span>
                   {alive(run) ? (
@@ -126,7 +145,7 @@ export function ServersPanel() {
           <div className="px-2.5 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Corriendo en otros desarrollos</div>
           {others.map((r) => (
             <div key={`${r.place}/${r.repo}/${r.name}`} className="flex items-center gap-2 px-2.5 py-1">
-              <RunState run={r} />
+              <RunState run={r} compact />
               <span className="min-w-0 truncate font-mono" title={`${r.place} · ${r.repo}/${r.name}`}>
                 {r.place} <span className="text-muted-foreground">{repoShort(r.repo)}/{r.name}</span></span>
               <span className="flex flex-1 gap-1.5"><RunUrls run={r} /></span>

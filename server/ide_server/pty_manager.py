@@ -57,13 +57,19 @@ class PtyManager:
         if t.get("reaped"):
             return False
         try:
-            wpid, _ = os.waitpid(t["pid"], os.WNOHANG)
+            wpid, status = os.waitpid(t["pid"], os.WNOHANG)
         except OSError:
-            wpid = t["pid"]                     # ya no es hijo nuestro: tratarlo como cosechado
+            wpid, status = t["pid"], None       # ya no es hijo nuestro: tratarlo como cosechado
         if wpid == 0:
             return True
         t["reaped"] = True                      # el pid quedó libre: nunca más le mandamos señales
+        if status is not None:
+            t["code"] = os.waitstatus_to_exitcode(status)
         return False
+
+    def exit_code(self, tid: str) -> int | None:
+        """Código de salida de un proceso que ya terminó (negativo = murió por esa señal)."""
+        return (self._terms.get(tid) or {}).get("code")
 
     def reap(self, tid: str) -> None:
         """Libera un proceso que ya terminó solo: cierra el fd sin mandar señales."""
