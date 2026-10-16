@@ -272,14 +272,22 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
     ...(gh?.changesRequested ?? []).map((pr) => prEntry(pr, "changes", false)),
   ];
   const onGithub = new Set(entries.map((e) => e.pr!.sessionId));
+  // las que no están pendientes ni con cambios pedidos: mergeadas/cerradas, aprobadas por mí o el resto
+  const groupOf = (s: FolderSession, pr?: GhPr) => {
+    if (s.prState === "merged" || s.prState === "closed") return "closed";
+    const mine = pr?.reviewers?.find((r) => r.login === gh?.me);
+    if (mine ? mine.state === "approved" : s.status === "approved") return "approved";
+    return "others";
+  };
   for (const s of sessions.filter((x) => !onGithub.has(x.id))) {
     const pr = prBySession.get(s.id);
-    entries.push({ key: s.id, pr, session: s, status: "others", render: () => <SessionItem session={s} pr={pr} /> });
+    entries.push({ key: s.id, pr, session: s, status: groupOf(s, pr), render: () => <SessionItem session={s} pr={pr} /> });
   }
 
   return (
     <GroupedSection id="reviews" title="Revisiones" entries={entries} gh={gh}
-      statuses={[["pending", "Pendientes"], ["changes", "Pedí cambios"], ["others", "Otras"]]}
+      statuses={[["pending", "Pendientes"], ["changes", "Pedí cambios"], ["approved", "Aprobé"],
+                 ["closed", "Cerradas"], ["others", "Otras"]]}
       status={<>
         {ghError && <span role="alert" className="truncate text-[10px] text-destructive"
           title={`${ghError} (último OK: ${gh?.lastOk ?? "nunca"})`}>⚠ github</span>}

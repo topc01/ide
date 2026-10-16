@@ -261,7 +261,9 @@ notion_url: https://www.notion.so/...
 **Pendientes** (PRs abiertos de la org con review pedida a vos) y **Pedí cambios** (PRs abiertos donde tu
 última review con veredicto es `CHANGES_REQUESTED`; las respuestas en hilos no la tapan y no te re-pidieron review). Si el PR ya tiene sesión
 (`pr-<repo>-<n>`) la card es la sesión; si no, una card del PR. Las sesiones de revisión que no
-están en GitHub van en **Otras**. Bajo el título, chips `@revisor N`: cuántos PRs abiertos de
+están en esas dos listas van en **Aprobé** (PR abierta y tu última review es aprobación; si
+GitHub no lo dice, `status: approved` de `REVIEW.md`), **Cerradas** (PR mergeada o cerrada) u
+**Otras** (el resto, p.ej. solo comentaste). Bajo el título, chips `@revisor N`: cuántos PRs abiertos de
 la org tienen review pedida a cada **miembro de la org** (los pedidos a equipos y a gente de
 afuera no cuentan; pagina hasta 1000 PRs, el tope de la búsqueda de GitHub; si se pasa, se marca
 con `+`); el tuyo resaltado. El módulo Configuración (⚙ de Revisiones) elige qué miembros se ven (checkbox); se
