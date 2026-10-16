@@ -4,6 +4,7 @@ import { useFolders } from "../../state/folders";
 import type { FolderSession, GhPr, GithubReviews } from "../../transport/folderSessions";
 import { QueueItem, QueueItemAction, QueueItemActions, QueueList } from "../../components/ai-elements/queue";
 import { allPrs, CiMark, useGithubReviews } from "../sessions/ReviewsSection";
+import { desarrollos } from "../../layout/DevSelector";
 import { cn } from "../../lib/utils";
 
 const REVIEW = {
@@ -29,11 +30,12 @@ function sessionStacks(s: FolderSession, gh: GithubReviews): { own: Set<string>;
 }
 
 /** `assigned`: la PR es tuya (autor) o figuras como revisor; si no, va tachada y atenuada. */
-function StackItem({ pr, own, assigned }: { pr: GhPr; own: boolean; assigned: boolean }) {
+function StackItem({ pr, own, assigned, onOpen }:
+  { pr: GhPr; own: boolean; assigned: boolean; onOpen?: () => void }) {
   const [color, label] = pr.review ? REVIEW[pr.review] : [null, "sin review"];
   return (
     <QueueItem className="min-w-0 px-1.5">
-      <div className={cn("flex min-w-0 items-start gap-1.5 rounded border-l-2 border-transparent px-1.5 py-1 text-xs hover:bg-accent/60",
+      <div onClick={onOpen} className={cn(onOpen && "cursor-pointer", "flex min-w-0 items-start gap-1.5 rounded border-l-2 border-transparent px-1.5 py-1 text-xs hover:bg-accent/60",
         own && "border-primary bg-accent", !assigned && "opacity-50")}>
         <span aria-label={label} title={label}
           className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", color ?? "border border-muted-foreground")} />
@@ -46,7 +48,7 @@ function StackItem({ pr, own, assigned }: { pr: GhPr; own: boolean; assigned: bo
         <CiMark pr={pr} />
         <QueueItemActions className="ml-0">
           <QueueItemAction aria-label={`Abrir ${pr.repo}#${pr.number} en GitHub`} title="Abrir en GitHub" asChild>
-            <a href={pr.url} target="_blank" rel="noreferrer"><ExternalLink size={11} /></a>
+            <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
           </QueueItemAction>
         </QueueItemActions>
       </div>
@@ -63,10 +65,17 @@ function prStacks(url: string, gh: GithubReviews): { own: Set<string>; stacks: G
 
 export function GithubPanel() {
   const session = useFolders((s) => s.tree.sessions.find((x) => x.id === s.activeId));
-  const activePrUrl = useFolders((s) => s.activePrUrl);
+  const { activePrUrl, tree, setActive, setActivePr } = useFolders();
   const { gh, error } = useGithubReviews();
   const ghError = error ?? gh?.error ?? (gh && !gh.stacks ? "el server no manda los stacks: reinicia `ide`" : null);
   // la card de PR seleccionada manda; si no, la sesión abierta
+  // click en una PR del stack: abre su desarrollo (su sesión, o la PR si está en las listas)
+  const devs = desarrollos(tree.sessions, gh);
+  const openDev = (pr: GhPr) => {
+    const d = devs.find((x) => x.kind === "session" ? x.session.id === pr.sessionId : x.pr.url === pr.url);
+    if (!d) return undefined;
+    return () => d.kind === "session" ? setActive(d.session.id) : setActivePr(d.pr.url);
+  };
   const data = !gh ? null : activePrUrl ? prStacks(activePrUrl, gh) : session ? sessionStacks(session, gh) : null;
   return (
     <div className="flex w-full min-w-0 flex-col overflow-hidden">
@@ -84,6 +93,7 @@ export function GithubPanel() {
           </div>
           <QueueList className="flex-col-reverse">
             {stack.map((pr) => <StackItem key={pr.url} pr={pr} own={data.own.has(pr.url)}
+              onOpen={openDev(pr)}
               assigned={!gh?.me || pr.author === `@${gh.me}` || !!pr.reviewers?.some((r) => r.login === gh.me)} />)}
           </QueueList>
         </div>

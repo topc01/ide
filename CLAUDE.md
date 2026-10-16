@@ -57,11 +57,15 @@ terminal, R3 chat).
 
 ## Glosario de la UI (usar estos nombres en código, docs y conversación)
 
+**Desarrollo** = lo que está seleccionado para trabajar: una sesión, o una PR de las listas de la
+sidebar (Revisiones / Mis PRs) que no tiene sesión.
+
 De izquierda a derecha:
 
 | Nombre | Componente | Qué es |
 |---|---|---|
 | Sidebar principal | `MainSidebar` (`ui/src/modules/sessions/`) | sesiones (★ principal, tickets, revisiones) + customizaciones abajo |
+| Selector de desarrollo | `DevSelector` (`ui/src/layout/`) | card arriba del menú de acciones + sidebar interna con el desarrollo actual; click = lista de todos para cambiar |
 | Menú de acciones | `ActionMenu` (`ui/src/layout/`) | columna angosta de íconos: colapsar, módulos, prompts |
 | Sidebar interna | `InnerSidebar` (`ui/src/layout/`) | panel del módulo activo (ej. Terminal); colapsable |
 | Panel principal | `MainPanel` (`ui/src/layout/`) | la sesión abierta (tabs `claude`, `TICKET.md`, scripts) |

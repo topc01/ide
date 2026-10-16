@@ -18,6 +18,7 @@ import { NewFolderSessionModal } from "./modules/sessions/NewFolderSessionModal"
 import { SettingsModal } from "./modules/settings/SettingsModal";
 import { MainPanel } from "./layout/MainPanel";
 import { StatusBar } from "./layout/StatusBar";
+import { DevSelector } from "./layout/DevSelector";
 
 export default function App() {
   const setUiModules = useFolders((s) => s.setUiModules);
@@ -29,8 +30,13 @@ export default function App() {
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1">
         <MainSidebar />
-        <ActionMenu />
-        <InnerSidebar />
+        <div className="flex min-h-0 flex-col">
+          <DevSelector />
+          <div className="flex min-h-0 flex-1">
+            <ActionMenu />
+            <InnerSidebar />
+          </div>
+        </div>
         <MainPanel />
       </div>
       <StatusBar />

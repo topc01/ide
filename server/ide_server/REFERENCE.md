@@ -300,6 +300,12 @@ pendientes), amarillo pidieron cambios (y no re-pediste review), sin color sin r
 `repo#número · autor`; las PRs del stack que no son tuyas ni te tienen como revisor van tachadas y
 atenuadas. El título muestra el total; los grupos se colapsan.
 
+**Desarrollos y selector:** un *desarrollo* es una sesión o una PR sin sesión de las listas de
+la sidebar. El desarrollo actual se muestra como card arriba del menú de acciones y la sidebar
+interna (los empuja hacia abajo); click → lista de todos los desarrollos (Sesiones / Revisiones /
+Mis PRs) con buscador para cambiar. En el módulo GitHub, click en una PR del stack abre su
+desarrollo (su sesión, o la PR si está en las listas).
+
 **Abrir sesión:** seleccionar una sesión parada en la sidebar la lanza (retoma su conversación); si falla queda "Reintentar".
 
 **Barra inferior:** contexto de la sesión abierta (último turno de su transcript en
