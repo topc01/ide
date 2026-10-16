@@ -52,12 +52,14 @@ def workspace_orgs(root: Path) -> list[str]:
 
 def review_state(n: dict) -> str | None:
     """approved | changes | review (con reviews pedidas pendientes) | None (sin review)."""
+    # Como Graphite: si pidieron cambios pero re-pediste review, vuelve a estar "en revisión"
+    # (GitHub mantiene CHANGES_REQUESTED hasta que el revisor apruebe).
     decision = n.get("reviewDecision")
     if decision == "APPROVED":
         return "approved"
-    if decision == "CHANGES_REQUESTED":
-        return "changes"
-    return "review" if _requested(n) else None
+    if _requested(n):
+        return "review"
+    return "changes" if decision == "CHANGES_REQUESTED" else None
 
 
 def compute_stacks(prs: list[dict]) -> dict[str, dict]:
@@ -139,12 +141,8 @@ def my_pr_group(n: dict) -> str:
     """Estado de una PR propia, como el inbox de Graphite."""
     if n.get("isDraft"):
         return "draft"
-    decision = n.get("reviewDecision")
-    if decision == "APPROVED":
-        return "approved"
-    if decision == "CHANGES_REQUESTED":
-        return "returned"
-    return "waiting" if _requested(n) else "missing"
+    return {"approved": "approved", "review": "waiting", "changes": "returned"}.get(
+        review_state(n) or "", "missing")
 
 
 def parse_result(data: dict, members: set[str] | None = None) -> dict:

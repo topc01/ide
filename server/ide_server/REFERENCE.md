@@ -260,9 +260,9 @@ grupos fijos. En las pendientes, el botón de revisión (hover) envía
 prompt; si está en cola falla con `queued`. Errores de `gh` se ven como `⚠ github`.
 
 **Mis PRs** (sidebar principal, bajo Revisiones): tus PRs abiertas de la org (del mismo poll),
-agrupadas como el inbox de Graphite: **Devueltas** (`reviewDecision` = `CHANGES_REQUESTED`),
-**Esperando revisores** (con reviews pedidas pendientes), **Sin revisores**, **Draft** y
-**Aprobadas** (`APPROVED`). Prioridad: draft > aprobada > devuelta > esperando > sin revisores.
+agrupadas como el inbox de Graphite: **Devueltas** (`reviewDecision` = `CHANGES_REQUESTED` y sin reviews pedidas pendientes),
+**Esperando revisores** (con reviews pedidas pendientes, aunque antes hayan pedido cambios), **Sin revisores**, **Draft** y
+**Aprobadas** (`APPROVED`). Prioridad: draft > aprobada > esperando > devuelta > sin revisores (como Graphite).
 Son cards sin sesión: click la selecciona (el módulo GitHub muestra su stack) y el botón de
 hover la abre en GitHub, igual que en Revisiones; el título muestra el total y los grupos se
 colapsan. Si la PR es parte de un stack, la card
@@ -276,7 +276,7 @@ stack se ramifica, la posición sigue el orden en profundidad.
 o, si no hay, las PRs de la sesión abierta (la PR
 revisada, o las PRs cuyas ramas son las de los repos de la sesión), cada una con todo su stack
 (arriba la de más arriba). Color por review: verde aprobada, azul en revisión (reviews pedidas
-pendientes), amarillo pidieron cambios, sin color sin review. Hover → abrir la PR. El título muestra el total; los grupos se colapsan.
+pendientes), amarillo pidieron cambios (y no re-pediste review), sin color sin review. Hover → abrir la PR. El título muestra el total; los grupos se colapsan.
 
 **Abrir sesión:** seleccionar una sesión parada en la sidebar la lanza (retoma su conversación); si falla queda "Reintentar".
 
