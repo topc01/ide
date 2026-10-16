@@ -21,23 +21,27 @@ _FIELDS = """... on PullRequest { url title number isDraft updatedAt reviewDecis
   isCrossRepository repository { nameWithOwner }
   mergeable commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
   repository { name } author { login }
-  latestOpinionatedReviews(first: 30) { nodes { state author { login } } }
-  reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } } }"""
+  latestOpinionatedReviews(first: 10) { nodes { state author { login } } }
+  reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } } } } }"""
 # Pendientes y conteos salen de `reviewRequests` de los PRs abiertos: la búsqueda GraphQL
 # `review-requested:@me` omite PRs con review re-pedida.
-QUERY = """query($reviewed: String!, $open: String!) {
+# Separadas: juntas tardan ~7 s y GitHub corta con 502 cerca de los 10 s.
+QUERY = """query($open: String!) {
   viewer { login }
-  reviewed: search(type: ISSUE, first: 50, query: $reviewed) { nodes { %s } }
-  open: search(type: ISSUE, first: 100, query: $open) {
+  open: search(type: ISSUE, first: 50, query: $open) {
     issueCount pageInfo { hasNextPage endCursor } nodes { %s } }
-}""" % (_FIELDS, _FIELDS)
+}""" % _FIELDS
+REVIEWED = """query($reviewed: String!) {
+  reviewed: search(type: ISSUE, first: 50, query: $reviewed) { nodes { %s } }
+}""" % _FIELDS
 OPEN_PAGE = """query($open: String!, $after: String!) {
-  open: search(type: ISSUE, first: 100, query: $open, after: $after) {
+  open: search(type: ISSUE, first: 50, query: $open, after: $after) {
     issueCount pageInfo { hasNextPage endCursor } nodes { %s } }
 }""" % _FIELDS
 MEMBERS = """query($org: String!) { organization(login: $org) {
   membersWithRole(first: 100) { nodes { login name } } } }"""
-MAX_PAGES = 10          # la búsqueda de GitHub no da más de 1000 resultados
+MAX_PAGES = 20          # páginas de 50: la búsqueda de GitHub no da más de 1000 resultados
+RETRIES = 3             # GraphQL pesado: GitHub corta con 502/504 cerca de los 10 s
 _REMOTE_RE = re.compile(r"github\.com[:/]([^/]+)/")
 
 
@@ -215,21 +219,30 @@ def parse_result(data: dict, members: set[str] | None = None) -> dict:
             "reviewersTruncated": d["open"]["issueCount"] > len(d["open"]["nodes"])}
 
 
+async def _graphql(gh: GhRunner, args: list[str]) -> str:
+    """`gh api graphql` con reintentos ante errores transitorios de GitHub (502/504/timeout)."""
+    for attempt in range(RETRIES):
+        code, out, err = await gh(["api", "graphql", *args])
+        if code == 0:
+            return out
+        msg = err.strip() or f"gh exit {code}"
+        if attempt == RETRIES - 1 or not any(t in msg for t in ("502", "503", "504", "timeout", "Timeout")):
+            raise RuntimeError(msg)
+        await asyncio.sleep(2 * (attempt + 1))
+    raise RuntimeError("inalcanzable")
+
+
 async def fetch_all(gh: GhRunner, reviewed: str, open_q: str) -> dict:
     """Primera página (viewer + reviewed + open) y el resto de `open` paginado."""
-    code, out, err = await gh(["api", "graphql", "-f", f"query={QUERY}",
-                               "-f", f"reviewed={reviewed}", "-f", f"open={open_q}"])
-    if code != 0:
-        raise RuntimeError(err.strip() or f"gh exit {code}")
-    data = json.loads(out)
+    data = json.loads(await _graphql(gh, ["-f", f"query={QUERY}", "-f", f"open={open_q}"]))
+    data["data"]["reviewed"] = json.loads(await _graphql(
+        gh, ["-f", f"query={REVIEWED}", "-f", f"reviewed={reviewed}"]))["data"]["reviewed"]
     page = data["data"]["open"]
     for _ in range(MAX_PAGES - 1):
         if not page["pageInfo"]["hasNextPage"]:
             break
-        code, out, err = await gh(["api", "graphql", "-f", f"query={OPEN_PAGE}", "-f", f"open={open_q}",
-                                   "-f", f"after={page['pageInfo']['endCursor']}"])
-        if code != 0:
-            raise RuntimeError(err.strip() or f"gh exit {code}")
+        out = await _graphql(gh, ["-f", f"query={OPEN_PAGE}", "-f", f"open={open_q}",
+                                  "-f", f"after={page['pageInfo']['endCursor']}"])
         page = json.loads(out)["data"]["open"]
         data["data"]["open"]["nodes"] += page["nodes"]
     return data
