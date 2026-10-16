@@ -22,3 +22,7 @@
 html, body, #root { height: 100%; margin: 0; }
 body { background: var(--background); color: var(--foreground);
   font-family: Inter, system-ui, sans-serif; font-size: 13px; }
+
+/* Borde que gira (CI corriendo / mergeando): conic-gradient animado sobre el ángulo. */
+@property --spin-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+@keyframes spin-border { to { --spin-angle: 360deg; } }

@@ -56,7 +56,7 @@ export function MyPrsSection() {
             <QueueSection key={key} defaultOpen persistKey={`myprs.${key}`} className="mt-1">
               <QueueSectionTrigger><QueueSectionLabel label={label} count={prs.length} /></QueueSectionTrigger>
               <QueueSectionContent>
-                <QueueList>{prs.map((pr) => <PrCard key={pr.url} pr={pr}
+                <QueueList>{prs.map((pr) => <PrCard key={pr.url} pr={pr} showReviewers
                   merge={{ job: gh?.merges?.[pr.url],
                            above: pr.stack ? pr.stack.size - pr.stack.position : 0 }} />)}</QueueList>
               </QueueSectionContent>

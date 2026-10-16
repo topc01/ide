@@ -10,7 +10,8 @@ import { getWs } from "../../transport/wsClient";
 import { QueueList, QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
 import { Badge } from "../../components/ui/badge";
 import { SessionItem } from "./SessionItem";
-import { canMerge, MERGE_ACTIVE, MergeButton, mergeCardClass, MergeStatus } from "./MergeControls";
+import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
+import { CardShell, DepsLine, devTone, repoShort } from "./DevCard";
 import { cn } from "../../lib/utils";
 import { usePersistentOpen } from "../../lib/persist";
 
@@ -151,44 +152,54 @@ function OpenPrButton({ pr }: { pr: GhPr }) {
   );
 }
 
-/** PR de GitHub sin sesión. Click = seleccionarla (el módulo GitHub muestra su stack); abrir en
- *  GitHub con el botón del hover, igual que en las demás cards. */
-export function PrCard({ pr, reviewable = false, openOnClick = false, merge }:
-  { pr: GhPr; reviewable?: boolean; openOnClick?: boolean;
-    merge?: { job?: MergeJob; above: number } }) {
+const REVIEWER_TEXT = { requested: "text-sky-400", approved: "text-emerald-400", changes: "text-amber-300" } as const;
+
+/** PR de GitHub sin sesión. Click = seleccionarla (o abrirla, según la sección); botones en hover.
+ *  `showAuthor`: en Revisiones (de quién es); `showReviewers`: en Mis PRs (quién la revisa). */
+export function PrCard({ pr, reviewable = false, openOnClick = false, merge, showAuthor = false, showReviewers = false }:
+  { pr: GhPr; reviewable?: boolean; openOnClick?: boolean; merge?: { job?: MergeJob; above: number };
+    showAuthor?: boolean; showReviewers?: boolean }) {
   const active = useFolders((s) => s.activePrUrl === pr.url);
   const setActivePr = useFolders((s) => s.setActivePr);
+  const tone = devTone(pr, merge?.job);
   return (
-    <QueueItem className="px-2 py-0.5">
-      <div onClick={() => { setActivePr(pr.url); if (openOnClick) window.open(pr.url, "_blank", "noopener"); }}
-        aria-current={active || undefined}
-        className={cn("cursor-pointer rounded-md border border-dashed border-border px-2 py-1.5 text-xs hover:bg-accent/60",
-          active && "border-solid border-primary bg-accent", mergeCardClass(merge?.job))}>
+    <QueueItem className="px-2 py-1">
+      <CardShell tone={tone} selected={active} dashed
+        onClick={() => { setActivePr(pr.url); if (openOnClick) window.open(pr.url, "_blank", "noopener"); }}>
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground" aria-label="sin sesión">◇</span>
-          <span className="min-w-0 flex-1 truncate" title={pr.title}>{pr.title}</span>
-          <CiMark pr={pr} />
+          <span className="font-mono text-[11px] font-bold tracking-wide">{repoShort(pr.repo)} #{pr.number}</span>
+          {showAuthor && <span className="truncate text-[11px] text-foreground/80">{pr.author}</span>}
+          <span className="flex-1" />
           <QueueItemActions className="ml-0">
             {reviewable && <ReviewButton pr={pr} />}
             {merge && canMerge(pr) && !(merge.job && MERGE_ACTIVE.includes(merge.job.state))
               && merge.job?.state !== "done" && <MergeButton pr={pr} above={merge.above} />}
-            <QueueItemAction aria-label={`Abrir ${pr.sessionId} en GitHub`} title="Abrir en GitHub" asChild>
+            <QueueItemAction aria-label={`Abrir ${pr.repo}#${pr.number} en GitHub`} title="Abrir en GitHub" asChild>
               <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
             </QueueItemAction>
           </QueueItemActions>
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 pl-4 text-[10px] text-muted-foreground">
-          <span className="font-mono">{pr.repo}#{pr.number}</span>
-          <span>{pr.author}</span>
-          {pr.draft && <Badge variant="outline" className="px-1 py-0 text-[10px]">draft</Badge>}
-          <StackBadge pr={pr} />
-          <DepsBadge pr={pr} />
+        <div className="mt-0.5 line-clamp-2 leading-snug" title={pr.title}>{pr.title}</div>
+        <CardMeta>
+          {pr.draft && <span>draft</span>}
+          {pr.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
+          <DepsLine pr={pr} />
           {merge && <MergeStatus url={pr.url} job={merge.job} />}
-        </div>
-        <ReviewerChips pr={pr} />
-      </div>
+          {showReviewers && pr.reviewers?.map((r) => (
+            <span key={r.login} className={REVIEWER_TEXT[r.state]}
+              title={`${r.login}: ${{ requested: "review pedida", approved: "aprobó", changes: "pidió cambios" }[r.state]}`}>
+              {r.login}</span>))}
+        </CardMeta>
+      </CardShell>
     </QueueItem>
   );
+}
+
+/** Línea de detalle chica; no ocupa espacio si no hay nada que mostrar. */
+export function CardMeta({ children }: { children: React.ReactNode }) {
+  const items = (Array.isArray(children) ? children.flat() : [children]).filter((c) => c !== null && c !== undefined && c !== false);
+  if (items.length === 0) return null;
+  return <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">{children}</div>;
 }
 
 function PrList({ prs, byId, reviewable }: { prs: GhPr[]; byId: Map<string, FolderSession>; reviewable: boolean }) {
@@ -199,7 +210,7 @@ function PrList({ prs, byId, reviewable }: { prs: GhPr[]; byId: Map<string, Fold
         // pendientes de revisar: solo revisar y abrir en GitHub (sin parar/archivar)
         return s ? <SessionItem key={pr.url} session={s} pr={pr} onlyActions={reviewable}
           actions={reviewable ? <><ReviewButton pr={pr} /><OpenPrButton pr={pr} /></> : null} />
-          : <PrCard key={pr.url} pr={pr} reviewable={reviewable} />;
+          : <PrCard key={pr.url} pr={pr} reviewable={reviewable} showAuthor />;
       })}
     </QueueList>
   );

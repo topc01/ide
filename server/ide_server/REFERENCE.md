@@ -376,6 +376,15 @@ y recién cerradas) + refresco por ID de lo dinámico (CI, conflicto, review: no
 `updatedAt`) de las PRs relevantes (tuyas, las que revisás, sus stacks y dependencias) +
 resincronización completa cada 30 min y al arrancar. Miembros de la org: una vez por día.
 
+**Cards de la sidebar** (sesiones y PRs, mismo cascarón): arriba **repo y número** (`API #4581`,
+en negrita; en Revisiones también el autor; ● ○ = `claude` corriendo/parado), después el título y
+una línea de detalle (posición en el stack `◫ 2/4`, dependencias en palabras "⛓ espera a …" / "⇄ va
+con …", "⟳ commits nuevos desde tu revisión", estado del merge; en Mis PRs, los revisores en color).
+**Fondo** = review: verde aprobada (con **rayas** si está bloqueada por dependencias o no es la de
+abajo de su stack), amarillo cambios pedidos, azul esperando revisor, morado mergeada. **Borde** =
+CI/merge: rojo CI falló o conflicto, amarillo girando CI corriendo, morado girando mergeando. La
+seleccionada lleva un contorno claro. Al pasar el mouse, el estado en palabras.
+
 **Secciones:** qué secciones están abiertas o cerradas (Revisiones, Mis PRs y sus grupos, grupos
 de sesiones, secciones del módulo Revisión) se recuerda entre recargas, por navegador
 (`localStorage`).

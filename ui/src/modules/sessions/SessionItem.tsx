@@ -2,7 +2,8 @@
 import { useState, type ReactNode } from "react";
 import { Archive, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
-import { CiMark, DepsBadge, StackBadge } from "./ReviewsSection";
+import { CardMeta } from "./ReviewsSection";
+import { CardShell, DepsLine, devTone, repoShort } from "./DevCard";
 import { stopSession } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
@@ -16,29 +17,37 @@ const DOT = { running: ["●", "corriendo"], stopped: ["○", "parada"], queued:
 
 /** `pr`: la PR de GitHub de la sesión (si se conoce): agrega su posición en el stack.
  *  `onlyActions`: el hover muestra solo `actions` (sin parar/archivar). */
+/** "https://github.com/o/finnecto-api/pull/4581" → "API #4581" (PR ya cerrada: sin datos de GitHub). */
+function prLabel(url?: string | null): string | null {
+  const m = url?.match(/github\.com\/[^/]+\/([^/]+)\/pull\/(\d+)/);
+  return m ? `${repoShort(m[1])} #${m[2]}` : null;
+}
+
 export function SessionItem({ session, actions, pr, onlyActions = false }:
   { session: FolderSession; actions?: ReactNode; pr?: GhPr; onlyActions?: boolean }) {
   const { activeId, setActive } = useFolders();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dot, label] = DOT[session.process];
-  const extra = session.pollError ? "⚠ poll" : session.prState;
+  const tone = devTone(pr, undefined, { merged: session.prState === "merged", status: session.status });
+  const isReview = session.kind === "review";
   return (
-    <QueueItem className="px-2 py-0.5">
-      <div onClick={() => setActive(session.id)}
-        aria-current={activeId === session.id || undefined}
-        className={cn("cursor-pointer rounded-md border border-border bg-background/40 px-2 py-1.5 text-xs hover:bg-accent/60",
-          activeId === session.id && "border-primary bg-accent text-foreground")}>
+    <QueueItem className="px-2 py-1">
+      <CardShell tone={tone} selected={activeId === session.id} onClick={() => setActive(session.id)}>
         <div className="flex items-center gap-1.5">
-          <span aria-label={label} className={cn(session.process === "running" ? "text-primary" : "text-muted-foreground")}>{dot}</span>
-          <span className="min-w-0 flex-1 truncate" title={session.title ?? session.id}>{session.title ?? session.id}</span>
+          <span aria-label={label} title={`claude ${label}`}
+            className={cn(session.process === "running" ? "text-primary" : "text-muted-foreground")}>{dot}</span>
+          <span className="font-mono text-[11px] font-bold tracking-wide">
+            {pr ? `${repoShort(pr.repo)} #${pr.number}` : prLabel(session.prUrl) ?? session.id}</span>
+          {isReview && session.meta.author && <span className="truncate text-[11px] text-foreground/80">{session.meta.author}</span>}
+          <span className="flex-1" />
           {(session.error || session.launchError) && (
             <span title={session.error ?? session.launchError ?? ""} className="text-destructive">⚠</span>)}
           {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
           <QueueItemActions className="ml-0">
             {actions}
             {!onlyActions && session.process !== "stopped" && (
-              <QueueItemAction aria-label={`Parar ${session.id}`}
+              <QueueItemAction aria-label={`Parar ${session.id}`} title="Parar el claude de esta sesión"
                 onClick={(e) => {
                   e.stopPropagation();
                   setError(null);
@@ -53,21 +62,21 @@ export function SessionItem({ session, actions, pr, onlyActions = false }:
               </QueueItemAction>)}
           </QueueItemActions>
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-4 text-[10px] text-muted-foreground">
-          {session.title && <span className="font-mono">{session.id}</span>}
-          {session.meta.author && <span>{session.meta.author}</span>}
-          {pr && <StackBadge pr={pr} />}
-          {pr && <DepsBadge pr={pr} />}
-          {pr && <CiMark pr={pr} />}
-          {session.status && <Badge variant="outline" className="px-1 py-0 text-[10px]">{session.status}</Badge>}
-          {extra && <Badge variant={session.pollError ? "destructive" : "secondary"} className="px-1 py-0 text-[10px]"
-            title={session.pollError
-              ? `${session.pollError} (último OK: ${session.lastOk ?? "nunca"})` : undefined}>{extra}</Badge>}
-          {session.attention === "trust" && <Badge variant="destructive" className="px-1 py-0 text-[10px]"
-            title="Claude Code pide confirmar la carpeta: abre la terminal y acepta">⚠ confiar carpeta</Badge>}
-        </div>
-        {session.repos.map((r) => <RepoLine key={r.name} session={session} repo={r} />)}
-      </div>
+        <div className="mt-0.5 line-clamp-2 leading-snug" title={session.title ?? session.id}>{session.title ?? session.id}</div>
+        <CardMeta>
+          {pr?.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
+          <DepsLine pr={pr} />
+          {session.prState === "stale" && <span className="text-sky-400"
+            title="El PR tiene commits nuevos desde tu revisión: abre la sesión y toca Refrescar">⟳ commits nuevos desde tu revisión</span>}
+          {session.prState === "closed" && <span>PR cerrada</span>}
+          {session.pollError && <span className="text-destructive"
+            title={`${session.pollError} (último OK: ${session.lastOk ?? "nunca"})`}>⚠ no se pudo consultar el PR</span>}
+          {session.attention === "trust" && <span className="text-destructive"
+            title="Claude Code pide confirmar la carpeta: abre la terminal y acepta">⚠ confiar carpeta</span>}
+        </CardMeta>
+        {/* el worktree solo importa en tickets (rama propia y scripts); en revisiones está en detach */}
+        {!isReview && session.repos.map((r) => <RepoLine key={r.name} session={session} repo={r} />)}
+      </CardShell>
       <ConfirmArchiveDialog id={session.id} open={confirm} onClose={() => setConfirm(false)} />
     </QueueItem>
   );
