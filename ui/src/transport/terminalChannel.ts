@@ -28,14 +28,21 @@ export function closeTerminal(ws: WsClient, id: string): Promise<any> {
 export async function listTerminals(ws: WsClient, sessionId: string): Promise<TerminalInfo[]> {
   return (await ws.request("terminal.list", { sessionId })).terminals;
 }
+export function decodeB64(data: string): Uint8Array {
+  const bin = atob(data);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+/** Lo último impreso por la terminal y hasta qué byte va (`end`), para no arrancar vacía. */
+export async function replayTerminal(ws: WsClient, id: string): Promise<{ bytes: Uint8Array; end: number }> {
+  const r = await ws.request("terminal.replay", { id });
+  return { bytes: decodeB64(r.data), end: r.end };
+}
+/** `end`: bytes impresos en total hasta el final de este evento (si el server lo manda). */
 export function subscribeTerminal(ws: WsClient, id: string,
-  onData: (bytes: Uint8Array) => void, onExit: () => void): () => void {
-  const dataCb = (p: any) => {
-    const bin = atob(p.data);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    onData(bytes);
-  };
+  onData: (bytes: Uint8Array, end?: number) => void, onExit: () => void): () => void {
+  const dataCb = (p: any) => onData(decodeB64(p.data), p.end);
   const exitCb = () => onExit();
   ws.on(`terminal.data.${id}`, dataCb);
   ws.on(`terminal.exit.${id}`, exitCb);

@@ -9,6 +9,8 @@ from ide_server.plugins import Registry
 from ide_server.pty_manager import PtyManager
 from ide_server.workspace import resolve_cwd
 
+REPLAY_BYTES = 2 * 1024 * 1024
+
 
 @dataclass
 class TerminalHooks:
@@ -20,6 +22,10 @@ class TerminalHooks:
 def register(registry: Registry, root: Path, manager, pty: PtyManager | None = None) -> TerminalHooks:
     pty = pty or PtyManager()
     terms: dict[str, dict] = {}                 # tid -> {sessionId, cmd, cwd}
+    # Lo último que imprimió cada terminal (y cuántos bytes lleva en total): una terminal que se
+    # abre en el navegador con el proceso ya corriendo arranca con esto en vez de vacía.
+    history: dict[str, bytearray] = {}
+    emitted: dict[str, int] = {}
 
     def _attach(tid: str, on_exit: Callable[[], None] | None = None,
                 on_output: Callable[[bytes], None] | None = None) -> None:
@@ -27,8 +33,13 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
         fd = pty.fd(tid)
 
         def _emit(data: bytes) -> None:
+            buf = history.setdefault(tid, bytearray())
+            buf += data
+            if len(buf) > REPLAY_BYTES:
+                del buf[:len(buf) - REPLAY_BYTES]
+            emitted[tid] = emitted.get(tid, 0) + len(data)
             loop.create_task(manager.broadcast(
-                f"terminal.data.{tid}", {"data": base64.b64encode(data).decode()}))
+                f"terminal.data.{tid}", {"data": base64.b64encode(data).decode(), "end": emitted[tid]}))
             if on_output is not None:
                 on_output(data)
 
@@ -68,6 +79,8 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
                 pass
         pty.close(tid)
         terms.pop(tid, None)
+        history.pop(tid, None)
+        emitted.pop(tid, None)
 
     async def open_(payload: dict) -> dict:
         cwd = resolve_cwd(root, payload)
@@ -90,6 +103,15 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
             on_input()
         return {"ok": True}
 
+    async def replay_(payload: dict) -> dict:
+        """Lo último impreso por la terminal y hasta qué byte (`end`): el cliente escribe esto y
+        después solo los eventos con `end` mayor (sin perder ni duplicar)."""
+        buf = bytes(history.get(payload["id"], b""))
+        nl = buf.find(b"\n") if len(buf) >= REPLAY_BYTES else -1
+        if nl != -1:                            # recortado: empezar en una línea entera
+            buf = buf[nl + 1:]
+        return {"data": base64.b64encode(buf).decode(), "end": emitted.get(payload["id"], 0)}
+
     async def resize_(payload: dict) -> dict:
         pty.resize(payload["id"], int(payload["cols"]), int(payload["rows"]))
         return {"ok": True}
@@ -101,6 +123,7 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
     registry.register("terminal.open", open_)
     registry.register("terminal.list", list_)
     registry.register("terminal.write", write_)
+    registry.register("terminal.replay", replay_)
     registry.register("terminal.resize", resize_)
     registry.register("terminal.close", close_)
 

@@ -1,0 +1,48 @@
+// ui/src/main/PrView.tsx
+import { useState } from "react";
+import { ExternalLink, ScanEye } from "lucide-react";
+import { useFolders } from "../state/folders";
+import { startReview } from "../transport/folderSessions";
+import { getWs } from "../transport/wsClient";
+import { Button } from "../components/ui/button";
+import { allPrs, CiMark, ReviewerChips, StackBadge, useGithubReviews } from "../modules/sessions/ReviewsSection";
+
+/** Panel principal cuando el desarrollo es una PR sin sesión. */
+export function PrView({ url }: { url: string }) {
+  const { gh } = useGithubReviews();
+  const setActive = useFolders((s) => s.setActive);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const pr = gh ? allPrs(gh).find((p) => p.url === url) : undefined;
+  if (!gh) return <div className="p-6 text-sm text-muted-foreground">cargando…</div>;
+  if (!pr) return <div className="p-6 text-sm text-muted-foreground">La PR ya no está abierta.</div>;
+  const toReview = gh.pending.some((p) => p.url === url);
+  return (
+    <div className="max-w-3xl p-6">
+      <h1 className="text-base font-semibold">{pr.title}</h1>
+      <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-xs text-muted-foreground">
+        <span>{pr.repo}#{pr.number}</span><span>{pr.author}</span>
+        {pr.head && <span>{pr.head} → {pr.base}</span>}
+        <StackBadge pr={pr} /><CiMark pr={pr} />
+      </div>
+      <div className="-ml-4"><ReviewerChips pr={pr} /></div>
+      <div className="mt-4 flex gap-2">
+        <Button asChild variant="secondary" size="sm" title="Abrir la PR en GitHub">
+          <a href={pr.url} target="_blank" rel="noreferrer"><ExternalLink size={13} /> Abrir en GitHub</a>
+        </Button>
+        {toReview && (
+          <Button size="sm" disabled={busy} title="Crear la sesión de revisión de esta PR y mandarle el prompt review-pr"
+            onClick={() => {
+              setBusy(true); setError(null);
+              startReview(getWs(), pr.url).then((r) => setActive(r.id))
+                .catch((e: any) => setError(e?.message ?? String(e))).finally(() => setBusy(false));
+            }}>
+            <ScanEye size={13} /> {busy ? "Creando…" : "Revisar"}
+          </Button>)}
+      </div>
+      {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
+      <p className="mt-4 text-xs text-muted-foreground">
+        Esta PR no tiene sesión. Comentarios y discusiones: módulo Revisión · stack: módulo GitHub.</p>
+    </div>
+  );
+}

@@ -314,6 +314,15 @@ con veredicto o texto + comentarios generales, por fecha). Se pide a GitHub a de
 `reviews.discussion {url}`) al abrirlo y cada 60 s mientras está abierto (o con ↻). El texto se
 muestra limpio (sin HTML ni imágenes), los largos recortados con "ver más".
 
+**Panel principal con una PR:** si el desarrollo es una PR sin sesión, el panel principal muestra
+la PR (título, rama, stack, CI, revisores), el botón para abrirla en GitHub y, si te toca
+revisarla, **Revisar** (crea su sesión de revisión con el prompt `review-pr`).
+
+**Terminales:** el server guarda lo último que imprimió cada terminal (2 MB). Una terminal que se
+abre en el navegador con el proceso ya corriendo arranca con eso (`terminal.replay`) y después solo
+recibe lo nuevo (cada evento trae `end` = bytes impresos en total): se ve como estaba, sin
+reimprimir ni quedar en blanco.
+
 **Desarrollos y selector:** un *desarrollo* es una sesión o una PR sin sesión de las listas de
 la sidebar. El desarrollo actual se muestra como card arriba del menú de acciones y la sidebar
 interna (los empuja hacia abajo); click → lista de todos los desarrollos (Sesiones / Revisiones /
@@ -377,7 +386,7 @@ snake_case: `id`, `notion`, `main`, `template`, `vars`, `prompt`, `title`, `perm
 409/400/500 con `{code, message}`.
 
 WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|archive|script|doc|refreshReview|repoRm`,
-`ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `reviews.github`
+`ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `terminal.replay` (`{id}` → `{data, end}`), `reviews.github`
 (`{pending, changesRequested, mine: {returned, waiting, missing, draft, approved}, stacks: {<id>: [pr…]}, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.merge` / `reviews.mergeRetry` (`{url}`), `reviews.discussion` (`{url}`), `reviews.start` (`{url}` → `{id, created,
 process}`), `usage.get` (`{sessionId}` → `{context, limits}`), `terminal.*`; eventos
 `sessions.changed` (mismo payload que `sessions.tree`) y `reviews.github`.

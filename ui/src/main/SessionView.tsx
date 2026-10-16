@@ -4,6 +4,7 @@ import { useFolders } from "../state/folders";
 import { fetchDoc, onSessionsChanged, openSession, refreshReview } from "../transport/folderSessions";
 import { getWs } from "../transport/wsClient";
 import { TerminalTab } from "./TerminalTab";
+import { PrView } from "./PrView";
 import { Button } from "../components/ui/button";
 import { cn } from "../lib/utils";
 
@@ -21,7 +22,7 @@ function DocTab({ id }: { id: string }) {
 }
 
 export function SessionView() {
-  const { tree, activeId, scriptTabs, closeScriptTab } = useFolders();
+  const { tree, activeId, activePrUrl, scriptTabs, closeScriptTab } = useFolders();
   const [tab, setTab] = useState<TabKey>("claude");
   const [mounted, setMounted] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +43,8 @@ export function SessionView() {
     if (visibleTerm && !mounted.includes(visibleTerm)) setMounted((m) => [...m, visibleTerm]);
   }, [visibleTerm, mounted]);
 
+  // desarrollo = PR sin sesión: su vista, no la sesión que estaba abierta antes
+  if (activePrUrl) return <PrView url={activePrUrl} />;
   if (!session) {
     return <div className="p-6 text-sm text-muted-foreground">Elige una sesión del sidebar (o crea la principal con ★).</div>;
   }

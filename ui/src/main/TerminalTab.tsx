@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
-import { subscribeTerminal, writeTerminal, resizeTerminal } from "../transport/terminalChannel";
+import { replayTerminal, subscribeTerminal, writeTerminal, resizeTerminal } from "../transport/terminalChannel";
 import { getWs } from "../transport/wsClient";
 
 export function TerminalTab({ id }: { id: string }) {
@@ -29,9 +29,26 @@ export function TerminalTab({ id }: { id: string }) {
       resizeTerminal(getWs(), id, term.cols, term.rows);
     };
     sync();
+    // Al abrir con el proceso ya corriendo: primero lo que ya imprimió (replay) y después solo lo
+    // nuevo. `end` = bytes impresos en total: lo que llega antes del replay y ya está incluido se
+    // descarta, sin perder ni duplicar.
+    let replayed: number | null = null;
+    const queued: [Uint8Array, number | undefined][] = [];
+    const writeAfter = (bytes: Uint8Array, end?: number) => {
+      if (end === undefined || replayed === null) { term.write(bytes); return; }
+      const start = end - bytes.length;
+      if (end <= replayed) return;
+      term.write(start >= replayed ? bytes : bytes.subarray(replayed - start));
+      replayed = end;
+    };
+    let ready = false;
     const unsubscribe = subscribeTerminal(getWs(), id,
-      (bytes) => term.write(bytes),
+      (bytes, end) => { if (ready) writeAfter(bytes, end); else queued.push([bytes, end]); },
       () => term.write("\r\n[proceso terminado]\r\n"));
+    replayTerminal(getWs(), id)
+      .then(({ bytes, end }) => { term.write(bytes); replayed = end; })
+      .catch(() => { /* server viejo sin replay: solo lo nuevo */ })
+      .finally(() => { ready = true; queued.splice(0).forEach(([b, e]) => writeAfter(b, e)); });
     term.onData((d) => writeTerminal(getWs(), id, d));
     // re-ajustar al mostrarse (estaba `hidden` → 0x0) o al cambiar el tamaño del panel
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
