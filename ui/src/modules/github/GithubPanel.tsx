@@ -28,18 +28,24 @@ function sessionStacks(s: FolderSession, gh: GithubReviews): { own: Set<string>;
   return { own: new Set(own.map((p) => p.url)), stacks };
 }
 
-function StackItem({ pr, own }: { pr: GhPr; own: boolean }) {
+/** `assigned`: la PR es tuya (autor) o figuras como revisor; si no, va tachada y atenuada. */
+function StackItem({ pr, own, assigned }: { pr: GhPr; own: boolean; assigned: boolean }) {
   const [color, label] = pr.review ? REVIEW[pr.review] : [null, "sin review"];
   return (
-    <QueueItem className="px-1.5">
-      <div className={cn("flex items-center gap-1.5 rounded border-l-2 border-transparent px-1.5 py-1 text-xs hover:bg-accent/60",
-        own && "border-primary bg-accent")} title={`${pr.title} — ${label}`}>
-        <span aria-label={label} className={cn("h-2 w-2 shrink-0 rounded-full", color ?? "border border-muted-foreground")} />
-        <span className="font-mono text-[10px] text-muted-foreground">{pr.stack?.position ?? 1}</span>
-        <span className="min-w-0 flex-1 truncate">{pr.title}</span>
+    <QueueItem className="min-w-0 px-1.5">
+      <div className={cn("flex min-w-0 items-start gap-1.5 rounded border-l-2 border-transparent px-1.5 py-1 text-xs hover:bg-accent/60",
+        own && "border-primary bg-accent", !assigned && "opacity-50")}>
+        <span aria-label={label} title={label}
+          className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", color ?? "border border-muted-foreground")} />
+        <span className="mt-px font-mono text-[10px] text-muted-foreground">{pr.stack?.position ?? 1}</span>
+        <div className="min-w-0 flex-1">
+          <div className={cn("truncate", !assigned && "line-through")}
+            title={assigned ? pr.title : `${pr.title} (no asignada a ti)`}>{pr.title}</div>
+          <div className="truncate font-mono text-[10px] text-muted-foreground" title={`${pr.repo}#${pr.number} · ${pr.author}`}>{pr.repo}#{pr.number} · {pr.author}</div>
+        </div>
         <CiMark pr={pr} />
         <QueueItemActions className="ml-0">
-          <QueueItemAction aria-label={`Abrir ${pr.repo}#${pr.number} en GitHub`} asChild>
+          <QueueItemAction aria-label={`Abrir ${pr.repo}#${pr.number} en GitHub`} title="Abrir en GitHub" asChild>
             <a href={pr.url} target="_blank" rel="noreferrer"><ExternalLink size={11} /></a>
           </QueueItemAction>
         </QueueItemActions>
@@ -63,7 +69,7 @@ export function GithubPanel() {
   // la card de PR seleccionada manda; si no, la sesión abierta
   const data = !gh ? null : activePrUrl ? prStacks(activePrUrl, gh) : session ? sessionStacks(session, gh) : null;
   return (
-    <div className="flex flex-col">
+    <div className="flex w-full min-w-0 flex-col overflow-hidden">
       <div className="mx-2.5 mb-1 mt-2.5 text-[10px] uppercase tracking-wide text-muted-foreground">GitHub</div>
       {ghError && <p role="alert" className="mx-2.5 text-xs text-destructive">{ghError}</p>}
       {!session && !activePrUrl && <p className="mx-2.5 text-xs text-muted-foreground">Abre una sesión o elige una PR para ver su stack.</p>}
@@ -77,7 +83,8 @@ export function GithubPanel() {
             {stack[0].repo}{stack.length > 1 ? ` · stack de ${stack.length}` : ""}
           </div>
           <QueueList className="flex-col-reverse">
-            {stack.map((pr) => <StackItem key={pr.url} pr={pr} own={data.own.has(pr.url)} />)}
+            {stack.map((pr) => <StackItem key={pr.url} pr={pr} own={data.own.has(pr.url)}
+              assigned={!gh?.me || pr.author === `@${gh.me}` || !!pr.reviewers?.some((r) => r.login === gh.me)} />)}
           </QueueList>
         </div>
       ))}

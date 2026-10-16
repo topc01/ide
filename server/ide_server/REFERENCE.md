@@ -293,7 +293,9 @@ stack se ramifica, la posición sigue el orden en profundidad.
 o, si no hay, las PRs de la sesión abierta (la PR
 revisada, o las PRs cuyas ramas son las de los repos de la sesión), cada una con todo su stack
 (arriba la de más arriba). Color por review: verde aprobada, azul en revisión (reviews pedidas
-pendientes), amarillo pidieron cambios (y no re-pediste review), sin color sin review. Hover → abrir la PR. El título muestra el total; los grupos se colapsan.
+pendientes), amarillo pidieron cambios (y no re-pediste review), sin color sin review. Hover → abrir la PR. Cada ítem muestra título (truncado; completo con hover) y
+`repo#número · autor`; las PRs del stack que no son tuyas ni te tienen como revisor van tachadas y
+atenuadas. El título muestra el total; los grupos se colapsan.
 
 **Abrir sesión:** seleccionar una sesión parada en la sidebar la lanza (retoma su conversación); si falla queda "Reintentar".
 

@@ -12,7 +12,8 @@ export function InnerSidebar() {
   const Panel = mod?.Panel;
   return (
     <aside className="w-64 border-r border-border bg-card">
-      <ScrollArea className="h-full">{Panel ? <Panel /> : null}</ScrollArea>
+      {/* el viewport de Radix envuelve en `display: table` (crece sin límite): bloque, para que trunquen */}
+      <ScrollArea className="h-full [&_[data-radix-scroll-area-viewport]>div]:!block">{Panel ? <Panel /> : null}</ScrollArea>
     </aside>
   );
 }
