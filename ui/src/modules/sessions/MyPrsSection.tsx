@@ -13,7 +13,8 @@ const GROUPS = [
 /** Mis PRs abiertas de la org, agrupadas como el inbox de Graphite; cada card abre la PR. */
 export function MyPrsSection() {
   const { gh, error } = useGithubReviews();
-  const ghError = error ?? gh?.error;
+  // un server más viejo que la UI no manda `mine`: avisar en vez de mostrar ceros
+  const ghError = error ?? gh?.error ?? (gh && !gh.mine ? "el server no manda tus PRs: reinicia `ide`" : null);
   return (
     <Collapsible.Root defaultOpen className="group/myprs mt-3 border-t border-border pt-2">
       <div className="flex items-center gap-1.5 px-2.5">
