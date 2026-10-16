@@ -93,6 +93,26 @@ class Merger:
                    "no pude crear el worktree de merge")
         return wt
 
+    def _squashed_parent(self, wt: Path, branch: str, base: str, full_repo: str | None,
+                         number: int | None) -> str | None:
+        """Si la rama arrastra commits de una PR madre que ya se mergeó con squash (estaba apilada
+        y GitHub la re-apuntó a la base), el último commit de esa madre: hay que rebasear con
+        `--onto` desde ahí, o se re-aplican commits que la base ya tiene (squasheados) y chocan."""
+        if not full_repo:
+            return None
+        shas = _check(_run(["git", "rev-list", "--max-count=60", f"origin/{base}..origin/{branch}"], wt),
+                      "git rev-list").split()
+        for sha in shas[1:]:                    # el primero es el head de esta misma PR
+            out = _run(["gh", "api", f"repos/{full_repo}/commits/{sha}/pulls"])
+            try:
+                prs = json.loads(out.stdout or "[]") if out.returncode == 0 else []
+            except ValueError:
+                prs = []
+            if any(p.get("merged_at") and p.get("number") != number and p.get("head", {}).get("sha") == sha
+                   for p in prs):
+                return sha
+        return None
+
     def _rebase(self, wt: Path, branch: str, onto: str, upstream: str | None = None) -> tuple[str, str]:
         """Rebasea `origin/<branch>` sobre `onto` (con `--onto`/`upstream` si se pasa) y lo empuja.
         Devuelve (sha viejo, sha nuevo). Ante conflicto aborta y falla con `conflict`."""
@@ -159,7 +179,9 @@ class Merger:
         try:
             with self._lock(j["repo"]):
                 wt = self._wt(j["repo"], j.get("full_repo"))
-                old, new = self._rebase(wt, j["head"], f"origin/{j['base']}")
+                _check(_run(["git", "fetch", "origin", "--prune"], wt), "git fetch")
+                cut = self._squashed_parent(wt, j["head"], j["base"], j.get("full_repo"), j.get("number"))
+                old, new = self._rebase(wt, j["head"], f"origin/{j['base']}", upstream=cut)
             # sin `gh pr merge --auto`: justo después del push GitHub todavía calcula si es mergeable
             # y lo rechaza. El IDE espera el CI y recién ahí pide el merge (igual para todas).
             self._update(url, old_sha=old, head_sha=new, state="waiting_ci")

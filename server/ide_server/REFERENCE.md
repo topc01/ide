@@ -280,6 +280,10 @@ bloquea: valida, cierra el diálogo y sigue en segundo plano; la card muestra el
 mergeada (24 h, en el grupo **Merges** de Mis PRs cuando ya no está abierta).
 1. En un worktree propio por repo (`.ide/worktrees/_merge/<repo>`, detached) rebasea la rama
    sobre `origin/<base>` y la empuja con `--force-with-lease` (si hay conflicto aborta: `conflict`).
+   Si la rama arrastra commits de una PR madre que ya se mergeó con squash (estaba apilada y
+   GitHub la re-apuntó a la base), busca el último commit que fue head de otra PR mergeada
+   (`GET /repos/{o}/{r}/commits/{sha}/pulls`) y rebasea con `--onto` desde ahí: solo viajan los
+   commits propios de la PR.
 2. El IDE espera (cada 30 s) a que el CI pase y la PR sea mergeable, y recién ahí pide
    `PUT /repos/{o}/{r}/pulls/{n}/merge-async` (squash). Es el único endpoint que GitHub acepta para
    PRs de stacks nativos, y evita `gh pr merge --auto` (que justo después del push falla con "not

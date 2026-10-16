@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
  *  en la página (sale en las capturas de pantalla, el nativo del navegador no). Se pasa `title`
  *  a `data-tip` al primer hover para que el navegador no muestre además el suyo. */
 export function HoverTips() {
-  const [tip, setTip] = useState<{ text: string; x: number; y: number; below: boolean } | null>(null);
+  const [tip, setTip] = useState<{ text: string; x: number; y: number; below: boolean;
+                                    align: "left" | "center" | "right" } | null>(null);
   useEffect(() => {
     let timer: number | undefined;
     let current: Element | null = null;
@@ -23,8 +24,11 @@ export function HoverTips() {
       timer = window.setTimeout(() => {
         const r = el.getBoundingClientRect();
         const below = r.bottom + 40 < window.innerHeight;
-        setTip({ text, x: Math.min(Math.max(r.left + r.width / 2, 8), window.innerWidth - 8),
-                 y: below ? r.bottom + 6 : r.top - 6, below });
+        // cerca de un borde el globo se alinea a ese borde (centrado se cortaría): ~ancho máx 320px
+        const cx = r.left + r.width / 2;
+        const align = cx < 170 ? "left" : cx > window.innerWidth - 170 ? "right" : "center";
+        const x = align === "left" ? Math.max(r.left, 8) : align === "right" ? Math.min(r.right, window.innerWidth - 8) : cx;
+        setTip({ text, x, y: below ? r.bottom + 6 : r.top - 6, below, align });
       }, 350);
     };
     document.addEventListener("mouseover", over);
@@ -40,7 +44,8 @@ export function HoverTips() {
   }, []);
   if (!tip) return null;
   return (
-    <div role="tooltip" style={{ left: tip.x, top: tip.y, transform: `translate(-50%, ${tip.below ? "0" : "-100%"})` }}
+    <div role="tooltip" style={{ left: tip.x, top: tip.y,
+      transform: `translate(${tip.align === "left" ? "0" : tip.align === "right" ? "-100%" : "-50%"}, ${tip.below ? "0" : "-100%"})` }}
       className="pointer-events-none fixed z-[100] max-w-xs whitespace-pre-wrap break-words rounded-md border border-border bg-popover px-2 py-1 text-[11px] text-popover-foreground shadow-md">
       {tip.text}
     </div>
