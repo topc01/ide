@@ -81,12 +81,20 @@ def compute_stacks(prs: list[dict]) -> dict[str, dict]:
         else:
             roots.append(n)
     out: dict[str, dict] = {}
-    # stacks nativos de GitHub: posición y tamaño son los de GitHub (no se infieren por ramas)
+    # stacks nativos de GitHub: el orden es el de GitHub, pero GitHub sigue contando las PRs ya
+    # mergeadas (embed#2529 seguía "4 de 4" con las 3 de abajo mergeadas): posición y tamaño se
+    # recalculan solo sobre las abiertas (la de abajo abierta es la 1 y la que se puede mergear).
+    native: dict[str, list[dict]] = {}
     for n in prs:
         st, entry = n.get("stack"), n.get("stackEntry")
-        if st and entry and (st.get("size") or 0) > 1:
-            out[n["url"]] = {"id": f"native:{st['id']}", "position": entry["position"],
-                             "size": st["size"], "native": True}
+        if st and entry:
+            native.setdefault(st["id"], []).append(n)
+    for sid, members in native.items():
+        if len(members) < 2:
+            continue
+        members.sort(key=lambda m: m["stackEntry"]["position"])
+        for i, n in enumerate(members):
+            out[n["url"]] = {"id": f"native:{sid}", "position": i + 1, "size": len(members), "native": True}
     for root in roots:
         order, todo, seen = [], [root], set()
         while todo:

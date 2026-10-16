@@ -6,6 +6,7 @@ import { QueueList, QueueSection, QueueSectionContent, QueueSectionLabel, QueueS
 import type { GhPr } from "../../transport/folderSessions";
 import { PrCard, useGithubReviews } from "./ReviewsSection";
 import type { MergeJob } from "../../transport/folderSessions";
+import { usePersistentOpen } from "../../lib/persist";
 
 const GROUPS = [
   ["returned", "Devueltas"], ["waiting", "Esperando revisores"], ["missing", "Sin revisores"],
@@ -15,6 +16,7 @@ const GROUPS = [
 /** Mis PRs abiertas de la org, agrupadas como el inbox de Graphite; cada card abre la PR. */
 export function MyPrsSection() {
   const { gh, error } = useGithubReviews();
+  const [sectionOpen, setSectionOpen] = usePersistentOpen("myprs");
   // un server más viejo que la UI no manda `mine`: avisar en vez de mostrar ceros
   // merges cuya PR ya no está abierta (GitHub la mergeó): el restack y sus errores se ven acá
   const open = new Set(Object.values(gh?.mine ?? {}).flat().map((p) => p.url));
@@ -23,7 +25,7 @@ export function MyPrsSection() {
   const orphans = Object.entries(gh?.merges ?? {}).filter(([url, j]) => !open.has(url) && recent(j));
   const ghError = error ?? gh?.error ?? (gh && !gh.mine ? "el server no manda tus PRs: reinicia `ide`" : null);
   return (
-    <Collapsible.Root defaultOpen className="group/myprs mt-3 border-t border-border pt-2">
+    <Collapsible.Root open={sectionOpen} onOpenChange={setSectionOpen} className="group/myprs mt-3 border-t border-border pt-2">
       <div className="flex items-center gap-1.5 px-2.5">
         <Collapsible.Trigger title="Colapsar / expandir la sección" className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-foreground hover:text-primary">
           <ChevronRight size={13} className="transition-transform group-data-[state=open]/myprs:rotate-90" />
@@ -37,7 +39,7 @@ export function MyPrsSection() {
       </div>
       <Collapsible.Content>
         {orphans.length > 0 && (
-          <QueueSection defaultOpen className="mt-1">
+          <QueueSection defaultOpen persistKey="myprs.merges" className="mt-1">
             <QueueSectionTrigger><QueueSectionLabel label="Merges" count={orphans.length} /></QueueSectionTrigger>
             <QueueSectionContent>
               <QueueList>
@@ -51,7 +53,7 @@ export function MyPrsSection() {
         {GROUPS.map(([key, label]) => {
           const prs: GhPr[] = gh?.mine?.[key] ?? [];
           return (
-            <QueueSection key={key} defaultOpen className="mt-1">
+            <QueueSection key={key} defaultOpen persistKey={`myprs.${key}`} className="mt-1">
               <QueueSectionTrigger><QueueSectionLabel label={label} count={prs.length} /></QueueSectionTrigger>
               <QueueSectionContent>
                 <QueueList>{prs.map((pr) => <PrCard key={pr.url} pr={pr}

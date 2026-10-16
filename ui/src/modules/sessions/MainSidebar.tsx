@@ -67,7 +67,8 @@ export function MainSidebar() {
 
         <Queue>
           {groups.map(({ section, items }) => (
-            <QueueSection key={`${groupBy}-${section.id}`} defaultOpen={section.defaultOpen}>
+            <QueueSection key={`${groupBy}-${section.id}`} defaultOpen={section.defaultOpen}
+              persistKey={`sessions.${groupBy}.${section.id}`}>
               <QueueSectionTrigger><QueueSectionLabel label={section.label} count={items.length} /></QueueSectionTrigger>
               <QueueSectionContent>
                 <QueueList>{items.map((s) => <SessionItem key={s.id} session={s} />)}</QueueList>

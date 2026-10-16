@@ -12,6 +12,7 @@ import { Badge } from "../../components/ui/badge";
 import { SessionItem } from "./SessionItem";
 import { canMerge, MERGE_ACTIVE, MergeButton, mergeCardClass, MergeStatus } from "./MergeControls";
 import { cn } from "../../lib/utils";
+import { usePersistentOpen } from "../../lib/persist";
 
 /** Botón de revisión: envía `.ide/prompts/review-pr.md` a la sesión del PR (la crea si falta). */
 function ReviewButton({ pr }: { pr: GhPr }) {
@@ -254,6 +255,7 @@ export function Group({ label, count, children }: { label: string; count: number
 export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
   const openModal = useFolders((s) => s.openModal);
   const { gh, error } = useGithubReviews();
+  const [open, setOpen] = usePersistentOpen("reviews");
 
   const byId = new Map(sessions.map((s) => [s.id, s]));
   const onGithub = new Set([...(gh?.pending ?? []), ...(gh?.changesRequested ?? [])].map((p) => p.sessionId));
@@ -266,7 +268,7 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
     : gh?.reviewers ?? [];
 
   return (
-    <Collapsible.Root defaultOpen className="group/reviews mt-3 border-t border-border pt-2">
+    <Collapsible.Root open={open} onOpenChange={setOpen} className="group/reviews mt-3 border-t border-border pt-2">
       <div className="flex items-center gap-1.5 px-2.5">
         <Collapsible.Trigger title="Colapsar / expandir la sección" className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-foreground hover:text-primary">
           <ChevronRight size={13} className="transition-transform group-data-[state=open]/reviews:rotate-90" />

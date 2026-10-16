@@ -312,7 +312,9 @@ sección también se leen frases sueltas ("Depende de finnecto-api#4624", "depen
 PR", "requires", "blocked by", "bloqueada por"): solo las referencias después del verbo; "no
 depende de …" se descarta.
 
-**Stacks:** si GitHub tiene la PR en un **stack nativo**, posición y tamaño son los de GitHub.
+**Stacks:** si GitHub tiene la PR en un **stack nativo**, el orden es el de GitHub pero posición
+y tamaño se cuentan solo sobre las PRs **abiertas** (GitHub sigue contando las mergeadas: una PR
+quedaba "4 de 4" con las 3 de abajo mergeadas y no se podía mergear).
 Si no, se infieren: una PR está en un stack si su rama base es la rama (head) de otra PR
 abierta del mismo repo; se calculan sobre todas las PRs abiertas de la org en cada poll. Si un
 stack se ramifica, la posición sigue el orden en profundidad.
@@ -361,6 +363,10 @@ acá** (siguen en disco). Todo lo de GitHub es reconstruible: si la base se corr
 y recién cerradas) + refresco por ID de lo dinámico (CI, conflicto, review: no cambian
 `updatedAt`) de las PRs relevantes (tuyas, las que revisás, sus stacks y dependencias) +
 resincronización completa cada 30 min y al arrancar. Miembros de la org: una vez por día.
+
+**Secciones:** qué secciones están abiertas o cerradas (Revisiones, Mis PRs y sus grupos, grupos
+de sesiones, secciones del módulo Revisión) se recuerda entre recargas, por navegador
+(`localStorage`).
 
 **Abrir sesión:** seleccionar una sesión parada en la sidebar la lanza (retoma su conversación); si falla queda "Reintentar".
 

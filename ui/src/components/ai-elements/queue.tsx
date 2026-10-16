@@ -5,13 +5,19 @@ import { Collapsible } from "radix-ui";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { usePersistentOpen } from "@/lib/persist";
 
 export const Queue = ({ className, ...p }: React.ComponentProps<"div">) =>
   <div className={cn("flex flex-col gap-1", className)} {...p} />;
 
-export const QueueSection = ({ defaultOpen = true, className, ...p }:
-  React.ComponentProps<typeof Collapsible.Root>) =>
-  <Collapsible.Root defaultOpen={defaultOpen} className={cn("group/section", className)} {...p} />;
+/** `persistKey`: recuerda abierto/cerrado entre recargas (localStorage). */
+export const QueueSection = ({ defaultOpen = true, persistKey, className, ...p }:
+  React.ComponentProps<typeof Collapsible.Root> & { persistKey?: string }) => {
+  const [open, setOpen] = usePersistentOpen(persistKey ?? "", defaultOpen);
+  return persistKey
+    ? <Collapsible.Root open={open} onOpenChange={setOpen} className={cn("group/section", className)} {...p} />
+    : <Collapsible.Root defaultOpen={defaultOpen} className={cn("group/section", className)} {...p} />;
+};
 
 export const QueueSectionTrigger = ({ className, children, ...p }: React.ComponentProps<"button">) => (
   <Collapsible.Trigger asChild>

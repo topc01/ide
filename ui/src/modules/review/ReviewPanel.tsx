@@ -7,6 +7,7 @@ import { fetchDiscussion, type Discussion, type GhPr } from "../../transport/fol
 import { CiMark, DepsList, ReviewerChips, useGithubReviews } from "../sessions/ReviewsSection";
 import { desarrolloPrs } from "../github/GithubPanel";
 import { cn } from "../../lib/utils";
+import { usePersistentOpen } from "../../lib/persist";
 
 const REFRESH_MS = 60_000;
 const DECISION: Record<string, [string, string]> = {
@@ -49,10 +50,10 @@ function OpenLink({ url, label }: { url: string | null; label: string }) {
 
 function Section({ title, count, open: initial = true, children }:
   { title: string; count: number; open?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(initial);
+  const [open, setOpen] = usePersistentOpen(`review.${title}`, initial);
   return (
     <div className="mt-2">
-      <button title="Colapsar / expandir" onClick={() => setOpen((o) => !o)}
+      <button title="Colapsar / expandir" onClick={() => setOpen(!open)}
         className="flex w-full items-center gap-1 px-2.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground">
         <ChevronRight size={11} className={cn("transition-transform", open && "rotate-90")} />{title}
         <span className="ml-auto font-mono text-primary">{count}</span>
