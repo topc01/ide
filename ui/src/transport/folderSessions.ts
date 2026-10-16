@@ -20,7 +20,12 @@ export interface SessionsTree {
   sessions: FolderSession[]; workspaceRepos: Repo[]; scripts: Record<string, ScriptInfo[]>;
   devNames?: Record<string, string>;    // nombre puesto en el IDE, por clave de desarrollo (s:/st:/p:)
   devHidden?: string[];                 // desarrollos ocultos en Mis desarrollos (grupo "Ocultos")
+  devPrs?: PrLinks;                     // PRs vinculadas a una sesión (siguen aunque cambie la rama)
 }
+export type PrLinks = Record<string, { sid: string; out?: boolean }>;
+/** Saca una PR del desarrollo de una sesión (no vuelve aunque el worktree esté en su rama). */
+export const unlinkPr = (ws: WsClient, id: string, url: string): Promise<{ ok: boolean }> =>
+  ws.request("dev.unlinkPr", { id, url });
 /** Ocultar / volver a mostrar un desarrollo en Mis desarrollos (solo el IDE). */
 export const hideDev = (ws: WsClient, key: string, hidden: boolean): Promise<{ ok: boolean }> =>
   ws.request("dev.hide", { key, hidden });

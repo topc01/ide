@@ -104,7 +104,8 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
         {many && groups.map((g) => (
           <div key={g.repo} className="mt-1 space-y-0.5">
             {groups.length > 1 && <div className="font-mono text-[10px] text-muted-foreground">{repoShort(g.repo)}</div>}
-            {g.stacks.map((st) => st.map((p, i) => <PrRow key={p.url} pr={p} bottom={i === 0} />))}
+            {g.stacks.map((st) => st.map((p, i) => <PrRow key={p.url} pr={p} bottom={i === 0}
+              sessionId={isReview ? undefined : session.id} />))}
           </div>))}
         {/* el worktree solo importa en tickets (rama propia y scripts); en revisiones está en detach */}
         {!isReview && session.repos.map((r) => <RepoLine key={r.name} session={session} repo={r} />)}

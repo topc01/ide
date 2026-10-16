@@ -132,6 +132,14 @@ class Db:
         else:
             self.delete(f"devhidden:{key}")
 
+    # -- PRs vinculadas a una sesión (pegajoso: siguen en el desarrollo aunque el worktree cambie de rama) --
+    def dev_prs(self) -> dict[str, dict]:
+        """url -> {"sid": sesión, "out": True si se sacó a mano (no vuelve por rama)}."""
+        return self.with_prefix("devpr:")
+
+    def link_pr(self, url: str, sid: str, *, out: bool = False) -> None:
+        self.set(f"devpr:{url}", {"sid": sid, **({"out": True} if out else {})})
+
     def set_dev_name(self, key: str, name: str | None) -> None:
         if name:
             self.set(f"devname:{key}", name)

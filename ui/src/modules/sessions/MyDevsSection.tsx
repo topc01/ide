@@ -1,5 +1,7 @@
 // ui/src/modules/sessions/MyDevsSection.tsx
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Unlink } from "lucide-react";
+import { unlinkPr } from "../../transport/folderSessions";
+import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { useDevTabs } from "../../state/devTabs";
 import type { FolderSession, GhPr, MergeJob } from "../../transport/folderSessions";
@@ -18,7 +20,8 @@ const DOT: Record<string, string> = {
 
 /** Una PR dentro de un desarrollo con varias: punto de review, número, título, CI, ⏸, y en hover
  *  Mergear (solo la de abajo) y abrir en GitHub. Click = elegir esa PR. */
-export function PrRow({ pr, job, bottom }: { pr: GhPr; job?: MergeJob; bottom: boolean }) {
+/** `sessionId`: la fila está en la card de una sesión: se puede sacar de ese desarrollo. */
+export function PrRow({ pr, job, bottom, sessionId }: { pr: GhPr; job?: MergeJob; bottom: boolean; sessionId?: string }) {
   const active = useFolders((s) => s.activePrUrl === pr.url);
   const setActivePr = useFolders((s) => s.setActivePr);
   const merging = !!job && MERGE_ACTIVE.includes(job.state);
@@ -39,6 +42,12 @@ export function PrRow({ pr, job, bottom }: { pr: GhPr; job?: MergeJob; bottom: b
         <QueueItemAction aria-label={`Abrir ${pr.repo}#${pr.number} en GitHub`} title="Abrir en GitHub" asChild>
           <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
         </QueueItemAction>
+        {sessionId && (
+          <QueueItemAction aria-label={`Sacar ${pr.repo}#${pr.number} de este desarrollo`}
+            title="Sacar esta PR de este desarrollo (pasa a ser un desarrollo aparte; no toca GitHub)"
+            onClick={(e) => { e.stopPropagation(); unlinkPr(getWs(), sessionId, pr.url).catch(() => {}); }}>
+            <Unlink size={11} />
+          </QueueItemAction>)}
       </span>
     </div>
   );
@@ -83,7 +92,8 @@ const STATUSES: [string, string][] = [
 /** Mis desarrollos: sesiones de ticket y PRs propias unificadas (una card por desarrollo). */
 export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
   const { gh, error } = useGithubReviews();
-  const devs = deriveMine(tickets, gh);
+  const links = useFolders((s) => s.tree.devPrs);
+  const devs = deriveMine(tickets, gh, links);
   const hiddenKeys = useFolders((s) => s.tree.devHidden);
   const ghError = error ?? gh?.error;
   const all: (Entry & { hidden: boolean })[] = devs.map((d) => ({

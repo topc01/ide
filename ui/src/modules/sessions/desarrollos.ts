@@ -3,7 +3,7 @@
  *  a un solo desarrollo, en este orden: (1) la sesión cuyos worktrees están en esa rama (y el resto
  *  de su stack), (2) un stack tuyo sin sesión, (3) una PR suelta. Las sesiones sin PR también son
  *  desarrollos. */
-import type { FolderSession, GhPr, GithubReviews, MergeJob } from "../../transport/folderSessions";
+import type { FolderSession, GhPr, GithubReviews, MergeJob, PrLinks } from "../../transport/folderSessions";
 
 export type MineStatus = "returned" | "waiting" | "missing" | "draft" | "approved";
 
@@ -68,7 +68,9 @@ export function devName(names: Record<string, string> | undefined, key: string, 
   return null;
 }
 
-export function deriveMine(tickets: FolderSession[], gh: GithubReviews | null): Desarrollo[] {
+/** `links`: PRs vinculadas a una sesión (pegajoso): siguen en su desarrollo aunque el worktree cambie
+ *  de rama; con `out` se sacaron a mano y no vuelven por rama. */
+export function deriveMine(tickets: FolderSession[], gh: GithubReviews | null, links: PrLinks = {}): Desarrollo[] {
   const bucket = new Map<string, MineStatus>();
   const mine: GhPr[] = [];
   for (const [k, list] of Object.entries(gh?.mine ?? {}) as [MineStatus, GhPr[]][]) {
@@ -81,8 +83,12 @@ export function deriveMine(tickets: FolderSession[], gh: GithubReviews | null): 
 
   // (1) sesiones de ticket: las PRs de las ramas de sus worktrees, con su stack completo
   for (const s of tickets) {
-    const own = mine.filter((p) => !taken.has(p.url)
-      && s.repos.some((r) => r.branch && r.name === p.repo && r.branch === p.head));
+    const own = mine.filter((p) => {
+      if (taken.has(p.url)) return false;
+      const link = links[p.url];
+      if (link) return link.sid === s.id && !link.out;
+      return s.repos.some((r) => r.branch && r.name === p.repo && r.branch === p.head);
+    });
     const prs = byRepoStack([...new Set(own.flatMap(stackOf))].filter((p) => !taken.has(p.url)))
       .flatMap((g) => g.stacks.flat());
     prs.forEach((p) => taken.add(p.url));

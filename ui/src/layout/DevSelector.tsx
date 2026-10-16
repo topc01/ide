@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, GitPullRequest, Search } from "lucide-react";
 import { useFolders } from "../state/folders";
 import { useStore } from "../state/store";
-import type { FolderSession, GhPr, GithubReviews } from "../transport/folderSessions";
+import type { FolderSession, GhPr, GithubReviews, PrLinks } from "../transport/folderSessions";
 import { CiMark, DepsBadge, StackBadge, allPrs, useGithubReviews } from "../modules/sessions/ReviewsSection";
 import { deriveMine, devName, worstPr } from "../modules/sessions/desarrollos";
 import { RepoChips } from "../modules/sessions/DevCard";
@@ -14,7 +14,7 @@ export type Desarrollo =
   | { kind: "session"; key: string; session: FolderSession; pr?: GhPr; prs: GhPr[]; group: string }
   | { kind: "pr"; key: string; pr: GhPr; group: string };
 
-export function desarrollos(sessions: FolderSession[], gh: GithubReviews | null): Desarrollo[] {
+export function desarrollos(sessions: FolderSession[], gh: GithubReviews | null, links?: PrLinks): Desarrollo[] {
   const prs = new Map<string, GhPr>();
   const groupOf = new Map<string, string>();
   const add = (list: GhPr[] | undefined, group: string) => (list ?? []).forEach((p) => {
@@ -23,7 +23,7 @@ export function desarrollos(sessions: FolderSession[], gh: GithubReviews | null)
   add(gh?.pending, "Revisiones"); add(gh?.changesRequested, "Revisiones");
   Object.values(gh?.mine ?? {}).forEach((l) => add(l, "Mis desarrollos"));
   // las PRs de cada sesión: las de las ramas de sus worktrees (puede ser fullstack) o la revisada
-  const mine = deriveMine(sessions.filter((s) => s.kind !== "review"), gh);
+  const mine = deriveMine(sessions.filter((s) => s.kind !== "review"), gh, links);
   const every = gh ? allPrs(gh) : [];
   const out: Desarrollo[] = sessions.map((s) => {
     const sprs = s.kind === "review" ? every.filter((p) => p.sessionId === s.id)
@@ -84,7 +84,7 @@ export function DevSelector() {
     return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); };
   }, [open]);
 
-  const all = desarrollos(tree.sessions, gh);
+  const all = desarrollos(tree.sessions, gh, tree.devPrs);
   const names = tree.devNames;
   const current = all.find((d) => activePrUrl ? d.kind === "pr" && d.pr.url === activePrUrl
     : d.kind === "session" && d.session.id === activeId);

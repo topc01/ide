@@ -486,7 +486,10 @@ qué PRs abiertas las declaran como dependencia.
 
 **Mis desarrollos** (reemplaza a la lista de sesiones de ticket y a "Mis PRs"): una card por
 desarrollo. Regla (spec 2026-10-16-desarrollos, P1), cada PR en un solo desarrollo: (1) la sesión de
-ticket cuyos worktrees están en esa rama, más el resto de su stack; (2) un stack tuyo sin sesión;
+ticket cuyos worktrees están en esa rama, más el resto de su stack — **pegajoso**: el IDE recuerda
+la PR en ese desarrollo (base, `kv` `devpr:<url>`) y sigue ahí aunque el worktree cambie de rama,
+hasta que se mergea/cierra; "sacar de este desarrollo" (hover de su fila) la deja aparte y no vuelve
+por rama (canal `dev.unlinkPr {id, url}`; `sessions.tree` trae `devPrs`); (2) un stack tuyo sin sesión;
 (3) una PR suelta. Las sesiones sin PR también son desarrollos (grupo "Sin PR"). Con varias PRs la
 card muestra una fila por PR (de abajo hacia arriba: punto de review, número, título, CI, ⏸, y en
 hover Mergear en la de abajo de cada stack y abrir en GitHub; click en una fila = elegir esa PR).

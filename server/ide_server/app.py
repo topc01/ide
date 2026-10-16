@@ -72,8 +72,11 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
                                            supervisor=supervisor, poller=poller,
                                            gh_reviews=gh_reviews, limits=limits, merger=merger, db=db,
                                            runner=runner)
-    notify_box["github"] = lambda: asyncio.get_running_loop().create_task(
-        manager.broadcast("reviews.github", {**gh_reviews.state, "merges": merger.public()}))
+    def _github_changed() -> None:
+        asyncio.get_running_loop().create_task(
+            manager.broadcast("reviews.github", {**gh_reviews.state, "merges": merger.public()}))
+        notify_box["fn"]()                      # el árbol vincula las PRs nuevas a sus sesiones (devPrs)
+    notify_box["github"] = _github_changed
     mlx_router = build_mlx_router(root)
     hub = chat_cap.register(registry, root, manager, mlx_router=mlx_router)
     customizations_cap.register(registry, root)

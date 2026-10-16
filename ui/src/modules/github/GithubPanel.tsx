@@ -75,7 +75,7 @@ export function GithubPanel() {
   const ghError = error ?? gh?.error ?? (gh && !gh.stacks ? "el server no manda los stacks: reinicia `ide`" : null);
   // la card de PR seleccionada manda; si no, la sesión abierta
   // click en una PR del stack: abre su desarrollo (su sesión, o la PR si está en las listas)
-  const devs = desarrollos(tree.sessions, gh);
+  const devs = desarrollos(tree.sessions, gh, tree.devPrs);
   const openDev = (pr: GhPr) => {
     const d = devs.find((x) => x.kind === "session" ? x.session.id === pr.sessionId : x.pr.url === pr.url);
     if (!d) return undefined;

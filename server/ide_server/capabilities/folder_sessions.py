@@ -10,7 +10,7 @@ from ide_server.claude_usage import LimitsPoller, session_context
 from ide_server.config import ui_modules
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
-from ide_server.devs import list_devs, set_status, show_dev, sync_from_disk
+from ide_server.devs import link_prs, list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
 from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
@@ -43,6 +43,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if db is not None:                      # la base es la fuente de verdad del estado
             sync_from_disk(root, db, sessions)
             status = {d["id"]: d["status"] for d in db.devs()}
+            if gh_reviews is not None:
+                link_prs(db, sessions, gh_reviews.state)
             for s in sessions:
                 if status.get(s["id"]):
                     s["status"] = status[s["id"]]
@@ -56,6 +58,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         repos = discover_repos(root)
         return {"sessions": sessions, "workspaceRepos": repos, "devNames": db.dev_names() if db else {},
                 "devHidden": db.hidden_devs() if db else [],
+                "devPrs": db.dev_prs() if db else {},
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
 
     async def tree_payload() -> dict:
@@ -236,6 +239,19 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"ok": True}
 
+    async def dev_unlink_pr(p: dict) -> dict:
+        """Saca una PR del desarrollo de la sesión (no vuelve aunque el worktree esté en su rama)."""
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        sid = require_plain_name(p.get("id"), "sesión")
+        url = p.get("url")
+        if not isinstance(url, str) or not url.startswith("https://github.com/"):
+            raise SessionError("bad_request", f"url inválida: {url!r}")
+        db.link_pr(url, sid, out=True)
+        db.event(datetime.now().isoformat(timespec="seconds"), "ide", "pr-unlinked", dev=sid, pr_url=url)
+        notify()
+        return {"ok": True}
+
     async def _sessions_now() -> list[dict]:
         return (await tree_payload())["sessions"]
 
@@ -306,7 +322,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
-        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "dev.list": dev_list, "dev.show": dev_show,
+        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,

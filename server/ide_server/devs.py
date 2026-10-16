@@ -97,6 +97,36 @@ def _cards(gh: dict) -> dict[str, dict]:
     return {c["url"]: c for lst in lists for c in lst}
 
 
+def link_prs(db: Db, sessions: list[dict], gh: dict) -> bool:
+    """Recuerda qué PRs tuyas están en la rama de un worktree de cada sesión de ticket: quedan en
+    ese desarrollo aunque después el worktree cambie de rama. Devuelve si agregó alguna."""
+    links = db.dev_prs()
+    mine = [c for lst in (gh.get("mine") or {}).values() for c in lst]
+    added = False
+    for s in sessions:
+        if s.get("kind") != "ticket":
+            continue
+        for c in mine:
+            if c["url"] in links:
+                continue
+            if any(r.get("branch") and r["name"] == c.get("repo") and r["branch"] == c.get("head")
+                   for r in s.get("repos", [])):
+                db.link_pr(c["url"], s["id"])
+                links[c["url"]] = {"sid": s["id"]}
+                added = True
+    return added
+
+
+def _belongs(c: dict, s: dict, links: dict[str, dict]) -> bool:
+    """La PR es del desarrollo de la sesión: vinculada (y no sacada), o en la rama de un worktree
+    si no está vinculada a otra sesión ni sacada de esta."""
+    link = links.get(c["url"])
+    if link:
+        return link["sid"] == s["id"] and not link.get("out")
+    return any(r.get("branch") and r["name"] == c.get("repo") and r["branch"] == c.get("head")
+               for r in s.get("repos", []))
+
+
 def _name(names: dict[str, str], key: str, prs: list[dict]) -> str | None:
     """El nombre puesto en el IDE; si el desarrollo cambió de clave (una PR que ahora tiene sesión),
     el de su stack o sus PRs."""
@@ -113,6 +143,7 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
     """Todos los desarrollos: los de sesión (estado de la base) y los que son solo PRs."""
     cards = _cards(gh)
     names = db.dev_names()
+    links = db.dev_prs()
     by_sid = {s["id"]: s for s in sessions}
     me = gh.get("me")
     taken: set[str] = set()
@@ -122,8 +153,7 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
         if row.get("prUrl"):
             prs = [cards[row["prUrl"]]] if row["prUrl"] in cards else []
         else:
-            prs = [c for c in cards.values() if any(r.get("branch") and r["name"] == c.get("repo")
-                                                    and r["branch"] == c.get("head") for r in s.get("repos", []))]
+            prs = [c for c in cards.values() if _belongs(c, s, links)]
             stacks = {c["stack"]["id"] for c in prs if c.get("stack")}
             prs += [c for c in cards.values() if c.get("stack") and c["stack"]["id"] in stacks
                     and c.get("author") == f"@{me}" and c not in prs]
