@@ -74,8 +74,10 @@ export function CiMark({ pr }: { pr: GhPr }) {
   if (!pr.ci) return null;
   const [mark, cls, label] = pr.ci === "success" ? ["✓", "text-emerald-400", "CI pasó"]
     : pr.ci === "pending" ? ["◌", "text-amber-300", "CI corriendo"]
-    : ["✗", "text-destructive", pr.conflict ? "conflicto con la base" : "CI falló"];
-  return <span aria-label={label} title={label} className={cn("font-mono font-bold", cls)}>{mark}</span>;
+    // rojo puro (no el `destructive` terracota del tema) y con fondo: tiene que saltar a la vista
+    : ["✗", "rounded-sm bg-red-500/20 px-1 text-[12px] leading-4 text-red-500 ring-1 ring-red-500/60",
+       pr.conflict ? "conflicto con la base" : "CI falló"];
+  return <span aria-label={label} title={label} className={cn("shrink-0 font-mono font-bold", cls)}>{mark}</span>;
 }
 
 /** Quién revisa la PR, con el color de su estado. */
