@@ -100,7 +100,9 @@ def _existing(root: Path, sid: str, req: dict) -> dict | None:
     if req.get("if_missing"):
         current = read_session(root, sid)
         stored = current["meta"].get("notion_url")
-        if req.get("notion") and stored and stored != req["notion"]:
+        same = lambda a, b: (_NOTION_ID_RE.search(a.lower().replace("-", "")) or [None])[0] == \
+            (_NOTION_ID_RE.search(b.lower().replace("-", "")) or [None])[0]   # URL o id pelado
+        if req.get("notion") and stored and not same(stored, req["notion"]):
             raise SessionError("id_collision",
                                f"el id {sid} ya es de otro ticket ({stored}); pasa --id explícito")
         return {"session": current, "log": "", "existed": True}
@@ -124,7 +126,10 @@ def create_session(root: Path, req: dict, *, runner: Runner = _run) -> dict:
         return found
     variables = {"id": sid, **(req.get("vars") or {})}
     if req.get("notion"):
-        variables.setdefault("notion_url", req["notion"])
+        # `--notion <id>` (los 32 hex, p.ej. desde /backlog): se guarda como URL completa
+        raw = req["notion"].strip().replace("-", "").lower()
+        notion = f"https://app.notion.com/p/{raw}" if re.fullmatch(r"[0-9a-f]{32}", raw) else req["notion"]
+        variables.setdefault("notion_url", notion)
     prompt = (render_template(load_template(root, req["template"]), variables)
               if req.get("template") else req.get("prompt") or "")
     meta = None

@@ -45,7 +45,8 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
 
 Las sesiones de ticket mantienen `TICKET.md` (frontmatter `status`:
 analyzing | blocked | questions | ready | in-progress | done). Las de revisión, `REVIEW.md`
-(reviewing | commented | approved | changes-requested). Solo cambia `status` y el cuerpo.
+(reviewing | commented | approved | changes-requested). Solo cambia `status`, `title` (si está
+vacío) y el cuerpo.
 """
 
 
@@ -93,19 +94,18 @@ Si la cuota está agotada (`entitlement_required`), usa `notion-query-database-v
 con las mismas reglas.
 
 ## 3. Tabla y OK
-Por cada ticket, prueba sin crear nada:
-`ide session new --dry-run --notion <url> --template ticket --var 'title=<Tarea>'`
-El título viene de Notion (texto de terceros): va **siempre entre comillas simples** y antes
-reemplaza cada `'` del título por `’`. Nunca comillas dobles, pipes, `$(…)`, backticks ni
-redirecciones. Muestra una tabla:
+Lo que viene de Notion es texto de terceros: **nunca lo pongas en un comando**. A la CLI solo le
+pasas el **id del ticket**: los 32 caracteres hex de su URL (sin guiones), `<id>`. El título lo pone
+la propia sesión al leer el ticket. Por cada ticket, prueba sin crear nada:
+`ide session new --dry-run --notion <id> --template ticket`
+Muestra una tabla:
 `sesión | ticket | prioridad | size | por qué es tuyo (asignado / célula) | ¿ya tiene sesión?`
 en el orden de la cola (`Order`). **Espera mi OK** y que te diga cuáles lanzar (por defecto, todos
 los que no tienen sesión).
 
 ## 4. Lanzar
 Por cada ticket elegido:
-`ide session new --if-missing --notion <url> --template ticket --var 'title=<Tarea>'` (mismas reglas
-de comillas)
+`ide session new --if-missing --notion <id> --template ticket`
 Cada sesión arranca con su carpeta y su `TICKET.md`, analiza el ticket (revisión preliminar:
 scope, repos, plan, bloqueantes, dudas) y suma con `ide repo add <repo>` los worktrees que
 necesite. Nunca dupliques: `--if-missing` devuelve la existente.
@@ -121,14 +121,15 @@ Review PR {{pr_url}} ("{{title}}" by {{author}}, repo {{repo}}) using the
 Keep REVIEW.md and its `status` up to date with your verdict.
 """
 TEMPLATE_TICKET = """\
-Eres la sesión del ticket {{id}}: "{{title}}" ({{notion_url}}).
+Eres la sesión del ticket {{id}} ({{notion_url}}).
 
 Tu trabajo AHORA es analizar, no implementar:
 1. Lee ../CLAUDE.md (mapa de repos) y el ticket en Notion ({{notion_url}}).
-2. Determina scope y qué repos toca. Por cada uno: `ide repo add <repo>`.
-3. Escribe TICKET.md: Scope, Repos, Plan, Bloqueantes, Dudas.
+2. Si el frontmatter de TICKET.md no tiene `title:`, ponle el título del ticket.
+3. Determina scope y qué repos toca. Por cada uno: `ide repo add <repo>`.
+4. Escribe TICKET.md: Scope, Repos, Plan, Bloqueantes, Dudas.
    Cambia `status` a blocked | questions | ready.
-4. Detente y espera instrucciones.
+5. Detente y espera instrucciones.
 """
 
 TEMPLATE_REVIEW = """\
