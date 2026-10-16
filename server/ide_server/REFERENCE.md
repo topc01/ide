@@ -246,7 +246,7 @@ notion_url: https://www.notion.so/...
 **Revisiones** (sidebar principal): cada `github_interval` s el server hace un `gh api graphql`
 (org-wide, no depende de la sesión abierta) y la UI muestra cards en dos grupos:
 **Pendientes** (PRs abiertos de la org con review pedida a vos) y **Pedí cambios** (PRs abiertos donde tu
-última review es `CHANGES_REQUESTED` y no te re-pidieron review). Si el PR ya tiene sesión
+última review con veredicto es `CHANGES_REQUESTED`; las respuestas en hilos no la tapan y no te re-pidieron review). Si el PR ya tiene sesión
 (`pr-<repo>-<n>`) la card es la sesión; si no, una card del PR. Las sesiones de revisión que no
 están en GitHub van en **Otras**. Bajo el título, chips `@revisor N`: cuántos PRs abiertos de
 la org tienen review pedida a cada **miembro de la org** (los pedidos a equipos y a gente de
@@ -265,7 +265,8 @@ agrupadas como el inbox de Graphite: **Devueltas** (`reviewDecision` = `CHANGES_
 **Aprobadas** (`APPROVED`). Prioridad: draft > aprobada > esperando > devuelta > sin revisores (como Graphite).
 Son cards sin sesión: click la selecciona (el módulo GitHub muestra su stack) y el botón de
 hover la abre en GitHub, igual que en Revisiones; el título muestra el total y los grupos se
-colapsan. Si la PR es parte de un stack, la card
+colapsan. Cada card muestra quién la revisa (chips: azul review pedida, verde aprobó, amarillo
+pidió cambios; una review re-pedida cuenta como pedida). Si la PR es parte de un stack, la card
 muestra su posición (`2/4`, 1 = la de abajo).
 
 **Stacks (sin Graphite):** una PR está en un stack si su rama base es la rama (head) de otra PR

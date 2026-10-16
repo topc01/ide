@@ -1,7 +1,8 @@
 // ui/src/modules/sessions/SessionItem.tsx
 import { useState, type ReactNode } from "react";
 import { Archive, Square } from "lucide-react";
-import type { FolderSession } from "../../transport/folderSessions";
+import type { FolderSession, GhPr } from "../../transport/folderSessions";
+import { StackBadge } from "./ReviewsSection";
 import { stopSession } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
@@ -13,7 +14,8 @@ import { cn } from "../../lib/utils";
 
 const DOT = { running: ["●", "corriendo"], stopped: ["○", "parada"], queued: ["◌", "en cola"] } as const;
 
-export function SessionItem({ session, actions }: { session: FolderSession; actions?: ReactNode }) {
+/** `pr`: la PR de GitHub de la sesión (si se conoce): agrega su posición en el stack. */
+export function SessionItem({ session, actions, pr }: { session: FolderSession; actions?: ReactNode; pr?: GhPr }) {
   const { activeId, setActive } = useFolders();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,7 @@ export function SessionItem({ session, actions }: { session: FolderSession; acti
         <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-4 text-[10px] text-muted-foreground">
           {session.title && <span className="font-mono">{session.id}</span>}
           {session.meta.author && <span>{session.meta.author}</span>}
+          {pr && <StackBadge pr={pr} />}
           {session.status && <Badge variant="outline" className="px-1 py-0 text-[10px]">{session.status}</Badge>}
           {extra && <Badge variant={session.pollError ? "destructive" : "secondary"} className="px-1 py-0 text-[10px]"
             title={session.pollError

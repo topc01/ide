@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 _FIELDS = """... on PullRequest { url title number isDraft updatedAt reviewDecision headRefName baseRefName
   repository { name } author { login }
-  latestReviews(first: 30) { nodes { state author { login } } }
+  latestOpinionatedReviews(first: 30) { nodes { state author { login } } }
   reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } } }"""
 # Pendientes y conteos salen de `reviewRequests` de los PRs abiertos: la búsqueda GraphQL
 # `review-requested:@me` omite PRs con review re-pedida.
@@ -91,6 +91,20 @@ def compute_stacks(prs: list[dict]) -> dict[str, dict]:
     return out
 
 
+def pr_reviewers(n: dict) -> list[dict]:
+    """Quién revisa la PR: {login, state} con state requested (pedida, pendiente) | approved |
+    changes. Una review re-pedida cuenta como requested."""
+    out: dict[str, str] = {}
+    for r in (n.get("latestOpinionatedReviews") or {}).get("nodes", []):
+        login = (r.get("author") or {}).get("login")
+        state = {"APPROVED": "approved", "CHANGES_REQUESTED": "changes"}.get(r.get("state", ""))
+        if login and state:
+            out[login] = state
+    for login in _requested(n):
+        out[login] = "requested"
+    return [{"login": k, "state": v} for k, v in out.items()]
+
+
 def _card(n: dict, stacks: dict[str, dict] | None = None) -> dict:
     return {"url": n["url"], "title": n["title"], "number": n["number"],
             "repo": n["repository"]["name"], "author": "@" + ((n.get("author") or {}).get("login") or "?"),
@@ -98,7 +112,7 @@ def _card(n: dict, stacks: dict[str, dict] | None = None) -> dict:
             # mismo id que `ide session new --review` (para cruzar la card con su sesión)
             "sessionId": slugify(f"pr-{n['repository']['name']}-{n['number']}"),
             "head": n.get("headRefName"), "base": n.get("baseRefName"), "review": review_state(n),
-            "stack": (stacks or {}).get(n["url"])}
+            "stack": (stacks or {}).get(n["url"]), "reviewers": pr_reviewers(n)}
 
 
 def _requested(n: dict) -> list[str]:
@@ -157,7 +171,9 @@ def parse_result(data: dict, members: set[str] | None = None) -> dict:
     for n in d["reviewed"]["nodes"]:
         if not n or n["url"] in seen:
             continue
-        mine = [r for r in n["latestReviews"]["nodes"] if (r.get("author") or {}).get("login") == me]
+        # opinionated: una respuesta en un hilo (review COMMENTED) no tapa el pedido de cambios
+        mine = [r for r in n["latestOpinionatedReviews"]["nodes"]
+                if (r.get("author") or {}).get("login") == me]
         if mine and mine[-1]["state"] == "CHANGES_REQUESTED":
             changes.append(card(n))
     # revisiones pendientes por revisor (solo personas; los pedidos a equipos no cuentan)

@@ -58,6 +58,7 @@ export interface GhPr {
   head: string | null; base: string | null;
   review: "approved" | "changes" | "review" | null;
   stack: { id: string; position: number; size: number } | null;
+  reviewers?: { login: string; state: "requested" | "approved" | "changes" }[];
 }
 export interface GithubReviews {
   pending: GhPr[]; changesRequested: GhPr[]; error: string | null; lastOk: string | null; orgs: string[];

@@ -45,6 +45,43 @@ export function useGithubReviews(): { gh: GithubReviews | null; error: string | 
   return { gh: gh && (gh.lastOk || gh.error) ? gh : null, error };
 }
 
+/** Todas las PRs que conoce el server (listas + stacks), sin repetir. */
+export function allPrs(gh: GithubReviews): GhPr[] {
+  const lists = [gh.pending, gh.changesRequested, ...Object.values(gh.mine ?? {}), ...Object.values(gh.stacks ?? {})];
+  const byUrl = new Map<string, GhPr>();
+  for (const l of lists) for (const pr of l ?? []) byUrl.set(pr.url, pr);
+  return [...byUrl.values()];
+}
+
+const REVIEWER_TONE = {
+  requested: ["border-sky-500/60 text-sky-400", "review pedida"],
+  approved: ["border-emerald-500/60 text-emerald-400", "aprobó"],
+  changes: ["border-amber-400/60 text-amber-300", "pidió cambios"],
+} as const;
+
+/** Badge de posición en el stack (1 = la de abajo). */
+export function StackBadge({ pr }: { pr: GhPr }) {
+  if (!pr.stack) return null;
+  return (
+    <span className="flex items-center gap-0.5 text-primary" title="posición en el stack (1 = la de abajo)">
+      <Layers2 size={10} />{pr.stack.position}/{pr.stack.size}</span>
+  );
+}
+
+/** Quién revisa la PR, con el color de su estado. */
+export function ReviewerChips({ pr }: { pr: GhPr }) {
+  if (!pr.reviewers?.length) return null;
+  return (
+    <div className="mt-1 flex flex-wrap gap-1 pl-4" aria-label="revisores">
+      {pr.reviewers.map((r) => {
+        const [cls, label] = REVIEWER_TONE[r.state];
+        return <span key={r.login} title={`${r.login}: ${label}`}
+          className={cn("rounded-full border px-1.5 font-mono text-[10px]", cls)}>{r.login}</span>;
+      })}
+    </div>
+  );
+}
+
 /** PR de GitHub sin sesión. Click = seleccionarla (el módulo GitHub muestra su stack); abrir en
  *  GitHub con el botón del hover, igual que en las demás cards. */
 export function PrCard({ pr, reviewable = false }: { pr: GhPr; reviewable?: boolean }) {
@@ -69,9 +106,9 @@ export function PrCard({ pr, reviewable = false }: { pr: GhPr; reviewable?: bool
           <span className="font-mono">{pr.repo}#{pr.number}</span>
           <span>{pr.author}</span>
           {pr.draft && <Badge variant="outline" className="px-1 py-0 text-[10px]">draft</Badge>}
-          {pr.stack && <span className="flex items-center gap-0.5 text-primary" title="posición en el stack (1 = la de abajo)">
-            <Layers2 size={10} />{pr.stack.position}/{pr.stack.size}</span>}
+          <StackBadge pr={pr} />
         </div>
+        <ReviewerChips pr={pr} />
       </div>
     </QueueItem>
   );
@@ -82,7 +119,7 @@ function PrList({ prs, byId, reviewable }: { prs: GhPr[]; byId: Map<string, Fold
     <QueueList>
       {prs.map((pr) => {
         const s = byId.get(pr.sessionId);
-        return s ? <SessionItem key={pr.url} session={s} actions={reviewable ? <ReviewButton pr={pr} /> : null} />
+        return s ? <SessionItem key={pr.url} session={s} pr={pr} actions={reviewable ? <ReviewButton pr={pr} /> : null} />
           : <PrCard key={pr.url} pr={pr} reviewable={reviewable} />;
       })}
     </QueueList>
@@ -143,6 +180,7 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
   const byId = new Map(sessions.map((s) => [s.id, s]));
   const onGithub = new Set([...(gh?.pending ?? []), ...(gh?.changesRequested ?? [])].map((p) => p.sessionId));
   const others = sessions.filter((s) => !onGithub.has(s.id));
+  const prBySession = new Map((gh ? allPrs(gh) : []).map((p) => [p.sessionId, p]));
   const ghError = error ?? gh?.error;
   const counts = new Map((gh?.reviewers ?? []).map((r) => [r.login, r.count]));
   const chips = gh?.selected
@@ -183,7 +221,7 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
         </Group>
         {others.length > 0 && (
           <Group label="Otras" count={others.length}>
-            <QueueList>{others.map((s) => <SessionItem key={s.id} session={s} />)}</QueueList>
+            <QueueList>{others.map((s) => <SessionItem key={s.id} session={s} pr={prBySession.get(s.id)} />)}</QueueList>
           </Group>)}
       </Collapsible.Content>
     </Collapsible.Root>

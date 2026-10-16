@@ -3,7 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { useFolders } from "../../state/folders";
 import type { FolderSession, GhPr, GithubReviews } from "../../transport/folderSessions";
 import { QueueItem, QueueItemAction, QueueItemActions, QueueList } from "../../components/ai-elements/queue";
-import { useGithubReviews } from "../sessions/ReviewsSection";
+import { allPrs, useGithubReviews } from "../sessions/ReviewsSection";
 import { cn } from "../../lib/utils";
 
 const REVIEW = {
@@ -11,13 +11,6 @@ const REVIEW = {
   review: ["bg-sky-500", "en revisión"],
   changes: ["bg-amber-400", "pidieron cambios"],
 } as const;
-
-function allPrs(gh: GithubReviews): GhPr[] {
-  const lists = [gh.pending, gh.changesRequested, ...Object.values(gh.mine ?? {}), ...Object.values(gh.stacks ?? {})];
-  const byUrl = new Map<string, GhPr>();
-  for (const l of lists) for (const pr of l ?? []) byUrl.set(pr.url, pr);
-  return [...byUrl.values()];
-}
 
 /** Las PRs de la sesión: la del PR revisado, o las de las ramas de sus repos; cada una con su stack. */
 function sessionStacks(s: FolderSession, gh: GithubReviews): { own: Set<string>; stacks: GhPr[][] } {
