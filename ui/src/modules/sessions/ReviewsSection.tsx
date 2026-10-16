@@ -45,19 +45,22 @@ export function useGithubReviews(): { gh: GithubReviews | null; error: string | 
   return { gh: gh && (gh.lastOk || gh.error) ? gh : null, error };
 }
 
-/** PR de GitHub sin sesión. `link`: toda la card abre la PR. */
-export function PrCard({ pr, reviewable = false, link = false }: { pr: GhPr; reviewable?: boolean; link?: boolean }) {
+/** PR de GitHub sin sesión. Click = seleccionarla (el módulo GitHub muestra su stack); abrir en
+ *  GitHub con el botón del hover, igual que en las demás cards. */
+export function PrCard({ pr, reviewable = false }: { pr: GhPr; reviewable?: boolean }) {
+  const active = useFolders((s) => s.activePrUrl === pr.url);
+  const setActivePr = useFolders((s) => s.setActivePr);
   return (
     <QueueItem className="px-2 py-0.5">
-      <div onClick={link ? () => window.open(pr.url, "_blank", "noopener") : undefined}
-        className={cn("rounded-md border border-dashed border-border px-2 py-1.5 text-xs hover:bg-accent/60",
-          link && "cursor-pointer")}>
+      <div onClick={() => setActivePr(pr.url)} aria-current={active || undefined}
+        className={cn("cursor-pointer rounded-md border border-dashed border-border px-2 py-1.5 text-xs hover:bg-accent/60",
+          active && "border-solid border-primary bg-accent")}>
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground" aria-label="sin sesión">◇</span>
           <span className="min-w-0 flex-1 truncate" title={pr.title}>{pr.title}</span>
           <QueueItemActions className="ml-0">
             {reviewable && <ReviewButton pr={pr} />}
-            <QueueItemAction aria-label={`Abrir ${pr.sessionId} en GitHub`} asChild>
+            <QueueItemAction aria-label={`Abrir ${pr.sessionId} en GitHub`} title="Abrir en GitHub" asChild>
               <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
             </QueueItemAction>
           </QueueItemActions>

@@ -55,19 +55,28 @@ function StackItem({ pr, own }: { pr: GhPr; own: boolean }) {
 }
 
 /** Módulo GitHub: el stack de PRs de la sesión abierta (abajo = la base). */
+function prStacks(url: string, gh: GithubReviews): { own: Set<string>; stacks: GhPr[][] } {
+  const pr = allPrs(gh).find((p) => p.url === url);
+  if (!pr) return { own: new Set(), stacks: [] };
+  return { own: new Set([url]), stacks: [pr.stack ? gh.stacks?.[pr.stack.id] ?? [pr] : [pr]] };
+}
+
 export function GithubPanel() {
   const session = useFolders((s) => s.tree.sessions.find((x) => x.id === s.activeId));
+  const activePrUrl = useFolders((s) => s.activePrUrl);
   const { gh, error } = useGithubReviews();
   const ghError = error ?? gh?.error ?? (gh && !gh.stacks ? "el server no manda los stacks: reinicia `ide`" : null);
-  const data = session && gh ? sessionStacks(session, gh) : null;
+  // la card de PR seleccionada manda; si no, la sesión abierta
+  const data = !gh ? null : activePrUrl ? prStacks(activePrUrl, gh) : session ? sessionStacks(session, gh) : null;
   return (
     <div className="flex flex-col">
       <div className="mx-2.5 mb-1 mt-2.5 text-[10px] uppercase tracking-wide text-muted-foreground">GitHub</div>
       {ghError && <p role="alert" className="mx-2.5 text-xs text-destructive">{ghError}</p>}
-      {!session && <p className="mx-2.5 text-xs text-muted-foreground">Abre una sesión para ver sus PRs.</p>}
-      {session && !gh && !ghError && <p className="mx-2.5 text-xs text-muted-foreground">cargando…</p>}
+      {!session && !activePrUrl && <p className="mx-2.5 text-xs text-muted-foreground">Abre una sesión o elige una PR para ver su stack.</p>}
+      {(session || activePrUrl) && !gh && !ghError && <p className="mx-2.5 text-xs text-muted-foreground">cargando…</p>}
       {data?.stacks.length === 0 && (
-        <p className="mx-2.5 text-xs text-muted-foreground">Las ramas de {session!.id} no tienen PRs abiertas.</p>)}
+        <p className="mx-2.5 text-xs text-muted-foreground">
+          {activePrUrl ? "La PR ya no está abierta." : `Las ramas de ${session!.id} no tienen PRs abiertas.`}</p>)}
       {data?.stacks.map((stack) => (
         <div key={stack[0].url} className="mb-2">
           <div className="mx-2.5 mb-0.5 font-mono text-[10px] text-muted-foreground">
