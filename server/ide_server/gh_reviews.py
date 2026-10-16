@@ -298,6 +298,11 @@ class GithubReviews:
         """Abiertas a `prs`; las que se cerraron o mergearon salen y quedan como referencia."""
         self._db.upsert_prs([n for n in nodes if n.get("state") not in _CLOSED], _iso(now))
         closed = [n for n in nodes if n.get("state") in _CLOSED]
+        known = self._db.pr_snaps([n["url"] for n in closed])
+        for n in closed:                        # mergeada/cerrada (por el IDE o por fuera)
+            if n["url"] in known:
+                self._db.event(_iso(now), "github", n["state"].lower(), pr_url=n["url"],
+                               data={"title": n.get("title")})
         self._db.delete_prs(n["url"] for n in closed)
         self._db.put_refs({f"{n['repository']['nameWithOwner'].lower()}#{n['number']}": _ref(n) for n in closed})
 
@@ -382,6 +387,30 @@ class GithubReviews:
             c["deps"] = gh_deps.chains(direct, info, c["url"])
             c["depsPending"] = sum(1 for d in c["deps"] if d["state"] != "MERGED" and not d["together"])
 
+    def _record_events(self, res: dict) -> None:
+        """Historial de lo que pasa en GitHub (también lo hecho por fuera del IDE): compara la foto
+        de cada PR relevante con la anterior y deja un evento por cada cambio."""
+        cards = {c["url"]: c for lst in [res["pending"], res["changesRequested"], *res["mine"].values(),
+                                         *res["stacks"].values()] for c in lst}
+        snaps = {u: {"review": c.get("review"), "ci": c.get("ci"), "draft": c.get("draft"),
+                     "reviewers": {r["login"]: r["state"] for r in c.get("reviewers") or []}}
+                 for u, c in cards.items()}
+        prev = self._db.pr_snaps(list(snaps))
+        at = _iso(self._clock())
+        for url, cur in snaps.items():
+            old = prev.get(url)
+            if old is None:                     # primera vez que la vemos: sin evento (no inundar)
+                continue
+            for login, state in cur["reviewers"].items():
+                if old["reviewers"].get(login) != state:
+                    self._db.event(at, "github", {"requested": "review-requested"}.get(state, "review"),
+                                   pr_url=url, data={"by": login, "state": state})
+            if cur["ci"] != old["ci"] and cur["ci"] in ("success", "failure"):
+                self._db.event(at, "github", "ci", pr_url=url, data={"state": cur["ci"]})
+            if old["draft"] and not cur["draft"]:
+                self._db.event(at, "github", "ready-for-review", pr_url=url)
+        self._db.put_pr_snaps(snaps)
+
     async def set_selection(self, logins: list[str]) -> None:
         self._db.set("reviewers", sorted({str(x) for x in logins}, key=str.lower))
         self.state = {**self.state, "selected": self._db.get("reviewers")}
@@ -400,6 +429,7 @@ class GithubReviews:
                 data = self._data(me)
                 res = parse_result(data, {m["login"] for m in members})
                 await self._annotate_deps(res, data)
+                self._record_events(res)
                 self.state = {**res, "members": members, "selected": self._db.get("reviewers"),
                               "error": None, "lastOk": _iso(self._clock()), "orgs": orgs}
             except RuntimeError as exc:

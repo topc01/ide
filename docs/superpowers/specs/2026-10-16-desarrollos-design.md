@@ -15,6 +15,12 @@
 
 ## Decisiones cerradas
 
+> **Actualización 2026-10-16:** la base pasa a ser la **fuente de verdad del estado** de cada
+> desarrollo con sesión (antes: "las sesiones viven en disco y la base no las duplica"). La carpeta
+> sigue siendo el lugar de trabajo de `claude`; el estado se cambia con `ide status` y todo deja
+> historial (tabla `events`), incluido lo que pasa en GitHub por fuera del IDE. Notion no se
+> sincroniza (lo hace el usuario a mano). Ver REFERENCE §9d.
+
 1. **Base local SQLite en `.ide/ide.db`** (stdlib `sqlite3`, sin dependencias; no se commitea).
    `merges.json` y `reviews.json` migran a tablas. Las **sesiones siguen viviendo en disco**
    (`.ide/sessions/<id>/`, fuente de verdad, ver spec de sesiones-carpeta): la base no las

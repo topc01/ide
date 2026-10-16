@@ -43,10 +43,11 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
 
 ## Convención de estado
 
-Las sesiones de ticket mantienen `TICKET.md` (frontmatter `status`:
-analyzing | blocked | questions | ready | in-progress | done). Las de revisión, `REVIEW.md`
-(reviewing | commented | approved | changes-requested). Solo cambia `status`, `title` (si está
-vacío) y el cuerpo.
+El **estado** de cada sesión vive en la base del IDE: cámbialo con `ide status <estado>`
+(opcional `-m "nota"`), nunca editando el `status:` del archivo. Ticket: analyzing | blocked |
+questions | ready | in-progress | done. Revisión: reviewing | commented | approved |
+changes-requested. `TICKET.md` / `REVIEW.md` guardan el análisis (y el `title` si está vacío).
+La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide dev show <id>`.
 """
 
 
@@ -118,7 +119,7 @@ Lanzadas, ya existían y errores (con el mensaje). El estado de cada una se ve e
 PROMPT_REVIEW_PR = """\
 Review PR {{pr_url}} ("{{title}}" by {{author}}, repo {{repo}}) using the
 `finnecto-core:pr-review` skill (reviewer side). The `{{repo}}/` worktree is at the PR head.
-Keep REVIEW.md and its `status` up to date with your verdict.
+Keep REVIEW.md up to date and set your verdict with `ide status commented|approved|changes-requested`.
 """
 TEMPLATE_TICKET = """\
 Eres la sesión del ticket {{id}} ({{notion_url}}).
@@ -128,7 +129,7 @@ Tu trabajo AHORA es analizar, no implementar:
 2. Si el frontmatter de TICKET.md no tiene `title:`, ponle el título del ticket.
 3. Determina scope y qué repos toca. Por cada uno: `ide repo add <repo>`.
 4. Escribe TICKET.md: Scope, Repos, Plan, Bloqueantes, Dudas.
-   Cambia `status` a blocked | questions | ready.
+   Cambia el estado con `ide status blocked|questions|ready` (no edites el `status:` del archivo).
 5. Detente y espera instrucciones.
 """
 
@@ -138,7 +139,7 @@ El worktree `{{repo}}/` está en el head del PR (detached).
 
 1. Revisa el diff contra la base (`gh pr diff {{pr_url}}`, y lee el código alrededor).
 2. Escribe REVIEW.md con hallazgos por severidad (bloqueante / importante / menor / nit).
-3. Cambia `status` a commented | approved | changes-requested según tu veredicto.
+3. Marca tu veredicto con `ide status commented|approved|changes-requested`.
 4. NO publiques nada en GitHub sin que te lo pida.
 """
 
@@ -152,7 +153,7 @@ _READ_ONLY_BASH = [
 PERM_ANALYZE = {"permissions": {
     "allow": [
         "Read", "Grep", "Glob", *_READ_ONLY_BASH,
-        "Bash(ide repo add:*)", "Bash(ide script:*)", "Bash(ide session ls:*)",
+        "Bash(ide repo add:*)", "Bash(ide script:*)", "Bash(ide session ls:*)", "Bash(ide status:*)",
         "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh search prs:*)",
         "Edit(**/TICKET.md)", "Edit(**/REVIEW.md)",
         "mcp__claude_ai_Notion__notion-fetch", "mcp__claude_ai_Notion__notion-search",
@@ -164,7 +165,7 @@ PERM_ANALYZE = {"permissions": {
 # La principal = analyze + despachar sesiones (el server igual le niega `full`) + leer el
 # Backlog de Notion para /backlog (con el MCP de claude.ai o el del plugin de Notion).
 PERM_MAIN = {"permissions": {
-    "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)",
+    "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)", "Bash(ide dev:*)",
               *[f"mcp__{srv}__notion-{t}" for srv in ("claude_ai_Notion", "plugin_Notion_notion")
                 for t in ("get-self", "query-data-sources", "query-database-view", "fetch", "search")]],
     "deny": list(PERM_ANALYZE["permissions"]["deny"]),

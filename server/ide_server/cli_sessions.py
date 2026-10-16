@@ -61,6 +61,11 @@ def _parser() -> argparse.ArgumentParser:
     r = sub.add_parser("repo").add_subparsers(dest="cmd", required=True)
     ra = r.add_parser("add"); ra.add_argument("repo"); ra.add_argument("--branch")
     ra.add_argument("--session")
+    st = sub.add_parser("status", help="cambia el estado de la sesión (queda en la base y en el historial)")
+    st.add_argument("status"); st.add_argument("-m", "--note"); st.add_argument("--session")
+    dv = sub.add_parser("dev").add_subparsers(dest="cmd", required=True)
+    dls = dv.add_parser("ls"); dls.add_argument("--json", action="store_true")
+    dsh = dv.add_parser("show"); dsh.add_argument("id"); dsh.add_argument("--json", action="store_true")
     rr = r.add_parser("rm"); rr.add_argument("repo"); rr.add_argument("--force", action="store_true")
     rr.add_argument("--session")
     sc = sub.add_parser("script"); sc.add_argument("name"); sc.add_argument("repo", nargs="?")
@@ -126,6 +131,76 @@ def _post(http, url: str | None, path: str, body: dict | None = None, *,
     return data
 
 
+def _get(http, url: str | None, path: str, *, timeout: float = 60) -> dict:
+    if url is None:
+        raise SessionError("no_server", NO_SERVER)
+    try:
+        r = http.get(f"{url}{path}", timeout=timeout)
+    except httpx.TimeoutException:
+        raise SessionError("timeout", TIMEOUT)
+    except httpx.HTTPError:
+        raise SessionError("no_server", NO_SERVER)
+    try:
+        data = r.json()
+    except ValueError:
+        raise SessionError("server_error", f"respuesta inválida del server (HTTP {r.status_code})")
+    if r.status_code >= 400:
+        raise SessionError(data.get("code", "server_error"), data.get("message", str(data)))
+    return data
+
+
+def _pr_line(p: dict) -> str:
+    stack = f" ◫{p['stack']['position']}/{p['stack']['size']}" if p.get("stack") else ""
+    who = ", ".join(f"{r['login']}:{r['state']}" for r in p.get("reviewers") or [])
+    deps = f" ⏸{p['depsPending']}" if p.get("depsPending") else ""
+    return (f"    {p['repo']}#{p['number']}{stack} review={p.get('review') or '-'} ci={p.get('ci') or '-'}"
+            f"{' draft' if p.get('draft') else ''}{deps}  {p['title']}" + (f"  [{who}]" if who else ""))
+
+
+def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
+    from urllib.parse import quote
+    if a.group == "status":
+        sid = a.session or env.get("IDE_SESSION_ID")
+        if not sid:
+            raise SessionError("no_session", "no estoy dentro de una sesión: usa --session <id>")
+        actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
+        data = _post(http, url, f"/api/devs/{quote(sid, safe='')}/status",
+                     {"status": a.status, "note": a.note, "actor": actor})
+        out.write(f"{sid}\t{data['dev']['status']}\n")
+        return 0
+    if a.cmd == "ls":
+        devs = _get(http, url, "/api/devs")["devs"]
+        if a.json:
+            out.write(json.dumps(devs, ensure_ascii=False, indent=2) + "\n")
+            return 0
+        for d in devs:
+            out.write(f"{d['id']}\t{d['kind']}\t{d['status'] or '-'}\t{d['process'] or '-'}\t{d['title'] or ''}\n")
+            for p in d["prs"]:
+                out.write(_pr_line(p) + "\n")
+        return 0
+    d = _get(http, url, f"/api/devs/{quote(a.id, safe='')}")["dev"]
+    if a.json:
+        out.write(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
+        return 0
+    out.write(f"{d['id']}  {d['kind']}  status={d['status'] or '-'}  claude={d['process'] or '-'}\n{d['title'] or ''}\n")
+    if d.get("notionUrl"):
+        out.write(f"notion: {d['notionUrl']}\n")
+    for r in d.get("repos") or []:
+        out.write(f"  repo {r['name']} @ {r['branch'] or '(detached)'}\n")
+    if d["prs"]:
+        out.write("PRs:\n")
+        for p in d["prs"]:
+            out.write(_pr_line(p) + "\n")
+            for x in p.get("deps") or []:
+                if x.get("state") != "MERGED" and not x.get("together"):
+                    out.write(f"      ⏸ espera a {x['repo']}#{x['number']} ({x['state']})\n")
+    out.write("historial:\n")
+    for e in d.get("events") or []:
+        extra = " ".join(f"{k}={v}" for k, v in (e.get("data") or {}).items())
+        out.write(f"  {e['at']}  {e['actor']:<16} {e['kind']:<10} {extra}\n")
+    return 0
+
+
 def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
          out: TextIO = sys.stdout, err: TextIO = sys.stderr) -> int:
     a = _parser().parse_args(argv)
@@ -137,6 +212,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
     try:
         if a.group == "session":
             return _session(a, root, url, http, out, err, env)
+        if a.group in ("status", "dev"):
+            return _dev_cmd(a, url, http, out, env)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
         if a.group == "repo" and a.cmd == "add":
             info = add_repo(root, sid, a.repo, branch=a.branch, out=out)

@@ -465,6 +465,33 @@ Claude Code (`claudeAiOauth` en el llavero `Claude Code-credentials` o
 `~/.claude/.credentials.json`); el server lo consulta cada 60 s (ante 429 duplica la espera, tope
 5 min) y la UI lee cada 5 s. Sin tokens. Errores se ven como `⚠ límites: …`.
 
+## 9d. Estado de los desarrollos en la base (y la sesión principal)
+
+La **base** (`.ide/ide.db`, tabla `devs`) es la fuente de verdad del estado de cada desarrollo con
+sesión: tipo, título, ticket de Notion, PR (revisiones) y `status`. Las sesiones lo cambian con
+**`ide status <estado>`** (opcional `-m "nota"`; el estado se refleja en `TICKET.md`/`REVIEW.md`
+para quien lo lea). Si una sesión edita a mano el `status:` del archivo, se adopta y queda en el
+historial como "archivo". Estados válidos — ticket: analyzing | blocked | questions | ready |
+in-progress | done; revisión: reviewing | commented | approved | changes-requested.
+
+**Historial** (tabla `events`): quién hizo qué y cuándo — el IDE (sesión creada, archivada,
+revisión lanzada, merge: rebasando / esperando CI / mergeada / error), las sesiones (`ide status`
+→ actor `claude:<id>`), la CLI (`cli`), los archivos (`archivo`) y **GitHub**, también lo hecho por
+fuera del IDE (review pedida / aprobada / cambios pedidos por X, CI pasó o falló, lista para
+review, mergeada, cerrada). El poll de GitHub guarda una foto de cada PR relevante y deja un evento
+por cada cambio (la primera vez no, para no inundar). Los estados de Notion no se sincronizan.
+
+**Para la sesión principal** (permiso `Bash(ide dev:*)`):
+
+| Comando | Qué muestra |
+|---|---|
+| `ide dev ls [--json]` | todos los desarrollos: los de sesión (estado de la base, claude corriendo/parado, repos y ramas) y los que son solo PRs (tuyas o pendientes de revisar); por cada PR: review, CI, revisores, draft, stack, dependencias pendientes |
+| `ide dev show <id> [--json]` | lo mismo para uno (id de sesión o `repo#n`) + dependencias pendientes + historial |
+| `ide status <estado> [-m nota] [--session id]` | cambia el estado (dentro de una sesión usa la suya) |
+
+API: `GET /api/devs`, `GET /api/devs/{id}`, `POST /api/devs/{id}/status` (`{status, note, actor}`);
+canales WS `dev.list`, `dev.show`, `dev.status`. Errores: `bad_status`, `no_status`, `unknown_dev`.
+
 ## 10. Problemas comunes
 
 Cada sesión fija su conversación de `claude`: `claude_session` (nueva con `--session-id`,
@@ -493,7 +520,7 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `bad_pr_url`, `forbidden`, `unknown_repo`, `repo_exists`, `repo_not_in_session`,
 `ambiguous_repo`, `uncommitted_changes`, `setup_failed`, `archive_failed`, `script_not_found`,
 `script_not_executable`, `script_failed`, `gh_failed`, `fetch_failed`, `checkout_failed`,
-`not_a_review`, `session_archived`, `pr_closed`, `not_bottom`, `not_approved`, `ci_failed`, `merge_pending`,
+`not_a_review`, `session_archived`, `pr_closed`, `bad_status`, `no_status`, `unknown_dev`, `not_bottom`, `not_approved`, `ci_failed`, `merge_pending`,
 `conflict`, `merge_failed`, `unknown_pr`, `no_merge`, `not_yours`, `fork_pr`, `repo_mismatch`,
 `forbidden_origin`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`.

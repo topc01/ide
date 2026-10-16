@@ -66,7 +66,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     merger = Merger(root, stacks=lambda: gh_reviews.state, db=db, on_change=lambda: notify_box["github"]())
     notify_box["fn"] = folder_cap.register(registry, root, manager, hooks=hooks,
                                            supervisor=supervisor, poller=poller,
-                                           gh_reviews=gh_reviews, limits=limits, merger=merger)
+                                           gh_reviews=gh_reviews, limits=limits, merger=merger, db=db)
     notify_box["github"] = lambda: asyncio.get_running_loop().create_task(
         manager.broadcast("reviews.github", {**gh_reviews.state, "merges": merger.public()}))
     mlx_router = build_mlx_router(root)
@@ -179,6 +179,18 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     @app.post("/api/sessions/{sid}/open")
     async def api_open(sid: str):
         return await _http("sessions.open", {"id": sid})
+
+    @app.get("/api/devs")
+    async def api_devs():
+        return await _http("dev.list", {})
+
+    @app.get("/api/devs/{dev_id}")
+    async def api_dev(dev_id: str):
+        return await _http("dev.show", {"id": dev_id})
+
+    @app.post("/api/devs/{sid}/status")
+    async def api_dev_status(sid: str, body: dict):
+        return await _http("dev.status", {**body, "id": sid})
 
     @app.post("/api/sessions/{sid}/stop")
     async def api_stop(sid: str):

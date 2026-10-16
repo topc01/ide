@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 log = logging.getLogger(__name__)
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS prs (          -- PRs abiertas: nodo GraphQL completo
   url TEXT PRIMARY KEY, id TEXT, node TEXT NOT NULL, updated_at TEXT, fetched_at TEXT);
@@ -25,6 +25,19 @@ CREATE TABLE IF NOT EXISTS merges (       -- trabajos de merge del IDE
   url TEXT PRIMARY KEY, job TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS kv (           -- ajustes y marcas de tiempo
   key TEXT PRIMARY KEY, value TEXT NOT NULL);
+"""
+# v2: desarrollos (fuente de verdad de su estado) + historial + fotos de PRs para detectar cambios
+SCHEMA_V2 = """
+CREATE TABLE IF NOT EXISTS devs (         -- un desarrollo con sesión (id = id de la sesión)
+  id TEXT PRIMARY KEY, kind TEXT, title TEXT, notion_url TEXT, pr_url TEXT, status TEXT,
+  archived INTEGER NOT NULL DEFAULT 0, created TEXT, updated TEXT);
+CREATE TABLE IF NOT EXISTS events (       -- historial: quién hizo qué y cuándo
+  id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, dev TEXT, pr_url TEXT,
+  actor TEXT NOT NULL, kind TEXT NOT NULL, data TEXT);
+CREATE INDEX IF NOT EXISTS events_dev ON events (dev, id);
+CREATE INDEX IF NOT EXISTS events_pr ON events (pr_url, id);
+CREATE TABLE IF NOT EXISTS pr_snaps (     -- última foto de cada PR relevante (para el historial)
+  url TEXT PRIMARY KEY, snap TEXT NOT NULL);
 """
 
 
@@ -63,6 +76,7 @@ class Db:
         if version >= SCHEMA_VERSION:
             return
         conn.executescript(SCHEMA)
+        conn.executescript(SCHEMA_V2)
         if version == 0:
             self._import_json(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -157,3 +171,58 @@ class Db:
     def put_merge(self, url: str, job: dict) -> None:
         with self._lock:
             self._conn.execute("INSERT OR REPLACE INTO merges VALUES (?, ?)", (url, json.dumps(job)))
+
+    # -- desarrollos ------------------------------------------------------------------------------
+    def devs(self, include_archived: bool = False) -> list[dict]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, kind, title, notion_url, pr_url, status, archived, created, updated FROM devs"
+                + ("" if include_archived else " WHERE archived = 0")).fetchall()
+        keys = ("id", "kind", "title", "notionUrl", "prUrl", "status", "archived", "created", "updated")
+        return [dict(zip(keys, r)) for r in rows]
+
+    def dev(self, dev_id: str) -> dict | None:
+        return next((d for d in self.devs(include_archived=True) if d["id"] == dev_id), None)
+
+    def put_dev(self, dev: dict) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO devs (id, kind, title, notion_url, pr_url, status, archived, created, updated)"
+                " VALUES (:id, :kind, :title, :notionUrl, :prUrl, :status, :archived, :created, :updated)"
+                " ON CONFLICT(id) DO UPDATE SET kind=:kind, title=:title, notion_url=:notionUrl,"
+                " pr_url=:prUrl, status=:status, archived=:archived, updated=:updated",
+                {"archived": 0, "created": None, **dev})
+
+    # -- historial ----------------------------------------------------------------------------------
+    def event(self, at: str, actor: str, kind: str, *, dev: str | None = None,
+              pr_url: str | None = None, data: dict | None = None) -> None:
+        with self._lock:
+            self._conn.execute("INSERT INTO events (at, dev, pr_url, actor, kind, data) VALUES (?, ?, ?, ?, ?, ?)",
+                               (at, dev, pr_url, actor, kind, json.dumps(data or {})))
+
+    def events(self, *, dev: str | None = None, pr_urls: list[str] | None = None, limit: int = 50) -> list[dict]:
+        conds, args = [], []
+        if dev:
+            conds.append("dev = ?"); args.append(dev)
+        if pr_urls:
+            conds.append(f"pr_url IN ({','.join('?' * len(pr_urls))})"); args += pr_urls
+        where = f"WHERE {' OR '.join(conds)}" if conds else ""
+        with self._lock:
+            rows = self._conn.execute(f"SELECT at, dev, pr_url, actor, kind, data FROM events {where}"
+                                      " ORDER BY id DESC LIMIT ?", (*args, limit)).fetchall()
+        return [{"at": a, "dev": d, "prUrl": u, "actor": ac, "kind": k, "data": json.loads(x or "{}")}
+                for a, d, u, ac, k, x in rows]
+
+    # -- fotos de PRs ---------------------------------------------------------------------------------
+    def pr_snaps(self, urls: list[str]) -> dict[str, dict]:
+        if not urls:
+            return {}
+        with self._lock:
+            rows = self._conn.execute(
+                f"SELECT url, snap FROM pr_snaps WHERE url IN ({','.join('?' * len(urls))})", urls).fetchall()
+        return {u: json.loads(x) for u, x in rows}
+
+    def put_pr_snaps(self, snaps: dict[str, dict]) -> None:
+        with self._lock:
+            self._conn.executemany("INSERT OR REPLACE INTO pr_snaps VALUES (?, ?)",
+                                   [(u, json.dumps(x)) for u, x in snaps.items()])

@@ -2,11 +2,14 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 from ide_server.claude_usage import LimitsPoller, session_context
 from ide_server.config import ui_modules
 from ide_server.gh_discussion import fetch_discussion
+from ide_server.db import Db
+from ide_server.devs import list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
 from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
@@ -30,11 +33,18 @@ log = logging.getLogger(__name__)
 
 def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supervisor,
              poller: PrPoller, gh_reviews: GithubReviews | None = None,
-             limits: LimitsPoller | None = None, merger: Merger | None = None) -> Callable[[], None]:
+             limits: LimitsPoller | None = None, merger: Merger | None = None,
+             db: Db | None = None) -> Callable[[], None]:
 
     def build_tree(snap: dict, derived: dict) -> dict:
         """Lectura de disco + git: corre en un thread (no bloquea el loop)."""
         sessions = list_sessions(root)
+        if db is not None:                      # la base es la fuente de verdad del estado
+            sync_from_disk(root, db, sessions)
+            status = {d["id"]: d["status"] for d in db.devs()}
+            for s in sessions:
+                if status.get(s["id"]):
+                    s["status"] = status[s["id"]]
         for s in sessions:
             p = snap.get(s["id"], {})
             s.update(process=p.get("process", "stopped"), terminalId=p.get("terminalId"),
@@ -170,6 +180,30 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         merger.retry(p["url"])
         return {"ok": True}
 
+    async def dev_status(p: dict) -> dict:
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        row = await asyncio.to_thread(set_status, root, db, require_plain_name(p["id"], "sesión"),
+                                      p["status"], actor=p.get("actor") or "ide", note=p.get("note"))
+        notify()
+        return {"dev": row}
+
+    async def _sessions_now() -> list[dict]:
+        return (await tree_payload())["sessions"]
+
+    async def dev_list(_p: dict) -> dict:
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        sessions = await _sessions_now()
+        return {"devs": await asyncio.to_thread(list_devs, root, db, sessions, gh_reviews.state if gh_reviews else {})}
+
+    async def dev_show(p: dict) -> dict:
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        sessions = await _sessions_now()
+        return {"dev": await asyncio.to_thread(show_dev, root, db, p["id"], sessions,
+                                               gh_reviews.state if gh_reviews else {})}
+
     async def merge_dismiss(p: dict) -> dict:
         if merger is None:
             raise SessionError("github_off", "merge desactivado")
@@ -190,6 +224,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         url = p["url"]
         repo, number = parse_pr_url(url)
         sid = normalize_id(f"pr-{repo}-{number}")
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), "ide", "review-start", dev=sid, pr_url=url)
         if not (session_path(root, sid) / ".session.toml").is_file():
             await asyncio.to_thread(create_session, root,
                                           {"review": url, "prompt_file": "review-pr"})
@@ -222,6 +258,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
+        "dev.status": dev_status, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,

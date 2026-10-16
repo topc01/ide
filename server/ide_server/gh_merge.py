@@ -66,8 +66,13 @@ class Merger:
 
     def _update(self, url: str, **fields) -> None:
         with self._jobs_lock:
+            prev = self.jobs.get(url, {}).get("state")
             self.jobs[url] = {**self.jobs.get(url, {}), **fields}
             self._db.put_merge(url, self.jobs[url])
+            if fields.get("state") and fields["state"] != prev:      # historial del merge
+                self._db.event(datetime.now().isoformat(timespec="seconds"), "ide", "merge",
+                               pr_url=url, data={"state": fields["state"], **(
+                                   {"error": fields["error"]} if fields.get("error") else {})})
 
     def public(self) -> dict[str, dict]:
         keys = ("state", "error", "restacked", "repo", "number", "title", "above", "native", "merged_at")
