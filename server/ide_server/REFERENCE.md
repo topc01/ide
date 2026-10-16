@@ -355,9 +355,17 @@ muestra limpio (sin HTML ni imágenes), los largos recortados con "ver más".
 **resumen** de cada PR y las terminales de los scripts. Al cambiar de desarrollo cambia la fila y al
 volver está como la dejaste (también tras recargar; las de scripts no, mueren con el server). La
 primera vez, una sesión abre `claude` y una PR su resumen; click en una fila de PR abre/enfoca su
-resumen. El `+` **crea**: una **terminal nueva** (shell en la carpeta de la sesión; varias), o en una
-PR de otro sin sesión su **sesión de revisión** (se abre su `claude`); y **reabre** lo cerrado
+resumen. El `+` **crea**: una **terminal nueva** (shell en la carpeta de la sesión; varias); en una
+PR tuya sin sesión, una **sesión en su rama** (ver abajo); en una PR de otro sin sesión su
+**sesión de revisión** (se abre su `claude`); y **reabre** lo cerrado
 (doc, resúmenes de las otras PRs del desarrollo). × cierra la tab sin parar nada. Sin límite de tabs.
+
+**Sesión para una PR propia** (`+` de las tabs o **Crear sesión** en el resumen; canal
+`sessions.newForPr {url}`): sesión de ticket `dev-<repo>-<n>` con el worktree en la rama de la PR
+(en un stack, la de más arriba: contiene a todas). Trae la rama de `origin` y, si no existe local,
+la crea siguiendo a `origin/<rama>` (no desde HEAD). Queda en el mismo desarrollo (sus PRs pasan a
+la card de la sesión) y se lanza su `claude`. Si ya existe la devuelve; PR de fork → `fork_pr`;
+cerrada → `pr_closed`; rama checkouteada en otro lado → `branch_occupied`.
 
 **Panel principal con una PR:** si el desarrollo es una PR sin sesión, el panel principal muestra
 la PR (título, rama, stack, CI, revisores), el botón para abrirla en GitHub y, si te toca
@@ -470,7 +478,7 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `bad_pr_url`, `forbidden`, `unknown_repo`, `repo_exists`, `repo_not_in_session`,
 `ambiguous_repo`, `uncommitted_changes`, `setup_failed`, `archive_failed`, `script_not_found`,
 `script_not_executable`, `script_failed`, `gh_failed`, `fetch_failed`, `checkout_failed`,
-`not_a_review`, `session_archived`, `not_bottom`, `not_approved`, `ci_failed`, `merge_pending`,
+`not_a_review`, `session_archived`, `pr_closed`, `not_bottom`, `not_approved`, `ci_failed`, `merge_pending`,
 `conflict`, `merge_failed`, `unknown_pr`, `no_merge`, `not_yours`, `fork_pr`, `repo_mismatch`,
 `forbidden_origin`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`.
@@ -491,6 +499,6 @@ snake_case: `id`, `notion`, `main`, `template`, `vars`, `prompt`, `title`, `perm
 WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|archive|script|doc|refreshReview|repoRm`,
 `ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `terminal.replay` (`{id}` → `{data, end}`),
 `server.status` (`{pending, supervised, idleBefore}`), `server.restart`; evento `server.update`, `reviews.github`
-(`{pending, changesRequested, mine: {returned, waiting, missing, draft, approved}` (cada PR con `deps`, `depsPending`), stacks: {<id>: [pr…]}, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.merge` / `reviews.mergeRetry` (`{url}`), `reviews.discussion` (`{url}`), `reviews.start` (`{url}` → `{id, created,
+(`{pending, changesRequested, mine: {returned, waiting, missing, draft, approved}` (cada PR con `deps`, `depsPending`), stacks: {<id>: [pr…]}, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `sessions.newForPr` (`{url}`), `reviews.setReviewers` (`{logins}`), `reviews.merge` / `reviews.mergeRetry` (`{url}`), `reviews.discussion` (`{url}`), `reviews.start` (`{url}` → `{id, created,
 process}`), `usage.get` (`{sessionId}` → `{context, limits}`), `terminal.*`; eventos
 `sessions.changed` (mismo payload que `sessions.tree`) y `reviews.github`.

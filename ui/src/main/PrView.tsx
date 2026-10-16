@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { ExternalLink, ScanEye } from "lucide-react";
 import { useFolders } from "../state/folders";
-import { startReview } from "../transport/folderSessions";
+import { newSessionForPr, startReview } from "../transport/folderSessions";
 import { getWs } from "../transport/wsClient";
 import { Button } from "../components/ui/button";
 import { allPrs, CiMark, DepsList, ReviewerChips, StackBadge, useGithubReviews } from "../modules/sessions/ReviewsSection";
@@ -37,6 +37,16 @@ export function PrView({ url }: { url: string }) {
         <Button asChild variant="secondary" size="sm" title="Abrir la PR en GitHub">
           <a href={pr.url} target="_blank" rel="noreferrer"><ExternalLink size={13} /> Abrir en GitHub</a>
         </Button>
+        {!hasSession && gh.me && pr.author === `@${gh.me}` && (
+          <Button size="sm" variant="secondary" disabled={busy}
+            title={`Sesión de claude con el worktree en la rama ${pr.head} (queda en este mismo desarrollo)`}
+            onClick={() => {
+              setBusy(true); setError(null);
+              newSessionForPr(getWs(), pr.url).then((r) => setActive(r.session.id))
+                .catch((e: any) => setError(e?.message ?? String(e))).finally(() => setBusy(false));
+            }}>
+            {busy ? "Creando…" : "Crear sesión"}
+          </Button>)}
         {toReview && (
           <Button size="sm" disabled={busy} title="Crear la sesión de revisión de esta PR y mandarle el prompt review-pr"
             onClick={() => {

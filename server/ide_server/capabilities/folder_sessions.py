@@ -15,7 +15,8 @@ from ide_server.prompts import list_prompts, load_prompt
 from ide_server.repos_fs import require_session, rm_repo, worktree_path
 from ide_server.scripts import list_scripts, script_argv, script_env
 from ide_server.session_ops import (
-    archive_session, check_delete, create_session, parse_pr_url, refresh_review, remove_session,
+    archive_session, check_delete, create_pr_session, create_session, parse_pr_url, refresh_review,
+    remove_session,
 )
 from ide_server.sessions_fs import (
     list_sessions, normalize_id, read_session, read_toml, render_template, require_plain_name,
@@ -78,6 +79,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if res.get("dryRun") or res.get("existed"):
             return {**res, "process": supervisor.state(res["session"]["id"])}
         process = supervisor.start(res["session"]["id"], resume=False)
+        notify()
+        return {**res, "process": process}
+
+    async def new_for_pr(p: dict) -> dict:
+        """Sesión para seguir trabajando una PR propia (worktree en su rama) y lanzar su claude."""
+        res = await asyncio.to_thread(create_pr_session, root, p["url"])
+        sid = res["session"]["id"]
+        process = supervisor.start(sid, resume=None if res.get("existed") else False)
         notify()
         return {**res, "process": process}
 
@@ -214,7 +223,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion, "reviews.mergeRetry": merge_retry, "usage.get": usage,
-        "sessions.tree": tree, "sessions.new": new, "sessions.open": open_,
+        "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,

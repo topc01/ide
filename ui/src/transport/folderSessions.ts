@@ -28,6 +28,9 @@ export interface NewSessionReq {
 
 export const fetchSessions = (ws: WsClient): Promise<SessionsTree> => ws.request("sessions.tree", {});
 export const newSession = (ws: WsClient, req: NewSessionReq) => ws.request("sessions.new", req);
+/** Sesión para seguir trabajando una PR propia (worktree en su rama), en el mismo desarrollo. */
+export const newSessionForPr = (ws: WsClient, url: string): Promise<{ session: FolderSession }> =>
+  ws.request("sessions.newForPr", { url });
 export const openSession = (ws: WsClient, id: string) => ws.request("sessions.open", { id });
 export const stopSession = (ws: WsClient, id: string) => ws.request("sessions.stop", { id });
 export const archiveSession = (ws: WsClient, id: string, force = false) =>

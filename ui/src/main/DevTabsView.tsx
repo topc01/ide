@@ -4,7 +4,7 @@ import { Plus, X } from "lucide-react";
 import { useFolders } from "../state/folders";
 import { claudeTab, docTab, scriptTab, summaryTab, useDevTabs, type DevTab } from "../state/devTabs";
 import type { FolderSession, GhPr } from "../transport/folderSessions";
-import { openSession, refreshReview, startReview } from "../transport/folderSessions";
+import { newSessionForPr, openSession, refreshReview, startReview } from "../transport/folderSessions";
 import { openTerminal } from "../transport/terminalChannel";
 import { getWs } from "../transport/wsClient";
 import { allPrs, useGithubReviews } from "../modules/sessions/ReviewsSection";
@@ -121,6 +121,10 @@ export function DevTabsView() {
   }));
   const reviewPr = dev.prs.find((p) => p.url === activePrUrl) ?? dev.prs[0];
   const canReview = !s && !!reviewPr && !!gh?.me && reviewPr.author !== `@${gh.me}`;
+  // PR propia sin sesión: sesión en la rama de la de más arriba del stack (contiene a todas)
+  const topPr = dev.prs[dev.prs.length - 1];
+  const canDevelop = !s && !!topPr && !!gh?.me && topPr.author === `@${gh.me}`;
+  const newDevSession = () => run("review", newSessionForPr(getWs(), topPr!.url).then((r) => { setActive(r.session.id); }));
   const newReview = () => run("review", startReview(getWs(), reviewPr!.url).then((r) => { setActive(r.id); }));
   const candidates: DevTab[] = [
     ...(s ? [claudeTab(s.id)] : []),
@@ -153,6 +157,10 @@ export function DevTabsView() {
               {s ? (
                 <button role="menuitem" title="Shell en la carpeta de la sesión (donde están sus worktrees)" onClick={newTerminal}
                   className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-accent">Terminal nueva</button>
+              ) : canDevelop ? (
+                <button role="menuitem" title={`Sesión de claude con el worktree en la rama ${topPr!.head} (queda en este mismo desarrollo)`}
+                  onClick={newDevSession}
+                  className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-accent">Sesión en {topPr!.head}</button>
               ) : canReview ? (
                 <button role="menuitem" title={`Crear la sesión de revisión de ${prLabel(reviewPr!)} y abrir su claude`} onClick={newReview}
                   className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-accent">Sesión de revisión ({prLabel(reviewPr!)})</button>

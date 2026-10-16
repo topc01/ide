@@ -294,3 +294,49 @@ def archive_session(root: Path, sid: str, *, force: bool = False, out=None) -> N
         (root / ".ide" / "worktrees" / sid).rmdir()
     except OSError:
         pass
+
+
+def create_pr_session(root: Path, url: str, *, runner: Runner = _run) -> dict:
+    """Sesión para seguir trabajando una PR propia: sesión de ticket `dev-<repo>-<n>` con el
+    worktree en la rama de la PR (la local sigue a `origin/<rama>`; si no existía, se crea así y
+    no desde HEAD). Si ya existe, se devuelve. Ver spec 2026-10-16-desarrollos."""
+    repo, number = parse_pr_url(url)
+    if repo not in {r["id"] for r in discover_repos(root)}:
+        raise SessionError("unknown_repo", f"la PR es de {repo}, que no está en el workspace")
+    sid = normalize_id(f"dev-{repo}-{number}")
+    if archive_path(root, sid).exists():
+        raise SessionError("session_archived", f"la sesión {sid} está archivada")
+    if session_path(root, sid).exists():
+        return {"session": read_session(root, sid), "log": "", "existed": True}
+    out = runner(["gh", "pr", "view", url, "--json", "title,headRefName,isCrossRepository,state"])
+    if out.returncode != 0:
+        raise SessionError("gh_failed", f"gh pr view falló: {out.stderr.strip() or out.returncode}")
+    pr = json.loads(out.stdout)
+    if pr.get("isCrossRepository"):
+        raise SessionError("fork_pr", "la PR viene de un fork: su rama no está en el repo")
+    if pr.get("state") != "OPEN":
+        raise SessionError("pr_closed", "la PR ya no está abierta")
+    branch, repo_path = pr["headRefName"], root / repo
+    fetched = runner(["git", "-C", str(repo_path), "fetch", "origin",
+                      f"+refs/heads/{branch}:refs/remotes/origin/{branch}"])
+    if fetched.returncode != 0:
+        raise SessionError("fetch_failed", f"git fetch de {branch}: {fetched.stderr.strip()}")
+    local = runner(["git", "-C", str(repo_path), "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"])
+    if local.returncode != 0:                   # sin rama local: crearla siguiendo a origin
+        made = runner(["git", "-C", str(repo_path), "branch", "--track", branch, f"origin/{branch}"])
+        if made.returncode != 0:
+            raise SessionError("checkout_failed", f"no pude crear la rama {branch}: {made.stderr.strip()}")
+    create_session_dir(root, sid=sid, kind="ticket", permissions=_resolve_permissions(root, {}),
+                       prompt="", meta={"title": pr["title"], "notion_url": None})
+    log = io.StringIO()
+    try:
+        add_repo(root, sid, repo, branch=branch, out=log)
+    except SessionError as exc:
+        if exc.code != "setup_failed":
+            shutil.rmtree(session_path(root, sid), ignore_errors=True)
+            raise
+        log.write(f"\n{exc}\n")                 # setup fallido: la sesión queda, marcada
+    except Exception:
+        shutil.rmtree(session_path(root, sid), ignore_errors=True)
+        raise
+    return {"session": read_session(root, sid), "log": log.getvalue()}
