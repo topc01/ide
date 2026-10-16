@@ -39,7 +39,10 @@ def script_argv(root: Path, repo: str, name: str) -> list[str]:
 
 
 def script_env(root: Path, sid: str, repo: str, base_env: dict | None = None) -> dict[str, str]:
-    data = read_toml(session_path(root, sid) / ".session.toml")
+    try:
+        data = read_toml(session_path(root, sid) / ".session.toml")
+    except FileNotFoundError:                   # worktree de una PR sin sesión (`wt-<repo>-<n>`)
+        data = {}
     env = dict(os.environ if base_env is None else base_env)
     env.update(IDE_SESSION_ID=sid, IDE_REPO=repo, IDE_ROOT_REPO=str(root / repo),
                IDE_WORKSPACE=str(root))

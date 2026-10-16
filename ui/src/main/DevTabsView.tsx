@@ -7,37 +7,16 @@ import type { FolderSession, GhPr } from "../transport/folderSessions";
 import { newSessionForPr, openSession, refreshReview, startReview } from "../transport/folderSessions";
 import { openTerminal } from "../transport/terminalChannel";
 import { getWs } from "../transport/wsClient";
-import { allPrs, useGithubReviews } from "../modules/sessions/ReviewsSection";
-import { deriveMine } from "../modules/sessions/desarrollos";
+import { useGithubReviews } from "../modules/sessions/ReviewsSection";
+import { useCurrentDev } from "./currentDev";
 import { repoShort } from "../modules/sessions/DevCard";
 import { TerminalTab } from "./TerminalTab";
 import { PrView } from "./PrView";
 import { DocTab } from "./DocTab";
+import { RunLogTab } from "./RunLogTab";
+import { FileTab } from "./FileTab";
 import { Button } from "../components/ui/button";
 import { cn } from "../lib/utils";
-
-interface Dev { key: string; session?: FolderSession; prs: GhPr[] }
-
-/** El desarrollo actual: una sesión (con sus PRs), un stack sin sesión o una PR suelta. */
-function useCurrentDev(): Dev | null {
-  const { tree, activeId, activePrUrl } = useFolders();
-  const { gh } = useGithubReviews();
-  const tickets = tree.sessions.filter((s) => s.kind !== "review");
-  if (activePrUrl) {
-    if (!gh) return null;                     // hasta tener datos no se sabe a qué desarrollo pertenece
-    const owner = deriveMine(tickets, gh).find((d) => d.session && d.prs.some((p) => p.url === activePrUrl));
-    if (owner) return { key: `s:${owner.session!.id}`, session: owner.session, prs: owner.prs };
-    const pr = allPrs(gh).find((p) => p.url === activePrUrl);
-    if (pr?.stack) return { key: `st:${pr.stack.id}`, prs: gh.stacks?.[pr.stack.id] ?? [pr] };
-    return { key: `p:${activePrUrl}`, prs: pr ? [pr] : [] };
-  }
-  const session = tree.sessions.find((s) => s.id === activeId);
-  if (!session) return null;
-  const prs = gh ? (session.kind === "review"
-    ? allPrs(gh).filter((p) => p.sessionId === session.id)
-    : deriveMine(tickets, gh).find((d) => d.session?.id === session.id)?.prs ?? []) : [];
-  return { key: `s:${session.id}`, session, prs };
-}
 
 const prLabel = (p: GhPr) => `${repoShort(p.repo)} #${p.number}`;
 
@@ -181,6 +160,10 @@ export function DevTabsView() {
         {active?.kind === "doc" && active.sid && <DocTab id={active.sid} />}
         {active?.kind === "summary" && active.url && <div className="h-full overflow-auto"><PrView url={active.url} /></div>}
         {active?.kind === "script" && active.terminalId && <TerminalTab key={active.terminalId} id={active.terminalId} />}
+        {active?.kind === "run" && active.place && active.repo && active.name &&
+          <RunLogTab key={active.id} place={active.place} repo={active.repo} name={active.name} />}
+        {active?.kind === "file" && active.place && active.repo && active.path &&
+          <FileTab key={active.id} place={active.place} repo={active.repo} path={active.path} />}
       </div>
     </div>
   );

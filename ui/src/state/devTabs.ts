@@ -4,11 +4,14 @@ import { create } from "zustand";
 /** Una tab del panel principal. Cada desarrollo tiene su propia fila de tabs. */
 export interface DevTab {
   id: string;                                   // único dentro del desarrollo
-  kind: "claude" | "doc" | "summary" | "script";
+  kind: "claude" | "doc" | "summary" | "script" | "run" | "file";
   label: string;
   sid?: string;                                 // claude / doc
   url?: string;                                 // summary (PR)
   terminalId?: string;                          // script
+  place?: string; repo?: string;                // run / file: worktree (`place` = sesión o `wt-<repo>-<n>`)
+  name?: string;                                // run: script
+  path?: string;                                // file: relativa al worktree
 }
 interface DevTabsState {
   byDev: Record<string, { tabs: DevTab[]; active: string | null }>;
@@ -66,3 +69,7 @@ export const docTab = (sid: string, name: string): DevTab => ({ id: `doc:${sid}`
 export const summaryTab = (url: string, label: string): DevTab => ({ id: `summary:${url}`, kind: "summary", label, url });
 export const scriptTab = (terminalId: string, label: string): DevTab =>
   ({ id: `script:${terminalId}`, kind: "script", label, terminalId });
+export const runTab = (place: string, repo: string, name: string, label: string): DevTab =>
+  ({ id: `run:${place}/${repo}/${name}`, kind: "run", label, place, repo, name });
+export const fileTab = (place: string, repo: string, path: string): DevTab =>
+  ({ id: `file:${place}/${repo}/${path}`, kind: "file", label: path.split("/").pop() || path, place, repo, path });

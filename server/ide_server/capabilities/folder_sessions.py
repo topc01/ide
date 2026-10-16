@@ -34,7 +34,7 @@ log = logging.getLogger(__name__)
 def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supervisor,
              poller: PrPoller, gh_reviews: GithubReviews | None = None,
              limits: LimitsPoller | None = None, merger: Merger | None = None,
-             db: Db | None = None) -> Callable[[], None]:
+             db: Db | None = None, runner=None) -> Callable[[], None]:
 
     def build_tree(snap: dict, derived: dict) -> dict:
         """Lectura de disco + git: corre en un thread (no bloquea el loop)."""
@@ -110,6 +110,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def rm(p: dict) -> dict:
         force = bool(p.get("force"))
         await asyncio.to_thread(check_delete, root, p["id"], force=force)
+        if runner is not None:                  # sus servidores no pueden quedar corriendo huérfanos
+            await asyncio.to_thread(runner.stop_place, p["id"])
         supervisor.stop(p["id"])                # en el loop: el supervisor no es thread-safe
         await asyncio.to_thread(remove_session, root, p["id"], force=force)
         notify()
@@ -117,6 +119,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     async def archive(p: dict) -> dict:
         require_session(root, p["id"])
+        if runner is not None:                  # para sus servidores antes del `archive` de cada repo
+            await asyncio.to_thread(runner.stop_place, p["id"])
         supervisor.stop(p["id"])                # en el loop: el supervisor no es thread-safe
         await asyncio.to_thread(archive_session, root, p["id"], force=bool(p.get("force")))
         notify()
@@ -147,6 +151,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"session": s}
 
     async def repo_rm(p: dict) -> dict:
+        if runner is not None:
+            await asyncio.to_thread(runner.stop_place, require_plain_name(p["id"], "sesión"), p["repo"])
         await asyncio.to_thread(rm_repo, root, p["id"], p["repo"], force=bool(p.get("force")),
                                 out=io.StringIO())
         notify()

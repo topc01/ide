@@ -6,6 +6,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 from fastapi.responses import JSONResponse
 from ide_server.capabilities import folder_sessions as folder_cap
+from ide_server.capabilities import runs as runs_cap
+from ide_server.runs import Runner
 from ide_server.config import sessions_config, reviews_config
 from ide_server.pr_poller import PrPoller
 from ide_server.gh_reviews import GithubReviews
@@ -64,9 +66,12 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
                                on_change=lambda: notify_box["github"]())
     limits = LimitsPoller()
     merger = Merger(root, stacks=lambda: gh_reviews.state, db=db, on_change=lambda: notify_box["github"]())
+    runner = Runner(root)
+    runs_watch = runs_cap.register(registry, root, manager, runner)
     notify_box["fn"] = folder_cap.register(registry, root, manager, hooks=hooks,
                                            supervisor=supervisor, poller=poller,
-                                           gh_reviews=gh_reviews, limits=limits, merger=merger, db=db)
+                                           gh_reviews=gh_reviews, limits=limits, merger=merger, db=db,
+                                           runner=runner)
     notify_box["github"] = lambda: asyncio.get_running_loop().create_task(
         manager.broadcast("reviews.github", {**gh_reviews.state, "merges": merger.public()}))
     mlx_router = build_mlx_router(root)
@@ -124,6 +129,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             asyncio.create_task(merger.run(stop_bg)),
             asyncio.create_task(updater.run(stop_bg)),
             asyncio.create_task(save_history_loop(stop_bg)),
+            asyncio.create_task(runs_watch(stop_bg)),
         ]
         for t in tasks:
             t.add_done_callback(_log_done)

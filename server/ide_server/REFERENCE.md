@@ -57,8 +57,10 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
     ├── archive/{sessions,worktrees}/<id>/  # sesiones archivadas (solo de ida)
     ├── ide.db                          # base local (SQLite): cache de GitHub, merges, ajustes (§9c)
     ├── prompts/*.md                    # §7b (prompts que la UI pega en el input de claude)
-    ├── scripts/<repo>/<nombre>         # §8 (ejecutables)
+    ├── scripts/<repo>/<nombre>         # §8 (ejecutables; `.lib/` u otros con punto = helpers, no se listan)
+    ├── runs/<lugar>/<repo>/<nombre>/   # §8b: log, meta.json, exit de cada servidor
     ├── worktrees/<id>/<repo>/          # worktrees reales (git worktree add)
+    ├── worktrees/wt-<repo>-<n>/<repo>/ # §8b: worktree de una PR sin sesión (detach)
     └── sessions/
         ├── CLAUDE.md                   # mapa de repos + uso de `ide`; lo heredan TODAS las sesiones
         ├── templates/{ticket,review}.md   # §7
@@ -92,7 +94,7 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "terminal", "prompts", "stack", "review", "deps", "config"]   # módulos visibles en el menú de acciones; ver abajo
+modules = ["sessions", "terminal", "prompts", "stack", "review", "deps", "servers", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -100,7 +102,7 @@ modules = ["sessions", "terminal", "prompts", "stack", "review", "deps", "config
 Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero) hacen
 fallar el arranque con un mensaje que nombra la clave.
 
-`[ui] modules`: ids disponibles `terminal`, `prompts`, `stack`, `review`, `deps`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
+`[ui] modules`: ids disponibles `terminal`, `prompts`, `stack`, `review`, `deps`, `servers`, `explorer`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
 `notion`, y `chat`. Si `chat` **no** está, el área principal es la vista por sesión (terminal
 `claude` + doc + scripts); si está, vuelve el chat propio.
 
@@ -248,6 +250,38 @@ set -e
 cp "$IDE_ROOT_REPO/.env" .env 2>/dev/null || true
 uv sync
 ```
+
+Un script que **no** debe correr solo al agregar el repo (p.ej. un build pesado de docker) va con
+otro nombre (`build`) y se corre a mano desde Servidores.
+
+## 8b. Servidores y Archivos (UI)
+
+**Servidores** (menú de acciones, id `servers`): los scripts de cada repo del desarrollo actual
+(menos `archive`) con ▶/■, estado (corriendo · parando · parado · terminó con exit N · murió) y los
+links `localhost:<puerto>` que el script anunció en su salida. Click en uno abre su **log** en una
+tab del panel principal (solo lectura; se reinicia en cada corrida; ▶/■ también desde ahí). Abajo,
+lo que corre en **otros** desarrollos (con ■).
+
+Los servidores son **procesos aparte del IDE**: siguen corriendo si el server se reinicia o se
+cierra la UI. Cada corrida vive en `.ide/runs/<lugar>/<repo>/<nombre>/` (`log`, `meta.json` con
+pid, `exit` con el código). Corre en su propio grupo de procesos, cwd = el worktree, con el env de
+§8 más `FORCE_COLOR=1`; stdin `/dev/null` (un script que pregunta no puede: pasa el valor por
+archivo). Parar = SIGTERM al grupo y SIGKILL a los 15 s. "Murió" = ya no existe y no dejó código
+(kill -9, reinicio de la máquina). Archivar o borrar una sesión (o quitar un repo) **para sus
+servidores** antes de correr `archive`.
+
+**PR sin sesión:** Servidores ofrece **Preparar**: crea `.ide/worktrees/wt-<repo>-<n>/<repo>` en
+el head de la PR (`refs/pull/<n>/head`, en detach: no ocupa la rama, no choca con otro checkout ni
+con una sesión que se cree después) y corre su `setup`. Después: **Actualizar al head** (si no
+tiene cambios sin commitear) y **Quitar worktree** (para sus servidores, corre `archive` y lo
+borra con sus `.env`). En un stack se usa la PR de más arriba.
+
+**Archivos** (id `explorer`): árbol de cada worktree del desarrollo actual (sin `.git`) y accesos
+directos a sus `.env*` (los que faltan de `.env`/`.env.local` aparecen punteados: se crean al
+guardar). Click en un archivo lo abre en una tab con editor (resaltado para ts/js/py/json/md/yaml);
+**Guardar** (o ⌘S) se habilita con cambios. Si el archivo cambió en disco desde que se abrió no lo
+pisa (`changed_on_disk`: Recargar). Confinado al worktree (rutas resueltas, symlinks incluidos),
+máx. 2 MB, solo texto UTF-8.
 
 ## 9. Estado de sesiones
 
@@ -532,7 +566,9 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `not_a_review`, `session_archived`, `pr_closed`, `bad_status`, `no_status`, `unknown_dev`, `not_bottom`, `not_approved`, `ci_failed`, `merge_pending`,
 `conflict`, `merge_failed`, `unknown_pr`, `no_merge`, `not_yours`, `fork_pr`, `repo_mismatch`,
 `forbidden_origin`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
-`timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`.
+`timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`, `already_running`,
+`unknown_worktree`, `bad_place`, `git_failed`, `bad_path`, `not_a_dir`, `not_found`, `too_large`,
+`binary`, `changed_on_disk`.
 
 ## 12. API (para integraciones)
 
@@ -552,4 +588,9 @@ WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|archive|script|doc|refr
 `server.status` (`{pending, supervised, idleBefore}`), `server.restart`; evento `server.update`, `reviews.github`
 (`{pending, changesRequested, mine: {returned, waiting, missing, draft, approved}` (cada PR con `deps`, `depsPending`), stacks: {<id>: [pr…]}, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `sessions.newForPr` (`{url}`), `reviews.setReviewers` (`{logins}`), `reviews.merge` / `reviews.mergeRetry` (`{url}`), `reviews.discussion` (`{url}`), `reviews.start` (`{url}` → `{id, created,
 process}`), `usage.get` (`{sessionId}` → `{context, limits}`), `terminal.*`; eventos
-`sessions.changed` (mismo payload que `sessions.tree`) y `reviews.github`.
+`sessions.changed` (mismo payload que `sessions.tree`) y `reviews.github`. Servidores (§8b):
+`runs.list` (→ `{runs: [{place, repo, name, state, exitCode, pid, started, ended, urls}], places:
+[{id, repos}]}`), `runs.start|stop` (`{place, repo, name}`), `runs.log` (`{place, repo, name,
+offset}` → `{data, end, reset}`, `offset` -1 = lo último), `prwt.ensure|update` (`{url}`),
+`prwt.remove` (`{place, force}`); evento `runs.changed`. Archivos: `wtfiles.list` (`{place, repo,
+path}`), `wtfiles.envs`, `wtfiles.read` (→ `{text, mtime}`), `wtfiles.write` (`{…, text, mtime}`).
