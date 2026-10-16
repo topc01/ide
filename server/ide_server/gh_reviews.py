@@ -17,7 +17,7 @@ from ide_server.workspace import discover_repos
 
 log = logging.getLogger(__name__)
 
-_FIELDS = """... on PullRequest { url title number isDraft updatedAt
+_FIELDS = """... on PullRequest { url title number isDraft updatedAt reviewDecision
   repository { name } author { login }
   latestReviews(first: 30) { nodes { state author { login } } }
   reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } } }"""
@@ -91,6 +91,21 @@ def write_selection(root: Path, logins: list[str]) -> None:
     f.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
+MY_GROUPS = ("returned", "waiting", "missing", "draft", "approved")
+
+
+def my_pr_group(n: dict) -> str:
+    """Estado de una PR propia, como el inbox de Graphite."""
+    if n.get("isDraft"):
+        return "draft"
+    decision = n.get("reviewDecision")
+    if decision == "APPROVED":
+        return "approved"
+    if decision == "CHANGES_REQUESTED":
+        return "returned"
+    return "waiting" if _requested(n) else "missing"
+
+
 def parse_result(data: dict, members: set[str] | None = None) -> dict:
     d = data["data"]
     me = d["viewer"]["login"]
@@ -112,7 +127,12 @@ def parse_result(data: dict, members: set[str] | None = None) -> dict:
                 counts[login] = counts.get(login, 0) + 1
     reviewers = [{"login": k, "count": v}
                  for k, v in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0].lower()))]
+    mine: dict[str, list] = {g: [] for g in MY_GROUPS}
+    for n in open_prs:
+        if (n.get("author") or {}).get("login") == me:
+            mine[my_pr_group(n)].append(_card(n))
     return {"pending": pending, "changesRequested": changes, "me": me, "reviewers": reviewers,
+            "mine": mine,
             "reviewersTruncated": d["open"]["issueCount"] > len(d["open"]["nodes"])}
 
 
@@ -145,6 +165,7 @@ class GithubReviews:
         self._on_change = on_change or (lambda: None)
         self._clock = clock
         self.state: dict = {"pending": [], "changesRequested": [], "me": None, "reviewers": [],
+                            "mine": {g: [] for g in MY_GROUPS},
                             "reviewersTruncated": False, "members": [], "selected": None,
                             "error": None, "lastOk": None, "orgs": []}
 

@@ -32,18 +32,32 @@ function ReviewButton({ pr }: { pr: GhPr }) {
   </>);
 }
 
-/** PR de GitHub que todavía no tiene sesión. */
-function PrCard({ pr, reviewable }: { pr: GhPr; reviewable: boolean }) {
+/** Estado de GitHub (revisiones + mis PRs), compartido por las secciones de la sidebar. */
+export function useGithubReviews(): { gh: GithubReviews | null; error: string | null } {
+  const [gh, setGh] = useState<GithubReviews | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const ws = getWs();
+    fetchGithubReviews(ws).then(setGh).catch((e: any) => setError(e?.message ?? String(e)));
+    return onGithubReviews(ws, (r) => { setGh(r); setError(null); });
+  }, []);
+  return { gh, error };
+}
+
+/** PR de GitHub sin sesión. `link`: toda la card abre la PR. */
+export function PrCard({ pr, reviewable = false, link = false }: { pr: GhPr; reviewable?: boolean; link?: boolean }) {
   return (
     <QueueItem className="px-2 py-0.5">
-      <div className="rounded-md border border-dashed border-border px-2 py-1.5 text-xs hover:bg-accent/60">
+      <div onClick={link ? () => window.open(pr.url, "_blank", "noopener") : undefined}
+        className={cn("rounded-md border border-dashed border-border px-2 py-1.5 text-xs hover:bg-accent/60",
+          link && "cursor-pointer")}>
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground" aria-label="sin sesión">◇</span>
           <span className="min-w-0 flex-1 truncate" title={pr.title}>{pr.title}</span>
           <QueueItemActions className="ml-0">
             {reviewable && <ReviewButton pr={pr} />}
             <QueueItemAction aria-label={`Abrir ${pr.sessionId} en GitHub`} asChild>
-              <a href={pr.url} target="_blank" rel="noreferrer"><ExternalLink size={11} /></a>
+              <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
             </QueueItemAction>
           </QueueItemActions>
         </div>
@@ -105,7 +119,7 @@ function ReviewersMenu({ gh }: { gh: GithubReviews | null }) {
   );
 }
 
-function Group({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
+export function Group({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
   return (
     <div className="mt-1">
       <div className="flex items-center px-2.5 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -118,14 +132,7 @@ function Group({ label, count, children }: { label: string; count: number; child
 
 export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
   const openModal = useFolders((s) => s.openModal);
-  const [gh, setGh] = useState<GithubReviews | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const ws = getWs();
-    fetchGithubReviews(ws).then(setGh).catch((e: any) => setError(e?.message ?? String(e)));
-    return onGithubReviews(ws, (r) => { setGh(r); setError(null); });
-  }, []);
+  const { gh, error } = useGithubReviews();
 
   const byId = new Map(sessions.map((s) => [s.id, s]));
   const onGithub = new Set([...(gh?.pending ?? []), ...(gh?.changesRequested ?? [])].map((p) => p.sessionId));

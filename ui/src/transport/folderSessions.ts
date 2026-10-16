@@ -60,6 +60,7 @@ export interface GithubReviews {
   pending: GhPr[]; changesRequested: GhPr[]; error: string | null; lastOk: string | null; orgs: string[];
   me: string | null; reviewers: { login: string; count: number }[]; reviewersTruncated: boolean;
   members: { login: string; name: string | null }[]; selected: string[] | null;
+  mine: Partial<Record<"returned" | "waiting" | "missing" | "draft" | "approved", GhPr[]>>;
 }
 export const fetchGithubReviews = (ws: WsClient): Promise<GithubReviews> => ws.request("reviews.github", {});
 export const startReview = (ws: WsClient, url: string): Promise<{ id: string; created: boolean; process: Process }> =>

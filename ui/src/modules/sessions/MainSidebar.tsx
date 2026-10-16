@@ -8,6 +8,7 @@ import { getGrouper, groupSessions } from "./groupers";
 import { GroupMenu } from "./GroupMenu";
 import { SessionItem } from "./SessionItem";
 import { ReviewsSection } from "./ReviewsSection";
+import { MyPrsSection } from "./MyPrsSection";
 import { cn } from "../../lib/utils";
 import { CustomizationsFooter } from "../settings/CustomizationsFooter";
 import { Queue, QueueSection, QueueSectionTrigger, QueueSectionLabel, QueueSectionContent, QueueList }
@@ -76,6 +77,7 @@ export function MainSidebar() {
         </Queue>
 
         <ReviewsSection sessions={reviews} />
+        <MyPrsSection />
       </div>
       <div className="mt-auto"><CustomizationsFooter /></div>
     </aside>

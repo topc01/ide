@@ -259,6 +259,12 @@ grupos fijos. En las pendientes, el botón de revisión (hover) envía
 `--review <url>`, con ese prompt en vez de la plantilla `review`); si está parada la retoma con el
 prompt; si está en cola falla con `queued`. Errores de `gh` se ven como `⚠ github`.
 
+**Mis PRs** (sidebar principal, bajo Revisiones): tus PRs abiertas de la org (del mismo poll),
+agrupadas como el inbox de Graphite: **Devueltas** (`reviewDecision` = `CHANGES_REQUESTED`),
+**Esperando revisores** (con reviews pedidas pendientes), **Sin revisores**, **Draft** y
+**Aprobadas** (`APPROVED`). Prioridad: draft > aprobada > devuelta > esperando > sin revisores.
+Son cards sin sesión: click abre la PR en GitHub.
+
 **Abrir sesión:** seleccionar una sesión parada en la sidebar la lanza (retoma su conversación); si falla queda "Reintentar".
 
 **Barra inferior:** contexto de la sesión abierta (último turno de su transcript en
@@ -309,6 +315,6 @@ snake_case: `id`, `notion`, `main`, `template`, `vars`, `prompt`, `title`, `perm
 
 WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|archive|script|doc|refreshReview|repoRm`,
 `ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `reviews.github`
-(`{pending, changesRequested, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.start` (`{url}` → `{id, created,
+(`{pending, changesRequested, mine: {returned, waiting, missing, draft, approved}, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.start` (`{url}` → `{id, created,
 process}`), `usage.get` (`{sessionId}` → `{context, limits}`), `terminal.*`; eventos
 `sessions.changed` (mismo payload que `sessions.tree`) y `reviews.github`.
