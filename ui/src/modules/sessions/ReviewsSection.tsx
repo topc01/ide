@@ -10,7 +10,7 @@ import { getWs } from "../../transport/wsClient";
 import { QueueList, QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
 import { Badge } from "../../components/ui/badge";
 import { SessionItem } from "./SessionItem";
-import { canMerge, MergeButton, MergeStatus } from "./MergeControls";
+import { canMerge, MERGE_ACTIVE, MergeButton, mergeCardClass, MergeStatus } from "./MergeControls";
 import { cn } from "../../lib/utils";
 
 /** Botón de revisión: envía `.ide/prompts/review-pr.md` a la sesión del PR (la crea si falta). */
@@ -106,15 +106,15 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge }:
       <div onClick={() => { setActivePr(pr.url); if (openOnClick) window.open(pr.url, "_blank", "noopener"); }}
         aria-current={active || undefined}
         className={cn("cursor-pointer rounded-md border border-dashed border-border px-2 py-1.5 text-xs hover:bg-accent/60",
-          active && "border-solid border-primary bg-accent")}>
+          active && "border-solid border-primary bg-accent", mergeCardClass(merge?.job))}>
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground" aria-label="sin sesión">◇</span>
           <span className="min-w-0 flex-1 truncate" title={pr.title}>{pr.title}</span>
           <CiMark pr={pr} />
           <QueueItemActions className="ml-0">
             {reviewable && <ReviewButton pr={pr} />}
-            {merge && canMerge(pr) && merge.job?.state !== "waiting" && merge.job?.state !== "restacking"
-              && <MergeButton pr={pr} above={merge.above} />}
+            {merge && canMerge(pr) && !(merge.job && MERGE_ACTIVE.includes(merge.job.state))
+              && merge.job?.state !== "done" && <MergeButton pr={pr} above={merge.above} />}
             <QueueItemAction aria-label={`Abrir ${pr.sessionId} en GitHub`} title="Abrir en GitHub" asChild>
               <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
             </QueueItemAction>

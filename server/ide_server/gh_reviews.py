@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 
 _FIELDS = """... on PullRequest { url title number isDraft updatedAt reviewDecision headRefName baseRefName
   isCrossRepository repository { nameWithOwner }
+  stack { id size } stackEntry { position }
   mergeable commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
   repository { name } author { login }
   latestOpinionatedReviews(first: 10) { nodes { state author { login } } }
@@ -84,6 +85,12 @@ def compute_stacks(prs: list[dict]) -> dict[str, dict]:
         else:
             roots.append(n)
     out: dict[str, dict] = {}
+    # stacks nativos de GitHub: posición y tamaño son los de GitHub (no se infieren por ramas)
+    for n in prs:
+        st, entry = n.get("stack"), n.get("stackEntry")
+        if st and entry and (st.get("size") or 0) > 1:
+            out[n["url"]] = {"id": f"native:{st['id']}", "position": entry["position"],
+                             "size": st["size"], "native": True}
     for root in roots:
         order, todo, seen = [], [root], set()
         while todo:
@@ -95,7 +102,8 @@ def compute_stacks(prs: list[dict]) -> dict[str, dict]:
             todo.extend(sorted(children.get(n["url"], []), key=lambda c: -c["number"]))
         if len(order) > 1:
             for i, n in enumerate(order):
-                out[n["url"]] = {"id": root["url"], "position": i + 1, "size": len(order)}
+                out.setdefault(n["url"], {"id": root["url"], "position": i + 1, "size": len(order),
+                                          "native": False})
     return out
 
 

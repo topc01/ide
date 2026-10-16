@@ -273,22 +273,28 @@ muestra su posición (`2/4`, 1 = la de abajo).
 
 **Mergear** (hover en Mis PRs; solo PRs tuyas, aprobadas, que son la de abajo de su stack o no
 están en uno; nunca PRs desde forks; el `origin` local del repo tiene que ser el mismo repo de
-GitHub; deshabilitado si el CI falló; pide confirmación; canal `reviews.merge {url}`):
+GitHub; deshabilitado si el CI falló; pide confirmación; canal `reviews.merge {url}`). No
+bloquea: valida, cierra el diálogo y sigue en segundo plano; la card muestra el paso y se pinta
+**ámbar** mergeando, **roja** con error (reintentar: `reviews.mergeRetry {url}`) y **morada**
+mergeada (24 h, en el grupo **Merges** de Mis PRs cuando ya no está abierta).
 1. En un worktree propio por repo (`.ide/worktrees/_merge/<repo>`, detached) rebasea la rama
    sobre `origin/<base>` y la empuja con `--force-with-lease` (si hay conflicto aborta: `conflict`).
-2. `gh pr merge --squash --auto`: GitHub mergea cuando pasa el CI; nunca se mergea directo.
-3. Un vigilante (cada 30 s) ve cuándo se mergeó y restackea las PRs de arriba en orden: cada una
-   `git rebase --onto <nueva madre> <sha viejo de la madre>` + push `--force-with-lease`; la de
-   encima pasa a apuntar a la base (`gh pr edit --base`). Después borra la rama mergeada. Solo se
-reescriben PRs tuyas y no de forks: las ajenas (y las que estén encima) quedan sin tocar, la card
-lo marca como `⚠ merge` y la rama mergeada no se borra (GitHub cerraría las que la apuntan).
-Los trabajos viven en `.ide/merges.json` (sobreviven reinicios). La card muestra `auto-merge ◌`,
-`restack…`, `mergeada ✓` o `⚠ merge` (con reintentar: `reviews.mergeRetry {url}`, sigue desde
-donde quedó). Cuando la PR ya se mergeó y desapareció de las listas, su restack se ve en el grupo
-**Merges** de Mis PRs. Errores: `not_bottom`, `not_approved`, `ci_failed`, `merge_pending`,
-`conflict`, `merge_failed`, `unknown_pr`, `no_merge`.
+2. **Stack nativo de GitHub** (la PR trae `stack`): el IDE espera a que el CI pase (cada 30 s) y
+   recién ahí pide `PUT /repos/{o}/{r}/pulls/{n}/merge-async` (squash; único endpoint que GitHub
+   acepta para PRs de stacks); GitHub rebasea y re-apunta solo las de arriba. Si el CI falla o hay
+   conflicto, error.
+   **Sin stack nativo**: `gh pr merge --squash --auto` (GitHub mergea cuando pasa el CI) y, cuando
+   se mergea, el IDE restackea las de arriba en orden: cada una `git rebase --onto <nueva madre>
+   <sha viejo de la madre>` + push `--force-with-lease`; la de encima pasa a apuntar a la base
+   (`gh pr edit --base`); después borra la rama mergeada. Solo se reescriben PRs tuyas y no de
+   forks: las ajenas (y las que estén encima) quedan sin tocar, la card lo marca como error y la
+   rama mergeada no se borra (GitHub cerraría las que la apuntan).
+Los trabajos viven en `.ide/merges.json` (sobreviven reinicios; un rebase cortado por un reinicio
+queda en error para reintentar). Errores: `not_bottom`, `not_approved`, `ci_failed`,
+`merge_pending`, `conflict`, `merge_failed`, `unknown_pr`, `no_merge`.
 
-**Stacks (sin Graphite):** una PR está en un stack si su rama base es la rama (head) de otra PR
+**Stacks:** si GitHub tiene la PR en un **stack nativo**, posición y tamaño son los de GitHub.
+Si no, se infieren: una PR está en un stack si su rama base es la rama (head) de otra PR
 abierta del mismo repo; se calculan sobre todas las PRs abiertas de la org en cada poll. Si un
 stack se ramifica, la posición sigue el orden en profundidad.
 

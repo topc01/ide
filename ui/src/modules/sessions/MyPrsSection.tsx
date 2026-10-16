@@ -5,7 +5,7 @@ import { QueueList, QueueSection, QueueSectionContent, QueueSectionLabel, QueueS
   from "../../components/ai-elements/queue";
 import type { GhPr } from "../../transport/folderSessions";
 import { PrCard, useGithubReviews } from "./ReviewsSection";
-import { MergeStatus } from "./MergeControls";
+import type { MergeJob } from "../../transport/folderSessions";
 
 const GROUPS = [
   ["returned", "Devueltas"], ["waiting", "Esperando revisores"], ["missing", "Sin revisores"],
@@ -18,7 +18,9 @@ export function MyPrsSection() {
   // un server más viejo que la UI no manda `mine`: avisar en vez de mostrar ceros
   // merges cuya PR ya no está abierta (GitHub la mergeó): el restack y sus errores se ven acá
   const open = new Set(Object.values(gh?.mine ?? {}).flat().map((p) => p.url));
-  const orphans = Object.entries(gh?.merges ?? {}).filter(([url, j]) => !open.has(url) && j.state !== "done");
+  // las mergeadas se ven (moradas) 24 h
+  const recent = (j: MergeJob) => j.state !== "done" || (!!j.merged_at && Date.now() - Date.parse(j.merged_at) < 864e5);
+  const orphans = Object.entries(gh?.merges ?? {}).filter(([url, j]) => !open.has(url) && recent(j));
   const ghError = error ?? gh?.error ?? (gh && !gh.mine ? "el server no manda tus PRs: reinicia `ide`" : null);
   return (
     <Collapsible.Root defaultOpen className="group/myprs mt-3 border-t border-border pt-2">
@@ -40,13 +42,9 @@ export function MyPrsSection() {
             <QueueSectionContent>
               <QueueList>
                 {orphans.map(([url, job]) => (
-                  <li key={url} className="mx-2 my-0.5 flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[11px]">
-                    <span className="font-mono text-muted-foreground">{job.repo}#{job.number}</span>
-                    <span className="min-w-0 flex-1 truncate" title={job.title}>{job.title}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {job.restacked?.length ?? 0}/{job.above?.length ?? 0} restack</span>
-                    <MergeStatus url={url} job={job} />
-                  </li>))}
+                  <PrCard key={url} merge={{ job, above: job.above?.length ?? 0 }} pr={{
+                    url, title: job.title ?? url, number: job.number ?? 0, repo: job.repo ?? "", author: "",
+                    draft: false, updatedAt: null, sessionId: "", head: null, base: null, review: null, stack: null }} />))}
               </QueueList>
             </QueueSectionContent>
           </QueueSection>)}

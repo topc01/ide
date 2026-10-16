@@ -57,7 +57,7 @@ export interface GhPr {
   draft: boolean; updatedAt: string | null; sessionId: string;
   head: string | null; base: string | null;
   review: "approved" | "changes" | "review" | null;
-  stack: { id: string; position: number; size: number } | null;
+  stack: { id: string; position: number; size: number; native?: boolean } | null;
   reviewers?: { login: string; state: "requested" | "approved" | "changes" }[];
   ci?: "success" | "failure" | "pending" | null; conflict?: boolean;
 }
@@ -73,8 +73,10 @@ export const fetchGithubReviews = (ws: WsClient): Promise<GithubReviews> => ws.r
 export const startReview = (ws: WsClient, url: string): Promise<{ id: string; created: boolean; process: Process }> =>
   ws.request("reviews.start", { url });
 export interface MergeJob {
-  state: "waiting" | "restacking" | "done" | "error"; error: string | null; restacked: string[] | null;
+  state: "rebasing" | "waiting" | "waiting_ci" | "merging" | "restacking" | "done" | "error";
+  error: string | null; restacked: string[] | null;
   repo?: string; number?: number; title?: string; above?: { url: string }[];
+  native?: boolean; merged_at?: string | null; url?: string;
 }
 export const mergePr = (ws: WsClient, url: string): Promise<MergeJob> => ws.request("reviews.merge", { url });
 export const retryMerge = (ws: WsClient, url: string) => ws.request("reviews.mergeRetry", { url });
