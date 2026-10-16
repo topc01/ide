@@ -70,9 +70,8 @@ class Merger:
             self._db.put_merge(url, self.jobs[url])
 
     def public(self) -> dict[str, dict]:
-        keys = ("state", "error", "restacked", "repo", "number", "title", "above", "native",
-                "merged_at", "url")
-        return {u: {k: j.get(k) for k in keys} for u, j in self.jobs.items()}
+        keys = ("state", "error", "restacked", "repo", "number", "title", "above", "native", "merged_at")
+        return {u: {**{k: j.get(k) for k in keys}, "url": u} for u, j in self.jobs.items()}
 
     # -- git ---------------------------------------------------------------------------------
     def _lock(self, repo: str) -> threading.Lock:
@@ -146,7 +145,7 @@ class Merger:
             {"url": p["url"], "head": p["head"], "base": p["base"], "number": p["number"],
              "author": p.get("author"), "fork": bool(p.get("fork"))}
             for p in stack if p["stack"]["position"] > 1]
-        self._update(url, state="rebasing", error=None, merged=False, native=native, url=url,
+        self._update(url, state="rebasing", error=None, merged=False, native=native,
                      repo=pr["repo"], full_repo=pr.get("fullRepo"), head=pr["head"], base=pr["base"],
                      number=pr["number"], title=pr["title"], above=above, restacked=[], moved=None,
                      uuid=None, me=me, at=datetime.now().isoformat(timespec="seconds"))
