@@ -413,7 +413,7 @@ revisores, Sin revisores, Draft, Aprobadas, Sin PR), por repo o sin agrupar (⚙
 
 **Secciones Revisiones y Mis desarrollos** (misma estructura): título colapsable con el total, grupos
 colapsables y la misma card. El ⚙ de cada sección (y el de la sidebar principal, para Mis desarrollos)
-abre el **módulo Configuración** (id `config`) en esa sección: **agrupar por** estado, repo, stack
+abre el **módulo Configuración** (id `config`; cada sección es una card colapsable, recordada) en esa sección: **agrupar por** estado, repo, stack
 (con el título de la PR de abajo), autor (solo Revisiones) o sin agrupar; en Revisiones también
 los revisores visibles en los chips. El agrupado se recuerda por navegador. La card seleccionada
 lleva contorno de acento, una barrita a la izquierda y ocupa todo el ancho; las demás son un poco

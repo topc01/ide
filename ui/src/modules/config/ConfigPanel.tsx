@@ -1,18 +1,31 @@
 // ui/src/modules/config/ConfigPanel.tsx
 import { useEffect, useRef, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
+import { usePersistentOpen } from "../../lib/persist";
 import { useSidebarConfig, type GroupBy } from "../../state/sidebarConfig";
 import { GROUP_LABEL } from "../sessions/GroupedSection";
 import { ReviewersPicker, useGithubReviews } from "../sessions/ReviewsSection";
 import { cn } from "../../lib/utils";
 
+/** Una sección de la configuración: card colapsable (recordada); el ⚙ de esa sección la abre. */
 function Block({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   const focus = useSidebarConfig((s) => s.focus);
+  const [open, setOpen] = usePersistentOpen(`config.${id}`, true);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (focus === id) ref.current?.scrollIntoView({ block: "start", behavior: "smooth" }); }, [focus, id]);
+  useEffect(() => {
+    if (focus !== id) return;
+    setOpen(true);
+    ref.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [focus, id, setOpen]);
   return (
-    <div ref={ref} className={cn("mx-1.5 mb-2 rounded-md border border-transparent p-1.5", focus === id && "border-primary/70")}>
-      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide">{title}</div>
-      {children}
+    <div ref={ref} className={cn("mx-1.5 mb-2 overflow-hidden rounded-md border bg-card",
+      focus === id ? "border-primary/70" : "border-border")}>
+      <button onClick={() => setOpen(!open)} aria-expanded={open}
+        title={open ? `Colapsar ${title}` : `Expandir ${title}`}
+        className="flex w-full items-center gap-1 px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide hover:bg-accent/50">
+        <ChevronRight size={12} className={cn("transition-transform", open && "rotate-90")} />{title}
+      </button>
+      {open && <div className="border-t border-border px-2 pb-1.5 pt-1">{children}</div>}
     </div>
   );
 }
