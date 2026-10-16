@@ -12,7 +12,7 @@ import { Badge } from "../../components/ui/badge";
 import { SessionItem } from "./SessionItem";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
-import { CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort } from "./DevCard";
+import { CardActions, CardCorner, RenameAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { cn } from "../../lib/utils";
 import { PersonChip } from "../../lib/people";
 import { usePersistentOpen } from "../../lib/persist";
@@ -177,11 +177,11 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
     <QueueItem className="px-2 py-1">
       <CardShell tone={tone} selected={active} dashed
         onClick={() => { setActivePr(pr.url); if (openOnClick) window.open(pr.url, "_blank", "noopener"); }}>
-        <div className="flex items-start gap-1.5">
+        <CardCorner><DepsPause pr={pr} /><CiMark pr={pr} /></CardCorner>
+        <div className={cn("flex items-start gap-1.5", titlePad(pr))}>
           <DevTitle devKey={devKey} prs={[pr]} original={pr.title} />
-          <DepsPause pr={pr} />
-          <CiMark pr={pr} />
-          <QueueItemActions className="ml-0">
+          <CardActions>
+            {devKey && <RenameAction devKey={devKey} />}
             {reviewable && <ReviewButton pr={pr} />}
             {extraActions}
             {merge && canMerge(pr) && !(merge.job && MERGE_ACTIVE.includes(merge.job.state))
@@ -194,7 +194,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
             <QueueItemAction aria-label={`Abrir ${pr.repo}#${pr.number} en GitHub`} title="Abrir en GitHub" asChild>
               <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
             </QueueItemAction>
-          </QueueItemActions>
+          </CardActions>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1">
           <RefChip repo={pr.repo} number={pr.number} />

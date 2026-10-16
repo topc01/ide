@@ -1,8 +1,8 @@
 // ui/src/modules/sessions/DevCard.tsx
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Eye, EyeOff, Pause, Pencil } from "lucide-react";
 import { hideDev, renameDev, type GhPr, type MergeJob } from "../../transport/folderSessions";
-import { QueueItemAction } from "../../components/ai-elements/queue";
+import { QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
@@ -63,7 +63,7 @@ export function CardShell({ tone, selected, dashed, onClick, children }:
       {selected && <span aria-hidden className="absolute -left-[9px] top-1/2 h-7 w-1 -translate-y-1/2 rounded-full bg-primary" />}
       <div className={cn("rounded-[4px] bg-card text-xs", dashed
         && "border-2 border-dashed border-border")}>
-        <div className={cn("rounded-[4px] px-2 py-1.5", tone.bg && BG[tone.bg])}>
+        <div className={cn("relative rounded-[4px] px-2 py-1.5", tone.bg && BG[tone.bg])}>
           {children}
         </div>
       </div>
@@ -90,11 +90,18 @@ export function DepsPause({ pr }: { pr?: GhPr }) {
 /** Título de la card: el nombre del desarrollo puesto en el IDE o, si no hay, el original (título de
  *  la PR / del ticket). Renombrable con el lápiz (hover) o doble click; Enter guarda, Esc cancela,
  *  vacío vuelve al original (que queda en el tooltip). */
-export function DevTitle({ devKey, prs, original }: { devKey?: string; prs?: GhPr[]; original: string }) {
+export function DevTitle({ devKey, prs, original, pencil: showPencil = false }:
+  { devKey?: string; prs?: GhPr[]; original: string; pencil?: boolean }) {
   const names = useFolders((s) => s.tree.devNames);
   const name = devKey ? devName(names, devKey, prs) : null;
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {                             // "Renombrar" de las acciones de hover de la card
+    if (!devKey || showPencil) return;          // el del módulo tiene su lápiz: no escucha a las cards
+    const h = (e: Event) => { if ((e as CustomEvent).detail === devKey) { setError(null); setDraft(name ?? original); } };
+    window.addEventListener(RENAME_EVENT, h);
+    return () => window.removeEventListener(RENAME_EVENT, h);
+  }, [devKey, name, original, showPencil]);
   const save = () => {
     if (draft === null || !devKey) return;
     const v = draft.trim();
@@ -111,11 +118,11 @@ export function DevTitle({ devKey, prs, original }: { devKey?: string; prs?: GhP
   }
   return (
     <div className="group/title flex min-w-0 flex-1 items-start gap-1">
-      <span className="line-clamp-2 min-w-0 font-semibold leading-snug"
+      <span className="line-clamp-2 min-w-0 text-[13px] font-semibold leading-snug"
         title={name ? `${name}\n(original: ${original})` : original}
         onDoubleClick={devKey ? (e) => { e.stopPropagation(); setDraft(name ?? original); } : undefined}>{name ?? original}</span>
       {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
-      {devKey && (
+      {devKey && showPencil && (
         <button aria-label="Renombrar el desarrollo" title="Renombrar el desarrollo (solo en el IDE; vacío = el original)"
           onClick={(e) => { e.stopPropagation(); setError(null); setDraft(name ?? original); }}
           className="mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground opacity-0 hover:text-foreground group-hover/title:opacity-100">
@@ -153,5 +160,32 @@ export function HideToggle({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
     <QueueItemAction aria-label={label} title={label}
       onClick={(e) => { e.stopPropagation(); hideDev(getWs(), marked ?? devKey, !marked).catch(() => {}); }}>
       {marked ? <Eye size={11} /> : <EyeOff size={11} />}
+    </QueueItemAction>);
+}
+
+/** Esquina superior derecha de la card: las marcas (⏸ dependencias, CI). El título deja ese lugar libre. */
+export function CardCorner({ children }: { children: ReactNode }) {
+  return <div className="absolute right-1.5 top-1.5 flex items-center gap-1">{children}</div>;
+}
+
+/** Acciones de hover: flotan sobre la esquina (tapan el título y las marcas) y no le quitan ancho al
+ *  título cuando no se ven. */
+export function CardActions({ children }: { children: ReactNode }) {
+  return (
+    <QueueItemActions className="pointer-events-none absolute right-1 top-1 z-10 ml-0 rounded-md bg-card px-0.5 shadow-md ring-1 ring-border group-hover/item:pointer-events-auto">
+      {children}
+    </QueueItemActions>);
+}
+
+/** Espacio a la derecha del título para no quedar bajo las marcas de la esquina. */
+export const titlePad = (pr?: GhPr) => ((pr?.depsPending ?? 0) > 0 ? "pr-11" : "pr-5");
+
+const RENAME_EVENT = "ide-rename-dev";
+/** Acción de hover "Renombrar": abre la edición del título de esa card. */
+export function RenameAction({ devKey }: { devKey: string }) {
+  return (
+    <QueueItemAction aria-label="Renombrar el desarrollo" title="Renombrar el desarrollo (solo en el IDE; vacío = el original)"
+      onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent(RENAME_EVENT, { detail: devKey })); }}>
+      <Pencil size={11} />
     </QueueItemAction>);
 }

@@ -507,8 +507,11 @@ PRs manda la **peor**: devuelta > sin revisores > esperando > draft > aprobada. 
 sin agrupar (⚙). Los módulos Stack, Revisión y Dependencias muestran **todo** el desarrollo (aunque
 se haya elegido una fila), con una cabecera por repo si es fullstack.
 
-**Nombre del desarrollo:** el lápiz (hover sobre el título) o doble click lo renombra **solo en el
-IDE** (no toca TICKET.md ni GitHub); vacío vuelve al original, que queda en el tooltip. Se guarda en
+**Card:** el título usa todo el ancho; las marcas (⏸, CI) van en la esquina superior derecha y las
+acciones aparecen en hover flotando sobre esa esquina (tapan el título, no le quitan ancho).
+
+**Nombre del desarrollo:** el lápiz (acciones de hover de la card, o junto al título en el módulo
+Desarrollo) o doble click lo renombra **solo en el IDE** (no toca TICKET.md ni GitHub); vacío vuelve al original, que queda en el tooltip. Se guarda en
 la base (`kv`, clave `devname:<s:sesión | st:stack | p:url>`); si una PR o stack con nombre pasa a
 tener sesión, la sesión lo hereda. Lo muestran las cards, el selector de desarrollo (y su búsqueda) e
 `ide dev ls`/`show` (campo `name`). Canal `dev.rename {key, name}`; `sessions.tree` trae `devNames`.

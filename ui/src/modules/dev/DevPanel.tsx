@@ -23,7 +23,7 @@ export function DevPanel() {
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-auto pb-3 text-xs">
       <div className="mx-2.5 mt-2.5 flex text-sm">
-        <DevTitle devKey={dev.key} prs={dev.prs}
+        <DevTitle devKey={dev.key} prs={dev.prs} pencil
           original={s?.title ?? dev.prs[0]?.title ?? s?.id ?? ""} />
       </div>
       {s && <div className="mx-2.5 font-mono text-[10px] text-muted-foreground">{s.id} · {s.kind}{s.status ? ` · ${s.status}` : ""}</div>}

@@ -6,7 +6,8 @@ import { useFolders } from "../../state/folders";
 import { useDevTabs } from "../../state/devTabs";
 import type { FolderSession, GhPr, MergeJob } from "../../transport/folderSessions";
 import { QueueItem, QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
-import { CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort } from "./DevCard";
+import { CardActions, CardCorner, RenameAction, CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { worstPr } from "./desarrollos";
 import { CiMark, PrCard, useGithubReviews } from "./ReviewsSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
 import { SessionItem } from "./SessionItem";
@@ -68,9 +69,10 @@ function StackCard({ d }: { d: Desarrollo }) {
         const last = t?.tabs.find((x) => x.id === t.active)?.url;
         setActivePr(last && d.prs.some((p) => p.url === last) ? last : bottom.url);
       }}>
-        <div className="flex items-start gap-1.5">
+        <CardCorner><DepsPause pr={bottom} />{worstPr(d.prs).ci && <CiMark pr={worstPr(d.prs).ci!} />}</CardCorner>
+        <div className={cn("flex items-start gap-1.5", titlePad(bottom))}>
           <DevTitle devKey={d.key} prs={d.prs} original={bottom.title} />
-          <QueueItemActions className="ml-0"><HideToggle devKey={d.key} prs={d.prs} /></QueueItemActions>
+          <CardActions><RenameAction devKey={d.key} /><HideToggle devKey={d.key} prs={d.prs} /></CardActions>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1" title={`stack de ${d.prs.length} (de abajo hacia arriba)`}>
           {d.prs.map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)}

@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Archive, ExternalLink, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
-import { CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort } from "./DevCard";
+import { CardActions, CardCorner, RenameAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
 import { PersonChip } from "../../lib/people";
 import { stopSession } from "../../transport/folderSessions";
@@ -45,17 +45,17 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
       {/* con una PR (sin sesión) elegida, la sesión anterior ya no es el desarrollo activo */}
       <CardShell tone={tone} onClick={() => setActive(session.id)}
         selected={activeId === session.id && !activePrUrl || !!prs?.some((p) => p.url === activePrUrl)}>
-        <div className="flex items-start gap-1.5">
+        <CardCorner><DepsPause pr={pr} />{worst.ci && <CiMark pr={worst.ci} />}</CardCorner>
+        <div className={cn("flex items-start gap-1.5", titlePad(pr))}>
           <span aria-label={label} title={`claude ${label}`}
             className={cn(session.process === "running" ? "text-primary" : "text-muted-foreground")}>{dot}</span>
           <DevTitle devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])}
             original={session.title ?? pr?.title ?? prLabel(session.prUrl) ?? session.id} />
-          <DepsPause pr={pr} />
-          {worst.ci && <CiMark pr={worst.ci} />}
           {(session.error || session.launchError) && (
             <span title={session.error ?? session.launchError ?? ""} className="text-destructive">⚠</span>)}
           {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
-          <QueueItemActions className="ml-0">
+          <CardActions>
+            <RenameAction devKey={`s:${session.id}`} />
             {actions}
             {/* toda card con PR se puede abrir en GitHub (las pendientes ya lo traen en `actions`) */}
             {!onlyActions && (pr?.url ?? session.prUrl) && (
@@ -77,7 +77,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
                 onClick={(e) => { e.stopPropagation(); setConfirm(true); }}>
                 <Archive size={11} />
               </QueueItemAction>)}
-          </QueueItemActions>
+          </CardActions>
         </div>
         {/* repos con su número: una chip por PR (con varias, por repo: las filas dan los números) */}
         <div className="mt-1 flex flex-wrap items-center gap-1">
