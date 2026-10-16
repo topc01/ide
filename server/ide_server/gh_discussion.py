@@ -94,3 +94,25 @@ def fetch_discussion(url: str) -> dict:
     if pr is None:
         raise SessionError("unknown_pr", f"no encontré la PR {url}")
     return parse(pr)
+
+
+def fetch_body(url: str) -> dict:
+    """Descripción (markdown) de una PR, fresca de GitHub."""
+    if not _URL_RE.match(url.strip()):
+        raise SessionError("bad_pr_url", f"URL de PR inválida: {url!r}")
+    out = subprocess.run(["gh", "pr", "view", url, "--json", "body,title,state"],
+                         capture_output=True, text=True, timeout=60)
+    if out.returncode != 0:
+        raise SessionError("gh_failed", f"gh: {out.stderr.strip() or out.returncode}")
+    data = json.loads(out.stdout)
+    return {"body": data.get("body") or "", "state": data.get("state")}
+
+
+def save_body(url: str, body: str) -> None:
+    """Reemplaza la descripción de la PR en GitHub (`gh pr edit --body-file -`)."""
+    if not _URL_RE.match(url.strip()):
+        raise SessionError("bad_pr_url", f"URL de PR inválida: {url!r}")
+    out = subprocess.run(["gh", "pr", "edit", url, "--body-file", "-"], input=body,
+                         capture_output=True, text=True, timeout=60)
+    if out.returncode != 0:
+        raise SessionError("gh_failed", f"gh pr edit: {out.stderr.strip() or out.returncode}")

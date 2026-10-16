@@ -17,7 +17,7 @@ from ide_server.sessions_fs import (
     require_plain_name, session_path, sessions_dir, update_session_toml, read_toml,
 )
 from ide_server.workspace import discover_repos
-from ide_server.worktrees import has_uncommitted_changes
+from ide_server.worktrees import BranchOccupied, has_uncommitted_changes
 
 Runner = Callable[[list[str]], subprocess.CompletedProcess]
 _PR_RE = re.compile(r"^https://github\.com/[^/]+/([^/]+)/pull/(\d+)")
@@ -301,6 +301,18 @@ def archive_session(root: Path, sid: str, *, force: bool = False, out=None) -> N
         pass
 
 
+def _checked_out_at(repo_path: Path, branch: str, runner: Runner) -> str | None:
+    """Dónde está checkouteada una rama (otro worktree: el clon principal, Conductor, …)."""
+    out = runner(["git", "-C", str(repo_path), "worktree", "list", "--porcelain"])
+    path = None
+    for line in out.stdout.splitlines():
+        if line.startswith("worktree "):
+            path = line[len("worktree "):]
+        elif line == f"branch refs/heads/{branch}":
+            return path
+    return None
+
+
 def create_pr_session(root: Path, url: str, *, runner: Runner = _run) -> dict:
     """Sesión para seguir trabajando una PR propia: sesión de ticket `dev-<repo>-<n>` con el
     worktree en la rama de la PR (la local sigue a `origin/<rama>`; si no existía, se crea así y
@@ -336,6 +348,12 @@ def create_pr_session(root: Path, url: str, *, runner: Runner = _run) -> dict:
     log = io.StringIO()
     try:
         add_repo(root, sid, repo, branch=branch, out=log)
+    except BranchOccupied:
+        shutil.rmtree(session_path(root, sid), ignore_errors=True)
+        where = _checked_out_at(repo_path, branch, runner)
+        raise SessionError("branch_occupied", f"la rama {branch} ya está checkouteada en "
+                           f"{where or 'otro worktree'}: cámbiala de rama ahí (o trabaja desde ese "
+                           "worktree) y vuelve a intentar")
     except SessionError as exc:
         if exc.code != "setup_failed":
             shutil.rmtree(session_path(root, sid), ignore_errors=True)

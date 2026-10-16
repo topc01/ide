@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Callable
 from ide_server.claude_usage import LimitsPoller, session_context
 from ide_server.config import ui_modules
-from ide_server.gh_discussion import fetch_discussion
+from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
 from ide_server.devs import list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
@@ -166,6 +166,18 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                                                     "error": "polling de GitHub desactivado",
                                                     "lastOk": None, "orgs": []}
 
+    async def pr_body(p: dict) -> dict:
+        return await asyncio.to_thread(fetch_body, p["url"])
+
+    async def pr_body_save(p: dict) -> dict:
+        body = p["body"]
+        if not isinstance(body, str):
+            raise SessionError("bad_request", "body debe ser texto")
+        await asyncio.to_thread(save_body, p["url"], body)
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), "ide", "pr-body-edited", pr_url=p["url"])
+        return {"ok": True}
+
     async def discussion(p: dict) -> dict:
         return await asyncio.to_thread(fetch_discussion, p["url"])
 
@@ -259,7 +271,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
         "dev.status": dev_status, "dev.list": dev_list, "dev.show": dev_show,
-        "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion, "reviews.mergeRetry": merge_retry, "usage.get": usage,
+        "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
+        "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,

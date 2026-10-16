@@ -380,7 +380,14 @@ PR tuya sin sesión, una **sesión en su rama** (ver abajo); en una PR de otro s
 (en un stack, la de más arriba: contiene a todas). Trae la rama de `origin` y, si no existe local,
 la crea siguiendo a `origin/<rama>` (no desde HEAD). Queda en el mismo desarrollo (sus PRs pasan a
 la card de la sesión) y se lanza su `claude`. Si ya existe la devuelve; PR de fork → `fork_pr`;
-cerrada → `pr_closed`; rama checkouteada en otro lado → `branch_occupied`.
+cerrada → `pr_closed`; rama checkouteada en otro lado → `branch_occupied` (el mensaje dice en qué
+worktree está, para cambiarla de rama ahí).
+
+**Descripción de la PR (resumen):** el resumen de cada PR muestra su descripción, pedida fresca a
+GitHub al abrirlo (canal `pr.body {url}` → `{body, state}`), **Renderizado** (markdown GFM: tablas,
+checkboxes, links en otra pestaña) o **Crudo**. **Editar** abre el markdown en un textarea;
+**Guardar en GitHub** la reemplaza (canal `pr.bodySave {url, body}`, `gh pr edit --body-file -`) y
+deja el evento `pr-body-edited` (actor `ide`) en el historial; **Cancelar** descarta.
 
 **Panel principal con una PR:** si el desarrollo es una PR sin sesión, el panel principal muestra
 la PR (título, rama, stack, CI, revisores), el botón para abrirla en GitHub y, si te toca
