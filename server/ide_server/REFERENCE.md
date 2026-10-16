@@ -263,7 +263,7 @@ prompt; si está en cola falla con `queued`. Errores de `gh` se ven como `⚠ gi
 agrupadas como el inbox de Graphite: **Devueltas** (`reviewDecision` = `CHANGES_REQUESTED`),
 **Esperando revisores** (con reviews pedidas pendientes), **Sin revisores**, **Draft** y
 **Aprobadas** (`APPROVED`). Prioridad: draft > aprobada > devuelta > esperando > sin revisores.
-Son cards sin sesión: click abre la PR en GitHub.
+Son cards sin sesión: click abre la PR en GitHub. El título muestra el total; los grupos se colapsan.
 
 **Abrir sesión:** seleccionar una sesión parada en la sidebar la lanza (retoma su conversación); si falla queda "Reintentar".
 

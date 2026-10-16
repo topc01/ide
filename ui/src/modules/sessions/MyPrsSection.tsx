@@ -1,9 +1,10 @@
 // ui/src/modules/sessions/MyPrsSection.tsx
 import { ChevronRight } from "lucide-react";
 import { Collapsible } from "radix-ui";
-import { QueueList } from "../../components/ai-elements/queue";
+import { QueueList, QueueSection, QueueSectionContent, QueueSectionLabel, QueueSectionTrigger }
+  from "../../components/ai-elements/queue";
 import type { GhPr } from "../../transport/folderSessions";
-import { Group, PrCard, useGithubReviews } from "./ReviewsSection";
+import { PrCard, useGithubReviews } from "./ReviewsSection";
 
 const GROUPS = [
   ["returned", "Devueltas"], ["waiting", "Esperando revisores"], ["missing", "Sin revisores"],
@@ -22,6 +23,8 @@ export function MyPrsSection() {
           <ChevronRight size={13} className="transition-transform group-data-[state=open]/myprs:rotate-90" />
           Mis PRs
         </Collapsible.Trigger>
+        {gh?.mine && <span className="font-mono text-[11px] text-primary" aria-label="total de mis PRs">
+          {GROUPS.reduce((n, [key]) => n + (gh.mine[key]?.length ?? 0), 0)}</span>}
         {ghError && <span role="alert" className="truncate text-[10px] text-destructive"
           title={`${ghError} (último OK: ${gh?.lastOk ?? "nunca"})`}>⚠ github</span>}
         {!gh && !ghError && <span className="text-[10px] text-muted-foreground">cargando…</span>}
@@ -30,9 +33,12 @@ export function MyPrsSection() {
         {GROUPS.map(([key, label]) => {
           const prs: GhPr[] = gh?.mine?.[key] ?? [];
           return (
-            <Group key={key} label={label} count={prs.length}>
-              <QueueList>{prs.map((pr) => <PrCard key={pr.url} pr={pr} link />)}</QueueList>
-            </Group>
+            <QueueSection key={key} defaultOpen className="mt-1">
+              <QueueSectionTrigger><QueueSectionLabel label={label} count={prs.length} /></QueueSectionTrigger>
+              <QueueSectionContent>
+                <QueueList>{prs.map((pr) => <PrCard key={pr.url} pr={pr} link />)}</QueueList>
+              </QueueSectionContent>
+            </QueueSection>
           );
         })}
       </Collapsible.Content>
