@@ -94,15 +94,18 @@ con las mismas reglas.
 
 ## 3. Tabla y OK
 Por cada ticket, prueba sin crear nada:
-`ide session new --dry-run --notion <url> --template ticket --var "title=<Tarea>"`
-(escapa las comillas dobles del título con `\\"`; no uses pipes ni redirecciones). Muestra una tabla:
+`ide session new --dry-run --notion <url> --template ticket --var 'title=<Tarea>'`
+El título viene de Notion (texto de terceros): va **siempre entre comillas simples** y antes
+reemplaza cada `'` del título por `’`. Nunca comillas dobles, pipes, `$(…)`, backticks ni
+redirecciones. Muestra una tabla:
 `sesión | ticket | prioridad | size | por qué es tuyo (asignado / célula) | ¿ya tiene sesión?`
 en el orden de la cola (`Order`). **Espera mi OK** y que te diga cuáles lanzar (por defecto, todos
 los que no tienen sesión).
 
 ## 4. Lanzar
 Por cada ticket elegido:
-`ide session new --if-missing --notion <url> --template ticket --var "title=<Tarea>"`
+`ide session new --if-missing --notion <url> --template ticket --var 'title=<Tarea>'` (mismas reglas
+de comillas)
 Cada sesión arranca con su carpeta y su `TICKET.md`, analiza el ticket (revisión preliminar:
 scope, repos, plan, bloqueantes, dudas) y suma con `ide repo add <repo>` los worktrees que
 necesite. Nunca dupliques: `--if-missing` devuelve la existente.

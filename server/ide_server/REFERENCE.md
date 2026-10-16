@@ -205,7 +205,8 @@ copian a su `.claude/skills/` (skills de proyecto del cwd de su `claude`). `ide 
   --notion <url> --template ticket` por cada uno. Cada sesión hace su revisión preliminar
   (`TICKET.md`) y suma sus worktrees con `ide repo add`. No escribe en Notion. El perfil `main`
   permite las herramientas de Notion necesarias (MCP de claude.ai o del plugin); el título va con
-  `--var "title=…"` (sin pipes ni `echo`: los títulos vienen de Notion y no se les da shell libre).
+  `--var 'title=…'` entre comillas simples y con sus `'` reemplazadas por `’` (los títulos vienen
+  de Notion: así la shell no expande nada; sin pipes ni `echo`).
 
 ## 7b. Prompts (`.ide/prompts/*.md`)
 
