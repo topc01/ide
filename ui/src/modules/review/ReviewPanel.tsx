@@ -4,7 +4,7 @@ import { ChevronRight, ExternalLink, RefreshCw } from "lucide-react";
 import { useFolders } from "../../state/folders";
 import { getWs } from "../../transport/wsClient";
 import { fetchDiscussion, type Discussion, type GhPr } from "../../transport/folderSessions";
-import { CiMark, ReviewerChips, useGithubReviews } from "../sessions/ReviewsSection";
+import { CiMark, DepsList, ReviewerChips, useGithubReviews } from "../sessions/ReviewsSection";
 import { desarrolloPrs } from "../github/GithubPanel";
 import { cn } from "../../lib/utils";
 
@@ -109,6 +109,10 @@ function PrDiscussion({ pr }: { pr: GhPr }) {
                 <OpenLink url={c.url} label="Ver el log del check" />
               </li>))}
           </ul>)}
+        {!!pr.deps?.length && (
+          <Section title="Dependencias" count={pr.depsPending ?? 0}>
+            <div className="px-2.5"><DepsList pr={pr} /></div>
+          </Section>)}
         <Section title="Hilos abiertos" count={open.length}>
           {open.length === 0 && <p className="px-2.5 text-[11px] text-muted-foreground">Sin hilos abiertos.</p>}
           {open.map((t, i) => <Thread key={i} t={t} />)}

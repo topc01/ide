@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/button";
 import { QueueItemAction } from "../../components/ai-elements/queue";
 import { mergePr, retryMerge, type GhPr, type MergeJob } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
+import { DepsList } from "./ReviewsSection";
 import { cn } from "../../lib/utils";
 
 /** Se puede mergear desde el IDE: aprobada y la de abajo de su stack (o sin stack). */
@@ -45,10 +46,16 @@ export function MergeButton({ pr, above }: { pr: GhPr; above: number }) {
           (ámbar mergeando, rojo error, morado mergeada).</p>
         {above > 0 && !pr.stack?.native && <p className="text-xs text-muted-foreground">
           Si tienes esas ramas abiertas en una sesión, después haz <code>git pull --rebase</code> ahí.</p>}
+        {!!pr.depsPending && (
+          <div role="alert" className="rounded-md border border-amber-400/60 bg-amber-400/10 p-2">
+            <p className="mb-1 text-xs font-semibold text-amber-300">
+              ⚠ Faltan {pr.depsPending} dependencias por mergear (según "## Dependencias"):</p>
+            <DepsList pr={pr} onlyPending />
+          </div>)}
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
         <DialogFooter>
           <Button title="Cerrar sin mergear" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button title="Rebasear, empujar y armar el auto-merge (squash)" disabled={busy} onClick={run}>{busy ? "Iniciando…" : "Mergear"}</Button>
+          <Button title="Rebasear, empujar y armar el auto-merge (squash)" disabled={busy} onClick={run}>{busy ? "Iniciando…" : pr.depsPending ? "Mergear igual" : "Mergear"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

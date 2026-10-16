@@ -4,7 +4,7 @@ import { ChevronDown, GitPullRequest, Search } from "lucide-react";
 import { useFolders } from "../state/folders";
 import { useStore } from "../state/store";
 import type { FolderSession, GhPr, GithubReviews } from "../transport/folderSessions";
-import { CiMark, StackBadge, useGithubReviews } from "../modules/sessions/ReviewsSection";
+import { CiMark, DepsBadge, StackBadge, useGithubReviews } from "../modules/sessions/ReviewsSection";
 import { cn } from "../lib/utils";
 
 /** Un desarrollo = una sesión o una PR (sin sesión) de las listas de la sidebar. */
@@ -50,6 +50,7 @@ function DevLine({ d }: { d: Desarrollo }) {
       <div className="flex items-center gap-1.5 pl-4 font-mono text-[10px] text-muted-foreground">
         <span className="truncate">{d.kind === "session" ? d.session.id : `${d.pr.repo}#${d.pr.number}`}</span>
         {pr && <StackBadge pr={pr} />}
+        {pr && <DepsBadge pr={pr} />}
       </div>
     </div>
   );

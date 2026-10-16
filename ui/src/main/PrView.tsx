@@ -5,7 +5,7 @@ import { useFolders } from "../state/folders";
 import { startReview } from "../transport/folderSessions";
 import { getWs } from "../transport/wsClient";
 import { Button } from "../components/ui/button";
-import { allPrs, CiMark, ReviewerChips, StackBadge, useGithubReviews } from "../modules/sessions/ReviewsSection";
+import { allPrs, CiMark, DepsList, ReviewerChips, StackBadge, useGithubReviews } from "../modules/sessions/ReviewsSection";
 
 /** Panel principal cuando el desarrollo es una PR sin sesión. */
 export function PrView({ url }: { url: string }) {
@@ -26,6 +26,11 @@ export function PrView({ url }: { url: string }) {
         <StackBadge pr={pr} /><CiMark pr={pr} />
       </div>
       <div className="-ml-4"><ReviewerChips pr={pr} /></div>
+      {!!pr.deps?.length && (
+        <div className="mt-4">
+          <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Dependencias</div>
+          <DepsList pr={pr} />
+        </div>)}
       <div className="mt-4 flex gap-2">
         <Button asChild variant="secondary" size="sm" title="Abrir la PR en GitHub">
           <a href={pr.url} target="_blank" rel="noreferrer"><ExternalLink size={13} /> Abrir en GitHub</a>

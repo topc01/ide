@@ -1,6 +1,6 @@
 // ui/src/modules/sessions/ReviewsSection.tsx
 import { useEffect, useState } from "react";
-import { ChevronRight, ExternalLink, Layers2, MoreHorizontal, Plus, ScanEye } from "lucide-react";
+import { ChevronRight, ExternalLink, Layers2, Link2, MoreHorizontal, Plus, ScanEye } from "lucide-react";
 import { Collapsible } from "radix-ui";
 import { useFolders } from "../../state/folders";
 import {
@@ -69,6 +69,54 @@ export function StackBadge({ pr }: { pr: GhPr }) {
   );
 }
 
+/** Dependencias declaradas en "## Dependencias": ⛓ N ámbar si faltan N por mergear, ⛓ ✓ si no. */
+export function DepsBadge({ pr }: { pr: GhPr }) {
+  if (!pr.deps?.length) return null;
+  const pending = pr.deps.filter((d) => d.state !== "MERGED" && !d.together);
+  const together = pr.deps.filter((d) => d.together);
+  const tip = [
+    pending.length ? `Falta mergear: ${pending.map((d) => `${d.repo}#${d.number}`).join(", ")}` : "Dependencias mergeadas",
+    together.length ? `Van juntas: ${together.map((d) => `${d.repo}#${d.number}`).join(", ")}` : "",
+  ].filter(Boolean).join("\n");
+  return (
+    <span title={tip} className={cn("flex items-center gap-0.5 font-semibold",
+      pending.length ? "text-amber-300" : "text-emerald-400")}>
+      <Link2 size={10} />{pending.length ? pending.length : "✓"}{together.length ? <span className="text-sky-400">⇄</span> : null}
+    </span>
+  );
+}
+
+const DEP_STATE = {
+  MERGED: ["✓", "text-purple-400", "mergeada"], OPEN: ["◌", "text-amber-300", "abierta: falta mergear"],
+  CLOSED: ["✗", "text-red-500", "cerrada sin mergear"], UNKNOWN: ["?", "text-muted-foreground", "estado desconocido"],
+} as const;
+
+/** Cadena completa de dependencias (módulo Revisión, vista de PR, diálogo de merge). */
+export function DepsList({ pr, onlyPending = false }: { pr: GhPr; onlyPending?: boolean }) {
+  const deps = (pr.deps ?? []).filter((d) => !onlyPending || (d.state !== "MERGED" && !d.together));
+  if (!deps.length) return null;
+  const name = (url: string | null) => {
+    const d = pr.deps?.find((x) => x.url === url);
+    return d ? `${d.repo}#${d.number}` : "";
+  };
+  return (
+    <ul className="space-y-0.5">
+      {deps.map((d) => {
+        const [mark, cls, label] = d.together ? ["⇄", "text-sky-400", "van juntas (se piden mutuamente)"] : DEP_STATE[d.state];
+        return (
+          <li key={d.url} className="group/c flex min-w-0 items-center gap-1.5 text-[11px]">
+            <span className={cn("w-3 shrink-0 text-center font-bold", cls)} title={label}>{mark}</span>
+            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{d.repo}#{d.number}</span>
+            <span className="min-w-0 flex-1 truncate" title={d.title ?? ""}>{d.title}</span>
+            {d.via && <span className="shrink-0 text-[10px] text-muted-foreground" title="Dependencia indirecta">vía {name(d.via)}</span>}
+            <a href={d.url} target="_blank" rel="noreferrer" title="Abrir en GitHub" aria-label="Abrir en GitHub"
+              className="shrink-0 text-muted-foreground opacity-0 hover:text-foreground group-hover/c:opacity-100"><ExternalLink size={10} /></a>
+          </li>);
+      })}
+    </ul>
+  );
+}
+
 /** CI de la PR: ✓ pasó, ✗ falló (tests, conflicto con la base, …), ◌ corriendo. */
 export function CiMark({ pr }: { pr: GhPr }) {
   if (!pr.ci) return null;
@@ -133,6 +181,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge }:
           <span>{pr.author}</span>
           {pr.draft && <Badge variant="outline" className="px-1 py-0 text-[10px]">draft</Badge>}
           <StackBadge pr={pr} />
+          <DepsBadge pr={pr} />
           {merge && <MergeStatus url={pr.url} job={merge.job} />}
         </div>
         <ReviewerChips pr={pr} />

@@ -60,6 +60,12 @@ export interface GhPr {
   stack: { id: string; position: number; size: number; native?: boolean } | null;
   reviewers?: { login: string; state: "requested" | "approved" | "changes" }[];
   ci?: "success" | "failure" | "pending" | null; conflict?: boolean;
+  deps?: PrDep[]; depsPending?: number;     // dependencias declaradas en "## Dependencias"
+}
+/** Dependencia (directa o transitiva, `via` = por cuál directa se llega) de una PR. */
+export interface PrDep {
+  url: string; repo: string | null; number: number | null; title: string | null;
+  state: "OPEN" | "MERGED" | "CLOSED" | "UNKNOWN"; via: string | null; together: boolean;
 }
 export interface GithubReviews {
   pending: GhPr[]; changesRequested: GhPr[]; error: string | null; lastOk: string | null; orgs: string[];

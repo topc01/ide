@@ -293,6 +293,18 @@ Los trabajos viven en `.ide/merges.json` (sobreviven reinicios; un rebase cortad
 queda en error para reintentar). Errores: `not_bottom`, `not_approved`, `ci_failed`,
 `merge_pending`, `conflict`, `merge_failed`, `unknown_pr`, `no_merge`.
 
+**Dependencias entre PRs** (solo lectura): se leen de la sección `## Dependencias` de la
+descripción de cada PR abierta (las casillas `[ ]`/`[x]` se ignoran). Referencias `owner/repo#N`,
+`repo#N`, `#N` (hereda el último repo explícito de la línea; si no, el de la PR) o URLs de PR; en
+"merge en orden: A → B → este PR → C" solo cuenta lo de antes de "este/esta PR". Se siguen las
+dependencias de las dependencias (entre repos), y el estado de las ya mergeadas/cerradas se
+consulta a GitHub. Si dos PRs se piden mutuamente, **van juntas** (⇄): se muestran pero no
+cuentan como pendientes. Las cards (y el selector) muestran `⛓ N` ámbar si faltan N por mergear
+o `⛓ ✓` verde; la cadena completa (✓ mergeada, ◌ abierta, ✗ cerrada, ⇄ juntas, "vía X" si es
+indirecta) está en el módulo Revisión y en la vista de la PR. Al mergear con dependencias
+pendientes el diálogo avisa y el botón pasa a **Mergear igual** (no bloquea). Texto fuera de esa
+sección (p.ej. "Depende de …" en el cuerpo) no se lee.
+
 **Stacks:** si GitHub tiene la PR en un **stack nativo**, posición y tamaño son los de GitHub.
 Si no, se infieren: una PR está en un stack si su rama base es la rama (head) de otra PR
 abierta del mismo repo; se calculan sobre todas las PRs abiertas de la org en cada poll. Si un
@@ -387,6 +399,6 @@ snake_case: `id`, `notion`, `main`, `template`, `vars`, `prompt`, `title`, `perm
 
 WebSocket `/ws`: canales `sessions.tree|new|open|stop|rm|archive|script|doc|refreshReview|repoRm`,
 `ui.config`, `prompts.list` (`{prompts: [{name, text}]}`), `terminal.replay` (`{id}` → `{data, end}`), `reviews.github`
-(`{pending, changesRequested, mine: {returned, waiting, missing, draft, approved}, stacks: {<id>: [pr…]}, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.merge` / `reviews.mergeRetry` (`{url}`), `reviews.discussion` (`{url}`), `reviews.start` (`{url}` → `{id, created,
+(`{pending, changesRequested, mine: {returned, waiting, missing, draft, approved}` (cada PR con `deps`, `depsPending`), stacks: {<id>: [pr…]}, me, reviewers: [{login, count}], reviewersTruncated, members, selected, error, lastOk, orgs}`), `reviews.setReviewers` (`{logins}`), `reviews.merge` / `reviews.mergeRetry` (`{url}`), `reviews.discussion` (`{url}`), `reviews.start` (`{url}` → `{id, created,
 process}`), `usage.get` (`{sessionId}` → `{context, limits}`), `terminal.*`; eventos
 `sessions.changed` (mismo payload que `sessions.tree`) y `reviews.github`.

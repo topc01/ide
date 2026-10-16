@@ -12,12 +12,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 from ide_server.pr_poller import GhRunner, _default_gh
+from ide_server import gh_deps
 from ide_server.sessions_fs import slugify
 from ide_server.workspace import discover_repos
 
 log = logging.getLogger(__name__)
 
-_FIELDS = """... on PullRequest { url title number isDraft updatedAt reviewDecision headRefName baseRefName
+_FIELDS = """... on PullRequest { url title number isDraft updatedAt reviewDecision headRefName baseRefName body
   isCrossRepository repository { nameWithOwner }
   stack { id size } stackEntry { position }
   mergeable commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
@@ -282,6 +283,30 @@ class GithubReviews:
                 out[m["login"]] = {"login": m["login"], "name": m.get("name")}
         return sorted(out.values(), key=lambda m: m["login"].lower())
 
+    async def _annotate_deps(self, res: dict, data: dict) -> None:
+        """Agrega a cada card `deps` (cadena de dependencias declaradas) y `depsPending`."""
+        prs = [n for n in data["data"]["open"]["nodes"] if n]
+        by_key = {(n["repository"]["nameWithOwner"].lower(), n["number"]): n for n in prs}
+        info = {n["url"]: {"repo": n["repository"]["name"], "number": n["number"], "title": n["title"],
+                           "state": "OPEN"} for n in prs}
+        refs = {n["url"]: gh_deps.parse_deps(n.get("body"), *n["repository"]["nameWithOwner"].split("/", 1),
+                                             n["number"]) for n in prs}
+        unknown = sorted({(full, num) for lst in refs.values() for full, num in lst
+                          if (full.lower(), num) not in by_key})
+        found = await gh_deps.resolve(self._gh, unknown) if unknown else {}
+        url_of = {k: n["url"] for k, n in by_key.items()}
+        for (full, num), pr in found.items():
+            url_of[(full, num)] = pr["url"]
+            info[pr["url"]] = {"repo": full.split("/", 1)[1], "number": pr["number"],
+                               "title": pr["title"], "state": pr["state"]}
+        direct = {u: [url_of[(f.lower(), n)] for f, n in lst if (f.lower(), n) in url_of]
+                  for u, lst in refs.items()}
+        cards = [*res["pending"], *res["changesRequested"], *(c for l in res["mine"].values() for c in l),
+                 *(c for l in res["stacks"].values() for c in l)]
+        for c in cards:
+            c["deps"] = gh_deps.chains(direct, info, c["url"])
+            c["depsPending"] = sum(1 for d in c["deps"] if d["state"] != "MERGED" and not d["together"])
+
     async def set_selection(self, logins: list[str]) -> None:
         await asyncio.to_thread(write_selection, self._root, logins)
         self.state = {**self.state, "selected": await asyncio.to_thread(read_selection, self._root)}
@@ -306,6 +331,7 @@ class GithubReviews:
             else:
                 try:
                     res = parse_result(data, {m["login"] for m in members})
+                    await self._annotate_deps(res, data)
                     ts = datetime.fromtimestamp(self._clock(), timezone.utc).isoformat(timespec="seconds")
                     self.state = {**res, "members": members, "selected": selected,
                                   "error": None, "lastOk": ts, "orgs": orgs}
