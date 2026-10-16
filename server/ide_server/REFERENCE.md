@@ -389,7 +389,7 @@ checkboxes, links en otra pestaña) o **Crudo** (toggle a la derecha). En Crudo 
 directo; en Renderizado las casillas se marcan con click. Los cambios quedan pendientes ("cambios sin
 guardar", Renderizado muestra el borrador) hasta **Guardar**, que se habilita solo si hay cambios y
 reemplaza la descripción en GitHub (canal `pr.bodySave {url, body}`, `gh pr edit --body-file -`) y
-deja el evento `pr-body-edited` (actor `ide`) en el historial; **Cancelar** descarta.
+deja el evento `pr-body-edited` (actor `ide`) en el historial.
 
 **Panel principal con una PR:** si el desarrollo es una PR sin sesión, el panel principal muestra
 la PR (título, rama, stack, CI, revisores), el botón para abrirla en GitHub y, si te toca
