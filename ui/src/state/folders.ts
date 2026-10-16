@@ -22,7 +22,7 @@ function readGroupBy(): string {
 
 interface State {
   tree: SessionsTree; connected: boolean; activeId: string | null; groupBy: string;
-  activePrUrl: string | null;           // card de PR (sin sesión) seleccionada: la usa el módulo GitHub
+  activePrUrl: string | null;           // card de PR (sin sesión) seleccionada: la usan los módulos
   modal: null | "session" | "review"; uiModules: string[] | null;
   scriptTabs: Record<string, ScriptTab[]>;
   setTree: (t: SessionsTree) => void; setConnected: (c: boolean) => void;

@@ -89,7 +89,7 @@ export function GithubPanel() {
   const data = !gh ? null : activePrUrl ? prStacks(activePrUrl, gh) : session ? sessionStacks(session, gh) : null;
   return (
     <div className="flex w-full min-w-0 flex-col overflow-hidden">
-      <div className="mx-2.5 mb-1 mt-2.5 text-[10px] uppercase tracking-wide text-muted-foreground">GitHub</div>
+      <div className="mx-2.5 mb-1 mt-2.5 text-[10px] uppercase tracking-wide text-muted-foreground">Stack</div>
       {ghError && <p role="alert" className="mx-2.5 text-xs text-destructive">{ghError}</p>}
       {!session && !activePrUrl && <p className="mx-2.5 text-xs text-muted-foreground">Abre una sesión o elige una PR para ver su stack.</p>}
       {(session || activePrUrl) && !gh && !ghError && <p className="mx-2.5 text-xs text-muted-foreground">cargando…</p>}

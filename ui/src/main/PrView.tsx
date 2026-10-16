@@ -47,7 +47,7 @@ export function PrView({ url }: { url: string }) {
       </div>
       {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
       <p className="mt-4 text-xs text-muted-foreground">
-        Esta PR no tiene sesión. Comentarios y discusiones: módulo Revisión · stack: módulo GitHub.</p>
+        Esta PR no tiene sesión. Comentarios y discusiones: módulo Revisión · stack: módulo Stack.</p>
     </div>
   );
 }

@@ -92,7 +92,7 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "terminal", "prompts", "github", "review", "deps", "config"]   # módulos visibles en el menú de acciones; ver abajo
+modules = ["sessions", "terminal", "prompts", "stack", "review", "deps", "config"]   # módulos visibles en el menú de acciones; ver abajo
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -100,7 +100,7 @@ modules = ["sessions", "terminal", "prompts", "github", "review", "deps", "confi
 Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero) hacen
 fallar el arranque con un mensaje que nombra la clave.
 
-`[ui] modules`: ids disponibles `terminal`, `prompts`, `github`, `review`, `deps`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
+`[ui] modules`: ids disponibles `terminal`, `prompts`, `stack`, `review`, `deps`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
 `notion`, y `chat`. Si `chat` **no** está, el área principal es la vista por sesión (terminal
 `claude` + doc + scripts); si está, vuelve el chat propio.
 
@@ -276,7 +276,7 @@ prompt; si está en cola falla con `queued`. Errores de `gh` se ven como `⚠ gi
 agrupadas como el inbox de Graphite: **Devueltas** (`reviewDecision` = `CHANGES_REQUESTED` y sin reviews pedidas pendientes),
 **Esperando revisores** (con reviews pedidas pendientes, aunque antes hayan pedido cambios), **Sin revisores**, **Draft** y
 **Aprobadas** (`APPROVED`). Prioridad: draft > aprobada > esperando > devuelta > sin revisores (como Graphite).
-Son cards sin sesión: click la selecciona como desarrollo (el módulo GitHub muestra su stack);
+Son cards sin sesión: click la selecciona como desarrollo (el módulo Stack muestra su stack);
 se abre en GitHub solo con el botón de hover, igual que en Revisiones. Todas las cards
 de PR (y las de sesión con PR) marcan el CI: ✓ pasó, ✗ falló (checks o conflicto con la base),
 ◌ corriendo; el título muestra el total y los grupos se
@@ -331,7 +331,7 @@ Si no, se infieren: una PR está en un stack si su rama base es la rama (head) d
 abierta del mismo repo; se calculan sobre todas las PRs abiertas de la org en cada poll. Si un
 stack se ramifica, la posición sigue el orden en profundidad.
 
-**Módulo GitHub** (menú de acciones, id `github`): muestra el stack de la card de PR seleccionada
+**Módulo Stack** (menú de acciones, id `stack`; antes "GitHub"): muestra el stack de la card de PR seleccionada
 o, si no hay, las PRs de la sesión abierta (la PR
 revisada, o las PRs cuyas ramas son las de los repos de la sesión), cada una con todo su stack
 (arriba la de más arriba). Color por review: verde aprobada, azul en revisión (reviews pedidas
@@ -359,7 +359,7 @@ reimprimir ni quedar en blanco.
 **Desarrollos y selector:** un *desarrollo* es una sesión o una PR sin sesión de las listas de
 la sidebar. El desarrollo actual se muestra como card arriba del menú de acciones y la sidebar
 interna (los empuja hacia abajo); click → lista de todos los desarrollos (Sesiones / Revisiones /
-Mis PRs) con buscador para cambiar. En el módulo GitHub, click en una PR del stack abre su
+Mis PRs) con buscador para cambiar. En el módulo Stack, click en una PR del stack abre su
 desarrollo (su sesión, o la PR si está en las listas).
 
 ## 9c. Base local (`.ide/ide.db`)

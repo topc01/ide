@@ -1,6 +1,6 @@
 // ui/src/modules/sessions/SessionItem.tsx
 import { useState, type ReactNode } from "react";
-import { Archive, Square } from "lucide-react";
+import { Archive, ExternalLink, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta } from "./ReviewsSection";
 import { CardShell, DepsLine, devTone, repoShort } from "./DevCard";
@@ -47,6 +47,12 @@ export function SessionItem({ session, actions, pr, onlyActions = false }:
           {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
           <QueueItemActions className="ml-0">
             {actions}
+            {/* toda card con PR se puede abrir en GitHub (las pendientes ya lo traen en `actions`) */}
+            {!onlyActions && (pr?.url ?? session.prUrl) && (
+              <QueueItemAction aria-label={`Abrir ${session.id} en GitHub`} title="Abrir la PR en GitHub" asChild>
+                <a href={pr?.url ?? session.prUrl ?? ""} target="_blank" rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
+              </QueueItemAction>)}
             {!onlyActions && session.process !== "stopped" && (
               <QueueItemAction aria-label={`Parar ${session.id}`} title="Parar el claude de esta sesión"
                 onClick={(e) => {
