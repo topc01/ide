@@ -3,7 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { useFolders } from "../../state/folders";
 import type { FolderSession, GhPr, GithubReviews } from "../../transport/folderSessions";
 import { QueueItem, QueueItemAction, QueueItemActions, QueueList } from "../../components/ai-elements/queue";
-import { allPrs, useGithubReviews } from "../sessions/ReviewsSection";
+import { allPrs, CiMark, useGithubReviews } from "../sessions/ReviewsSection";
 import { cn } from "../../lib/utils";
 
 const REVIEW = {
@@ -37,6 +37,7 @@ function StackItem({ pr, own }: { pr: GhPr; own: boolean }) {
         <span aria-label={label} className={cn("h-2 w-2 shrink-0 rounded-full", color ?? "border border-muted-foreground")} />
         <span className="font-mono text-[10px] text-muted-foreground">{pr.stack?.position ?? 1}</span>
         <span className="min-w-0 flex-1 truncate">{pr.title}</span>
+        <CiMark pr={pr} />
         <QueueItemActions className="ml-0">
           <QueueItemAction aria-label={`Abrir ${pr.repo}#${pr.number} en GitHub`} asChild>
             <a href={pr.url} target="_blank" rel="noreferrer"><ExternalLink size={11} /></a>

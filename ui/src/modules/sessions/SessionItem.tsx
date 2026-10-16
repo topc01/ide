@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from "react";
 import { Archive, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
-import { StackBadge } from "./ReviewsSection";
+import { CiMark, StackBadge } from "./ReviewsSection";
 import { stopSession } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
@@ -54,6 +54,7 @@ export function SessionItem({ session, actions, pr }: { session: FolderSession; 
           {session.title && <span className="font-mono">{session.id}</span>}
           {session.meta.author && <span>{session.meta.author}</span>}
           {pr && <StackBadge pr={pr} />}
+          {pr && <CiMark pr={pr} />}
           {session.status && <Badge variant="outline" className="px-1 py-0 text-[10px]">{session.status}</Badge>}
           {extra && <Badge variant={session.pollError ? "destructive" : "secondary"} className="px-1 py-0 text-[10px]"
             title={session.pollError

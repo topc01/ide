@@ -36,7 +36,7 @@ export function MyPrsSection() {
             <QueueSection key={key} defaultOpen className="mt-1">
               <QueueSectionTrigger><QueueSectionLabel label={label} count={prs.length} /></QueueSectionTrigger>
               <QueueSectionContent>
-                <QueueList>{prs.map((pr) => <PrCard key={pr.url} pr={pr} />)}</QueueList>
+                <QueueList>{prs.map((pr) => <PrCard key={pr.url} pr={pr} openOnClick />)}</QueueList>
               </QueueSectionContent>
             </QueueSection>
           );

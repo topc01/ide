@@ -68,6 +68,15 @@ export function StackBadge({ pr }: { pr: GhPr }) {
   );
 }
 
+/** CI de la PR: ✓ pasó, ✗ falló (tests, conflicto con la base, …), ◌ corriendo. */
+export function CiMark({ pr }: { pr: GhPr }) {
+  if (!pr.ci) return null;
+  const [mark, cls, label] = pr.ci === "success" ? ["✓", "text-emerald-400", "CI pasó"]
+    : pr.ci === "pending" ? ["◌", "text-amber-300", "CI corriendo"]
+    : ["✗", "text-destructive", pr.conflict ? "conflicto con la base" : "CI falló"];
+  return <span aria-label={label} title={label} className={cn("font-mono font-bold", cls)}>{mark}</span>;
+}
+
 /** Quién revisa la PR, con el color de su estado. */
 export function ReviewerChips({ pr }: { pr: GhPr }) {
   if (!pr.reviewers?.length) return null;
@@ -84,17 +93,20 @@ export function ReviewerChips({ pr }: { pr: GhPr }) {
 
 /** PR de GitHub sin sesión. Click = seleccionarla (el módulo GitHub muestra su stack); abrir en
  *  GitHub con el botón del hover, igual que en las demás cards. */
-export function PrCard({ pr, reviewable = false }: { pr: GhPr; reviewable?: boolean }) {
+export function PrCard({ pr, reviewable = false, openOnClick = false }:
+  { pr: GhPr; reviewable?: boolean; openOnClick?: boolean }) {
   const active = useFolders((s) => s.activePrUrl === pr.url);
   const setActivePr = useFolders((s) => s.setActivePr);
   return (
     <QueueItem className="px-2 py-0.5">
-      <div onClick={() => setActivePr(pr.url)} aria-current={active || undefined}
+      <div onClick={() => { setActivePr(pr.url); if (openOnClick) window.open(pr.url, "_blank", "noopener"); }}
+        aria-current={active || undefined}
         className={cn("cursor-pointer rounded-md border border-dashed border-border px-2 py-1.5 text-xs hover:bg-accent/60",
           active && "border-solid border-primary bg-accent")}>
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground" aria-label="sin sesión">◇</span>
           <span className="min-w-0 flex-1 truncate" title={pr.title}>{pr.title}</span>
+          <CiMark pr={pr} />
           <QueueItemActions className="ml-0">
             {reviewable && <ReviewButton pr={pr} />}
             <QueueItemAction aria-label={`Abrir ${pr.sessionId} en GitHub`} title="Abrir en GitHub" asChild>

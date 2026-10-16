@@ -263,8 +263,10 @@ prompt; si está en cola falla con `queued`. Errores de `gh` se ven como `⚠ gi
 agrupadas como el inbox de Graphite: **Devueltas** (`reviewDecision` = `CHANGES_REQUESTED` y sin reviews pedidas pendientes),
 **Esperando revisores** (con reviews pedidas pendientes, aunque antes hayan pedido cambios), **Sin revisores**, **Draft** y
 **Aprobadas** (`APPROVED`). Prioridad: draft > aprobada > esperando > devuelta > sin revisores (como Graphite).
-Son cards sin sesión: click la selecciona (el módulo GitHub muestra su stack) y el botón de
-hover la abre en GitHub, igual que en Revisiones; el título muestra el total y los grupos se
+Son cards sin sesión: click la abre en GitHub y la selecciona (el módulo GitHub muestra su
+stack); en Revisiones el click solo selecciona y se abre con el botón de hover. Todas las cards
+de PR (y las de sesión con PR) marcan el CI: ✓ pasó, ✗ falló (checks o conflicto con la base),
+◌ corriendo; el título muestra el total y los grupos se
 colapsan. Cada card muestra quién la revisa (chips: azul review pedida, verde aprobó, amarillo
 pidió cambios; una review re-pedida cuenta como pedida). Si la PR es parte de un stack, la card
 muestra su posición (`2/4`, 1 = la de abajo).

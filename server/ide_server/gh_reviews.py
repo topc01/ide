@@ -18,6 +18,7 @@ from ide_server.workspace import discover_repos
 log = logging.getLogger(__name__)
 
 _FIELDS = """... on PullRequest { url title number isDraft updatedAt reviewDecision headRefName baseRefName
+  mergeable commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
   repository { name } author { login }
   latestOpinionatedReviews(first: 30) { nodes { state author { login } } }
   reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } } }"""
@@ -105,6 +106,16 @@ def pr_reviewers(n: dict) -> list[dict]:
     return [{"login": k, "state": v} for k, v in out.items()]
 
 
+def ci_state(n: dict) -> str | None:
+    """success | failure | pending | None (sin checks). Un conflicto con la base es failure."""
+    if n.get("mergeable") == "CONFLICTING":
+        return "failure"
+    commits = (n.get("commits") or {}).get("nodes") or [{}]
+    rollup = ((commits[-1] or {}).get("commit") or {}).get("statusCheckRollup") or {}
+    return {"SUCCESS": "success", "FAILURE": "failure", "ERROR": "failure",
+            "PENDING": "pending", "EXPECTED": "pending"}.get(rollup.get("state", ""))
+
+
 def _card(n: dict, stacks: dict[str, dict] | None = None) -> dict:
     return {"url": n["url"], "title": n["title"], "number": n["number"],
             "repo": n["repository"]["name"], "author": "@" + ((n.get("author") or {}).get("login") or "?"),
@@ -112,7 +123,8 @@ def _card(n: dict, stacks: dict[str, dict] | None = None) -> dict:
             # mismo id que `ide session new --review` (para cruzar la card con su sesión)
             "sessionId": slugify(f"pr-{n['repository']['name']}-{n['number']}"),
             "head": n.get("headRefName"), "base": n.get("baseRefName"), "review": review_state(n),
-            "stack": (stacks or {}).get(n["url"]), "reviewers": pr_reviewers(n)}
+            "stack": (stacks or {}).get(n["url"]), "reviewers": pr_reviewers(n),
+            "ci": ci_state(n), "conflict": n.get("mergeable") == "CONFLICTING"}
 
 
 def _requested(n: dict) -> list[str]:
