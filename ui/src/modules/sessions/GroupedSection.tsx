@@ -68,7 +68,7 @@ export function ConfigButton({ id, title }: { id: string; title: string }) {
         if (activePanel !== "config") setActivePanel("config");
         if (!innerSidebarOpen) toggleInnerSidebar();
       }}
-      className="grid h-5 w-5 place-items-center rounded text-muted-foreground hover:text-foreground">
+      className="grid h-5 w-5 place-items-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
       <Settings2 size={13} />
     </button>
   );

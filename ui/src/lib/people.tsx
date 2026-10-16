@@ -16,7 +16,7 @@ export function PersonChip({ login, children, title, strong }:
   const name = login.replace(/^@/, "");
   return (
     <span title={title ?? name} style={personStyle(name)}
-      className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-px font-mono text-[10px] leading-4 ${strong ? "font-bold" : ""}`}>
+      className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-px font-mono text-[10px] leading-4 transition-[filter] hover:brightness-125 ${strong ? "font-bold" : ""}`}>
       {name}{children}
     </span>
   );

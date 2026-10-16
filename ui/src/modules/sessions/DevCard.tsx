@@ -55,7 +55,9 @@ export function CardShell({ tone, selected, dashed, onClick, children }:
   const spin = tone.border && SPIN[tone.border];
   return (
     <div onClick={onClick} title={tone.label} aria-current={selected || undefined}
-      className={cn("cursor-pointer rounded-md p-[2px]",
+      className={cn("cursor-pointer rounded-md p-[2px] transition-[margin,filter] duration-150 ease-out",
+        // inactivas más angostas (se ensanchan en hover); la activa ocupa todo el ancho
+        selected ? "mx-0" : "mx-2 hover:mx-0 hover:brightness-110",
         !spin && (tone.border ? FIXED[tone.border] : dashed ? "" : "bg-border"),
         // ring (box-shadow) y no outline: tailwind-merge descartaba `outline` junto a `outline-2`
         selected && "relative ring-2 ring-primary ring-offset-2 ring-offset-card")}

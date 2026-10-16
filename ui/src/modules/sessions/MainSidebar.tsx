@@ -61,7 +61,7 @@ export function MainSidebar() {
           <div className="ml-auto flex items-center gap-1">
             <ConfigButton id="sessions" title="Sesiones" />
             <button aria-label="Nueva sesión" title="Nueva sesión" onClick={() => openModal("session")}
-              className="text-muted-foreground hover:text-foreground"><Plus size={13} /></button>
+              className="grid h-5 w-5 place-items-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><Plus size={13} /></button>
           </div>
         </div>
 

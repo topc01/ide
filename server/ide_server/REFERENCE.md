@@ -396,7 +396,8 @@ colapsables y la misma card. El ⚙ de cada sección (y el de la sidebar princip
 abre el **módulo Configuración** (id `config`) en esa sección: **agrupar por** estado, repo, stack
 (con el título de la PR de abajo), autor (solo Revisiones) o sin agrupar; en Revisiones también
 los revisores visibles en los chips. El agrupado se recuerda por navegador. La card seleccionada
-lleva contorno de acento y una barrita a la izquierda.
+lleva contorno de acento, una barrita a la izquierda y ocupa todo el ancho; las demás son un poco
+más angostas y se ensanchan al pasar el mouse.
 
 **Secciones:** qué secciones están abiertas o cerradas (Revisiones, Mis PRs y sus grupos, grupos
 de sesiones, secciones del módulo Revisión) se recuerda entre recargas, por navegador

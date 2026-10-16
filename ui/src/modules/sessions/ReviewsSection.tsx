@@ -287,7 +287,7 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
       </>}
       headerExtra={<>
         <button aria-label="Nueva revisión" title="Nueva revisión" onClick={() => openModal("review")}
-          className="text-muted-foreground hover:text-foreground"><Plus size={13} /></button>
+          className="grid h-5 w-5 place-items-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><Plus size={13} /></button>
       </>}
       beforeGroups={chips.length > 0 && (
         <div className="mx-2.5 mt-1.5 flex flex-wrap gap-1" aria-label="Revisiones pendientes por revisor">

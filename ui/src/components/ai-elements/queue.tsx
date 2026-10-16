@@ -23,7 +23,7 @@ export const QueueSectionTrigger = ({ className, children, ...p }: React.Compone
   <Collapsible.Trigger asChild>
     <button title="Colapsar / expandir el grupo" type="button" className={cn(
       "flex w-full items-center gap-1 px-2.5 py-1 text-[10px] uppercase tracking-wide",
-      "text-muted-foreground hover:text-foreground", className)} {...p}>
+      "rounded text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground", className)} {...p}>
       <ChevronRight size={12} className="transition-transform group-data-[state=open]/section:rotate-90" />
       {children}
     </button>

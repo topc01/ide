@@ -13,7 +13,7 @@ export function ActionButton({ label, icon: Icon, active, onClick, disabled }: {
     <button aria-label={label} title={label} onClick={onClick} disabled={disabled}
       className={cn(
         "grid h-8 w-8 place-items-center rounded-md transition-colors disabled:opacity-40",
-        active ? "bg-accent text-primary" : "text-muted-foreground hover:text-foreground",
+        active ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
       )}>
       <Icon size={16} strokeWidth={2} />
     </button>
