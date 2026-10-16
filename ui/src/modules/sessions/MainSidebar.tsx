@@ -70,7 +70,7 @@ export function MainSidebar() {
         <ReviewsSection sessions={reviews} />
       </div>
       <OffscreenMarker where={offscreen} side="below" container={scrollRef} />
-      <div className="mt-auto"><CustomizationsFooter /></div>
+      <div className="pb-2"><CustomizationsFooter /></div>
     </aside>
   );
 }

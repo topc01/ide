@@ -423,6 +423,10 @@ la sidebar, aparece una píldora horizontal de acento, centrada, fija arriba o a
 al acercar el puntero y muy cerca se transforma (animado) en una mini-card con repo, número y título; click =
 scroll hasta centrarla.
 
+**Sección Configuración** (al final de la sidebar principal, mismo encabezado colapsable que
+Mis desarrollos y Revisiones): las customizaciones de Claude Code (overview, roles, agents,
+skills, instructions, hooks, MCP servers, plugins, tools); click abre su detalle.
+
 **Secciones:** qué secciones están abiertas o cerradas (Revisiones, Mis PRs y sus grupos, grupos
 de sesiones, secciones del módulo Revisión) se recuerda entre recargas, por navegador
 (`localStorage`).
