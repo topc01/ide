@@ -8,7 +8,9 @@ Reglas de parseo (las casillas `[ ]`/`[x]` se ignoran: hay líneas sin marcar co
   hay, es del repo de la PR.
 - En una línea con "este/esta PR" (p.ej. "merge en orden: A → B → este PR → C") solo cuenta lo
   que va antes: lo de después depende de esta, no al revés.
-- Si A depende de B y B (directa o indirectamente) de A, "van juntas": se muestran, no frenan."""
+- Si A depende de B y B (directa o indirectamente) de A, "van juntas": se muestran, no frenan.
+- Fuera de la sección también se leen frases sueltas ("Depende de finnecto-api#4624"): solo las
+  referencias después del verbo, y "no depende de …" se descarta."""
 from __future__ import annotations
 import json
 import re
@@ -32,10 +34,26 @@ def deps_section(body: str | None) -> str:
     return rest[: nxt.start()] if nxt else rest
 
 
+# Fuera de la sección: frases sueltas "Depende de finnecto-api#4624". Solo cuentan las referencias
+# después del verbo, y "no depende de …" se descarta.
+_LOOSE_RE = re.compile(r"(?<!\bno )\b(?:depende(?:n)? de|depends on|requiere(?:n)? (?:el |la |los |las )?(?:pr|prs|pull)s?\b|"
+                       r"requires|blocked by|bloquead[ao]s? por)", re.I)
+
+
+def _loose_lines(body: str | None) -> list[str]:
+    section = deps_section(body)
+    rest = (body or "").replace(section, "") if section else (body or "")
+    out = []
+    for line in rest.splitlines():
+        if m := _LOOSE_RE.search(line):
+            out.append(line[m.end():])
+    return out
+
+
 def parse_deps(body: str | None, owner: str, repo: str, number: int) -> list[tuple[str, int]]:
     """[(owner/repo, número)] de las dependencias directas declaradas, sin la propia PR."""
     out: list[tuple[str, int]] = []
-    for line in deps_section(body).splitlines():
+    for line in [*deps_section(body).splitlines(), *_loose_lines(body)]:
         if (m := _SELF_RE.search(line)) and _REF_RE.search(line[m.end():]):
             line = line[: m.start()]            # lo que va después de "este PR" depende de esta
         last = f"{owner}/{repo}"

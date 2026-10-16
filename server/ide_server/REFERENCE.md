@@ -302,8 +302,10 @@ consulta a GitHub. Si dos PRs se piden mutuamente, **van juntas** (⇄): se mues
 cuentan como pendientes. Las cards (y el selector) muestran `⛓ N` ámbar si faltan N por mergear
 o `⛓ ✓` verde; la cadena completa (✓ mergeada, ◌ abierta, ✗ cerrada, ⇄ juntas, "vía X" si es
 indirecta) está en el módulo Revisión y en la vista de la PR. Al mergear con dependencias
-pendientes el diálogo avisa y el botón pasa a **Mergear igual** (no bloquea). Texto fuera de esa
-sección (p.ej. "Depende de …" en el cuerpo) no se lee.
+pendientes el diálogo avisa y el botón pasa a **Mergear igual** (no bloquea). Fuera de esa
+sección también se leen frases sueltas ("Depende de finnecto-api#4624", "depends on", "requiere el
+PR", "requires", "blocked by", "bloqueada por"): solo las referencias después del verbo; "no
+depende de …" se descarta.
 
 **Stacks:** si GitHub tiene la PR en un **stack nativo**, posición y tamaño son los de GitHub.
 Si no, se infieren: una PR está en un stack si su rama base es la rama (head) de otra PR
