@@ -24,7 +24,7 @@ export function ChangesPanel() {
         <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Archivos modificados
         </div>
-        <button aria-label="refrescar" onClick={() => load(activeSessionId)}
+        <button aria-label="refrescar" title="refrescar" onClick={() => load(activeSessionId)}
           className="text-muted-foreground hover:text-foreground">
           <RefreshCw size={13} />
         </button>
@@ -46,7 +46,7 @@ export function ChangesPanel() {
         <div className="px-1 py-2 text-xs text-muted-foreground">sin cambios</div>
       )}
       {activeSessionId !== null && !error && status?.files.map((f) => (
-        <button key={f.path}
+        <button title="Ver el diff de este archivo" key={f.path}
           onClick={() => openTab({
             id: `diff:${activeSessionId ?? ""}:${f.status}:${f.path}`,
             type: "file", label: basename(f.path),

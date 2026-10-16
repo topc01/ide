@@ -43,8 +43,8 @@ export function MergeButton({ pr, above }: { pr: GhPr; above: number }) {
           Si tienes esas ramas abiertas en una sesión, después haz <code>git pull --rebase</code> ahí.</p>}
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button disabled={busy} onClick={run}>{busy ? "Rebaseando…" : "Mergear"}</Button>
+          <Button title="Cerrar sin mergear" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button title="Rebasear, empujar y armar el auto-merge (squash)" disabled={busy} onClick={run}>{busy ? "Rebaseando…" : "Mergear"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

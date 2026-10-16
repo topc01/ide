@@ -53,19 +53,19 @@ export function SessionView() {
   return (
     <div className="flex h-full flex-col">
       <div role="tablist" className="flex border-b border-border bg-title-bg">
-        <button role="tab" aria-selected={tab === "claude"} className={tabCls(tab === "claude")} onClick={() => setTab("claude")}>claude</button>
-        {docName && <button role="tab" aria-selected={tab === "doc"} className={tabCls(tab === "doc")} onClick={() => setTab("doc")}>{docName}</button>}
+        <button title="Terminal con el claude de la sesión" role="tab" aria-selected={tab === "claude"} className={tabCls(tab === "claude")} onClick={() => setTab("claude")}>claude</button>
+        {docName && <button title="Documento de estado de la sesión" role="tab" aria-selected={tab === "doc"} className={tabCls(tab === "doc")} onClick={() => setTab("doc")}>{docName}</button>}
         {scripts.map((s) => (
           <span key={s.terminalId} className={tabCls(tab === s.terminalId)}>
-            <button role="tab" aria-selected={tab === s.terminalId} onClick={() => setTab(s.terminalId)}>{s.label}</button>
-            <button aria-label={`cerrar ${s.label}`} onClick={() => { closeScriptTab(session.id, s.terminalId); setTab("claude"); }}><X size={11} /></button>
+            <button title="Salida de este script" role="tab" aria-selected={tab === s.terminalId} onClick={() => setTab(s.terminalId)}>{s.label}</button>
+            <button aria-label={`cerrar ${s.label}`} title={`cerrar ${s.label}`} onClick={() => { closeScriptTab(session.id, s.terminalId); setTab("claude"); }}><X size={11} /></button>
           </span>
         ))}
       </div>
       {session.prState === "stale" && (
         <div className="flex items-center gap-2 bg-accent px-3 py-1 text-xs">
           El PR tiene commits nuevos desde tu revisión.
-          <Button size="sm" onClick={() => act(refreshReview(getWs(), session.id))}>Refrescar</Button>
+          <Button title="Mover el worktree al head nuevo del PR" size="sm" onClick={() => act(refreshReview(getWs(), session.id))}>Refrescar</Button>
         </div>
       )}
       {error && <p role="alert" className="px-3 py-1 text-xs text-destructive">{error}</p>}
@@ -79,7 +79,7 @@ export function SessionView() {
               <>
                 {session.launchError && <p role="alert" className="text-xs text-destructive">{session.launchError}</p>}
                 {session.launchError || error
-                  ? <Button onClick={() => { setError(null); act(openSession(getWs(), session.id)); }}>Reintentar</Button>
+                  ? <Button title="Volver a lanzar claude en esta sesión" onClick={() => { setError(null); act(openSession(getWs(), session.id)); }}>Reintentar</Button>
                   : <span className="text-muted-foreground">abriendo…</span>}
               </>
             )}

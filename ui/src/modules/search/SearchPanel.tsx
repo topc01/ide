@@ -47,9 +47,9 @@ export function SearchPanel() {
           onClick={() => sid && openTab({ id: `airegex:${sid}`, type: "airegex", label: "Regex IA" })}>✨</button>
       </div>
       <div className="flex flex-wrap items-center gap-1 text-xs">
-        <button aria-pressed={searchOptions.caseSensitive} className={`rounded px-1 ${searchOptions.caseSensitive ? "bg-primary/30" : ""}`}
+        <button title="Distinguir mayúsculas" aria-pressed={searchOptions.caseSensitive} className={`rounded px-1 ${searchOptions.caseSensitive ? "bg-primary/30" : ""}`}
           onClick={() => setSearchOptions({ caseSensitive: !searchOptions.caseSensitive })}>Aa</button>
-        <button aria-pressed={searchOptions.wholeWord} className={`rounded px-1 ${searchOptions.wholeWord ? "bg-primary/30" : ""}`}
+        <button title="Solo palabra completa" aria-pressed={searchOptions.wholeWord} className={`rounded px-1 ${searchOptions.wholeWord ? "bg-primary/30" : ""}`}
           onClick={() => setSearchOptions({ wholeWord: !searchOptions.wholeWord })}>ab|</button>
         <input className="w-24 rounded border border-border bg-background px-1" placeholder="incluir"
           value={searchOptions.include} onChange={(e) => setSearchOptions({ include: e.target.value })} />
@@ -69,7 +69,7 @@ export function SearchPanel() {
             <div key={f.path} className="mb-1">
               <div className="text-xs font-medium text-foreground">{f.path}</div>
               {f.lines.map((l, k) => (
-                <button key={k} className="block w-full truncate text-left font-mono text-xs hover:bg-card"
+                <button title="Abrir este resultado" key={k} className="block w-full truncate text-left font-mono text-xs hover:bg-card"
                   onClick={() => sid && openFile(getWs(), sid, f.path, l.line)}>
                   <span className="mr-2 text-muted-foreground">{l.line}</span>
                   <Highlighted text={l.text} ranges={l.ranges} />

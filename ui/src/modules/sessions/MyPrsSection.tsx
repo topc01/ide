@@ -23,7 +23,7 @@ export function MyPrsSection() {
   return (
     <Collapsible.Root defaultOpen className="group/myprs mt-3 border-t border-border pt-2">
       <div className="flex items-center gap-1.5 px-2.5">
-        <Collapsible.Trigger className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-foreground hover:text-primary">
+        <Collapsible.Trigger title="Colapsar / expandir la sección" className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-foreground hover:text-primary">
           <ChevronRight size={13} className="transition-transform group-data-[state=open]/myprs:rotate-90" />
           Mis PRs
         </Collapsible.Trigger>
@@ -56,7 +56,7 @@ export function MyPrsSection() {
             <QueueSection key={key} defaultOpen className="mt-1">
               <QueueSectionTrigger><QueueSectionLabel label={label} count={prs.length} /></QueueSectionTrigger>
               <QueueSectionContent>
-                <QueueList>{prs.map((pr) => <PrCard key={pr.url} pr={pr} openOnClick
+                <QueueList>{prs.map((pr) => <PrCard key={pr.url} pr={pr}
                   merge={{ job: gh?.merges?.[pr.url],
                            above: pr.stack ? pr.stack.size - pr.stack.position : 0 }} />)}</QueueList>
               </QueueSectionContent>

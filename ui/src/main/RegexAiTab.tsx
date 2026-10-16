@@ -44,7 +44,7 @@ export function RegexAiTab({ id }: { id: string }) {
       {regex && (
         <div className="flex items-center gap-2 border-t border-border p-2">
           <code className="min-w-0 flex-1 truncate rounded bg-card px-2 py-1 text-xs">{regex}</code>
-          <button className="rounded bg-primary/30 px-2 py-1 text-xs"
+          <button title="Usar esta regex en la búsqueda" className="rounded bg-primary/30 px-2 py-1 text-xs"
             onClick={() => { setSearchRegex(true); setSearchQuery(regex); setActivePanel("search"); }}>
             Insertar regex
           </button>

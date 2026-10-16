@@ -83,8 +83,8 @@ export function NewFolderSessionModal() {
         )}
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
         <DialogFooter>
-          <Button variant="ghost" onClick={closeModal}>Cancelar</Button>
-          <Button onClick={submit} disabled={busy}>Crear</Button>
+          <Button title="Cerrar sin crear" variant="ghost" onClick={closeModal}>Cancelar</Button>
+          <Button title="Crear la sesión y lanzar claude" onClick={submit} disabled={busy}>Crear</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

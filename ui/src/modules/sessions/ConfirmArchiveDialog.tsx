@@ -29,10 +29,10 @@ export function ConfirmArchiveDialog({ id, open, onClose }: { id: string; open: 
         </p>
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button title="Cerrar sin archivar" variant="ghost" onClick={onClose}>Cancelar</Button>
           {needsForce
-            ? <Button variant="destructive" disabled={busy} onClick={() => run(true)}>Archivar igual</Button>
-            : <Button variant="destructive" disabled={busy} onClick={() => run(false)}>{busy ? "Archivando…" : "Archivar"}</Button>}
+            ? <Button title="Archivar aunque falle el script archive" variant="destructive" disabled={busy} onClick={() => run(true)}>Archivar igual</Button>
+            : <Button title="Archivar la sesión (no se puede deshacer desde la UI)" variant="destructive" disabled={busy} onClick={() => run(false)}>{busy ? "Archivando…" : "Archivar"}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

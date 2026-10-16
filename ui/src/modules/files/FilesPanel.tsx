@@ -37,7 +37,7 @@ function TreeNode({ sessionId, path, entry, depth }:
   };
   return (
     <div>
-      <button data-file-node={full} onClick={onClick} style={{ paddingLeft: depth * 12 + 10 }}
+      <button title="Abrir / expandir" data-file-node={full} onClick={onClick} style={{ paddingLeft: depth * 12 + 10 }}
         className="flex w-full items-center gap-1.5 py-0.5 text-xs text-foreground hover:bg-accent">
         {entry.type === "dir" ? <Folder size={12} className="text-muted-foreground" />
           : <FileIcon size={12} className="text-muted-foreground" />}

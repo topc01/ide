@@ -15,7 +15,7 @@ export const QueueSection = ({ defaultOpen = true, className, ...p }:
 
 export const QueueSectionTrigger = ({ className, children, ...p }: React.ComponentProps<"button">) => (
   <Collapsible.Trigger asChild>
-    <button type="button" className={cn(
+    <button title="Colapsar / expandir el grupo" type="button" className={cn(
       "flex w-full items-center gap-1 px-2.5 py-1 text-[10px] uppercase tracking-wide",
       "text-muted-foreground hover:text-foreground", className)} {...p}>
       <ChevronRight size={12} className="transition-transform group-data-[state=open]/section:rotate-90" />
@@ -57,6 +57,7 @@ export const QueueItemDescription = ({ completed = false, className, ...p }:
 export const QueueItemActions = ({ className, ...p }: React.ComponentProps<"div">) =>
   <div className={cn("ml-auto flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100", className)} {...p} />;
 
-export const QueueItemAction = ({ className, ...p }:
+// botón de ícono: la explicación del hover sale del aria-label si no se pasa `title`
+export const QueueItemAction = ({ className, title, ...p }:
   Omit<React.ComponentProps<typeof Button>, "variant" | "size">) =>
-  <Button variant="ghost" size="icon-xs" className={className} {...p} />;
+  <Button variant="ghost" size="icon-xs" className={className} title={title ?? p["aria-label"]} {...p} />;

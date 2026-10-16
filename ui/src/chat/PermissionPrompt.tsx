@@ -8,8 +8,8 @@ export function PermissionPrompt({ tool, detail, onDecide }:
         ¿Permitir <span className="font-medium text-primary">{tool}</span>?{" "}
         <span className="font-mono text-muted-foreground">{detail}</span>
       </span>
-      <Button size="sm" onClick={() => onDecide(true)}>Permitir</Button>
-      <Button size="sm" variant="secondary" onClick={() => onDecide(false)}>Denegar</Button>
+      <Button title="Permitir esta acción a Claude" size="sm" onClick={() => onDecide(true)}>Permitir</Button>
+      <Button title="Denegar esta acción" size="sm" variant="secondary" onClick={() => onDecide(false)}>Denegar</Button>
     </div>
   );
 }

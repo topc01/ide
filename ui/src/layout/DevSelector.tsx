@@ -84,7 +84,7 @@ export function DevSelector() {
 
   return (
     <div ref={ref} className={cn("relative shrink-0 border-b border-r border-border bg-card", innerOpen ? "w-[300px]" : "w-11")}>
-      <button aria-label="Cambiar de desarrollo" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+      <button aria-label="Cambiar de desarrollo" title="Cambiar de desarrollo" aria-expanded={open} onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-1.5 px-2.5 py-2 hover:bg-accent/60">
         {innerOpen ? (<>
           {current ? <DevLine d={current} />
@@ -107,7 +107,7 @@ export function DevSelector() {
                 <div key={g}>
                   <div className="px-2.5 pb-0.5 pt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">{g}</div>
                   {items.map((d) => (
-                    <button key={d.key} role="option" aria-selected={d.key === current?.key} onClick={() => pick(d)}
+                    <button title="Cambiar a este desarrollo" key={d.key} role="option" aria-selected={d.key === current?.key} onClick={() => pick(d)}
                       className={cn("flex w-full border-l-2 border-transparent px-2.5 py-1 hover:bg-accent",
                         d.key === current?.key && "border-primary bg-accent")}>
                       <DevLine d={d} />

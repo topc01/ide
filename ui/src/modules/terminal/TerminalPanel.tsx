@@ -73,7 +73,7 @@ export function TerminalPanel() {
               ))}
             </div>
           )}
-          <Button onClick={handleOpenTerminal}>Abrir terminal</Button>
+          <Button title="Abrir una terminal en la sesión" onClick={handleOpenTerminal}>Abrir terminal</Button>
         </div>
       ) : (
         <div className="mx-2.5 text-[11px] text-muted-foreground">

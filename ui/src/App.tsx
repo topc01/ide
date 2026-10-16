@@ -19,6 +19,7 @@ import { SettingsModal } from "./modules/settings/SettingsModal";
 import { MainPanel } from "./layout/MainPanel";
 import { StatusBar } from "./layout/StatusBar";
 import { DevSelector } from "./layout/DevSelector";
+import { HoverTips } from "./layout/HoverTips";
 
 export default function App() {
   const setUiModules = useFolders((s) => s.setUiModules);
@@ -40,6 +41,7 @@ export default function App() {
         <MainPanel />
       </div>
       <StatusBar />
+      <HoverTips />
       <SettingsModal />
       <NewFolderSessionModal />
     </div>

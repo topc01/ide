@@ -19,7 +19,7 @@ export function FitBadge({ fit }: { fit?: FitInfo | null }) {
       <div className="flex items-center gap-2">
         <span data-fit={fit.level} className={lp.className} style={lp.style}>{LABEL[fit.level]}</span>
         <span className="text-muted-foreground">{fit.estimatedTps} tok/s</span>
-        <button data-fit-details onClick={() => setOpen((o) => !o)}
+        <button title="Ver por qué entra (o no) en esta máquina" data-fit-details onClick={() => setOpen((o) => !o)}
           className="text-muted-foreground hover:text-foreground">detalles</button>
       </div>
       {open && (

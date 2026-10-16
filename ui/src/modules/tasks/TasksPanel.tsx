@@ -25,7 +25,7 @@ export function TasksPanel() {
     <div className="p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tareas</span>
-        <button onClick={() => setAdding(true)} className="flex items-center gap-1 text-[11px] font-semibold text-[#e0863f]"><Plus size={12} />Nueva</button>
+        <button title="Crear una tarea" onClick={() => setAdding(true)} className="flex items-center gap-1 text-[11px] font-semibold text-[#e0863f]"><Plus size={12} />Nueva</button>
       </div>
       {adding && (
         <input autoFocus placeholder="Nombre de la tarea" value={name}
@@ -36,7 +36,7 @@ export function TasksPanel() {
       {error && <div className="px-1 py-2 text-xs text-destructive">desconectado — {error}</div>}
       {tasks.length === 0 && !error && <div className="px-1 py-2 text-xs text-muted-foreground">todavía no hay tareas</div>}
       {tasks.map((t) => (
-        <button key={t.id} onClick={() => open(t.id, t.title)}
+        <button title="Abrir esta tarea" key={t.id} onClick={() => open(t.id, t.title)}
           className="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left hover:bg-accent">
           <ListChecks size={13} className="mt-0.5 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1">

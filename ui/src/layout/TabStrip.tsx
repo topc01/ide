@@ -13,7 +13,7 @@ export function TabStrip() {
       {openTabs.map((t) => (
         <div key={t.id} className={tabCls(activeTabId === t.id)} onClick={() => setActiveTab(t.id)}>
           {t.label}
-          <button aria-label={`cerrar ${t.label}`} onClick={(e) => { e.stopPropagation(); closeTab(t.id); }}
+          <button aria-label={`cerrar ${t.label}`} title={`cerrar ${t.label}`} onClick={(e) => { e.stopPropagation(); closeTab(t.id); }}
             className="text-muted-foreground hover:text-foreground"><X size={12} /></button>
         </div>
       ))}

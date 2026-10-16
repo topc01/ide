@@ -26,13 +26,13 @@ export function RepoLine({ session, repo }: { session: FolderSession; repo: Repo
       <span className="font-mono text-primary">{repo.branch ?? "(detached)"}</span>
       {repo.state === "missing" && <span className="text-destructive">missing</span>}
       {repo.state === "missing" && (
-        <button onClick={() => rmRepo(getWs(), session.id, repo.name).catch((e: any) => setError(e?.message ?? String(e)))}
+        <button title="Quitar este repo de la sesión" onClick={() => rmRepo(getWs(), session.id, repo.name).catch((e: any) => setError(e?.message ?? String(e)))}
           className="text-[10px] underline text-muted-foreground hover:text-foreground">quitar</button>)}
       {repo.setup === "ok" && <span className="text-muted-foreground">✓ setup</span>}
       {repo.setup === "failed" && <span className="text-destructive">✗ setup</span>}
       {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
       {repo.state !== "missing" && (
-        <button aria-label={`Scripts de ${repo.name}`} onClick={() => setOpen((o) => !o)}
+        <button aria-label={`Scripts de ${repo.name}`} title={`Scripts de ${repo.name}`} onClick={() => setOpen((o) => !o)}
           className="ml-auto text-muted-foreground hover:text-foreground"><MoreHorizontal size={12} /></button>)}
       {open && (
         <div role="menu" className="absolute right-2 top-5 z-10 w-44 rounded-md border border-border bg-popover p-1 shadow">

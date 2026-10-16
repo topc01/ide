@@ -13,14 +13,14 @@ export function SettingsModal() {
       <DialogContent className="flex h-[540px] max-w-[760px] gap-0 p-0 sm:max-w-[760px]">
         <nav className="w-[212px] shrink-0 border-r border-border bg-card p-2">
           {items.map((i) => (
-            <button key={i.key} onClick={() => openSettings(i.key)}
+            <button title="Ver esta sección" key={i.key} onClick={() => openSettings(i.key)}
               className={cn("flex w-full items-center justify-between rounded px-2 py-1.5 text-xs",
                 i.key === selectedKey ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
               <span>{i.title}</span>
               {i.count > 0 && <span className="text-[10px] text-muted-foreground">{i.count}</span>}
             </button>
           ))}
-          <button onClick={() => openSettings("models")}
+          <button title="Modelos locales" onClick={() => openSettings("models")}
             className={cn("flex w-full items-center justify-between rounded px-2 py-1.5 text-xs",
               isModels ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
             <span>Modelos</span>

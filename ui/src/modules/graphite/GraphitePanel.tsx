@@ -31,7 +31,7 @@ export function GraphitePanel() {
         <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Stack de branches
         </div>
-        <button aria-label="refrescar" onClick={() => load(activeSessionId)}
+        <button aria-label="refrescar" title="refrescar" onClick={() => load(activeSessionId)}
           className="text-muted-foreground hover:text-foreground">
           <RefreshCw size={13} />
         </button>
@@ -43,7 +43,7 @@ export function GraphitePanel() {
             <span className="h-3 w-3 shrink-0 rounded-full border-2"
               style={{ borderColor: b.current ? "#e0863f" : b.needsRestack ? "#bd925f" : "#4a463d",
                        background: "#161513" }} />
-            <button onClick={() => toggleBranch(activeSessionId, b.name)}
+            <button title="Ver los commits de esta rama" onClick={() => toggleBranch(activeSessionId, b.name)}
               className="min-w-0 flex-1 truncate text-left font-mono text-[11.5px]"
               style={{ color: b.current ? "#f0ece4" : "#cfc9bd" }}>
               {b.name}
@@ -52,7 +52,7 @@ export function GraphitePanel() {
               <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-[#e0863f]">actual</span>
             )}
             {b.needsRestack && confirming !== b.name && (
-              <button aria-label={`restack ${b.name}`} onClick={() => setConfirming(b.name)}
+              <button aria-label={`restack ${b.name}`} title={`restack ${b.name}`} onClick={() => setConfirming(b.name)}
                 className="shrink-0 text-[#bd925f] hover:text-[#e0863f]">
                 <CornerRightDown size={13} />
               </button>
@@ -60,9 +60,9 @@ export function GraphitePanel() {
             {confirming === b.name && (
               <span className="flex shrink-0 items-center gap-1.5 text-[10px]">
                 <span className="text-muted-foreground">restackear?</span>
-                <button className="text-[#7fb069]"
+                <button title="Confirmar el restack" className="text-[#7fb069]"
                   onClick={() => { setConfirming(null); restack(activeSessionId, b.name); }}>sí</button>
-                <button className="text-muted-foreground" onClick={() => setConfirming(null)}>no</button>
+                <button title="Cancelar" className="text-muted-foreground" onClick={() => setConfirming(null)}>no</button>
               </span>
             )}
           </div>
@@ -71,7 +71,7 @@ export function GraphitePanel() {
               style={{ borderLeft: b.needsRestack ? "1px dashed #4a463d" : "1px solid #332f28" }}>
               {(commitsByBranch[b.name] ?? []).map((c) => (
                 <div key={c.hash} className="my-0.5">
-                  <button onClick={() => toggleCommit(c.hash)}
+                  <button title="Ver los archivos de este commit" onClick={() => toggleCommit(c.hash)}
                     className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left hover:bg-accent">
                     <span className="shrink-0 font-mono text-[10.5px] text-[#e0863f]">{c.hash}</span>
                     <span className="min-w-0 flex-1 truncate text-[11px] text-[#cfc9bd]">{c.message}</span>
@@ -79,7 +79,7 @@ export function GraphitePanel() {
                   {expandedCommits.includes(c.hash) && (
                     <div className="pb-1 pl-4">
                       {c.files.map((f) => (
-                        <button key={f.path}
+                        <button title="Ver el diff de este archivo en el commit" key={f.path}
                           onClick={() => openTab({
                             id: `diff:${activeSessionId ?? ""}:@${c.hash}:${f.path}`,
                             type: "file", label: basename(f.path),

@@ -25,11 +25,11 @@ export function Composer({ onSend, onStop, streaming }:
         onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
         placeholder="Escribe un mensaje…" className="flex-1" />
       {streaming ? (
-        <Button variant="secondary" size="icon" aria-label="detener" onClick={onStop}>
+        <Button variant="secondary" size="icon" aria-label="detener" title="detener" onClick={onStop}>
           <Square size={16} />
         </Button>
       ) : (
-        <Button size="icon" aria-label="enviar" onClick={submit}>
+        <Button size="icon" aria-label="enviar" title="enviar" onClick={submit}>
           <Send size={16} />
         </Button>
       )}

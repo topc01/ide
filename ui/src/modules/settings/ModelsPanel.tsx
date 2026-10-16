@@ -15,7 +15,7 @@ function RepoIdInput() {
     <div className="flex gap-1">
       <input value={v} onChange={(e) => setV(e.target.value)} placeholder="mlx-community/..."
         className="flex-1 rounded border border-border bg-transparent px-2 py-1 text-xs" />
-      <button onClick={() => { const r = v.trim(); if (r) { downloadModel(getWs(), r); setV(""); } }}
+      <button title="Descargar este modelo" onClick={() => { const r = v.trim(); if (r) { downloadModel(getWs(), r); setV(""); } }}
         className="rounded bg-primary px-2 py-1 text-[10px] text-primary-foreground">Descargar</button>
     </div>
   );
@@ -50,7 +50,7 @@ export function ModelsPanel() {
                   {done ? (
                     <span className="text-[10px] text-muted-foreground">instalado</span>
                   ) : (
-                    <button data-download={m.repoId} disabled={!!dl && !dl.error}
+                    <button title="Descargar este modelo" data-download={m.repoId} disabled={!!dl && !dl.error}
                       onClick={() => downloadModel(getWs(), m.repoId)}
                       className="rounded bg-primary px-2 py-0.5 text-[10px] text-primary-foreground disabled:opacity-50">
                       {dl && !dl.error ? `${pct(dl.downloaded, dl.total)}%` : "Descargar"}
@@ -120,7 +120,7 @@ export function ModelsPanel() {
                   <span>{m.repoId}<span className="text-muted-foreground"> · {gb(m.sizeOnDisk)} GB</span></span>
                   <div className="flex items-center gap-2">
                     {m.repoId === inUse && <Badge variant="secondary" className="bg-role-pill text-primary text-[10px]">en uso</Badge>}
-                    <button data-delete={m.repoId} onClick={() => deleteModel(getWs(), m.repoId).then(reload)}
+                    <button title="Borrar este modelo del disco" data-delete={m.repoId} onClick={() => deleteModel(getWs(), m.repoId).then(reload)}
                       className="text-[10px] text-muted-foreground hover:text-destructive">Borrar</button>
                   </div>
                 </div>

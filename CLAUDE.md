@@ -70,6 +70,11 @@ De izquierda a derecha:
 | Sidebar interna | `InnerSidebar` (`ui/src/layout/`) | panel del módulo activo (ej. Terminal); colapsable |
 | Panel principal | `MainPanel` (`ui/src/layout/`) | la sesión abierta (tabs `claude`, `TICKET.md`, scripts) |
 
+**Convención de botones:** todo botón (y todo elemento clickeable con ícono) lleva `title` con
+una explicación corta de qué hace. `HoverTips` (`ui/src/layout/`) la muestra como tooltip
+dibujado en la página (sale en las capturas; el nativo del navegador no). En `QueueItemAction`
+el `title` sale del `aria-label` si no se pasa.
+
 ## Cómo correr los tests
 
 ```bash

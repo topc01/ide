@@ -20,7 +20,7 @@ export function NotionPanel() {
           onChange={(e) => setToken(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && token) { connect(token); setToken(""); } }}
           className="mb-2 w-full rounded border border-border bg-background px-2 py-1 font-mono text-[11.5px]" />
-        <button onClick={() => { if (token) { connect(token); setToken(""); } }} disabled={!token}
+        <button title="Conectar Notion con este token" onClick={() => { if (token) { connect(token); setToken(""); } }} disabled={!token}
           className="mb-2 rounded bg-[#e0863f] px-3 py-1 text-[11.5px] font-semibold text-black disabled:opacity-50">
           Conectar
         </button>
@@ -39,9 +39,9 @@ export function NotionPanel() {
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Notion</span>
         <div className="flex items-center gap-1">
-          <button aria-label="desconectar" onClick={() => disconnect()} className="text-muted-foreground hover:text-foreground"><LogOut size={13} /></button>
-          <button aria-label="refrescar" onClick={() => load()} className="text-muted-foreground hover:text-foreground"><RefreshCw size={13} /></button>
-          <button onClick={() => setAdding(true)} className="flex items-center gap-1 text-[11px] font-semibold text-[#e0863f]"><Plus size={12} />Nueva</button>
+          <button aria-label="desconectar" title="desconectar" onClick={() => disconnect()} className="text-muted-foreground hover:text-foreground"><LogOut size={13} /></button>
+          <button aria-label="refrescar" title="refrescar" onClick={() => load()} className="text-muted-foreground hover:text-foreground"><RefreshCw size={13} /></button>
+          <button title="Agregar una página de Notion" onClick={() => setAdding(true)} className="flex items-center gap-1 text-[11px] font-semibold text-[#e0863f]"><Plus size={12} />Nueva</button>
         </div>
       </div>
       {adding && (
@@ -52,7 +52,7 @@ export function NotionPanel() {
       )}
       {error && <div className="px-1 py-2 text-xs text-destructive">desconectado — {error}</div>}
       {pages.map((p) => (
-        <button key={p.id} onClick={() => openTab({ id: `notion:${p.id}`, type: "page", label: p.title })}
+        <button title="Abrir esta página" key={p.id} onClick={() => openTab({ id: `notion:${p.id}`, type: "page", label: p.title })}
           className="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left hover:bg-accent">
           <FileText size={13} className="mt-0.5 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-foreground">{p.title}</span>

@@ -34,7 +34,7 @@ export function MlxConfigSection() {
         <label className="flex flex-col gap-1">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Prompt del router</span>
-            <button onClick={() => update({ routerPrompt: defaultPrompt })}
+            <button title="Volver al prompt por defecto" onClick={() => update({ routerPrompt: defaultPrompt })}
               className="text-[10px] text-muted-foreground hover:text-foreground">restaurar default</button>
           </div>
           <textarea value={routerPrompt} onChange={(e) => update({ routerPrompt: e.target.value })}
@@ -42,7 +42,7 @@ export function MlxConfigSection() {
         </label>
         {error && <div className="text-[10px] text-destructive">{error}</div>}
         <div>
-          <button data-save-config onClick={save}
+          <button title="Guardar la configuración" data-save-config onClick={save}
             className="rounded bg-primary px-2 py-1 text-[10px] text-primary-foreground">Guardar</button>
         </div>
       </div>

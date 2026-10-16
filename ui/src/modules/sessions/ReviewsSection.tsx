@@ -157,7 +157,7 @@ function ReviewersMenu({ gh }: { gh: GithubReviews | null }) {
   };
   return (
     <div className="relative">
-      <button aria-label="Configurar revisiones" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+      <button aria-label="Configurar revisiones" title="Configurar revisiones" aria-expanded={open} onClick={() => setOpen((o) => !o)}
         className="grid h-5 w-5 place-items-center rounded text-muted-foreground hover:text-foreground">
         <MoreHorizontal size={13} />
       </button>
@@ -207,7 +207,7 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
   return (
     <Collapsible.Root defaultOpen className="group/reviews mt-3 border-t border-border pt-2">
       <div className="flex items-center gap-1.5 px-2.5">
-        <Collapsible.Trigger className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-foreground hover:text-primary">
+        <Collapsible.Trigger title="Colapsar / expandir la sección" className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-foreground hover:text-primary">
           <ChevronRight size={13} className="transition-transform group-data-[state=open]/reviews:rotate-90" />
           Revisiones
         </Collapsible.Trigger>
@@ -216,7 +216,7 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
         {!gh && !ghError && <span className="text-[10px] text-muted-foreground">cargando…</span>}
         <div className="ml-auto flex items-center gap-1">
           <ReviewersMenu gh={gh} />
-          <button aria-label="Nueva revisión" onClick={() => openModal("review")}
+          <button aria-label="Nueva revisión" title="Nueva revisión" onClick={() => openModal("review")}
             className="text-muted-foreground hover:text-foreground"><Plus size={13} /></button>
         </div>
       </div>
