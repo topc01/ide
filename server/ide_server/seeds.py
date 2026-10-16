@@ -172,3 +172,61 @@ PERM_MAIN = {"permissions": {
 }}
 
 PERM_FULL = {"permissions": {"defaultMode": "bypassPermissions"}}
+
+
+def skill_handoff(root) -> str:
+    """Skill personal (~/.claude/skills/ide-handoff) para traspasar un desarrollo de Conductor al IDE."""
+    return SKILL_HANDOFF.replace("{{workspace}}", str(root))
+
+
+SKILL_HANDOFF = """\
+---
+name: ide-handoff
+description: Traspasa el desarrollo de esta sesión (un workspace de Conductor u otro worktree de un repo de Finnecto) al IDE agéntico. Mueve el worktree entero a una sesión del IDE (cambios sin commitear, .env, base de la api incluidos) y le deja un resumen de traspaso. Usar cuando el usuario pida "pasa esto al IDE", "traspasa al ide", "handoff", "/ide-handoff".
+---
+
+# Traspasar este desarrollo al IDE
+
+El IDE vive en `{{workspace}}`. El comando `ide handoff` MUEVE esta carpeta (`git worktree move`) a
+`{{workspace}}/.ide/worktrees/<sesión>/<repo>`: después de correrlo, el directorio actual deja de
+existir. Por eso es **lo último** que haces en esta sesión.
+
+## Pasos
+
+1. **Comprueba dónde estás:** `git rev-parse --show-toplevel` (tiene que ser el directorio actual),
+   `git branch --show-current` y `git status --short`. No hace falta commitear: los cambios viajan.
+
+2. **Ticket de Notion:** busca en la conversación, en el nombre de la rama o en la PR
+   (`gh pr view --json body`) el link del ticket. Quédate solo con el **id de la página (32 hex)**.
+   Si no lo encuentras, pregúntale al usuario; si no hay ticket, sigue sin `--notion`.
+   Si ya traspasaste otro repo del mismo ticket, este se agrega a esa sesión (queda fullstack).
+
+3. **Servidores:** si hay algo corriendo desde esta carpeta (el run de Conductor, vite, scripts),
+   pídele al usuario que lo pare. El comando se niega si encuentra procesos de esta carpeta.
+
+4. **Resumen de traspaso:** escríbelo en un archivo temporal (p.ej. `$TMPDIR/ide-handoff.md`), en
+   español, para que otra sesión de Claude retome sin esta conversación. La **primera línea** es el
+   título del desarrollo como `# Título` (no lo pases por la línea de comandos). Después:
+   - `## Estado` — en una o dos frases, dónde quedó.
+   - `## Hecho` — qué está implementado y commiteado; PRs abiertas (URL).
+   - `## Falta` — próximos pasos concretos.
+   - `## Decisiones` — lo que se decidió y por qué (lo que no se debe re-litigar).
+   - `## Dudas abiertas` — preguntas pendientes para el usuario.
+   - `## Cómo probar` — comandos, datos de prueba, URLs locales.
+   Sin secretos ni credenciales.
+
+5. **Estado inicial**, según el resumen: `in-progress` (se está implementando), `questions` (hay
+   dudas que bloquean), `blocked` (espera algo externo), `ready` (analizado, listo para
+   implementar), `analyzing` (todavía entendiendo), `done` (terminado, solo falta mergear).
+
+6. **Traspasa** (último comando; no ejecutes nada más después):
+   ```bash
+   IDE_WORKSPACE={{workspace}} ide handoff --from "$(pwd)" --notion <32 hex> --status <estado> --summary-file "$TMPDIR/ide-handoff.md"
+   ```
+   Imprime la sesión del IDE que lo recibió. Si falla, muestra el error al usuario y no reintentes
+   con `--force` sin que lo pida.
+
+7. **Avísale al usuario:** la sesión del IDE (id) quedó creada sin lanzar `claude`, con el resumen y
+   la ruta a este transcript en su `TICKET.md`; que la abra desde el IDE. Esta carpeta ya no existe:
+   puede archivar el workspace en Conductor.
+"""

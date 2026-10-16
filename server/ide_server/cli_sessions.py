@@ -6,7 +6,9 @@ import sys
 from pathlib import Path
 from typing import TextIO
 import httpx
-from ide_server import instances
+from ide_server import instances, seeds
+from ide_server.devs import STATUSES
+from ide_server.handoff import handoff
 from ide_server.repos_fs import add_repo, rm_repo, require_session
 from ide_server.scripts import run_script
 from ide_server.session_ops import delete_session
@@ -68,6 +70,16 @@ def _parser() -> argparse.ArgumentParser:
     dsh = dv.add_parser("show"); dsh.add_argument("id"); dsh.add_argument("--json", action="store_true")
     rr = r.add_parser("rm"); rr.add_argument("repo"); rr.add_argument("--force", action="store_true")
     rr.add_argument("--session")
+    ho = sub.add_parser("handoff", help="traspasa un worktree de otra herramienta (Conductor) a una sesión del IDE")
+    ho.add_argument("--from", dest="src", help="raíz del worktree a traspasar (se MUEVE al IDE)")
+    ho.add_argument("--notion", help="id (32 hex) o URL del ticket: si hay sesión de ese ticket, se agrega ahí")
+    ho.add_argument("--title", help="título de la sesión nueva (o la primera línea '# …' del resumen)")
+    ho.add_argument("--session", help="sesión del IDE que lo recibe (si no: la del ticket o una nueva)")
+    ho.add_argument("--status", help="estado inicial: " + " | ".join(STATUSES["ticket"]))
+    ho.add_argument("--summary-file", help="resumen de traspaso en markdown ('-' = stdin)")
+    ho.add_argument("--force", action="store_true", help="mover aunque haya procesos corriendo desde ahí")
+    ho.add_argument("--install-skill", action="store_true",
+                    help="instala la skill /ide-handoff en ~/.claude/skills (para las sesiones de Conductor)")
     sc = sub.add_parser("script"); sc.add_argument("name"); sc.add_argument("repo", nargs="?")
     sc.add_argument("--session")
     return ap
@@ -203,6 +215,28 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
     return 0
 
 
+def _handoff(a, root: Path, home: Path, out: TextIO) -> int:
+    if a.install_skill:
+        dest = home / ".claude" / "skills" / "ide-handoff" / "SKILL.md"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(seeds.skill_handoff(root), encoding="utf-8")
+        out.write(f"skill instalada: {dest}\n")
+        return 0
+    if not a.src or not a.summary_file:
+        raise SessionError("bad_request", "faltan --from y --summary-file (o usa --install-skill)")
+    try:
+        summary = sys.stdin.read() if a.summary_file == "-" else Path(a.summary_file).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise SessionError("bad_request", f"no se pudo leer --summary-file: {exc}")
+    r = handoff(root, Path(a.src), summary=summary, home=home, notion=a.notion, title=a.title,
+                session=a.session, status=a.status, force=a.force)
+    out.write(f"sesión {r['session']} ({'nueva' if r['created'] else 'existente'}): {r['repo']} @ "
+              f"{r['branch'] or '(detach)'} → {r['path']}\n")
+    if not r["transcripts"]:
+        out.write("aviso: no encontré transcripts de la sesión anterior\n")
+    return 0
+
+
 def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
          out: TextIO = sys.stdout, err: TextIO = sys.stderr) -> int:
     a = _parser().parse_args(argv)
@@ -216,6 +250,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _session(a, root, url, http, out, err, env)
         if a.group in ("status", "dev"):
             return _dev_cmd(a, url, http, out, env)
+        if a.group == "handoff":
+            return _handoff(a, root, home, out)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
         if a.group == "repo" and a.cmd == "add":
             info = add_repo(root, sid, a.repo, branch=a.branch, out=out)

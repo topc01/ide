@@ -180,6 +180,20 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 ### Repos y scripts
 - `ide repo add <repo> [--branch b] [--session id]`: worktree en `.ide/worktrees/<id>/<repo>`, symlink en la sesión, reserva `IDE_PORT` y corre `setup` (espera y muestra la salida). Branch default = `<id>`; si está ocupada → error que sugiere `--branch`. `setup` fallido → exit 1, el worktree queda marcado `setup failed` (reintenta con `ide script setup <repo>`).
 - `ide repo rm <repo> [--force]`: misma regla de cambios sin commitear; corre `archive`; quita worktree y symlink.
+
+### Traspaso desde Conductor (`ide handoff`)
+- `ide handoff --from <worktree> [--notion <id|url>] [--status <estado>] [--title t] [--session id] --summary-file <f|->`:
+  **mueve** el worktree entero (`git worktree move`; tiene que ser un worktree de un repo del
+  workspace, no su checkout principal) a `.ide/worktrees/<sesión>/<repo>`: viajan los cambios sin
+  commitear, `node_modules` y los `.env*` (en la api, con ellos su base y su proyecto docker). Lo
+  recibe la sesión del mismo ticket de Notion si existe (queda fullstack), si no una de ticket nueva
+  (título: `--title` o la primera línea `# …` del resumen). Al `TICKET.md` se agrega "Traspaso desde
+  Conductor" (rama, de dónde vino, rutas de los transcripts de Claude de esa carpeta) + el resumen;
+  `--status` fija el estado (si no, `analyzing`). **No lanza `claude`.** Se niega si hay procesos
+  corriendo desde esa carpeta (`busy`; `--force` lo fuerza). No pasa por el server (anda con el IDE
+  apagado); desde fuera del workspace, con `IDE_WORKSPACE=<workspace>`.
+- `ide handoff --install-skill`: instala `~/.claude/skills/ide-handoff/SKILL.md`, la skill
+  `/ide-handoff` para que una sesión de Conductor escriba el resumen y se traspase sola.
 - `ide script <nombre> [<repo>]`: corre `.ide/scripts/<repo>/<nombre>` en el worktree (repo inferido si la sesión tiene uno solo). Devuelve el exit code del script.
 
 ## 7. Plantillas (`.ide/sessions/templates/*.md`)
@@ -582,7 +596,7 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `forbidden_origin`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`, `already_running`,
 `unknown_worktree`, `bad_place`, `git_failed`, `bad_path`, `not_a_dir`, `not_found`, `too_large`,
-`binary`, `changed_on_disk`.
+`binary`, `changed_on_disk`, `busy`.
 
 ## 12. API (para integraciones)
 
