@@ -1,5 +1,5 @@
 // ui/src/modules/sessions/OffscreenMarker.tsx
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 /** Dónde quedó la card seleccionada (`[aria-current]`) respecto de la zona visible del scroll. */
 export function useOffscreenSelected(container: RefObject<HTMLElement | null>, key: unknown) {
@@ -30,21 +30,29 @@ export function useOffscreenSelected(container: RefObject<HTMLElement | null>, k
 
 /** Cerca del puntero (estilo dock), por distancia vertical a la raya: se engrosa al acercarse y,
  *  muy cerca, se despliega mostrando la card del desarrollo seleccionado. */
-function useProximity(container: RefObject<HTMLElement | null>, side: "above" | "below", active: boolean) {
+function useProximity(container: RefObject<HTMLElement | null>, side: "above" | "below", active: boolean,
+                      card: RefObject<HTMLElement | null>) {
   const [level, setLevel] = useState(0);              // 0 nada · 1 misma altura · 2 cerca · 3 desplegada
+  const levelRef = useRef(0);
   useEffect(() => {
     const el = container.current;
-    if (!el || !active) { setLevel(0); return; }
+    if (!el || !active) { setLevel(0); levelRef.current = 0; return; }
     const move = (e: MouseEvent) => {
+      // desplegada: sigue abierta mientras el puntero esté dentro de la card (con un margen chico)
+      const c = card.current?.getBoundingClientRect();
+      if (levelRef.current === 3 && c && e.clientX >= c.left - 6 && e.clientX <= c.right + 6
+          && e.clientY >= c.top - 6 && e.clientY <= c.bottom + 6) return;
       const r = el.getBoundingClientRect();
       const dy = side === "above" ? e.clientY - r.top : r.bottom - e.clientY;   // distancia a la raya
-      setLevel(dy > 70 ? 0 : dy > 36 ? 1 : dy > 14 ? 2 : 3);
+      const next = dy > 70 ? 0 : dy > 36 ? 1 : dy > 14 ? 2 : 3;
+      levelRef.current = next;
+      setLevel(next);
     };
-    const leave = () => setLevel(0);
+    const leave = () => { levelRef.current = 0; setLevel(0); };
     el.addEventListener("mousemove", move);
     el.addEventListener("mouseleave", leave);
     return () => { el.removeEventListener("mousemove", move); el.removeEventListener("mouseleave", leave); };
-  }, [container, side, active]);
+  }, [container, side, active, card]);
   return level;
 }
 
@@ -53,7 +61,8 @@ function useProximity(container: RefObject<HTMLElement | null>, side: "above" | 
 export function OffscreenMarker({ where, side, container }:
   { where: "above" | "below" | null; side: "above" | "below"; container: RefObject<HTMLElement | null> }) {
   const shown = where === side;
-  const level = useProximity(container, side, shown);
+  const cardRef = useRef<HTMLButtonElement>(null);
+  const level = useProximity(container, side, shown, cardRef);
   if (!shown) return null;
   const selected = container.current?.querySelector<HTMLElement>('[aria-current="true"]');
   // cabecera (repo #n) y título de la card real (mismas clases en cards de PR y de sesión)
@@ -70,12 +79,12 @@ export function OffscreenMarker({ where, side, container }:
   const open = level === 3;
   return (
     <div className={`sticky z-20 h-0 ${side === "above" ? "top-0" : "bottom-0"}`}>
-      <button aria-label="Ir al desarrollo seleccionado"
+      <button ref={cardRef} aria-label="Ir al desarrollo seleccionado"
         title={open ? "Click para ir al desarrollo seleccionado"
           : `El desarrollo seleccionado está más ${side === "above" ? "arriba" : "abajo"}: click para ir`}
         onClick={go}
-        className={`absolute left-1/2 -translate-x-1/2 overflow-hidden text-left text-xs transition-all duration-300 ease-out ${shape} ${side === "above" ? "top-1" : "bottom-1"}`}>
-        <div className={`px-2 py-1.5 transition-opacity ${open ? "opacity-100 delay-150 duration-200" : "opacity-0 duration-75"}`}>
+        className={`absolute left-1/2 -translate-x-1/2 overflow-hidden text-left text-xs transition-all duration-200 ease-out ${shape} ${side === "above" ? "top-1" : "bottom-1"}`}>
+        <div className={`px-2 py-1.5 transition-opacity ${open ? "opacity-100 delay-100 duration-150" : "opacity-0 duration-75"}`}>
           <div className="truncate font-mono text-[11px] font-bold">{head}</div>
           {title && <div className="truncate leading-snug">{title}</div>}
           <div className="mt-0.5 text-[10px] text-muted-foreground">{side === "above" ? "↑ más arriba" : "↓ más abajo"} · click para ir</div>
