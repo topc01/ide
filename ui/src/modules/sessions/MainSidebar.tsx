@@ -1,11 +1,12 @@
 // ui/src/modules/sessions/MainSidebar.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Star } from "lucide-react";
 import { useFolders } from "../../state/folders";
 import { fetchSessions, newSession, onSessionsChanged } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { getGrouper, groupSessions } from "./groupers";
 import { ConfigButton } from "./GroupedSection";
+import { OffscreenMarker, useOffscreenSelected } from "./OffscreenMarker";
 import { SessionItem } from "./SessionItem";
 import { ReviewsSection } from "./ReviewsSection";
 import { MyPrsSection } from "./MyPrsSection";
@@ -17,6 +18,9 @@ import { Queue, QueueSection, QueueSectionTrigger, QueueSectionLabel, QueueSecti
 export function MainSidebar() {
   const { tree, connected, groupBy, activeId, setTree, setConnected, setActive, openModal } = useFolders();
   const [mainError, setMainError] = useState<string | null>(null);
+  const activePrUrl = useFolders((s) => s.activePrUrl);
+  const scrollRef = useRef<HTMLElement>(null);
+  const offscreen = useOffscreenSelected(scrollRef, `${activeId}|${activePrUrl}`);
 
   useEffect(() => {
     const ws = getWs();
@@ -32,7 +36,8 @@ export function MainSidebar() {
   const groups = groupSessions(tickets, getGrouper(groupBy));
 
   return (
-    <aside className="flex w-[300px] flex-col overflow-auto border-r border-border bg-card">
+    <aside ref={scrollRef} className="flex w-[300px] flex-col overflow-auto border-r border-border bg-card">
+      <OffscreenMarker where={offscreen} side="above" container={scrollRef} />
       {!connected && (
         <div role="status" className="bg-destructive/15 px-2.5 py-1 text-[11px] text-destructive">
           desconectado del server: lo de abajo puede estar desactualizado
@@ -80,6 +85,7 @@ export function MainSidebar() {
         <ReviewsSection sessions={reviews} />
         <MyPrsSection />
       </div>
+      <OffscreenMarker where={offscreen} side="below" container={scrollRef} />
       <div className="mt-auto"><CustomizationsFooter /></div>
     </aside>
   );

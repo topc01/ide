@@ -399,7 +399,9 @@ abre el **módulo Configuración** (id `config`) en esa sección: **agrupar por*
 (con el título de la PR de abajo), autor (solo Revisiones) o sin agrupar; en Revisiones también
 los revisores visibles en los chips. El agrupado se recuerda por navegador. La card seleccionada
 lleva contorno de acento, una barrita a la izquierda y ocupa todo el ancho; las demás son un poco
-más angostas y se ensanchan al pasar el mouse.
+más angostas y se ensanchan al pasar el mouse. Si la seleccionada queda fuera de la zona visible de
+la sidebar, aparece una raya amarilla fija arriba o abajo (según dónde quedó): click = scroll hasta
+centrarla.
 
 **Secciones:** qué secciones están abiertas o cerradas (Revisiones, Mis PRs y sus grupos, grupos
 de sesiones, secciones del módulo Revisión) se recuerda entre recargas, por navegador
