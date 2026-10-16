@@ -12,7 +12,7 @@ import { Badge } from "../../components/ui/badge";
 import { SessionItem } from "./SessionItem";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
-import { CardShell, DepsPause, devTone, repoShort } from "./DevCard";
+import { CardShell, DepsPause, DevTitle, devTone, repoShort } from "./DevCard";
 import { cn } from "../../lib/utils";
 import { PersonChip } from "../../lib/people";
 import { usePersistentOpen } from "../../lib/persist";
@@ -165,9 +165,10 @@ function OpenPrButton({ pr }: { pr: GhPr }) {
 
 /** PR de GitHub sin sesión. Click = seleccionarla (o abrirla, según la sección); botones en hover.
  *  `showAuthor`: en Revisiones (de quién es); `showReviewers`: en Mis PRs (quién la revisa). */
-export function PrCard({ pr, reviewable = false, openOnClick = false, merge, showAuthor = false, showReviewers = false }:
+/** `devKey`: la PR es un desarrollo (Mis desarrollos): su título se puede renombrar. */
+export function PrCard({ pr, reviewable = false, openOnClick = false, merge, showAuthor = false, showReviewers = false, devKey }:
   { pr: GhPr; reviewable?: boolean; openOnClick?: boolean; merge?: { job?: MergeJob; above: number };
-    showAuthor?: boolean; showReviewers?: boolean }) {
+    showAuthor?: boolean; showReviewers?: boolean; devKey?: string }) {
   const active = useFolders((s) => s.activePrUrl === pr.url);
   const setActivePr = useFolders((s) => s.setActivePr);
   const tone = devTone(pr, merge?.job);
@@ -195,7 +196,8 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
             </QueueItemAction>
           </QueueItemActions>
         </div>
-        <div className="mt-0.5 line-clamp-2 leading-snug" title={pr.title}>{pr.title}</div>
+        {devKey ? <DevTitle devKey={devKey} prs={[pr]} original={pr.title} />
+          : <div className="mt-0.5 line-clamp-2 leading-snug" title={pr.title}>{pr.title}</div>}
         <CardMeta>
           {pr.draft && <span>draft</span>}
           {pr.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
@@ -222,7 +224,7 @@ function PrList({ prs, byId, reviewable }: { prs: GhPr[]; byId: Map<string, Fold
         // pendientes de revisar: solo revisar y abrir en GitHub (sin parar/archivar)
         return s ? <SessionItem key={pr.url} session={s} pr={pr} onlyActions={reviewable}
           actions={reviewable ? <><ReviewButton pr={pr} /><OpenPrButton pr={pr} /></> : null} />
-          : <PrCard key={pr.url} pr={pr} reviewable={reviewable} showAuthor />;
+          : <PrCard key={pr.url} pr={pr} reviewable={reviewable} showAuthor devKey={`p:${pr.url}`} />;
       })}
     </QueueList>
   );
@@ -274,7 +276,7 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
       // pendientes de revisar: solo revisar y abrir en GitHub (sin parar/archivar)
       ? <SessionItem session={s} pr={pr} onlyActions={reviewable} noArchive={status === "changes"}
           actions={reviewable ? <><ReviewButton pr={pr} /><OpenPrButton pr={pr} /></> : null} />
-      : <PrCard pr={pr} reviewable={reviewable} showAuthor /> };
+      : <PrCard pr={pr} reviewable={reviewable} showAuthor devKey={`p:${pr.url}`} /> };
   };
   const entries: Entry[] = [
     ...(gh?.pending ?? []).map((pr) => prEntry(pr, "pending", true)),

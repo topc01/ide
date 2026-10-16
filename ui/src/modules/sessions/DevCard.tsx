@@ -1,8 +1,11 @@
 // ui/src/modules/sessions/DevCard.tsx
-import type { ReactNode } from "react";
-import { Pause } from "lucide-react";
-import type { GhPr, MergeJob } from "../../transport/folderSessions";
+import { useState, type ReactNode } from "react";
+import { Pause, Pencil } from "lucide-react";
+import { renameDev, type GhPr, type MergeJob } from "../../transport/folderSessions";
+import { getWs } from "../../transport/wsClient";
+import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
+import { devName } from "./desarrollos";
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
 export interface Tone {
@@ -81,4 +84,50 @@ export function DepsPause({ pr }: { pr?: GhPr }) {
       <Pause size={11} strokeWidth={3} />{pending.length}
     </span>
   );
+}
+
+/** Título de un desarrollo, renombrable solo en el IDE (lápiz en hover o doble click; Enter guarda,
+ *  Esc cancela, vacío vuelve al original). Con nombre propio, el original queda en el tooltip. */
+/** `onlyIfNamed`: sin nombre propio no muestra texto, solo el lápiz (p.ej. un stack: sus filas ya dicen todo). */
+export function DevTitle({ devKey, prs, original, onlyIfNamed = false }:
+  { devKey: string; prs?: GhPr[]; original: string; onlyIfNamed?: boolean }) {
+  const names = useFolders((s) => s.tree.devNames);
+  const name = devName(names, devKey, prs);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const save = () => {
+    if (draft === null) return;
+    const v = draft.trim();
+    setDraft(null);
+    if (v === (name ?? original)) return;
+    renameDev(getWs(), devKey, v === original ? "" : v).catch((e: any) => setError(e?.message ?? String(e)));
+  };
+  if (draft !== null) {
+    return (
+      <input autoFocus value={draft} maxLength={120} aria-label="Nombre del desarrollo"
+        onChange={(e) => setDraft(e.target.value)} onClick={(e) => e.stopPropagation()} onBlur={save}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setDraft(null); }}
+        className="mt-0.5 w-full rounded border border-primary bg-background px-1 py-0.5 text-xs outline-none" />);
+  }
+  const pencil = (
+    <button aria-label="Renombrar el desarrollo" title="Renombrar el desarrollo (solo en el IDE; vacío = el original)"
+      onClick={(e) => { e.stopPropagation(); setError(null); setDraft(name ?? original); }}
+      className="mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground opacity-0 hover:text-foreground group-hover/title:opacity-100 group-hover/card:opacity-100">
+      <Pencil size={10} /></button>);
+  if (onlyIfNamed && !name) return pencil;
+  return (
+    <div className="group/title mt-0.5 flex items-start gap-1">
+      <span className={cn("line-clamp-2 min-w-0 flex-1 leading-snug", name && "text-foreground")}
+        title={name ? `${name}\n(original: ${original})` : original}
+        onDoubleClick={(e) => { e.stopPropagation(); setDraft(name ?? original); }}>{name ?? original}</span>
+      {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
+      {pencil}
+    </div>);
+}
+
+/** Chips de los repos de un desarrollo fullstack ("API · EMBED"). */
+export function RepoChips({ repos }: { repos: string[] }) {
+  return <span className="flex min-w-0 items-center gap-1 font-mono text-[11px] font-bold tracking-wide">
+    {repos.map((r, i) => <span key={r} className="flex items-center gap-1">
+      {i > 0 && <span className="font-normal text-muted-foreground">·</span>}{repoShort(r)}</span>)}</span>;
 }

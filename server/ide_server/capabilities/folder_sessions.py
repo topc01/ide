@@ -2,6 +2,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -53,7 +54,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 s.update({"prState": None, "pollError": None, "lastOk": None,
                           **derived.get(s["id"], {})})
         repos = discover_repos(root)
-        return {"sessions": sessions, "workspaceRepos": repos,
+        return {"sessions": sessions, "workspaceRepos": repos, "devNames": db.dev_names() if db else {},
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
 
     async def tree_payload() -> dict:
@@ -206,6 +207,21 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"dev": row}
 
+    async def dev_rename(p: dict) -> dict:
+        """Nombre del desarrollo solo para el IDE (no toca TICKET.md ni GitHub); vacío = el original."""
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        key, name = p.get("key"), (p.get("name") or "").strip()
+        if not isinstance(key, str) or not re.match(r"^(s|st|p):.{1,300}$", key):
+            raise SessionError("bad_request", f"clave de desarrollo inválida: {key!r}")
+        if len(name) > 120:
+            raise SessionError("bad_request", "nombre demasiado largo (máx. 120)")
+        db.set_dev_name(key, name or None)
+        db.event(datetime.now().isoformat(timespec="seconds"), "ide", "renamed",
+                 dev=key[2:] if key.startswith("s:") else None, data={"key": key, "name": name or None})
+        notify()
+        return {"ok": True}
+
     async def _sessions_now() -> list[dict]:
         return (await tree_payload())["sessions"]
 
@@ -276,7 +292,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
-        "dev.status": dev_status, "dev.list": dev_list, "dev.show": dev_show,
+        "dev.status": dev_status, "dev.rename": dev_rename, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,

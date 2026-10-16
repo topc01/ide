@@ -5,8 +5,9 @@ import { useFolders } from "../../state/folders";
 import { getWs } from "../../transport/wsClient";
 import { fetchDiscussion, type Discussion, type GhPr } from "../../transport/folderSessions";
 import { CiMark, DepsList, ReviewerChips, useGithubReviews } from "../sessions/ReviewsSection";
-import { desarrolloPrs } from "../github/GithubPanel";
+import { repoHeader, useDevPrs } from "../github/GithubPanel";
 import { cn } from "../../lib/utils";
+import { repoShort } from "../sessions/DevCard";
 import { usePersistentOpen } from "../../lib/persist";
 
 const REFRESH_MS = 60_000;
@@ -165,7 +166,8 @@ export function ReviewPanel() {
   const { tree, activeId, activePrUrl } = useFolders();
   const session = tree.sessions.find((s) => s.id === activeId);
   const { gh, error } = useGithubReviews();
-  const prs = gh ? desarrolloPrs(session, activePrUrl, gh) : [];
+  const devPrs = useDevPrs();
+  const prs = gh ? devPrs : [];
   return (
     <div className="flex w-full min-w-0 flex-col overflow-hidden">
       <div className="mx-2.5 mb-1 mt-2.5 text-[10px] uppercase tracking-wide text-muted-foreground">Revisión</div>
@@ -173,7 +175,11 @@ export function ReviewPanel() {
       {!session && !activePrUrl && <p className="mx-2.5 text-xs text-muted-foreground">Elige un desarrollo para ver su revisión.</p>}
       {(session || activePrUrl) && gh && prs.length === 0 && (
         <p className="mx-2.5 text-xs text-muted-foreground">Este desarrollo no tiene PRs abiertas.</p>)}
-      {prs.map((pr) => <PrDiscussion key={pr.url} pr={pr} />)}
+      {prs.map((pr, i) => (
+        <div key={pr.url}>
+          {repoHeader(prs, i) && <div className="mx-2.5 mt-3 font-mono text-[10px] font-bold tracking-wide text-primary">{repoShort(repoHeader(prs, i))}</div>}
+          <PrDiscussion pr={pr} />
+        </div>))}
     </div>
   );
 }

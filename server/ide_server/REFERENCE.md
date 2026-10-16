@@ -475,9 +475,20 @@ desarrollo. Regla (spec 2026-10-16-desarrollos, P1), cada PR en un solo desarrol
 ticket cuyos worktrees están en esa rama, más el resto de su stack; (2) un stack tuyo sin sesión;
 (3) una PR suelta. Las sesiones sin PR también son desarrollos (grupo "Sin PR"). Con varias PRs la
 card muestra una fila por PR (de abajo hacia arriba: punto de review, número, título, CI, ⏸, y en
-hover Mergear en la de abajo y abrir en GitHub; click en una fila = elegir esa PR); fondo y borde
-siguen a la PR de abajo. Agrupa por estado de la PR de abajo (Merges, Devueltas, Esperando
-revisores, Sin revisores, Draft, Aprobadas, Sin PR), por repo o sin agrupar (⚙).
+hover Mergear en la de abajo de cada stack y abrir en GitHub; click en una fila = elegir esa PR).
+**Fullstack** (una sesión con worktrees de varios repos): el encabezado son los repos (`API · EMBED`)
+y las filas van agrupadas por repo y, dentro, por stack; cada repo/stack tiene su propio Mergear.
+En una sesión con varias PRs el fondo lo da la peor review y la marca de CI el peor CI. Agrupa por
+estado (Merges, Devueltas, Esperando revisores, Sin revisores, Draft, Aprobadas, Sin PR); con varias
+PRs manda la **peor**: devuelta > sin revisores > esperando > draft > aprobada. También por repo o
+sin agrupar (⚙). Los módulos Stack, Revisión y Dependencias muestran **todo** el desarrollo (aunque
+se haya elegido una fila), con una cabecera por repo si es fullstack.
+
+**Nombre del desarrollo:** el lápiz (hover sobre el título) o doble click lo renombra **solo en el
+IDE** (no toca TICKET.md ni GitHub); vacío vuelve al original, que queda en el tooltip. Se guarda en
+la base (`kv`, clave `devname:<s:sesión | st:stack | p:url>`); si una PR o stack con nombre pasa a
+tener sesión, la sesión lo hereda. Lo muestran las cards, el selector de desarrollo (y su búsqueda) e
+`ide dev ls`/`show` (campo `name`). Canal `dev.rename {key, name}`; `sessions.tree` trae `devNames`.
 
 **Secciones Revisiones y Mis desarrollos** (misma estructura): título colapsable con el total, grupos
 colapsables y la misma card. El ⚙ de cada sección (y el de la sidebar principal, para Mis desarrollos)
@@ -528,7 +539,7 @@ por cada cambio (la primera vez no, para no inundar). Los estados de Notion no s
 
 | Comando | Qué muestra |
 |---|---|
-| `ide dev ls [--json]` | todos los desarrollos: los de sesión (estado de la base, claude corriendo/parado, repos y ramas) y los que son solo PRs (tuyas o pendientes de revisar); por cada PR: review, CI, revisores, draft, stack, dependencias pendientes |
+| `ide dev ls [--json]` | todos los desarrollos (con su nombre del IDE si tiene): los de sesión (estado de la base, claude corriendo/parado, repos y ramas) y los que son solo PRs (tuyas o pendientes de revisar); por cada PR: review, CI, revisores, draft, stack, dependencias pendientes |
 | `ide dev show <id> [--json]` | lo mismo para uno (id de sesión o `repo#n`) + dependencias pendientes + historial |
 | `ide status <estado> [-m nota] [--session id]` | cambia el estado (dentro de una sesión usa la suya) |
 

@@ -18,7 +18,11 @@ export interface FolderSession {
 export interface ScriptInfo { name: string; executable: boolean; }
 export interface SessionsTree {
   sessions: FolderSession[]; workspaceRepos: Repo[]; scripts: Record<string, ScriptInfo[]>;
+  devNames?: Record<string, string>;    // nombre puesto en el IDE, por clave de desarrollo (s:/st:/p:)
 }
+/** Nombre del desarrollo solo para el IDE; `name` vacío = volver al original. */
+export const renameDev = (ws: WsClient, key: string, name: string): Promise<{ ok: boolean }> =>
+  ws.request("dev.rename", { key, name });
 export interface NewSessionReq {
   id?: string; main?: boolean; title?: string; template?: string;
   vars?: Record<string, string>; prompt?: string;

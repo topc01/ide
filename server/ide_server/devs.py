@@ -97,9 +97,22 @@ def _cards(gh: dict) -> dict[str, dict]:
     return {c["url"]: c for lst in lists for c in lst}
 
 
+def _name(names: dict[str, str], key: str, prs: list[dict]) -> str | None:
+    """El nombre puesto en el IDE; si el desarrollo cambió de clave (una PR que ahora tiene sesión),
+    el de su stack o sus PRs."""
+    if key in names:
+        return names[key]
+    for c in prs:
+        for k in ([f"st:{c['stack']['id']}"] if c.get("stack") else []) + [f"p:{c['url']}"]:
+            if k in names:
+                return names[k]
+    return None
+
+
 def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
     """Todos los desarrollos: los de sesión (estado de la base) y los que son solo PRs."""
     cards = _cards(gh)
+    names = db.dev_names()
     by_sid = {s["id"]: s for s in sessions}
     me = gh.get("me")
     taken: set[str] = set()
@@ -115,7 +128,8 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
             prs += [c for c in cards.values() if c.get("stack") and c["stack"]["id"] in stacks
                     and c.get("author") == f"@{me}" and c not in prs]
         taken |= {c["url"] for c in prs}
-        out.append({"id": row["id"], "kind": row["kind"], "title": row["title"], "status": row["status"],
+        out.append({"id": row["id"], "kind": row["kind"], "name": _name(names, f"s:{row['id']}", prs),
+                    "title": row["title"], "status": row["status"],
                     "notionUrl": row["notionUrl"], "process": s.get("process"),
                     "repos": [{"name": r["name"], "branch": r.get("branch")} for r in s.get("repos", [])],
                     "prs": [_pr_summary(c) for c in sorted(prs, key=lambda c: (c.get("stack") or {}).get("position", 0))]})
@@ -134,7 +148,8 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
         prs.sort(key=lambda c: (c.get("stack") or {}).get("position", 0))
         first = prs[0]
         out.append({"id": f"{first['repo']}#{first['number']}", "kind": "pr" if first.get("author") == f"@{me}"
-                    else "review-pending", "title": first["title"], "status": None, "notionUrl": None,
+                    else "review-pending", "name": _name(names, f"st:{first['stack']['id']}" if key.startswith("stack:")
+                                                         else f"p:{first['url']}", prs), "title": first["title"], "status": None, "notionUrl": None,
                     "process": None, "repos": [], "prs": [_pr_summary(c) for c in prs]})
     return out
 

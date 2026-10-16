@@ -3,7 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { useFolders } from "../../state/folders";
 import type { GhPr } from "../../transport/folderSessions";
 import { allPrs, DepsList, useGithubReviews } from "../sessions/ReviewsSection";
-import { desarrolloPrs } from "../github/GithubPanel";
+import { repoHeader, useDevPrs } from "../github/GithubPanel";
 import { repoShort } from "../sessions/DevCard";
 
 const short = (repo: string | null) => (repo ?? "").replace(/^finnecto-/, "");
@@ -13,7 +13,8 @@ export function DepsPanel() {
   const { tree, activeId, activePrUrl } = useFolders();
   const session = tree.sessions.find((s) => s.id === activeId);
   const { gh, error } = useGithubReviews();
-  const prs = gh ? desarrolloPrs(session, activePrUrl, gh) : [];
+  const devPrs = useDevPrs();
+  const prs = gh ? devPrs : [];
   const everyone = gh ? allPrs(gh) : [];
   return (
     <div className="flex w-full min-w-0 flex-col overflow-hidden">
@@ -22,10 +23,11 @@ export function DepsPanel() {
       {!session && !activePrUrl && <p className="mx-2.5 text-xs text-muted-foreground">Elige un desarrollo para ver sus dependencias.</p>}
       {(session || activePrUrl) && gh && prs.length === 0 && (
         <p className="mx-2.5 text-xs text-muted-foreground">Este desarrollo no tiene PRs abiertas.</p>)}
-      {prs.map((pr) => {
+      {prs.map((pr, i) => {
         const dependents: GhPr[] = everyone.filter((p) => p.deps?.some((d) => d.url === pr.url && !d.via && !d.together));
         return (
           <div key={pr.url} className="mb-3 border-b border-border px-2.5 pb-2">
+            {repoHeader(prs, i) && <div className="mb-1 font-mono text-[10px] text-primary">{repoShort(repoHeader(prs, i))}</div>}
             <div className="font-mono text-[11px] font-bold tracking-wide">{repoShort(pr.repo)} #{pr.number}</div>
             <div className="truncate text-xs" title={pr.title}>{pr.title}</div>
             <div className="mt-2 text-[10px] uppercase tracking-wide text-muted-foreground">

@@ -109,6 +109,26 @@ class Db:
         with self._lock:
             self._conn.execute("INSERT OR REPLACE INTO kv VALUES (?, ?)", (key, json.dumps(value)))
 
+    def delete(self, key: str) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM kv WHERE key = ?", (key,))
+
+    def with_prefix(self, prefix: str) -> dict[str, Any]:
+        with self._lock:
+            rows = self._conn.execute("SELECT key, value FROM kv WHERE substr(key, 1, ?) = ?",
+                                      (len(prefix), prefix)).fetchall()
+        return {k[len(prefix):]: json.loads(v) for k, v in rows}
+
+    # -- nombres de desarrollos (solo del IDE; clave = la de la UI: s:<sesión>, st:<stack>, p:<url>) ----
+    def dev_names(self) -> dict[str, str]:
+        return self.with_prefix("devname:")
+
+    def set_dev_name(self, key: str, name: str | None) -> None:
+        if name:
+            self.set(f"devname:{key}", name)
+        else:
+            self.delete(f"devname:{key}")
+
     # -- prs ---------------------------------------------------------------------------------
     def upsert_prs(self, nodes: Iterable[dict], fetched_at: str) -> None:
         with self._lock:

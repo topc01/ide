@@ -4,12 +4,14 @@ import { ChevronDown, GitPullRequest, Search } from "lucide-react";
 import { useFolders } from "../state/folders";
 import { useStore } from "../state/store";
 import type { FolderSession, GhPr, GithubReviews } from "../transport/folderSessions";
-import { CiMark, DepsBadge, StackBadge, useGithubReviews } from "../modules/sessions/ReviewsSection";
+import { CiMark, DepsBadge, StackBadge, allPrs, useGithubReviews } from "../modules/sessions/ReviewsSection";
+import { deriveMine, devName, worstPr } from "../modules/sessions/desarrollos";
+import { RepoChips } from "../modules/sessions/DevCard";
 import { cn } from "../lib/utils";
 
 /** Un desarrollo = una sesión o una PR (sin sesión) de las listas de la sidebar. */
 export type Desarrollo =
-  | { kind: "session"; key: string; session: FolderSession; pr?: GhPr; group: string }
+  | { kind: "session"; key: string; session: FolderSession; pr?: GhPr; prs: GhPr[]; group: string }
   | { kind: "pr"; key: string; pr: GhPr; group: string };
 
 export function desarrollos(sessions: FolderSession[], gh: GithubReviews | null): Desarrollo[] {
@@ -20,11 +22,15 @@ export function desarrollos(sessions: FolderSession[], gh: GithubReviews | null)
   });
   add(gh?.pending, "Revisiones"); add(gh?.changesRequested, "Revisiones");
   Object.values(gh?.mine ?? {}).forEach((l) => add(l, "Mis desarrollos"));
-  const bySession = new Map([...prs.values()].map((p) => [p.sessionId, p]));
-  const out: Desarrollo[] = sessions.map((s) => ({
-    kind: "session", key: `s:${s.id}`, session: s, pr: bySession.get(s.id),
-    group: s.kind === "review" ? "Revisiones" : "Sesiones",
-  }));
+  // las PRs de cada sesión: las de las ramas de sus worktrees (puede ser fullstack) o la revisada
+  const mine = deriveMine(sessions.filter((s) => s.kind !== "review"), gh);
+  const every = gh ? allPrs(gh) : [];
+  const out: Desarrollo[] = sessions.map((s) => {
+    const sprs = s.kind === "review" ? every.filter((p) => p.sessionId === s.id)
+      : mine.find((d) => d.session?.id === s.id)?.prs ?? [];
+    return { kind: "session", key: `s:${s.id}`, session: s, prs: sprs, pr: worstPr(sprs).ci ?? sprs[0],
+             group: s.kind === "review" ? "Revisiones" : "Sesiones" };
+  });
   const withSession = new Set(sessions.map((s) => s.id));
   for (const p of prs.values()) {
     if (!withSession.has(p.sessionId)) out.push({ kind: "pr", key: `p:${p.url}`, pr: p, group: groupOf.get(p.url)! });
@@ -33,10 +39,15 @@ export function desarrollos(sessions: FolderSession[], gh: GithubReviews | null)
 }
 
 const GROUPS = ["Sesiones", "Mis desarrollos", "Revisiones"];
-const titleOf = (d: Desarrollo) => d.kind === "session" ? d.session.title ?? d.session.id : d.pr.title;
+const original = (d: Desarrollo) => d.kind === "session" ? d.session.title ?? d.session.id : d.pr.title;
+const prsOf = (d: Desarrollo) => d.kind === "session" ? d.prs : [d.pr];
 
-function DevLine({ d }: { d: Desarrollo }) {
+function DevLine({ d, names }: { d: Desarrollo; names?: Record<string, string> }) {
   const pr = d.kind === "session" ? d.pr : d.pr;
+  const name = devName(names, d.key, prsOf(d));
+  const title = name ?? original(d);
+  const repos = d.kind === "session"
+    ? [...new Set([...d.session.repos.map((r) => r.name), ...d.prs.map((p) => p.repo)])].sort() : [];
   return (
     <div className="min-w-0 flex-1 text-left">
       <div className="flex items-center gap-1.5">
@@ -44,12 +55,13 @@ function DevLine({ d }: { d: Desarrollo }) {
           ? <span className={cn(d.session.process === "running" ? "text-primary" : "text-muted-foreground")}>
               {d.session.process === "running" ? "●" : "○"}</span>
           : <GitPullRequest size={11} className="shrink-0 text-muted-foreground" />}
-        <span className="truncate text-xs" title={titleOf(d)}>{titleOf(d)}</span>
+        <span className="truncate text-xs" title={name ? `${name}\n(original: ${original(d)})` : title}>{title}</span>
         {pr && <CiMark pr={pr} />}
       </div>
       <div className="flex items-center gap-1.5 pl-4 font-mono text-[10px] text-muted-foreground">
         <span className="truncate">{d.kind === "session" ? d.session.id : `${d.pr.repo}#${d.pr.number}`}</span>
-        {pr && <StackBadge pr={pr} />}
+        {repos.length > 1 && <RepoChips repos={repos} />}
+        {pr && (d.kind === "pr" || d.prs.length === 1) && <StackBadge pr={pr} />}
         {pr && <DepsBadge pr={pr} />}
       </div>
     </div>
@@ -73,10 +85,11 @@ export function DevSelector() {
   }, [open]);
 
   const all = desarrollos(tree.sessions, gh);
+  const names = tree.devNames;
   const current = all.find((d) => activePrUrl ? d.kind === "pr" && d.pr.url === activePrUrl
     : d.kind === "session" && d.session.id === activeId);
   const needle = q.trim().toLowerCase();
-  const shown = all.filter((d) => !needle || `${titleOf(d)} ${d.kind === "session" ? d.session.id
+  const shown = all.filter((d) => !needle || `${devName(names, d.key, prsOf(d)) ?? ""} ${original(d)} ${d.kind === "session" ? d.session.id
     : `${d.pr.repo}#${d.pr.number}`}`.toLowerCase().includes(needle));
   const pick = (d: Desarrollo) => {
     if (d.kind === "session") setActive(d.session.id); else setActivePr(d.pr.url);
@@ -88,7 +101,7 @@ export function DevSelector() {
       <button aria-label="Cambiar de desarrollo" title="Cambiar de desarrollo" aria-expanded={open} onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-1.5 px-2.5 py-2 hover:bg-accent/60">
         {innerOpen ? (<>
-          {current ? <DevLine d={current} />
+          {current ? <DevLine d={current} names={names} />
             : <span className="flex-1 text-left text-xs text-muted-foreground">Elige un desarrollo…</span>}
           <ChevronDown size={13} className={cn("shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
         </>) : <ChevronDown size={14} className="mx-auto text-muted-foreground" />}
@@ -111,7 +124,7 @@ export function DevSelector() {
                     <button title="Cambiar a este desarrollo" key={d.key} role="option" aria-selected={d.key === current?.key} onClick={() => pick(d)}
                       className={cn("flex w-full border-l-2 border-transparent px-2.5 py-1 hover:bg-accent",
                         d.key === current?.key && "border-primary bg-accent")}>
-                      <DevLine d={d} />
+                      <DevLine d={d} names={names} />
                     </button>))}
                 </div>);
             })}

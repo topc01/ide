@@ -4,12 +4,12 @@ import { useFolders } from "../../state/folders";
 import { useDevTabs } from "../../state/devTabs";
 import type { FolderSession, GhPr, MergeJob } from "../../transport/folderSessions";
 import { QueueItem, QueueItemAction } from "../../components/ai-elements/queue";
-import { CardShell, DepsPause, devTone, repoShort } from "./DevCard";
+import { CardShell, DepsPause, DevTitle, devTone, repoShort } from "./DevCard";
 import { CiMark, PrCard, useGithubReviews } from "./ReviewsSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
 import { SessionItem } from "./SessionItem";
 import { GroupedSection, type Entry } from "./GroupedSection";
-import { deriveMine, type Desarrollo } from "./desarrollos";
+import { deriveMine, devName, type Desarrollo } from "./desarrollos";
 import { cn } from "../../lib/utils";
 
 const DOT: Record<string, string> = {
@@ -49,6 +49,7 @@ function StackCard({ d }: { d: Desarrollo }) {
   const { gh } = useGithubReviews();
   const activePrUrl = useFolders((s) => s.activePrUrl);
   const setActivePr = useFolders((s) => s.setActivePr);
+  const names = useFolders((s) => s.tree.devNames);
   const bottom = d.prs[0];
   const tone = devTone(bottom, gh?.merges?.[bottom.url]);
   return (
@@ -59,10 +60,13 @@ function StackCard({ d }: { d: Desarrollo }) {
         const last = t?.tabs.find((x) => x.id === t.active)?.url;
         setActivePr(last && d.prs.some((p) => p.url === last) ? last : bottom.url);
       }}>
-        <div className="flex items-center gap-1.5">
+        <div className="group/card flex items-center gap-1.5">
           <span className="font-mono text-[11px] font-bold tracking-wide">{repoShort(bottom.repo)}</span>
           <span className="text-[11px] text-muted-foreground">stack de {d.prs.length}</span>
+          <span className="flex-1" />
+          <DevTitle devKey={d.key} prs={d.prs} original={bottom.title} onlyIfNamed />
         </div>
+        {devName(names, d.key, d.prs) && <DevTitle devKey={d.key} prs={d.prs} original={bottom.title} />}
         <div className="mt-1 space-y-0.5">
           {d.prs.map((p, i) => <PrRow key={p.url} pr={p} job={gh?.merges?.[p.url]} bottom={i === 0} />)}
         </div>
@@ -85,7 +89,7 @@ export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
     key: d.key, pr: d.prs[0], session: d.session, status: d.status,
     render: () => d.session ? <SessionItem session={d.session} prs={d.prs} />
       : d.prs.length > 1 ? <StackCard d={d} />
-      : <PrCard pr={d.prs[0]} showReviewers merge={{
+      : <PrCard pr={d.prs[0]} devKey={d.key} showReviewers merge={{
           job: d.job ?? gh?.merges?.[d.prs[0].url],
           above: d.prs[0].stack ? d.prs[0].stack.size - d.prs[0].stack.position : 0 }} />,
   }));

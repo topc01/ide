@@ -1,9 +1,11 @@
 // ui/src/modules/github/GithubPanel.tsx
 import { ExternalLink } from "lucide-react";
 import { useFolders } from "../../state/folders";
-import type { FolderSession, GhPr, GithubReviews } from "../../transport/folderSessions";
+import type { GhPr, GithubReviews } from "../../transport/folderSessions";
 import { QueueItem, QueueItemAction, QueueItemActions, QueueList } from "../../components/ai-elements/queue";
-import { allPrs, CiMark, useGithubReviews } from "../sessions/ReviewsSection";
+import { CiMark, useGithubReviews } from "../sessions/ReviewsSection";
+import { byRepoStack } from "../sessions/desarrollos";
+import { useCurrentDev } from "../../main/currentDev";
 import { desarrollos } from "../../layout/DevSelector";
 import { cn } from "../../lib/utils";
 
@@ -13,30 +15,29 @@ const REVIEW = {
   changes: ["bg-amber-400", "pidieron cambios"],
 } as const;
 
-/** URLs de las PRs del desarrollo: la PR elegida, o las de las ramas de la sesión abierta. */
-export function desarrolloPrs(session: FolderSession | undefined, activePrUrl: string | null,
-                              gh: GithubReviews): GhPr[] {
-  const prs = allPrs(gh);
-  if (activePrUrl) return prs.filter((p) => p.url === activePrUrl);
-  if (!session) return [];
-  return prs.filter((p) => p.sessionId === session.id
-    || session.repos.some((r) => r.branch && p.repo === r.name && p.head === r.branch));
+/** Las PRs del desarrollo actual (todas, aunque se haya elegido una de sus filas), por repo y stack. */
+export function useDevPrs(): GhPr[] {
+  const dev = useCurrentDev();
+  return dev ? byRepoStack(dev.prs).flatMap((g) => g.stacks.flat()) : [];
 }
 
-/** Las PRs de la sesión: la del PR revisado, o las de las ramas de sus repos; cada una con su stack. */
-function sessionStacks(s: FolderSession, gh: GithubReviews): { own: Set<string>; stacks: GhPr[][] } {
-  const prs = allPrs(gh);
-  const own = prs.filter((p) => p.sessionId === s.id
-    || s.repos.some((r) => r.branch && p.repo === r.name && p.head === r.branch));
+/** Cabecera de repo antes de la primera PR de cada repo, si el desarrollo es fullstack. */
+export function repoHeader(prs: GhPr[], i: number): string | null {
+  const repos = new Set(prs.map((p) => p.repo));
+  return repos.size > 1 && (i === 0 || prs[i - 1].repo !== prs[i].repo) ? prs[i].repo : null;
+}
+
+/** Los stacks completos (con PRs de otros) de las PRs del desarrollo; `own` = las del desarrollo. */
+function devStacks(prs: GhPr[], gh: GithubReviews): { own: Set<string>; stacks: GhPr[][] } {
   const seen = new Set<string>();
   const stacks: GhPr[][] = [];
-  for (const p of own) {
+  for (const p of prs) {
     const key = p.stack?.id ?? p.url;
     if (seen.has(key)) continue;
     seen.add(key);
     stacks.push(p.stack ? gh.stacks?.[p.stack.id] ?? [p] : [p]);
   }
-  return { own: new Set(own.map((p) => p.url)), stacks };
+  return { own: new Set(prs.map((p) => p.url)), stacks };
 }
 
 /** `assigned`: la PR es tuya (autor) o figuras como revisor; si no, va tachada y atenuada. */
@@ -66,13 +67,7 @@ function StackItem({ pr, own, assigned, onOpen }:
   );
 }
 
-/** Módulo GitHub: el stack de PRs de la sesión abierta (abajo = la base). */
-function prStacks(url: string, gh: GithubReviews): { own: Set<string>; stacks: GhPr[][] } {
-  const pr = allPrs(gh).find((p) => p.url === url);
-  if (!pr) return { own: new Set(), stacks: [] };
-  return { own: new Set([url]), stacks: [pr.stack ? gh.stacks?.[pr.stack.id] ?? [pr] : [pr]] };
-}
-
+/** Módulo Stack: los stacks de PRs del desarrollo actual (abajo = la base), por repo. */
 export function GithubPanel() {
   const session = useFolders((s) => s.tree.sessions.find((x) => x.id === s.activeId));
   const { activePrUrl, tree, setActive, setActivePr } = useFolders();
@@ -86,7 +81,8 @@ export function GithubPanel() {
     if (!d) return undefined;
     return () => d.kind === "session" ? setActive(d.session.id) : setActivePr(d.pr.url);
   };
-  const data = !gh ? null : activePrUrl ? prStacks(activePrUrl, gh) : session ? sessionStacks(session, gh) : null;
+  const prs = useDevPrs();
+  const data = !gh || (!session && !activePrUrl) ? null : devStacks(prs, gh);
   return (
     <div className="flex w-full min-w-0 flex-col overflow-hidden">
       <div className="mx-2.5 mb-1 mt-2.5 text-[10px] uppercase tracking-wide text-muted-foreground">Stack</div>

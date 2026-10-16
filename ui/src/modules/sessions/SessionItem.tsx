@@ -3,7 +3,8 @@ import { useState, type ReactNode } from "react";
 import { Archive, ExternalLink, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
-import { CardShell, DepsPause, devTone, repoShort } from "./DevCard";
+import { CardShell, DepsPause, DevTitle, RepoChips, devTone, repoShort } from "./DevCard";
+import { byRepoStack, worstPr } from "./desarrollos";
 import { PrRow } from "./MyDevsSection";
 import { PersonChip } from "../../lib/people";
 import { stopSession } from "../../transport/folderSessions";
@@ -35,7 +36,11 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dot, label] = DOT[session.process];
-  const tone = devTone(pr, undefined, { merged: session.prState === "merged", status: session.status });
+  // varias PRs (stack o fullstack): el tono y el CI los da la peor
+  const worst = many ? worstPr(prs!) : { review: pr, ci: pr };
+  const tone = devTone(worst.review, undefined, { merged: session.prState === "merged", status: session.status });
+  const groups = many ? byRepoStack(prs!) : [];
+  const repos = [...new Set([...session.repos.map((r) => r.name), ...(prs ?? []).map((p) => p.repo)])].sort();
   const isReview = session.kind === "review";
   return (
     <QueueItem className="px-2 py-1">
@@ -45,12 +50,13 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
         <div className="flex items-center gap-1.5">
           <span aria-label={label} title={`claude ${label}`}
             className={cn(session.process === "running" ? "text-primary" : "text-muted-foreground")}>{dot}</span>
-          <span className="font-mono text-[11px] font-bold tracking-wide">
-            {pr && !many ? `${repoShort(pr.repo)} #${pr.number}` : prLabel(session.prUrl) ?? session.id}</span>
+          {many || (!pr && repos.length > 1) ? <RepoChips repos={repos} /> : (
+            <span className="font-mono text-[11px] font-bold tracking-wide">
+              {pr ? `${repoShort(pr.repo)} #${pr.number}` : prLabel(session.prUrl) ?? session.id}</span>)}
           {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
           <span className="flex-1" />
           <DepsPause pr={pr} />
-          {pr && !many && <CiMark pr={pr} />}
+          {worst.ci && <CiMark pr={worst.ci} />}
           {(session.error || session.launchError) && (
             <span title={session.error ?? session.launchError ?? ""} className="text-destructive">⚠</span>)}
           {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
@@ -78,9 +84,9 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
               </QueueItemAction>)}
           </QueueItemActions>
         </div>
-        <div className="mt-0.5 line-clamp-2 leading-snug" title={session.title ?? session.id}>{session.title ?? session.id}</div>
+        <DevTitle devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])} original={session.title ?? session.id} />
         <CardMeta>
-          {pr?.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
+          {!many && pr?.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
           {session.prState === "stale" && <span className="text-sky-400"
             title="El PR tiene commits nuevos desde tu revisión: abre la sesión y toca Refrescar">⟳ commits nuevos desde tu revisión</span>}
           {session.prState === "closed" && <span>PR cerrada</span>}
@@ -89,10 +95,12 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           {session.attention === "trust" && <span className="text-destructive"
             title="Claude Code pide confirmar la carpeta: abre la terminal y acepta">⚠ confiar carpeta</span>}
         </CardMeta>
-        {many && (
-          <div className="mt-1 space-y-0.5">
-            {prs!.map((p, i) => <PrRow key={p.url} pr={p} bottom={i === 0} />)}
-          </div>)}
+        {/* por repo (fullstack) y por stack; Mergear en la de abajo de cada stack */}
+        {many && groups.map((g) => (
+          <div key={g.repo} className="mt-1 space-y-0.5">
+            {groups.length > 1 && <div className="font-mono text-[10px] text-muted-foreground">{repoShort(g.repo)}</div>}
+            {g.stacks.map((st) => st.map((p, i) => <PrRow key={p.url} pr={p} bottom={i === 0} />))}
+          </div>))}
         {/* el worktree solo importa en tickets (rama propia y scripts); en revisiones está en detach */}
         {!isReview && session.repos.map((r) => <RepoLine key={r.name} session={session} repo={r} />)}
       </CardShell>

@@ -17,6 +17,46 @@ export interface Desarrollo {
 
 const byPosition = (a: GhPr, b: GhPr) => (a.stack?.position ?? 0) - (b.stack?.position ?? 0);
 
+/** Las PRs de un desarrollo por repo y, dentro, por stack (cada stack de abajo hacia arriba). Un
+ *  desarrollo fullstack tiene un grupo por repo; la de abajo de cada stack es la que se mergea. */
+export function byRepoStack(prs: GhPr[]): { repo: string; stacks: GhPr[][] }[] {
+  const repos = new Map<string, Map<string, GhPr[]>>();
+  for (const p of prs) {
+    const r = repos.get(p.repo) ?? new Map<string, GhPr[]>();
+    repos.set(p.repo, r);
+    const k = p.stack?.id ?? p.url;
+    r.set(k, [...(r.get(k) ?? []), p]);
+  }
+  return [...repos.entries()].sort(([a], [b]) => a.localeCompare(b))
+    .map(([repo, st]) => ({ repo, stacks: [...st.values()].map((l) => l.sort(byPosition)) }));
+}
+
+/** Orden de prioridad para agrupar un desarrollo con varias PRs: manda la peor. */
+const WORST: MineStatus[] = ["returned", "missing", "waiting", "draft", "approved"];
+export function worstStatus(prs: GhPr[], bucket: Map<string, MineStatus>): MineStatus {
+  const st = prs.map((p) => bucket.get(p.url) ?? "missing");
+  return WORST.find((w) => st.includes(w)) ?? "missing";
+}
+
+/** La PR que da el tono de la card (review) y la del CI: la peor de cada cosa. */
+const REVIEW_RANK: Record<string, number> = { "changes-requested": 0, changes: 0, reviewing: 1, review: 1, approved: 3 };
+export function worstPr(prs: GhPr[]): { review?: GhPr; ci?: GhPr } {
+  const rv = (p: GhPr) => p.review ? REVIEW_RANK[p.review] ?? 2 : 2;
+  const ci = (p: GhPr) => ({ failure: 0, pending: 1, success: 2 } as Record<string, number>)[p.ci ?? ""] ?? 3;
+  return { review: [...prs].sort((a, b) => rv(a) - rv(b))[0], ci: [...prs].sort((a, b) => ci(a) - ci(b))[0] };
+}
+
+/** Nombre puesto en el IDE; si el desarrollo cambió de clave (la PR ahora tiene sesión), el de su stack o PRs. */
+export function devName(names: Record<string, string> | undefined, key: string, prs: GhPr[] = []): string | null {
+  if (!names) return null;
+  if (names[key]) return names[key];
+  for (const p of prs) {
+    const n = (p.stack && names[`st:${p.stack.id}`]) || names[`p:${p.url}`];
+    if (n) return n;
+  }
+  return null;
+}
+
 export function deriveMine(tickets: FolderSession[], gh: GithubReviews | null): Desarrollo[] {
   const bucket = new Map<string, MineStatus>();
   const mine: GhPr[] = [];
@@ -26,13 +66,14 @@ export function deriveMine(tickets: FolderSession[], gh: GithubReviews | null): 
   const taken = new Set<string>();
   const stackOf = (pr: GhPr) => pr.stack ? mine.filter((p) => p.stack?.id === pr.stack!.id) : [pr];
   const out: Desarrollo[] = [];
-  const status = (prs: GhPr[]): Desarrollo["status"] => prs.length ? bucket.get(prs[0].url) ?? "missing" : "nopr";
+  const status = (prs: GhPr[]): Desarrollo["status"] => prs.length ? worstStatus(prs, bucket) : "nopr";
 
   // (1) sesiones de ticket: las PRs de las ramas de sus worktrees, con su stack completo
   for (const s of tickets) {
     const own = mine.filter((p) => !taken.has(p.url)
       && s.repos.some((r) => r.branch && r.name === p.repo && r.branch === p.head));
-    const prs = [...new Set(own.flatMap(stackOf))].filter((p) => !taken.has(p.url)).sort(byPosition);
+    const prs = byRepoStack([...new Set(own.flatMap(stackOf))].filter((p) => !taken.has(p.url)))
+      .flatMap((g) => g.stacks.flat());
     prs.forEach((p) => taken.add(p.url));
     out.push({ key: `s:${s.id}`, session: s, prs, status: status(prs) });
   }
