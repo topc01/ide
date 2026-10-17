@@ -92,7 +92,7 @@ export function DevTabsView() {
   const state = byDev[dev.key] ?? { tabs: [], active: null };
   const active = state.tabs.find((t) => t.id === state.active) ?? null;
   const s = dev.session;
-  const docName = s?.kind === "review" ? "REVIEW.md" : s?.kind === "ticket" ? "TICKET.md" : null;
+  const docName = s?.kind === "review" || s?.kind === "ticket" ? "SESSION.md" : null;
   // acciones que crean algo nuevo (además de reabrir tabs cerradas)
   const run = (what: string, p: Promise<void>) => {
     setBusy(what); setActionError(null); setMenu(false);

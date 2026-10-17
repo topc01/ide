@@ -157,7 +157,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         path = require_session(root, p["id"])
         name = state_file(read_toml(path / ".session.toml").get("kind"))
         if name is None:
-            raise SessionError("no_doc", f"{p['id']} no tiene TICKET.md/REVIEW.md")
+            raise SessionError("no_doc", f"{p['id']} no tiene SESSION.md")
         f = path / name
         return {"name": name, "text": f.read_text(encoding="utf-8") if f.is_file() else ""}
 
@@ -224,7 +224,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"dev": row}
 
     async def dev_rename(p: dict) -> dict:
-        """Nombre del desarrollo solo para el IDE (no toca TICKET.md ni GitHub); vacío = el original."""
+        """Nombre del desarrollo solo para el IDE (no toca SESSION.md ni GitHub); vacío = el original."""
         if db is None:
             raise SessionError("no_db", "sin base")
         key, name = p.get("key"), (p.get("name") or "").strip()

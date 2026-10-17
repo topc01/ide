@@ -94,8 +94,22 @@ def session_path(root: Path, sid: str) -> Path:
     return sessions_dir(root) / sid
 
 
+STATE_FILE = "SESSION.md"
+LEGACY_STATE = {"ticket": "TICKET.md", "review": "REVIEW.md"}
+
+
 def state_file(kind: str | None) -> str | None:
-    return {"ticket": "TICKET.md", "review": "REVIEW.md"}.get(kind or "")
+    """El `.md` de la sesión (estado, análisis, feedback): SESSION.md para tickets y revisiones."""
+    return STATE_FILE if kind in LEGACY_STATE else None
+
+
+def migrate_state_file(path: Path, kind: str | None) -> None:
+    """TICKET.md/REVIEW.md de antes → SESSION.md; el nombre viejo queda como symlink (una sesión que
+    ya corría y lo lee no se rompe)."""
+    old = path / LEGACY_STATE.get(kind or "", "")
+    if kind in LEGACY_STATE and old.is_file() and not old.is_symlink() and not (path / STATE_FILE).exists():
+        old.rename(path / STATE_FILE)
+        old.symlink_to(STATE_FILE)
 
 
 def read_toml(path: Path) -> dict:
@@ -232,6 +246,10 @@ def read_session(root: Path, sid: str) -> dict:
                               "branch": _branch(link) if ok else None,
                               "port": ports.get(link.name), "setup": setup.get(link.name)})
     sf = state_file(info["kind"])
+    try:
+        migrate_state_file(path, info["kind"])
+    except OSError as exc:
+        info["error"] = f"no pude migrar a SESSION.md: {exc}"
     if sf and (path / sf).is_file():
         try:
             meta, _ = parse_frontmatter((path / sf).read_text(encoding="utf-8"))

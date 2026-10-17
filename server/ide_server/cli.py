@@ -189,7 +189,7 @@ EL WORKSPACE (.ide/)
 
 CÓMO UN AGENTE HACE HANDOFF A ESTE IDE (resumen)
   Las sesiones son `claude` interactivos en .ide/sessions/<id>/. Se comunican con el IDE vía este
-  CLI (ver .ide/sessions/CLAUDE.md). Estado en TICKET.md / REVIEW.md (frontmatter status).
+  CLI (ver .ide/sessions/CLAUDE.md). Estado en SESSION.md (frontmatter status).
 """
 
 

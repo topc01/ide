@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { fetchDoc, onSessionsChanged } from "../transport/folderSessions";
 import { getWs } from "../transport/wsClient";
 
-/** TICKET.md / REVIEW.md de una sesión (se relee cuando cambia el árbol). */
+/** SESSION.md de una sesión (se relee cuando cambia el árbol). */
 export function DocTab({ id }: { id: string }) {
   const [text, setText] = useState(""); const [error, setError] = useState<string | null>(null);
   useEffect(() => {

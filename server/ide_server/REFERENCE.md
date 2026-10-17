@@ -67,7 +67,7 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
         └── <id>/                       # una sesión
             ├── .session.toml           # kind, permissions, created, [ports], [setup], pr_url, reviewed_sha, claude_session, claude_name
             ├── PROMPT.md               # prompt inicial (plantilla renderizada)
-            ├── TICKET.md | REVIEW.md   # estado + análisis (§9)
+            ├── SESSION.md   # estado + análisis (§9)
             └── <repo> -> ../../worktrees/<id>/<repo>   # symlink relativo
 ```
 
@@ -121,12 +121,12 @@ Cada sesión tiene un perfil (`.session.toml` → `permissions`), elegido con `-
 `analyze.json` (semilla) permite: `Read`, `Grep`, `Glob`; Bash de solo lectura (`ls`, `cat`,
 `head`, `tail`, `wc`, `find`, `rg`, `grep`, `git log/diff/show/status/branch`, `git remote -v`);
 `ide repo add`, `ide script`, `ide session ls`; `gh pr view/diff`, `gh search prs`;
-`Edit(**/TICKET.md)`, `Edit(**/REVIEW.md)` (crear incluido); MCP de Notion
+`Edit(**/SESSION.md)`, `Edit(**/SESSION.md)` (crear incluido); MCP de Notion
 (`notion-fetch`, `notion-search`, `notion-query-data-sources`). Niega `git diff/log --output`.
 Las reglas de archivo se escriben como `Edit(...)`: Claude Code no evalúa `Write(...)`.
 
 Todas las sesiones reciben `--add-dir=.ide/worktrees/<id>` (sus repos); la principal además
-`--add-dir=.ide/sessions` (para leer los `TICKET.md` de todas).
+`--add-dir=.ide/sessions` (para leer los `SESSION.md` de todas).
 
 **Restricción de seguridad (server):** cuando el pedido viene de una sesión (`IDE_SESSION_ID`
 seteada), solo la **principal** puede crear sesiones y **nunca con `full`** (si el default es
@@ -187,7 +187,7 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
   workspace, no su checkout principal) a `.ide/worktrees/<sesión>/<repo>`: viajan los cambios sin
   commitear, `node_modules` y los `.env*` (en la api, con ellos su base y su proyecto docker). Lo
   recibe la sesión del mismo ticket de Notion si existe (queda fullstack), si no una de ticket nueva
-  (título: `--title` o la primera línea `# …` del resumen). Al `TICKET.md` se agrega "Traspaso desde
+  (título: `--title` o la primera línea `# …` del resumen). Al `SESSION.md` se agrega "Traspaso desde
   Conductor" (rama, de dónde vino, rutas de los transcripts de Claude de esa carpeta) + el resumen;
   `--status` fija el estado (si no, `analyzing`). **No lanza `claude`.** Se niega si hay procesos
   corriendo desde esa carpeta (`busy`; `--force` lo fuerza). No pasa por el server (anda con el IDE
@@ -203,7 +203,7 @@ un placeholder literal. Siempre disponible: `{{id}}`. Con `--notion`: `{{notion_
 
 | Plantilla | Variables | Uso |
 |---|---|---|
-| `ticket.md` | `id`, `title`, `notion_url` | qué hace cada sesión de ticket (analizar, `ide repo add`, escribir `TICKET.md`) |
+| `ticket.md` | `id`, `title`, `notion_url` | qué hace cada sesión de ticket (analizar, `ide repo add`, escribir `SESSION.md`) |
 | `review.md` | `id`, `title`, `pr_url`, `author`, `repo` (las completa el IDE con `gh`) | qué hace cada revisión |
 
 Puedes crear plantillas nuevas (`templates/x.md`) y usarlas con `--template x`. La principal
@@ -219,10 +219,10 @@ copian a su `.claude/skills/` (skills de proyecto del cwd de su `claude`). `ide 
   prueba con `ide session new --dry-run`, muestra una tabla (sesión, ticket, prioridad, size, por
   qué es tuyo, si ya tiene sesión) y **espera tu OK**; después lanza `ide session new --if-missing
   --notion <url> --template ticket` por cada uno. Cada sesión hace su revisión preliminar
-  (`TICKET.md`) y suma sus worktrees con `ide repo add`. No escribe en Notion. El perfil `main`
+  (`SESSION.md`) y suma sus worktrees con `ide repo add`. No escribe en Notion. El perfil `main`
   permite las herramientas de Notion necesarias (MCP de claude.ai o del plugin); a la CLI solo le
   pasa el **id** del ticket (`--notion <32 hex>`, el IDE arma la URL): nada de texto de Notion pasa
-  por la shell. El título lo escribe la sesión en `TICKET.md` al leer el ticket.
+  por la shell. El título lo escribe la sesión en `SESSION.md` al leer el ticket.
 
 ## 7b. Prompts (`.ide/prompts/*.md`)
 
@@ -313,9 +313,9 @@ máx. 2 MB, solo texto UTF-8.
 
 ## 9. Estado de sesiones
 
-**Kinds:** `main` (principal, una), `ticket`, `review`. Estados de ticket: ver "Estado del desarrollo" (§9b).
+**Kinds:** `main` (principal, una), `ticket`, `review`. Cada sesión de ticket o revisión tiene su **`SESSION.md`** (estado en el frontmatter, análisis, plan y la sección `## Feedback` donde anota las correcciones del usuario; ver §9e). Las de antes (`TICKET.md`/`REVIEW.md`) se migran solas al leerlas: se renombran a `SESSION.md` y el nombre viejo queda como symlink. Estados de ticket: ver "Estado del desarrollo" (§9b).
 
-**`TICKET.md` / `REVIEW.md`:** frontmatter + cuerpo. El IDE siembra el frontmatter al crear;
+**`SESSION.md` / `SESSION.md`:** frontmatter + cuerpo. El IDE siembra el frontmatter al crear;
 la sesión solo cambia `status` y escribe el cuerpo.
 ```markdown
 ---
@@ -339,7 +339,7 @@ notion_url: https://www.notion.so/...
 última review con veredicto es `CHANGES_REQUESTED`; las respuestas en hilos no la tapan y no te re-pidieron review). Si el PR ya tiene sesión
 (`pr-<repo>-<n>`) la card es la sesión; si no, una card del PR. Las sesiones de revisión que no
 están en esas dos listas van en **Aprobé** (PR abierta y tu última review es aprobación; si
-GitHub no lo dice, `status: approved` de `REVIEW.md`), **Cerradas** (PR mergeada o cerrada) u
+GitHub no lo dice, `status: approved` de `SESSION.md`), **Cerradas** (PR mergeada o cerrada) u
 **Otras** (el resto, p.ej. solo comentaste). Bajo el título, chips `@revisor N`: cuántos PRs abiertos de
 la org tienen review pedida a cada **miembro de la org** (los pedidos a equipos y a gente de
 afuera no cuentan; pagina hasta 1000 PRs, el tope de la búsqueda de GitHub; si se pasa, se marca
@@ -441,7 +441,7 @@ commits sin pushear (`uncommitted_changes`, `unpushed`); si estaba limpia, la de
 Canales `pr.files {url}`, `pr.fileDiff {url, path, oldPath}`, `stack.restack {url, updateBase}`.
 
 **Tabs por desarrollo (panel principal):** cada desarrollo tiene su propia fila de tabs: `claude`
-(la terminal de la sesión; si está parada se lanza al abrirla), `REVIEW.md`/`TICKET.md`, el
+(la terminal de la sesión; si está parada se lanza al abrirla), `SESSION.md`, el
 **resumen** de cada PR y las terminales de los scripts. Al cambiar de desarrollo cambia la fila y al
 volver está como la dejaste (también tras recargar; las de scripts no, mueren con el server). La
 primera vez, una sesión abre `claude` y una PR su resumen; click en una fila de PR abre/enfoca su
@@ -538,7 +538,7 @@ se haya elegido una fila), con una cabecera por repo si es fullstack.
 acciones aparecen en hover flotando sobre esa esquina (tapan el título, no le quitan ancho).
 
 **Nombre del desarrollo:** el lápiz (acciones de hover de la card, o junto al título en el módulo
-Desarrollo) o doble click lo renombra **solo en el IDE** (no toca TICKET.md ni GitHub); vacío vuelve al original, que queda en el tooltip. Se guarda en
+Desarrollo) o doble click lo renombra **solo en el IDE** (no toca SESSION.md ni GitHub); vacío vuelve al original, que queda en el tooltip. Se guarda en
 la base (`kv`, clave `devname:<s:sesión | st:stack | p:url>`); si una PR o stack con nombre pasa a
 tener sesión, la sesión lo hereda. Lo muestran las cards, el selector de desarrollo (y su búsqueda) e
 `ide dev ls`/`show` (campo `name`). Canal `dev.rename {key, name}`; `sessions.tree` trae `devNames`.
@@ -609,7 +609,7 @@ Claude Code (`claudeAiOauth` en el llavero `Claude Code-credentials` o
 
 La **base** (`.ide/ide.db`, tabla `devs`) es la fuente de verdad del estado de cada desarrollo con
 sesión: tipo, título, ticket de Notion, PR (revisiones) y `status`. Las sesiones lo cambian con
-**`ide status <estado>`** (opcional `-m "nota"`; el estado se refleja en `TICKET.md`/`REVIEW.md`
+**`ide status <estado>`** (opcional `-m "nota"`; el estado se refleja en `SESSION.md`
 para quien lo lea). Si una sesión edita a mano el `status:` del archivo, se adopta y queda en el
 historial como "archivo". Estados válidos — ticket: analyzing | blocked | questions | ready |
 in-progress | done; revisión: reviewing | commented | approved | changes-requested.
@@ -645,7 +645,7 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 | `claude_missing` | `claude` no está en el PATH del server. |
 | `setup failed` en un repo | Mira la salida; arregla el script; `ide script setup <repo>`. |
 | `⚠ no ejecutable` en un script | `chmod +x .ide/scripts/<repo>/<nombre>`. |
-| `⚠ error` en una sesión | `.session.toml` o el frontmatter de `TICKET.md` está roto; el mensaje dice cuál. |
+| `⚠ error` en una sesión | `.session.toml` o el frontmatter de `SESSION.md` está roto; el mensaje dice cuál. |
 | `⚠ poll` en una revisión | `gh` falló (auth/red); el title muestra el último OK. `gh auth status`. |
 | La UI dice "desconectado" | El server se cayó; lo de la pantalla puede estar viejo. |
 | Al reiniciar el server todas quedan `○` | Normal: no hay auto-resume. Click → Abrir: si la conversación sigue viva en segundo plano (el daemon de Claude Code la conserva al morir el PTY) se reengancha con `claude attach` **solo si la lanzó el IDE** (coincide `claude_session` o `claude_name` de `.session.toml`; una lanzada a mano podría tener otros permisos); si no, `--resume <claude_session>`. **Parar** también detiene la de fondo. |

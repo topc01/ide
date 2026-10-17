@@ -4,7 +4,7 @@
 Mueve el worktree entero (`git worktree move`) a `.ide/worktrees/<sesión>/<repo>`: viajan los
 cambios sin commitear, `node_modules`, los `.env*` (y con ellos la base y el proyecto docker de la
 api, pineados ahí). La sesión que lo recibe es la del mismo ticket de Notion si existe (queda
-fullstack), si no una de ticket nueva. Al TICKET.md se le agrega el resumen de traspaso y la ruta
+fullstack), si no una de ticket nueva. Al SESSION.md se le agrega el resumen de traspaso y la ruta
 de los transcripts de la sesión anterior. La sesión queda creada, sin lanzar `claude`."""
 from __future__ import annotations
 import os
@@ -88,7 +88,7 @@ def _session_for(root: Path, notion: str | None, explicit: str | None, title: st
 
 
 def _append_ticket(root: Path, sid: str, text: str) -> None:
-    f = session_path(root, sid) / "TICKET.md"
+    f = session_path(root, sid) / "SESSION.md"
     meta, body = parse_frontmatter(f.read_text(encoding="utf-8")) if f.is_file() else ({}, "")
     f.write_text(write_frontmatter(meta, body.rstrip() + ("\n\n" if body.strip() else "") + text), encoding="utf-8")
 

@@ -2,7 +2,7 @@
 """Desarrollos en la base (`.ide/ide.db`): fuente de verdad de su estado + historial.
 
 - Un desarrollo con sesión es una fila de `devs` (id = id de la sesión). Su `status` vive acá: lo
-  cambian el IDE y las sesiones con `ide status <estado>` (se refleja en TICKET.md/REVIEW.md
+  cambian el IDE y las sesiones con `ide status <estado>` (se refleja en SESSION.md
   para quien lo lea). Si una sesión todavía edita el `status:` del archivo a mano, el sync lo
   adopta y lo deja en el historial ("archivo").
 - Los desarrollos que son solo PRs (tuyas o pendientes de revisar, sin sesión) salen de GitHub.
@@ -85,7 +85,7 @@ def sync_from_disk(root: Path, db: Db, sessions: list[dict] | None = None) -> No
 
 
 def _mirror(root: Path, sid: str, kind: str | None, status: str) -> None:
-    """Reflejo del estado en TICKET.md/REVIEW.md (lo leen personas y sesiones viejas); la base manda."""
+    """Reflejo del estado en SESSION.md (lo leen personas y sesiones viejas); la base manda."""
     f = session_path(root, sid) / (state_file(kind) or "")
     if f.is_file():
         meta, body = parse_frontmatter(f.read_text(encoding="utf-8"))

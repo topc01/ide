@@ -53,7 +53,7 @@ nunca editando el `status:` del archivo. Ticket:
 Mientras el desarrollo está activo sus PRs van en **draft** (`gh pr create --draft`); al terminar,
 `ide status ready-for-review` y el usuario la manda a revisión desde el IDE. Desde ahí la fase la da
 GitHub (en revisión, cambios pedidos, aprobada, mergeando). Revisión (sesiones de
-revisión de PR): reviewing | commented | approved | changes-requested. `TICKET.md` / `REVIEW.md` guardan el análisis (y el `title` si está vacío).
+revisión de PR): reviewing | commented | approved | changes-requested. `SESSION.md` guarda el análisis (y el `title` si está vacío).
 La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide dev show <id>`.
 
 ## Desarrollos, repos y dependencias
@@ -75,13 +75,23 @@ La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide 
     ("no depende de …" no cuenta). Las casillas `[ ]`/`[x]` se ignoran.
   - El IDE las muestra (⏸ N pendientes) y avisa al mergear, pero no lo bloquea.
   - Para escribirlas: `gh pr edit <url> --body-file <archivo>` (edita la sección; no borres el resto).
-  - En el TICKET.md, en **Plan**, deja el orden de merge entre repos.
+  - En el SESSION.md, en **Plan**, deja el orden de merge entre repos.
 - **Servidores para probar:** los scripts por repo están en `.ide/scripts/<repo>/` (api: `build`,
   `run`; embed: `install`, `run`, `point-api`). Los servidores que quedan corriendo (`run`) los
   levanta el usuario desde el módulo **Servidores** del IDE (corren aparte y sobreviven a un
   reinicio): pídeselo en vez de correrlos tú con `ide script` (que espera a que terminen).
   Para que el embed hable con la api de tu sesión: en el `.env.local` del embed,
   `VITE_API_PROXY_TARGET=http://localhost:<API_PORT>` (el `API_PORT` está en el `.env` de la api).
+
+## Feedback (para mejorar con el uso)
+
+Cuando el usuario te corrija (algo que hiciste mal, una preferencia suya, una decisión que no te
+tocaba tomar, un supuesto equivocado), anótalo **en el momento**, sin que te lo pida, en tu
+`SESSION.md`, sección `## Feedback`, una línea por corrección:
+`- AAAA-MM-DD — qué hice → qué me corrigió → lección (general | este desarrollo)`
+"general" = vale para cualquier sesión o repo; "este desarrollo" = solo para este. La sesión
+principal las revisa cada noche (también lee los transcripts, por si alguna no quedó anotada) y
+propone mejoras a las instrucciones; el usuario las aprueba antes de aplicarlas.
 """
 
 
@@ -98,7 +108,7 @@ Eres la sesión principal de este workspace.
    `ide session new --if-missing --notion <url del ticket> --template ticket --vars-file -`
    pasando por stdin `{"title": "…"}` (JSON: así los títulos no se rompen en el shell).
    Por cada PR: `ide session new --if-missing --review <url>`.
-5. Resume lo lanzado. Estado general: lee `../*/TICKET.md` y `../*/REVIEW.md`.
+5. Resume lo lanzado. Estado general: lee `../*/SESSION.md`.
 """
 # `.ide/skills/backlog/SKILL.md`: la sesión principal la tiene como `/backlog` (el IDE la copia).
 SKILL_BACKLOG = """\
@@ -141,29 +151,29 @@ los que no tienen sesión).
 ## 4. Lanzar
 Por cada ticket elegido:
 `ide session new --if-missing --notion <id> --template ticket`
-Cada sesión arranca con su carpeta y su `TICKET.md`, analiza el ticket (revisión preliminar:
+Cada sesión arranca con su carpeta y su `SESSION.md`, analiza el ticket (revisión preliminar:
 scope, repos, plan, bloqueantes, dudas) y suma con `ide repo add <repo>` los worktrees que
 necesite. Nunca dupliques: `--if-missing` devuelve la existente.
 
 ## 5. Resumen
-Lanzadas, ya existían y errores (con el mensaje). El estado de cada una se ve en `../*/TICKET.md`.
+Lanzadas, ya existían y errores (con el mensaje). El estado de cada una se ve en `../*/SESSION.md`.
 """
 
 # `.ide/prompts/review-pr.md`: el botón de revisión de la UI lo envía a la sesión del PR.
 PROMPT_REVIEW_PR = """\
 Review PR {{pr_url}} ("{{title}}" by {{author}}, repo {{repo}}) using the
 `finnecto-core:pr-review` skill (reviewer side). The `{{repo}}/` worktree is at the PR head.
-Keep REVIEW.md up to date and set your verdict with `ide status commented|approved|changes-requested`.
+Keep SESSION.md up to date and set your verdict with `ide status commented|approved|changes-requested`.
 """
 TEMPLATE_TICKET = """\
 Eres la sesión del ticket {{id}} ({{notion_url}}).
 
 Tu trabajo AHORA es analizar, no implementar:
 1. Lee ../CLAUDE.md (mapa de repos) y el ticket en Notion ({{notion_url}}).
-2. Si el frontmatter de TICKET.md no tiene `title:`, ponle el título del ticket.
+2. Si el frontmatter de SESSION.md no tiene `title:`, ponle el título del ticket.
 3. Determina scope y qué repos toca. Por cada uno: `ide repo add <repo>` (varios = fullstack;
    misma rama en todos).
-4. Escribe TICKET.md: Scope, Repos, Plan (con el orden de merge entre repos/PRs y sus
+4. Escribe SESSION.md: Scope, Repos, Plan (con el orden de merge entre repos/PRs y sus
    dependencias), Bloqueantes, Dudas. Al abrir PRs, declara sus dependencias en la sección
    `## Dependencias` de cada una (ver ../CLAUDE.md).
    Cambia el estado con `ide status ready-to-develop|questions|blocked-definitions|blocked-client`
@@ -176,7 +186,7 @@ Eres la revisión del PR {{pr_url}} ("{{title}}", de {{author}}) en el repo {{re
 El worktree `{{repo}}/` está en el head del PR (detached).
 
 1. Revisa el diff contra la base (`gh pr diff {{pr_url}}`, y lee el código alrededor).
-2. Escribe REVIEW.md con hallazgos por severidad (bloqueante / importante / menor / nit).
+2. Escribe SESSION.md con hallazgos por severidad (bloqueante / importante / menor / nit).
 3. Marca tu veredicto con `ide status commented|approved|changes-requested`.
 4. NO publiques nada en GitHub sin que te lo pida.
 """
@@ -193,7 +203,7 @@ PERM_ANALYZE = {"permissions": {
         "Read", "Grep", "Glob", *_READ_ONLY_BASH,
         "Bash(ide repo add:*)", "Bash(ide script:*)", "Bash(ide session ls:*)", "Bash(ide status:*)",
         "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh search prs:*)",
-        "Edit(**/TICKET.md)", "Edit(**/REVIEW.md)",
+        "Edit(**/SESSION.md)", "Edit(**/TICKET.md)", "Edit(**/REVIEW.md)",
         "mcp__claude_ai_Notion__notion-fetch", "mcp__claude_ai_Notion__notion-search",
         "mcp__claude_ai_Notion__notion-query-data-sources",
     ],
@@ -267,6 +277,6 @@ existir. Por eso es **lo último** que haces en esta sesión.
    con `--force` sin que lo pida.
 
 7. **Avísale al usuario:** la sesión del IDE (id) quedó creada sin lanzar `claude`, con el resumen y
-   la ruta a este transcript en su `TICKET.md`; que la abra desde el IDE. Esta carpeta ya no existe:
+   la ruta a este transcript en su `SESSION.md`; que la abra desde el IDE. Esta carpeta ya no existe:
    puede archivar el workspace en Conductor.
 """
