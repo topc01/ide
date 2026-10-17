@@ -169,6 +169,8 @@ export function DevTabsView() {
         {active?.kind === "script" && active.terminalId && <TerminalTab key={active.terminalId} id={active.terminalId} />}
         {active?.kind === "run" && active.place && active.repo && active.name &&
           <RunLogTab key={active.id} place={active.place} repo={active.repo} name={active.name} />}
+        {active?.kind === "db" && active.url &&
+          <iframe key={active.id} src={active.url} title={active.label} className="h-full w-full border-0 bg-white" />}
         {active?.kind === "diff" && active.url && active.path &&
           <PrDiffTab key={active.id} url={active.url} path={active.path} oldPath={active.oldPath ?? null} />}
         {active?.kind === "file" && active.place && active.repo && active.path &&

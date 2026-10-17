@@ -4,7 +4,7 @@ import { create } from "zustand";
 /** Una tab del panel principal. Cada desarrollo tiene su propia fila de tabs. */
 export interface DevTab {
   id: string;                                   // único dentro del desarrollo
-  kind: "claude" | "doc" | "summary" | "script" | "run" | "file" | "diff";
+  kind: "claude" | "doc" | "summary" | "script" | "run" | "file" | "diff" | "db";
   label: string;
   sid?: string;                                 // claude / doc
   url?: string;                                 // summary (PR)
@@ -76,3 +76,4 @@ export const fileTab = (place: string, repo: string, path: string): DevTab =>
   ({ id: `file:${place}/${repo}/${path}`, kind: "file", label: path.split("/").pop() || path, place, repo, path });
 export const diffTab = (url: string, path: string, oldPath: string | null): DevTab =>
   ({ id: `diff:${url}:${path}`, kind: "diff", label: `Δ ${path.split("/").pop() || path}`, url, path, oldPath });
+export const dbTab = (path: string, name: string): DevTab => ({ id: `db:${path}`, kind: "db", label: `DB ${name}`, url: path });

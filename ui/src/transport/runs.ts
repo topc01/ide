@@ -39,6 +39,12 @@ export const writeWtFile = (ws: WsClient, place: string, repo: string, path: str
                             mtime: string | null): Promise<{ mtime: string }> =>
   ws.request("wtfiles.write", { place, repo, path, text, mtime });
 
+/** Bases de los worktrees de un lugar (las que su `.env` nombra) y abrir su visor (pgweb). */
+export const listDbs = (ws: WsClient, place: string): Promise<{ dbs: { repo: string; name: string; running: boolean }[] }> =>
+  ws.request("db.list", { place });
+export const openDb = (ws: WsClient, place: string, repo: string): Promise<{ path: string; name: string }> =>
+  ws.request("db.open", { place, repo });
+
 /** Estado de los servidores, vivo (`runs.changed`). */
 export function useRuns(): { state: RunsState | null; error: string | null } {
   const [state, setState] = useState<RunsState | null>(null);

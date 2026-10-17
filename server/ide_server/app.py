@@ -1,13 +1,15 @@
 from __future__ import annotations
 import asyncio
+import httpx
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlparse
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from ide_server.capabilities import folder_sessions as folder_cap
 from ide_server.capabilities import runs as runs_cap
 from ide_server.runs import Runner
+from ide_server.db_viewer import DbViewer
 from ide_server.config import sessions_config, reviews_config
 from ide_server.pr_poller import PrPoller
 from ide_server.gh_reviews import GithubReviews
@@ -19,7 +21,7 @@ from ide_server.sessions_fs import SessionError
 from ide_server.supervisor import ClaudeAgents, Supervisor
 from ide_server.watcher import watch_workspace
 from ide_server.worktrees import BranchOccupied
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from ide_server.config import Settings
 from ide_server.plugins import Registry
@@ -67,7 +69,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     limits = LimitsPoller()
     merger = Merger(root, stacks=lambda: gh_reviews.state, db=db, on_change=lambda: notify_box["github"]())
     runner = Runner(root)
-    runs_watch = runs_cap.register(registry, root, manager, runner)
+    viewer = DbViewer(root)
+    runs_watch = runs_cap.register(registry, root, manager, runner, viewer)
     notify_box["fn"] = folder_cap.register(registry, root, manager, hooks=hooks,
                                            supervisor=supervisor, poller=poller,
                                            gh_reviews=gh_reviews, limits=limits, merger=merger, db=db,
@@ -140,6 +143,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             yield
         finally:
             stop_bg.set()
+            viewer.close_all()                  # los pgweb mueren con el server (sus claves también)
             try:
                 hooks.save_history()            # la pantalla de cada claude, para después del reinicio
             except Exception:  # noqa: BLE001
@@ -221,7 +225,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.middleware("http")
     async def _same_origin(request, call_next):
-        if request.url.path.startswith("/api/") and not _origin_ok(request):
+        path = request.url.path
+        # /db: además, nada que venga de otro sitio (ni navegaciones ni iframes ajenos)
+        cross = path.startswith("/db/") and request.headers.get("sec-fetch-site") not in (None, "same-origin", "none")
+        if (path.startswith("/api/") or path.startswith("/db/")) and (not _origin_ok(request) or cross):
             log.warning("request rechazada: Origin %s", request.headers.get("origin"))
             return JSONResponse({"code": "forbidden_origin", "message": "origen no permitido"},
                                 status_code=403)
@@ -240,6 +247,25 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
                 await ws.send_text(await handle_message(raw, registry))
         except WebSocketDisconnect:
             manager.disconnect(ws)
+
+    @app.api_route("/db/{place}/{repo}/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+    async def db_proxy(place: str, repo: str, rest: str, request: Request):
+        """Proxy a pgweb (ver db_viewer): agrega su basic auth; solo desde la UI del IDE."""
+        tgt = viewer.target(f"{place}/{repo}")
+        if tgt is None:
+            return JSONResponse({"code": "no_db", "message": "el visor de esa base no está abierto"}, status_code=404)
+        port, (user, pw) = tgt
+        headers = {k: v for k, v in request.headers.items()
+                   if k.lower() not in ("host", "authorization", "cookie", "origin", "referer", "content-length", "connection")}
+        async with httpx.AsyncClient(timeout=120) as client:
+            r = await client.request(request.method, f"http://127.0.0.1:{port}/db/{place}/{repo}/{rest}",
+                                     params=request.query_params, content=await request.body(), headers=headers,
+                                     auth=(user, pw))
+        out = {k: v for k, v in r.headers.items()
+               if k.lower() not in ("content-length", "transfer-encoding", "connection", "content-encoding", "www-authenticate")}
+        out["X-Frame-Options"] = "SAMEORIGIN"
+        out["Content-Security-Policy"] = "frame-ancestors 'self'"
+        return Response(content=r.content, status_code=r.status_code, headers=out)
 
     if web_dir is not None and (web_dir / "index.html").is_file():
         from starlette.staticfiles import StaticFiles
