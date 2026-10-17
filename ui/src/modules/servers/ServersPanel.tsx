@@ -179,7 +179,7 @@ function Databases({ place, devKey }: { place: string; devKey: string }) {
           <button disabled={busy !== null} title={`Abrir ${d.name} en pgweb (ver y editar tablas, correr SQL)`}
             onClick={() => {
               setBusy(d.repo); setErr(null);
-              openDb(getWs(), place, d.repo).then((r) => open(devKey, dbTab(r.path, r.name)))
+              openDb(getWs(), place, d.repo).then((r) => open(devKey, dbTab(r.url, r.name)))
                 .catch((e: any) => setErr(e?.message ?? String(e))).finally(() => setBusy(null));
             }}
             className="rounded border border-border px-1.5 py-px text-[10px] hover:bg-accent disabled:opacity-40">

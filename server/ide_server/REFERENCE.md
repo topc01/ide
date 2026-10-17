@@ -287,12 +287,14 @@ terminales del IDE (scripts del ⋯, `claude`) también escriben `[terminó: exi
 servidores** antes de correr `archive`.
 
 **Base de datos** (en Servidores): por cada worktree cuyo `.env` (o `.env.local`) nombra una base
-(`POSTGRES_NAME`; host `db`/docker → `127.0.0.1`, puerto `POSTGRES_PORT` o 5432), **Abrir** levanta
-`pgweb` (`brew install pgweb`) y lo muestra en una tab: tablas, filas, estructura y SQL (no es solo
-lectura: con SQL se puede editar). pgweb escucha en 127.0.0.1 en un puerto libre, con basic auth
-aleatoria que solo conoce el IDE; la UI lo abre por `/db/<lugar>/<repo>/` (proxy del IDE: mismos
-chequeos de origen que `/api`, rechaza requests de otro sitio y no se deja embeber afuera). Los pgweb
-mueren con el server. Canales `db.list {place}`, `db.open {place, repo}` (→ `{path, name}`).
+(`POSTGRES_NAME`), **Abrir** levanta `pgweb` (`brew install pgweb`) y lo muestra en una tab: tablas,
+filas, estructura y SQL (no es solo lectura: con SQL se puede editar). Solo bases locales: el host
+tiene que ser `127.0.0.1`/`localhost`/`::1` o el de docker (`db`, `postgres`, `host.docker.internal`
+→ 127.0.0.1); otro → `db_not_local` (un `.env.local` de una PR ajena no puede mandar tu clave a otro
+servidor). pgweb escucha en 127.0.0.1, en un puerto libre y en su propio origen (otro puerto que el
+IDE: lo que muestre no tiene acceso a la API del IDE), bajo un prefijo aleatorio (`/<token>/`) que
+solo conoce la UI: sin el token responde 404. Los pgweb mueren con el server. Canales
+`db.list {place}`, `db.open {place, repo}` (→ `{url, name}`).
 
 **PR sin sesión:** Servidores ofrece **Preparar**: crea `.ide/worktrees/wt-<repo>-<n>/<repo>` en
 el head de la PR (`refs/pull/<n>/head`, en detach: no ocupa la rama, no choca con otro checkout ni
@@ -663,7 +665,7 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `forbidden_origin`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`, `already_running`,
 `unknown_worktree`, `bad_place`, `git_failed`, `bad_path`, `not_a_dir`, `not_found`, `too_large`,
-`binary`, `changed_on_disk`, `busy`, `unpushed`, `no_db`, `pgweb_missing`, `pgweb_failed`.
+`binary`, `changed_on_disk`, `busy`, `unpushed`, `no_db`, `db_not_local`, `pgweb_missing`, `pgweb_failed`.
 
 ## 12. API (para integraciones)
 

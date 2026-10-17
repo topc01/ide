@@ -1,10 +1,12 @@
 # server/ide_server/db_viewer.py
-"""Visor de la base de un desarrollo (pgweb), detrás del server del IDE.
+"""Visor de la base de un desarrollo (pgweb).
 
 Por cada worktree con base (su `.env` tiene `POSTGRES_NAME`) se levanta un `pgweb` en 127.0.0.1, en un
-puerto libre, con usuario/clave de basic auth aleatorios que solo conoce el IDE, y con el prefijo
-`db/<lugar>/<repo>`. La UI lo abre por `/db/<lugar>/<repo>/` (proxy del IDE, con sus chequeos de
-origen): pgweb no tiene auth propia y si quedara expuesto, cualquier página podría mandarle SQL."""
+puerto libre y con un prefijo de URL aleatorio (`/<token>/`) que solo conoce la UI del IDE: pgweb no
+tiene auth propia, y sin el token ninguna otra página puede usarlo. Vive en su PROPIO origen (otro
+puerto): si una tabla trae HTML malicioso y pgweb lo mostrara, ese código no tendría el origen del IDE
+(su API y su WebSocket lo rechazan). Solo se conecta a bases locales: el host sale del `.env` del
+worktree, que una PR ajena podría traer apuntando a otro servidor para llevarse la clave."""
 from __future__ import annotations
 import os
 import secrets
@@ -19,6 +21,7 @@ from ide_server.repos_fs import worktree_path
 from ide_server.sessions_fs import SessionError, require_plain_name
 
 DOCKER_HOSTS = {"db", "postgres", "host.docker.internal", ""}
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -43,9 +46,14 @@ def db_conf(wt: Path) -> dict | None:
     name = env.get("POSTGRES_NAME") or env.get("POSTGRES_DB")
     if not name:
         return None
-    host = env.get("POSTGRES_HOST", "")
+    host = env.get("POSTGRES_HOST", "").strip().lower()
+    if host not in DOCKER_HOSTS | LOCAL_HOSTS:          # nunca mandar la clave a otro servidor
+        raise SessionError("db_not_local", f"POSTGRES_HOST={host!r}: el visor solo abre bases locales")
+    port = env.get("POSTGRES_PORT") or "5432"
+    if not port.isdigit() or not 0 < int(port) < 65536:
+        raise SessionError("db_not_local", f"POSTGRES_PORT inválido: {port!r}")
     return {"name": name, "user": env.get("POSTGRES_USER", "postgres"), "password": env.get("POSTGRES_PASSWORD", ""),
-            "host": "127.0.0.1" if host in DOCKER_HOSTS else host, "port": env.get("POSTGRES_PORT") or "5432"}
+            "host": "127.0.0.1", "port": port}
 
 
 def _free_port() -> int:
@@ -57,7 +65,7 @@ def _free_port() -> int:
 class DbViewer:
     def __init__(self, root: Path) -> None:
         self.root = root
-        self._procs: dict[str, dict] = {}       # "<lugar>/<repo>" -> {proc, port, auth, db}
+        self._procs: dict[str, dict] = {}       # "<lugar>/<repo>" -> {proc, port, token, db}
         self._lock = threading.Lock()
 
     def _wt(self, place: str, repo: str) -> Path:
@@ -72,7 +80,10 @@ class DbViewer:
         base = self.root / ".ide" / "worktrees" / require_plain_name(place, "lugar")
         out = []
         for wt in sorted(p for p in base.iterdir() if p.is_dir()) if base.is_dir() else []:
-            c = db_conf(wt)
+            try:
+                c = db_conf(wt)
+            except SessionError:
+                c = None
             if c:
                 out.append({"repo": wt.name, "name": c["name"], "running": f"{place}/{wt.name}" in self._procs})
         return out
@@ -87,15 +98,14 @@ class DbViewer:
         with self._lock:
             cur = self._procs.get(key)
             if cur and cur["proc"].poll() is None and cur["db"] == conf:
-                return {"path": f"/db/{key}/", "name": conf["name"]}
+                return {"url": cur["url"], "name": conf["name"]}
             if cur:
                 self._kill(cur)
-            port, user, pw = _free_port(), "ide", secrets.token_urlsafe(24)
+            port, token = _free_port(), secrets.token_urlsafe(24)
             url = (f"postgres://{quote(conf['user'], safe='')}:{quote(conf['password'], safe='')}@"
                    f"{conf['host']}:{conf['port']}/{quote(conf['name'], safe='')}?sslmode=disable")
-            # la conexión y la clave van por entorno (no quedan a la vista en `ps`)
-            env = {**os.environ, "PGWEB_DATABASE_URL": url, "PGWEB_AUTH_USER": user, "PGWEB_AUTH_PASS": pw,
-                   "PGWEB_URL_PREFIX": f"db/{key}"}
+            # la conexión y el token van por entorno (no quedan a la vista en `ps`)
+            env = {**os.environ, "PGWEB_DATABASE_URL": url, "PGWEB_URL_PREFIX": token}
             proc = subprocess.Popen(["pgweb", "--bind", "127.0.0.1", "--listen", str(port), "--skip-open",
                                      "--lock-session"], env=env, stdin=subprocess.DEVNULL,
                                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -108,14 +118,8 @@ class DbViewer:
                         break
                 except OSError:
                     time.sleep(0.1)
-            self._procs[key] = {"proc": proc, "port": port, "auth": (user, pw), "db": conf}
-        return {"path": f"/db/{key}/", "name": conf["name"]}
-
-    def target(self, key: str) -> tuple[int, tuple[str, str]] | None:
-        cur = self._procs.get(key)
-        if not cur or cur["proc"].poll() is not None:
-            return None
-        return cur["port"], cur["auth"]
+            self._procs[key] = {"proc": proc, "port": port, "db": conf, "url": f"http://127.0.0.1:{port}/{token}/"}
+        return {"url": self._procs[key]["url"], "name": conf["name"]}
 
     @staticmethod
     def _kill(cur: dict) -> None:
