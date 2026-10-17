@@ -40,6 +40,12 @@ export const prFileDiff = (ws: WsClient, url: string, path: string, oldPath: str
 /** Rebasea el stack de la PR (y la de abajo sobre su base si `updateBase`) y empuja con --force-with-lease. */
 export const restackStack = (ws: WsClient, url: string, updateBase: boolean): Promise<{ moved: string[] }> =>
   ws.request("stack.restack", { url, updateBase });
+/** El veredicto de la sesión de revisión de una PR y su review listo para publicar (de su SESSION.md). */
+export const reviewDraft = (ws: WsClient, url: string): Promise<{ id: string | null; verdict: "approve" | "request-changes" | null; why: string; body: string }> =>
+  ws.request("review.draft", { url });
+/** Publica TU review en GitHub (`gh pr review --approve | --request-changes`). */
+export const reviewSubmit = (ws: WsClient, url: string, event: "approve" | "request-changes", body: string): Promise<{ ok: boolean }> =>
+  ws.request("review.submit", { url, event, body });
 export type PrLinks = Record<string, { sid: string; out?: boolean }>;
 /** Saca una PR del desarrollo de una sesión (no vuelve aunque el worktree esté en su rama). */
 export const unlinkPr = (ws: WsClient, id: string, url: string): Promise<{ ok: boolean }> =>

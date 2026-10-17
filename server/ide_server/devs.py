@@ -29,11 +29,19 @@ LEGACY = {"analyzing": "investigating", "blocked": "blocked-definitions", "ready
           "in-progress": "developing", "done": "ready-for-review"}
 STATUSES = {
     "ticket": DEV_STATES + ("unblock",),
-    "review": ("reviewing", "commented", "approved", "changes-requested"),
+    # la sesión revisa y SUGIERE (suggests-*); aprobar o pedir cambios en GitHub lo decide el usuario
+    # con los botones del IDE, que dejan approved / changes-requested
+    "review": ("reviewing", "suggests-approve", "suggests-changes", "approved", "changes-requested"),
 }
 
 
+REVIEW_LEGACY = {"commented": "reviewing"}
+USER_ONLY = {"review": ("approved", "changes-requested")}   # solo el IDE (botones del usuario)
+
+
 def normalize(kind: str | None, status: str | None) -> str | None:
+    if kind == "review":
+        return REVIEW_LEGACY.get(status or "", status)
     return LEGACY.get(status or "", status) if kind == "ticket" else status
 
 
@@ -142,6 +150,9 @@ def set_status(root: Path, db: Db, sid: str, status: str, *, actor: str, note: s
         raise SessionError("no_status", f"la sesión {sid} ({row.get('kind')}) no tiene estado")
     if status not in allowed:
         raise SessionError("bad_status", f"estado inválido para {row['kind']}: {status!r} ({' | '.join(allowed)})")
+    if status in USER_ONLY.get(row["kind"], ()) and actor != "ide":
+        raise SessionError("user_decides", f"{status}: eso lo decide el usuario con los botones del IDE; "
+                                           "deja tu veredicto con suggests-approve / suggests-changes")
     prev = row.get("status")
     effective = status
     if row["kind"] == "ticket":

@@ -653,6 +653,20 @@ por cada cambio (la primera vez no, para no inundar). Los estados de Notion no s
 API: `GET /api/devs`, `GET /api/devs/{id}`, `POST /api/devs/{id}/status` (`{status, note, actor}`);
 canales WS `dev.list`, `dev.show`, `dev.status`. Errores: `bad_status`, `no_status`, `unknown_dev`.
 
+## 9d-bis. Revisar PRs: la sesión sugiere, el usuario decide
+
+El botón de revisión (Revisiones / resumen de la PR) crea o reusa la sesión de revisión y le **dispara
+directo la skill** (`.ide/prompts/review-pr.md`: `/finnecto-core:pr-review <url> — Modo IDE…`), con la
+directiva de no publicar nada en GitHub. La sesión deja en `SESSION.md` `## Veredicto` (primera línea
+"Aprobar" o "Pedir cambios" y por qué), `## Review para GitHub` (el cuerpo listo) y `## Hallazgos`, y
+marca `ide status suggests-approve | suggests-changes`. Estados de revisión: `reviewing`,
+`suggests-approve`, `suggests-changes`, `approved`, `changes-requested` (ya no existe `commented`: se
+migra a `reviewing`). `approved` / `changes-requested` solo los pone el IDE (`user_decides` si una
+sesión lo intenta): en el resumen de la PR y en el módulo Desarrollo, **Tu revisión** muestra el
+veredicto sugerido, el review editable y los botones **Aprobar** / **Pedir cambios** (con confirmación;
+pedir cambios exige comentario) que publican con `gh pr review` — solo PRs que te pidieron revisar o con
+sesión de revisión. Canales `review.draft {url}`, `review.submit {url, event, body}`.
+
 ## 9e. Feedback y revisión nocturna (mejora con el uso)
 
 Cada sesión anota las correcciones del usuario en la sección `## Feedback` de su `SESSION.md`

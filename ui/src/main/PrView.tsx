@@ -6,6 +6,7 @@ import { newSessionForPr, startReview } from "../transport/folderSessions";
 import { getWs } from "../transport/wsClient";
 import { Button } from "../components/ui/button";
 import { PrDescription } from "./PrDescription";
+import { ReviewDecision } from "./ReviewDecision";
 import { allPrs, CiMark, DepsList, ReviewerChips, StackBadge, useGithubReviews } from "../modules/sessions/ReviewsSection";
 
 /** Panel principal cuando el desarrollo es una PR sin sesión. */
@@ -61,6 +62,7 @@ export function PrView({ url }: { url: string }) {
           </Button>)}
       </div>
       {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
+      {(toReview || gh.changesRequested.some((p) => p.url === url) || (gh.me && pr.author !== `@${gh.me}`)) && <ReviewDecision url={pr.url} />}
       <PrDescription url={pr.url} />
       <p className="mt-4 text-xs text-muted-foreground">
         {hasSession ? "" : "Esta PR no tiene sesión. "}Comentarios y discusiones: módulo Revisión · stack: módulo Stack.</p>

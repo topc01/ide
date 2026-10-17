@@ -1,6 +1,7 @@
 // ui/src/modules/dev/DevPanel.tsx
 import { useEffect, useState } from "react";
 import { useCurrentDev } from "../../main/currentDev";
+import { ReviewDecision } from "../../main/ReviewDecision";
 import { useFolders } from "../../state/folders";
 import { getWs } from "../../transport/wsClient";
 import { freshSession, prsReady, setDevState, type GhPr } from "../../transport/folderSessions";
@@ -125,6 +126,7 @@ export function DevPanel() {
             </div>))}
         </div>))}
 
+      {s?.kind === "review" && s.prUrl && <div className="mx-1.5"><ReviewDecision url={s.prUrl} /></div>}
       {s && <FreshConversation sid={s.id} />}
 
       {s && s.kind !== "review" && (<>
