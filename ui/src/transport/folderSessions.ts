@@ -22,7 +22,7 @@ export interface SessionsTree {
   devHidden?: string[];                 // desarrollos ocultos en Mis desarrollos (grupo "Ocultos")
   devPrs?: PrLinks;                     // PRs vinculadas a una sesión (siguen aunque cambie la rama)
   devIndex?: Record<string, number>;    // número de cada desarrollo (#12), por clave
-  devStates?: Record<string, { status: string; note?: string | null; since?: string | null }>;   // estado del desarrollo
+  devStates?: Record<string, { phase?: string | null; block?: string | null; note?: string | null; since?: string | null }>;   // fase + bloqueo
 }
 /** Estado del desarrollo (local); `status` null = sin estado. */
 export const setDevState = (ws: WsClient, key: string, status: string | null, note: string | null): Promise<{ ok: boolean }> =>

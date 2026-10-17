@@ -17,17 +17,18 @@ from ide_server.sessions_fs import (
     SessionError, list_sessions, parse_frontmatter, read_session, session_path, state_file, write_frontmatter,
 )
 
-# Estado del DESARROLLO (otra dimensión que el de la PR): qué toca o qué lo frena. Avanzando, después
-# los bloqueos (para destrabar) y `paused`. Después de `ready-for-review` manda la PR (revisión, merge).
-DEV_STATES = ("investigating", "ready-to-develop", "developing", "ready-for-review",
-              "waiting-input", "questions", "blocked-definitions", "blocked-client", "blocked-dev",
-              "paused")
-BLOCKED = ("waiting-input", "questions", "blocked-definitions", "blocked-client", "blocked-dev")
+# Estado del desarrollo (uno solo, unificado con el de la PR): una FASE que avanza y, encima, un
+# BLOQUEO opcional. Las fases manuales llegan hasta `ready-for-review`; con PRs fuera de draft la fase
+# la da GitHub (sin revisores, en revisión, cambios pedidos, aprobada, mergeando; la calcula la UI).
+# El bloqueo (con nota) tapa la fase sin borrarla: `unblock` vuelve a la fase en que estaba.
+PHASES = ("investigating", "ready-to-develop", "developing", "ready-for-review")
+BLOCKS = ("waiting-input", "questions", "blocked-definitions", "blocked-client", "blocked-dev", "paused")
+DEV_STATES = PHASES + BLOCKS
 # los de antes (sesiones viejas, TICKET.md a mano): se aceptan y se traducen
 LEGACY = {"analyzing": "investigating", "blocked": "blocked-definitions", "ready": "ready-to-develop",
           "in-progress": "developing", "done": "ready-for-review"}
 STATUSES = {
-    "ticket": DEV_STATES,
+    "ticket": DEV_STATES + ("unblock",),
     "review": ("reviewing", "commented", "approved", "changes-requested"),
 }
 
@@ -91,6 +92,45 @@ def _mirror(root: Path, sid: str, kind: str | None, status: str) -> None:
         f.write_text(write_frontmatter({**meta, "status": status}, body), encoding="utf-8")
 
 
+def _state(db: Db, key: str, row_status: str | None = None) -> dict:
+    """{phase, block, note, since} guardado (o deducido del estado de la sesión / formato viejo)."""
+    cur = dict(db.get(f"devstate:{key}") or {})
+    if "phase" not in cur and "block" not in cur:
+        old = cur.pop("status", None) or row_status
+        cur["phase"] = old if old in PHASES else (None if old in BLOCKS else cur.get("phase"))
+        cur["block"] = old if old in BLOCKS else None
+    if row_status in BLOCKS and cur.get("block") != row_status:      # editado a mano en el archivo
+        cur["block"] = row_status
+    elif row_status in PHASES and (cur.get("block") or cur.get("phase") != row_status):
+        cur["phase"], cur["block"] = row_status, None
+    return cur
+
+
+def _apply(db: Db, key: str, status: str | None, note: str | None, actor: str, row_status: str | None = None) -> tuple[str | None, str | None]:
+    """Aplica `status` (fase, bloqueo, `unblock` o None = nada) y devuelve (efectivo antes, después)."""
+    cur = _state(db, key, row_status)
+    phase, block = cur.get("phase"), cur.get("block")
+    before = block or phase
+    if status in PHASES:
+        phase, block = status, None
+    elif status in BLOCKS:
+        block = status
+    elif status == "unblock":
+        block = None
+    elif status is None:
+        phase, block = None, None
+    after = block or phase
+    since = cur.get("since") if after == before and cur.get("since") else now()
+    if after is None:
+        db.delete(f"devstate:{key}")
+    else:
+        db.set(f"devstate:{key}", {"phase": phase, "block": block, "note": note if status != "unblock" else None,
+                                   "since": since, "actor": actor})
+    if block == "waiting-input" and before != "waiting-input" and actor != "ide":
+        _notify_mac(f"{key[2:] if key.startswith('s:') else 'Un desarrollo'} te espera" + (f": {note}" if note else ""))
+    return before, after
+
+
 def set_status(root: Path, db: Db, sid: str, status: str, *, actor: str, note: str | None = None) -> dict:
     sync_from_disk(root, db)
     row = db.dev(sid)
@@ -103,26 +143,15 @@ def set_status(root: Path, db: Db, sid: str, status: str, *, actor: str, note: s
     if status not in allowed:
         raise SessionError("bad_status", f"estado inválido para {row['kind']}: {status!r} ({' | '.join(allowed)})")
     prev = row.get("status")
-    db.put_dev({**row, "status": status, "updated": now()})
-    # reflejo en el archivo (lo leen personas y sesiones viejas); la base manda
-    f = session_path(root, sid) / (state_file(row["kind"]) or "")
-    if f.is_file():
-        meta, body = parse_frontmatter(f.read_text(encoding="utf-8"))
-        f.write_text(write_frontmatter({**meta, "status": status}, body), encoding="utf-8")
+    effective = status
+    if row["kind"] == "ticket":
+        _, effective = _apply(db, f"s:{sid}", status, note, actor, prev)
+        effective = effective or "investigating"
+    db.put_dev({**row, "status": effective, "updated": now()})
+    _mirror(root, sid, row["kind"], effective)
     db.event(now(), actor, "status", dev=sid, pr_url=row.get("prUrl"),
              data={"from": prev, "to": status, **({"note": note} if note else {})})
-    if row.get("kind") == "ticket":
-        _remember(db, f"s:{sid}", status, note, actor, prev)
     return db.dev(sid)
-
-
-def _remember(db: Db, key: str, status: str | None, note: str | None, actor: str, prev: str | None) -> None:
-    """Nota y desde cuándo del estado del desarrollo; avisa (notificación del sistema) si te espera."""
-    old = db.get(f"devstate:{key}") or {}
-    since = old.get("since") if status == prev and old.get("since") else now()
-    db.set(f"devstate:{key}", {"status": status, "note": note, "since": since, "actor": actor})
-    if status == "waiting-input" and prev != "waiting-input" and actor != "ide":
-        _notify_mac(f"{key[2:] if key.startswith('s:') else 'Un desarrollo'} te espera" + (f": {note}" if note else ""))
 
 
 def _notify_mac(message: str) -> None:
@@ -138,32 +167,27 @@ def _notify_mac(message: str) -> None:
 
 
 def set_dev_state(root: Path, db: Db, key: str, status: str | None, *, actor: str, note: str | None = None) -> None:
-    """Estado del desarrollo para cualquier desarrollo (UI). Sesión de ticket = `set_status`; PRs sin
-    sesión: solo en la base. `status` None = sin estado."""
-    if status is not None and status not in DEV_STATES:
-        raise SessionError("bad_status", f"estado inválido: {status!r} ({' | '.join(DEV_STATES)})")
+    """Desde la UI, para cualquier desarrollo: una fase, un bloqueo, `unblock`, o None (PRs sin sesión:
+    sin estado puesto). Sesión de ticket = `set_status`; PRs sin sesión: solo en la base."""
+    if status is not None and status not in STATUSES["ticket"]:
+        raise SessionError("bad_status", f"estado inválido: {status!r} ({' | '.join(STATUSES['ticket'])})")
     if key.startswith("s:"):
-        set_status(root, db, key[2:], status or "investigating", actor=actor, note=note)
+        set_status(root, db, key[2:], status or "unblock", actor=actor, note=note)
         return
-    prev = (db.get(f"devstate:{key}") or {}).get("status")
-    if status is None:
-        db.delete(f"devstate:{key}")
-    else:
-        _remember(db, key, status, note, actor, prev)
-    db.event(now(), actor, "status", data={"key": key, "from": prev, "to": status, **({"note": note} if note else {})})
+    before, after = _apply(db, key, status, note, actor)
+    db.event(now(), actor, "status", data={"key": key, "from": before, "to": after, **({"note": note} if note else {})})
 
 
 def dev_states(db: Db) -> dict[str, dict]:
-    """clave → {status, note, since}: los de las sesiones de ticket (base) y los de PRs sin sesión."""
-    out = {k: v for k, v in db.with_prefix("devstate:").items() if not k.startswith("s:")}
-    meta = db.with_prefix("devstate:")
+    """clave → {phase, block, note, since}: sesiones de ticket y PRs sin sesión."""
+    out = {}
+    for k in db.with_prefix("devstate:"):
+        if not k.startswith("s:"):
+            out[k] = _state(db, k)
     for r in db.devs():
         if r.get("kind") == "ticket" and r.get("status"):
-            m = meta.get(f"s:{r['id']}") or {}
-            same = m.get("status") == r["status"]
-            out[f"s:{r['id']}"] = {"status": r["status"], "note": m.get("note") if same else None,
-                                   "since": m.get("since") if same else None}
-    return out
+            out[f"s:{r['id']}"] = _state(db, f"s:{r['id']}", r["status"])
+    return {k: {x: v.get(x) for x in ("phase", "block", "note", "since")} for k, v in out.items()}
 
 
 # -- lectura para la sesión principal (ide dev ls / show) -----------------------------------------

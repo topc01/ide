@@ -203,7 +203,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
           {showAuthor && <PersonChip login={pr.author} title={`autor: ${pr.author}`} />}
         </div>
         <CardMeta>
-          {dev && <DevStateLabel dev={dev} prs={[pr]} />}
+          {dev && <DevStateLabel dev={dev} />}
           {pr.draft && <span>draft</span>}
           {pr.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
           {merge && <MergeStatus url={pr.url} job={merge.job} />}

@@ -103,7 +103,7 @@ function WaitingForYou() {
   const states = useFolders((s) => s.tree.devStates);
   const names = useFolders((s) => s.tree.devNames);
   const sessions = useFolders((s) => s.tree.sessions);
-  const waiting = Object.entries(states ?? {}).filter(([, v]) => v.status === "waiting-input");
+  const waiting = Object.entries(states ?? {}).filter(([, v]) => v.block === "waiting-input");
   if (!waiting.length) return null;
   const label = (k: string) => names?.[k] ?? (k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2))?.title ?? k.slice(2) : k.slice(2));
   return (

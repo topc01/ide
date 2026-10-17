@@ -7,7 +7,7 @@ import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
 import { devIndexOf, devName, isHidden } from "./desarrollos";
-import { ago, DEV_STATE, outOfDraft, useCardColor, type DevStateInfo } from "./devStates";
+import { ago, STATE, type DevStateInfo } from "./devStates";
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
 export interface Tone {
@@ -50,11 +50,10 @@ const BG: Record<NonNullable<Tone["bg"]>, string> = {
 };
 /** Cascarón de las cards de la sidebar (sesiones y PRs): fondo = review; el CI va como marca en la
  *  esquina (CiMark), no en el borde; contorno de acento = seleccionada. */
-/** `dev`: estado del desarrollo; si la sección colorea por esa dimensión, el fondo sale de él. */
+/** `dev`: estado del desarrollo (Mis desarrollos): el fondo sale de él; si no, de la review (Revisiones). */
 export function CardShell({ tone, selected, dashed, onClick, children, dev }:
   { tone: Tone; selected: boolean; dashed?: boolean; onClick?: () => void; children: ReactNode; dev?: DevStateInfo | null }) {
-  const colorBy = useCardColor();
-  const bg = colorBy === "dev" ? (dev ? DEV_STATE[dev.status][1] : null) : tone.bg && BG[tone.bg];
+  const bg = dev ? STATE[dev.state][1] : tone.bg && BG[tone.bg];
   return (
     <div onClick={onClick} title={tone.label} aria-current={selected || undefined}
       className={cn("cursor-pointer rounded-md p-[2px] transition-[margin,filter] duration-150 ease-out",
@@ -67,7 +66,7 @@ export function CardShell({ tone, selected, dashed, onClick, children, dev }:
       {selected && <span aria-hidden className="absolute -left-[9px] top-1/2 h-7 w-1 -translate-y-1/2 rounded-full bg-primary" />}
       <div className={cn("rounded-[4px] bg-card text-xs", dashed
         && "border-2 border-dashed border-border")}>
-        <div className={cn("relative rounded-[4px] px-2 py-1.5", bg, colorBy === "dev" && dev?.status === "paused" && "opacity-70")}>
+        <div className={cn("relative rounded-[4px] px-2 py-1.5", bg, dev?.state === "paused" && "opacity-70")}>
           {children}
         </div>
       </div>
@@ -203,17 +202,19 @@ export function DevIndex({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
     className="shrink-0 rounded bg-primary/15 px-1 font-mono text-[10px] font-bold text-primary">#{n}</span>;
 }
 
-/** Estado del desarrollo en palabras ("esperando tu input · 2 h"), con la nota en el tooltip. Si el
- *  desarrollo está activo pero una PR ya salió de draft, lo dice. */
-export function DevStateLabel({ dev, prs = [] }: { dev: DevStateInfo | null; prs?: GhPr[] }) {
+/** Estado en palabras: "bloqueado por el cliente · en revisión · 3 d · nota". Si el desarrollo sigue
+ *  activo (puesto a mano) pero una PR ya salió de draft, lo dice. */
+export function DevStateLabel({ dev }: { dev: DevStateInfo | null }) {
   if (!dev) return null;
-  const [label, , text] = DEV_STATE[dev.status];
-  const tip = dev.inferred ? `${label} (inferido de sus PRs; cámbialo en el módulo Desarrollo)`
-    : `${label}${dev.since ? ` desde hace ${ago(dev.since)}` : ""}${dev.note ? ` — ${dev.note}` : ""}`;
+  const [label, , text] = STATE[dev.state];
+  const parts = [label, ...(dev.block ? [STATE[dev.phase][0]] : []), ...(dev.since && !dev.inferred ? [ago(dev.since)] : [])];
+  const tip = `${label}${dev.block ? ` (fase: ${STATE[dev.phase][0]})` : ""}${dev.github ? " · fase según GitHub" : ""}`
+    + `${dev.inferred ? " · inferido: cámbialo en el módulo Desarrollo" : ""}${dev.since ? ` · desde hace ${ago(dev.since)}` : ""}`
+    + `${dev.note ? ` — ${dev.note}` : ""}`;
   return (<>
     <span title={tip} className={cn("min-w-0 truncate", dev.inferred ? "text-muted-foreground" : text)}>
-      {label}{dev.since && !dev.inferred ? ` · ${ago(dev.since)}` : ""}{dev.note ? ` · ${dev.note}` : ""}</span>
-    {outOfDraft(dev, prs) && <span className="text-amber-300"
-      title="El desarrollo sigue activo pero una PR ya no está en draft (mientras se trabaja, las PRs van en draft)">PR fuera de draft</span>}
+      {parts.join(" · ")}{dev.note ? ` · ${dev.note}` : ""}</span>
+    {dev.outOfDraft && <span className="text-amber-300"
+      title={`Está "${STATE[dev.manual!][0]}" pero una PR ya no está en draft (mientras se trabaja, las PRs van en draft)`}>PR fuera de draft</span>}
   </>);
 }

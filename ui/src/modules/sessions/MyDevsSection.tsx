@@ -13,7 +13,7 @@ import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControl
 import { SessionItem } from "./SessionItem";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { deriveMine, isHidden, type Desarrollo } from "./desarrollos";
-import { devStateOf, type DevStateInfo } from "./devStates";
+import { BLOCKS, devStateOf, STATE, STATE_ORDER, type Block, type DevStateInfo } from "./devStates";
 import { cn } from "../../lib/utils";
 
 const DOT: Record<string, string> = {
@@ -79,16 +79,16 @@ function StackCard({ d, dev }: { d: Desarrollo; dev: DevStateInfo | null }) {
           <DevIndex devKey={d.key} prs={d.prs} />
           {d.prs.map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)}
         </div>
-        {dev && <div className="mt-1 flex flex-wrap gap-x-2 text-[11px]"><DevStateLabel dev={dev} prs={d.prs} /></div>}
+        {dev && <div className="mt-1 flex flex-wrap gap-x-2 text-[11px]"><DevStateLabel dev={dev} /></div>}
       </CardShell>
     </QueueItem>
   );
 }
 
-const STATUSES: [string, string][] = [
-  ["merges", "Merges"], ["returned", "Devueltas"], ["waiting", "Esperando revisores"],
-  ["missing", "Sin revisores"], ["draft", "Draft"], ["approved", "Aprobadas"], ["nopr", "Sin PR"],
-];
+/** Los grupos: todos los estados en su orden, pero solo los que tienen algo (los bloqueos se ven siempre:
+ *  son lo que hay que destrabar). */
+const statusesFor = (present: Set<string>): [string, string][] =>
+  STATE_ORDER.filter((k) => present.has(k) || (BLOCKS.includes(k as Block) && k !== "paused")).map((k) => [k, STATE[k][0]]);
 
 /** Mis desarrollos: sesiones de ticket y PRs propias unificadas (una card por desarrollo). */
 export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
@@ -98,8 +98,10 @@ export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
   const devs = deriveMine(tickets, gh, links);
   const hiddenKeys = useFolders((s) => s.tree.devHidden);
   const ghError = error ?? gh?.error;
-  const all: (Entry & { hidden: boolean })[] = devs.map((d) => { const dev = d.status === "merges" ? null : devStateOf(states, d.key, d.prs); return {
-    key: d.key, pr: d.prs[0], session: d.session, status: d.status, devState: dev?.status ?? null,
+  const all: (Entry & { hidden: boolean })[] = devs.map((d) => {
+    const dev = devStateOf(states, d.key, d.prs, d.job ?? (d.prs[0] ? gh?.merges?.[d.prs[0].url] : undefined));
+    return {
+    key: d.key, pr: d.prs[0], session: d.session, status: dev.state,
     hidden: d.status !== "merges" && !!isHidden(hiddenKeys, d.key, d.prs),
     render: () => d.session ? <SessionItem session={d.session} prs={d.prs} dev={dev} actions={<HideToggle devKey={d.key} prs={d.prs} />} />
       : d.prs.length > 1 ? <StackCard d={d} dev={dev} />
@@ -110,7 +112,7 @@ export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
   return (
     <GroupedSection id="mine" title="Mis desarrollos" entries={all.filter((e) => !e.hidden)}
       hidden={all.filter((e) => e.hidden)} gh={gh}
-      statuses={STATUSES.filter(([k]) => k !== "merges" || devs.some((d) => d.status === "merges"))}
+      statuses={statusesFor(new Set(all.filter((e) => !e.hidden).map((e) => e.status)))}
       status={<>
         {ghError && <span role="alert" className="truncate text-[10px] text-destructive"
           title={`${ghError} (último OK: ${gh?.lastOk ?? "nunca"})`}>⚠ github</span>}

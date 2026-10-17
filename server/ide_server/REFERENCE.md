@@ -529,22 +529,24 @@ las cards, el selector (y se busca por `#12`), el módulo Desarrollo e `ide dev 
 (`<login de GitHub>/d12-<nombre>`): es la rama por defecto de `ide repo add`. `sessions.tree` trae
 `devIndex`.
 
-**Estado del desarrollo** (otra dimensión que el de la PR; solo local): qué toca o qué lo frena.
-Avanzando: `investigating`, `ready-to-develop`, `developing`, `ready-for-review`; bloqueos (para
-destrabar): `waiting-input`, `questions`, `blocked-definitions`, `blocked-client`, `blocked-dev`;
-`paused`. Después de `ready-for-review` manda la PR. Mientras el desarrollo está activo sus PRs van en
-draft (si una salió de draft, la card dice "PR fuera de draft"). Se cambia en el módulo Desarrollo
-(con nota: qué falta y de quién; se ve desde cuándo) o con `ide status <estado> -m nota` desde la
-sesión; una PR sin sesión sin estado puesto lo infiere (draft = desarrollando, si no listo para
-revisión). Con `ready-for-review`, **Mandar a revisión** saca de draft sus PRs (`gh pr ready`; solo las
-tuyas). Al pasar a `waiting-input` desde una sesión llega una notificación de macOS y la barra de
-abajo cuenta "N te esperan". Mis desarrollos agrupa **por estado de la PR** o **por estado del
-desarrollo** (bloqueos primero, siempre visibles); el color de las cards sigue a esa dimensión y,
-si se agrupa por otra cosa (repo, sin agrupar), se elige en Configuración. Los estados de antes se
-migran solos (analyzing → investigating, blocked → blocked-definitions, ready → ready-to-develop,
-in-progress → developing, done → ready-for-review) y se siguen aceptando en `ide status`. Las
-sesiones de revisión siguen con los suyos (dimensión PR). Canales `dev.state {key, status, note}`,
-`prs.ready {urls}`; `sessions.tree` trae `devStates`.
+**Estado del desarrollo** (uno solo, unificado con el de la PR; solo local): una **fase** y, encima,
+un **bloqueo** opcional. Fases a mano: `investigating`, `ready-to-develop`, `developing`,
+`ready-for-review`; con PRs fuera de draft la fase la da GitHub (la peor de sus PRs): sin revisores,
+en revisión, cambios pedidos, aprobada, mergeando, mergeada. Sin nada puesto se deduce (draft =
+desarrollando). Bloqueos (tapan la fase sin borrarla, con nota y desde cuándo): `waiting-input`,
+`questions`, `blocked-definitions`, `blocked-client`, `blocked-dev`, `paused`; `unblock` vuelve a la
+fase. Mientras el desarrollo está activo sus PRs van en draft (si la fase puesta es activa y una PR
+salió de draft, la card dice "PR fuera de draft"). Se cambia en el módulo Desarrollo (fase, bloqueo
+con nota, destrabar; en PRs sin sesión, "borrar estado") o con `ide status <fase|bloqueo|unblock>
+-m nota` desde la sesión. Con `ready-for-review`, **Mandar a revisión** saca de draft sus PRs (`gh pr
+ready`; solo las tuyas). Al bloquearse en `waiting-input` desde una sesión llega una notificación de
+macOS y la barra de abajo cuenta "N te esperan". Mis desarrollos agrupa **por estado** (bloqueos
+primero y siempre visibles; después el flujo; grupos vacíos ocultos) y el fondo de cada card es el
+color de su estado. Los estados de antes se migran solos (analyzing → investigating, blocked →
+blocked-definitions, ready → ready-to-develop, in-progress → developing, done → ready-for-review) y
+se aceptan en `ide status`. Las sesiones de revisión siguen con los suyos. Base: `kv`
+`devstate:<clave>` = `{phase, block, note, since}`; canales `dev.state {key, status, note}` (fase,
+bloqueo, `unblock` o null) y `prs.ready {urls}`; `sessions.tree` trae `devStates`.
 
 **Ocultar un desarrollo:** el ojo tachado (hover de la card en Mis desarrollos) lo pasa al grupo
 **Ocultos**, al final de la sección y cerrado de entrada (no cuenta en el total); ahí el ojo lo vuelve

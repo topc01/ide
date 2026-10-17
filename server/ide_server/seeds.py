@@ -46,12 +46,13 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
 El **estado del desarrollo** (qué toca o qué lo frena; distinto del de la PR) vive en la base del
 IDE: cámbialo con `ide status <estado>` (con `-m "nota"` si es un bloqueo: qué falta y de quién),
 nunca editando el `status:` del archivo. Ticket:
-- avanzando: `investigating` | `ready-to-develop` | `developing` | `ready-for-review`
-- bloqueos: `waiting-input` (le hiciste una pregunta al usuario y esperas su respuesta) | `questions`
-  (dudas abiertas) | `blocked-definitions` | `blocked-client` | `blocked-dev` (espera otro desarrollo)
-- `paused`
+- fase: `investigating` | `ready-to-develop` | `developing` | `ready-for-review`
+- bloqueo (encima de la fase, con nota; `ide status unblock` vuelve a la fase): `waiting-input` (le
+  hiciste una pregunta al usuario y esperas su respuesta) | `questions` (dudas abiertas) |
+  `blocked-definitions` | `blocked-client` | `blocked-dev` (espera otro desarrollo) | `paused`
 Mientras el desarrollo está activo sus PRs van en **draft** (`gh pr create --draft`); al terminar,
-`ide status ready-for-review` y el usuario la manda a revisión desde el IDE. Revisión (sesiones de
+`ide status ready-for-review` y el usuario la manda a revisión desde el IDE. Desde ahí la fase la da
+GitHub (en revisión, cambios pedidos, aprobada, mergeando). Revisión (sesiones de
 revisión de PR): reviewing | commented | approved | changes-requested. `TICKET.md` / `REVIEW.md` guardan el análisis (y el `title` si está vacío).
 La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide dev show <id>`.
 

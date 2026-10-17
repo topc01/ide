@@ -1,54 +1,77 @@
 // ui/src/modules/sessions/devStates.ts
-/** Estado del DESARROLLO (otra dimensión que el de la PR): qué toca o qué lo frena. Solo local.
- *  Después de "listo para revisión" manda la PR (revisión, cambios, aprobada, merge). */
-import { createContext, useContext } from "react";
-import type { GhPr } from "../../transport/folderSessions";
+/** Estado del desarrollo, uno solo: una FASE que avanza (a mano hasta "listo para revisión"; con PRs
+ *  fuera de draft, la da GitHub con la peor de sus PRs) y, encima, un BLOQUEO opcional (con nota)
+ *  que la tapa sin borrarla. Solo local (base del IDE). */
+import type { GhPr, MergeJob } from "../../transport/folderSessions";
 import { devKeys } from "./desarrollos";
 
-export type DevState = "investigating" | "ready-to-develop" | "developing" | "ready-for-review"
-  | "waiting-input" | "questions" | "blocked-definitions" | "blocked-client" | "blocked-dev" | "paused";
+export type Phase = "investigating" | "ready-to-develop" | "developing" | "ready-for-review"
+  | "needs-reviewers" | "in-review" | "changes-requested" | "approved" | "merging" | "merged";
+export type Block = "waiting-input" | "questions" | "blocked-definitions" | "blocked-client" | "blocked-dev" | "paused";
+export type State = Phase | Block;
 
-/** [nombre, fondo de la card, color del texto]. Los bloqueos, fuertes; lo que avanza, suave. */
-export const DEV_STATE: Record<DevState, [string, string, string]> = {
+/** [nombre, fondo de la card, color del texto]. Bloqueos fuertes; fases suaves. */
+export const STATE: Record<State, [string, string, string]> = {
   "waiting-input": ["esperando tu input", "bg-orange-500/[0.18]", "text-orange-300"],
-  questions: ["dudas", "bg-amber-400/[0.15]", "text-amber-300"],
+  questions: ["dudas", "bg-yellow-400/[0.13]", "text-yellow-300"],
   "blocked-definitions": ["bloqueado por definiciones", "bg-rose-500/[0.14]", "text-rose-300"],
   "blocked-client": ["bloqueado por el cliente", "bg-red-500/[0.16]", "text-red-400"],
   "blocked-dev": ["bloqueado por otro desarrollo", "bg-fuchsia-500/[0.12]", "text-fuchsia-300"],
-  investigating: ["investigando", "bg-sky-500/[0.07]", "text-sky-300"],
-  "ready-to-develop": ["listo para desarrollar", "bg-indigo-400/[0.08]", "text-indigo-300"],
-  developing: ["desarrollando", "bg-emerald-500/[0.07]", "text-emerald-300"],
-  "ready-for-review": ["listo para revisión", "bg-teal-400/[0.12]", "text-teal-300"],
   paused: ["pausado", "bg-zinc-500/[0.10]", "text-muted-foreground"],
+  investigating: ["investigando", "bg-slate-400/[0.08]", "text-slate-300"],
+  "ready-to-develop": ["listo para desarrollar", "bg-indigo-400/[0.08]", "text-indigo-300"],
+  developing: ["desarrollando", "bg-violet-400/[0.09]", "text-violet-300"],
+  "ready-for-review": ["listo para revisión", "bg-teal-400/[0.12]", "text-teal-300"],
+  "needs-reviewers": ["sin revisores", "bg-sky-500/[0.04]", "text-sky-300"],
+  "in-review": ["en revisión", "bg-sky-500/[0.08]", "text-sky-300"],
+  "changes-requested": ["cambios pedidos", "bg-amber-400/[0.09]", "text-amber-300"],
+  approved: ["aprobada", "bg-emerald-500/[0.08]", "text-emerald-300"],
+  merging: ["mergeando", "bg-purple-500/[0.09]", "text-purple-300"],
+  merged: ["mergeada", "bg-purple-500/[0.09]", "text-purple-300"],
 };
-/** Orden de los grupos: primero lo que hay que destrabar. */
-export const DEV_STATE_ORDER: DevState[] = ["waiting-input", "questions", "blocked-definitions", "blocked-client",
-  "blocked-dev", "investigating", "ready-to-develop", "developing", "ready-for-review", "paused"];
-export const BLOCKED: DevState[] = ["waiting-input", "questions", "blocked-definitions", "blocked-client", "blocked-dev"];
-const ACTIVE: DevState[] = ["investigating", "ready-to-develop", "developing", ...BLOCKED];
+/** Orden de los grupos: lo que hay que destrabar primero, después el flujo, pausado al final. */
+export const STATE_ORDER: State[] = ["waiting-input", "questions", "blocked-definitions", "blocked-client", "blocked-dev",
+  "changes-requested", "investigating", "ready-to-develop", "developing", "ready-for-review", "needs-reviewers",
+  "in-review", "approved", "merging", "merged", "paused"];
+export const BLOCKS: Block[] = ["waiting-input", "questions", "blocked-definitions", "blocked-client", "blocked-dev", "paused"];
+/** Las fases que se ponen a mano (después manda GitHub). */
+export const MANUAL_PHASES: Phase[] = ["investigating", "ready-to-develop", "developing", "ready-for-review"];
 
-export interface DevStateInfo { status: DevState; note: string | null; since: string | null; inferred: boolean }
-export type DevStates = Record<string, { status: string; note?: string | null; since?: string | null }>;
+export interface DevStateInfo {
+  state: State;                 // lo que se muestra/agrupa: el bloqueo si hay, si no la fase
+  phase: Phase; block: Block | null;
+  manual: Phase | null;         // la fase puesta a mano (puede quedar tapada por la de GitHub)
+  github: boolean;              // la fase sale de sus PRs (fuera de draft o mergeando)
+  note: string | null; since: string | null;
+  inferred: boolean;            // no hay nada puesto: fase deducida
+  outOfDraft: boolean;          // puesta a mano como activa, pero alguna PR ya salió de draft
+}
+export type DevStates = Record<string, { phase?: string | null; block?: string | null; note?: string | null; since?: string | null }>;
+const MERGE_ACTIVE = ["rebasing", "waiting", "waiting_ci", "merging", "restacking"];
 
-/** El estado del desarrollo: el puesto (por clave, o heredado de su stack/PRs) o, si no hay, uno
- *  inferido de sus PRs (draft = desarrollando; lista para revisión = listo para revisión). */
-export function devStateOf(states: DevStates | undefined, key: string, prs: GhPr[] = []): DevStateInfo | null {
-  for (const k of devKeys(key, prs)) {
-    const s = states?.[k];
-    if (s && s.status in DEV_STATE) return { status: s.status as DevState, note: s.note ?? null, since: s.since ?? null, inferred: false };
-  }
-  if (!prs.length) return null;
-  return { status: prs.some((p) => p.draft) ? "developing" : "ready-for-review", note: null, since: null, inferred: true };
+/** Fase según GitHub (la peor de las PRs fuera de draft), o null si todas están en draft. */
+function githubPhase(prs: GhPr[], job?: MergeJob): Phase | null {
+  if (job && MERGE_ACTIVE.includes(job.state)) return "merging";
+  if (job?.state === "done") return "merged";
+  const open = prs.filter((p) => !p.draft);
+  if (!open.length) return null;
+  if (open.some((p) => p.review === "changes")) return "changes-requested";
+  if (open.some((p) => !p.review && !p.reviewers?.length)) return "needs-reviewers";
+  if (open.some((p) => p.review !== "approved")) return "in-review";
+  return "approved";
 }
 
-/** El desarrollo sigue activo pero alguna PR ya no está en draft (debería estar en draft hasta terminar). */
-export const outOfDraft = (st: DevStateInfo | null, prs: GhPr[]) =>
-  !!st && !st.inferred && ACTIVE.includes(st.status) && prs.some((p) => !p.draft);
-
-/** Con qué dimensión se colorean las cards de una sección (la que agrupa, o la elegida en Configuración). */
-export type ColorBy = "pr" | "dev";
-export const CardColor = createContext<ColorBy>("pr");
-export const useCardColor = () => useContext(CardColor);
+export function devStateOf(states: DevStates | undefined, key: string, prs: GhPr[] = [], job?: MergeJob): DevStateInfo {
+  const s = devKeys(key, prs).map((k) => states?.[k]).find(Boolean);
+  const manual = (MANUAL_PHASES as string[]).includes(s?.phase ?? "") ? s!.phase as Phase : null;
+  const block = (BLOCKS as string[]).includes(s?.block ?? "") ? s!.block as Block : null;
+  const gh = githubPhase(prs, job);
+  const phase: Phase = gh ?? manual ?? (prs.length ? "developing" : "investigating");
+  return {
+    state: block ?? phase, phase, block, manual, github: !!gh, note: s?.note ?? null, since: s?.since ?? null,
+    inferred: !gh && !manual, outOfDraft: !!gh && !!manual && manual !== "ready-for-review" && gh !== "merging" && gh !== "merged",
+  };
+}
 
 export const ago = (iso: string | null) => {
   if (!iso) return "";
