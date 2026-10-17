@@ -73,17 +73,23 @@ def read(root: Path, place: str, repo: str, rel: str) -> dict:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
         raise SessionError("binary", f"{rel} no es UTF-8")
-    return {"text": text, "mtime": p.stat().st_mtime_ns}
+    return {"text": text, "mtime": str(p.stat().st_mtime_ns)}   # texto: en JS un int64 se redondea
 
 
-def write(root: Path, place: str, repo: str, rel: str, text: str, mtime: int | None) -> dict:
+def stat(root: Path, place: str, repo: str, rel: str) -> dict:
+    """mtime del archivo (None si no existe): el editor lo mira para saber si cambió en disco."""
+    p = _target(_base(root, place, repo), rel)
+    return {"mtime": str(p.stat().st_mtime_ns) if p.is_file() else None}
+
+
+def write(root: Path, place: str, repo: str, rel: str, text: str, mtime: str | None) -> dict:
     """Guarda. Si el archivo cambió en disco desde que se leyó (`mtime`), no pisa: `changed_on_disk`."""
     if not isinstance(text, str):
         raise SessionError("bad_request", "text debe ser texto")
     p = _target(_base(root, place, repo), rel)
     if p.is_dir():
         raise SessionError("bad_path", f"{rel} es una carpeta")
-    if p.exists() and mtime is not None and p.stat().st_mtime_ns != mtime:
+    if p.exists() and mtime is not None and str(p.stat().st_mtime_ns) != str(mtime):
         raise SessionError("changed_on_disk", f"{rel} cambió en disco desde que lo abriste: recárgalo")
     if not p.parent.is_dir():
         raise SessionError("bad_path", f"no existe la carpeta de {rel}")
@@ -100,4 +106,4 @@ def write(root: Path, place: str, repo: str, rel: str, text: str, mtime: int | N
     except BaseException:
         tmp.unlink(missing_ok=True)
         raise
-    return {"mtime": p.stat().st_mtime_ns}
+    return {"mtime": str(p.stat().st_mtime_ns)}

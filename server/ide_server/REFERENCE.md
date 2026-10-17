@@ -295,8 +295,10 @@ borra con sus `.env`). En un stack se usa la PR de más arriba.
 **Archivos** (id `explorer`): árbol de cada worktree del desarrollo actual (sin `.git`) y accesos
 directos a sus `.env*` (los que faltan de `.env`/`.env.local` aparecen punteados: se crean al
 guardar). Click en un archivo lo abre en una tab con editor (resaltado para ts/js/py/json/md/yaml);
-**Guardar** (o ⌘S) se habilita con cambios. Si el archivo cambió en disco desde que se abrió no lo
-pisa (`changed_on_disk`: Recargar). Confinado al worktree (rutas resueltas, symlinks incluidos),
+**Guardar** (o ⌘S) se habilita con cambios. El editor mira el archivo cada 2 s: si cambió en disco
+(p.ej. un script reescribió el `.env`) y no tienes cambios, se recarga solo; si tienes cambios, avisa
+y eliges **Recargar** (pierdes los tuyos) o **Sobrescribir** (los tuyos encima). Guardar nunca pisa
+un cambio de disco sin preguntar (`changed_on_disk`). Confinado al worktree (rutas resueltas, symlinks incluidos),
 máx. 2 MB, solo texto UTF-8.
 
 ## 9. Estado de sesiones
@@ -637,4 +639,4 @@ process}`), `usage.get` (`{sessionId}` → `{context, limits}`), `terminal.*`; e
 [{id, repos}]}`), `runs.start|stop` (`{place, repo, name}`), `runs.log` (`{place, repo, name,
 offset}` → `{data, end, reset}`, `offset` -1 = lo último), `prwt.ensure|update` (`{url}`),
 `prwt.remove` (`{place, force}`); evento `runs.changed`. Archivos: `wtfiles.list` (`{place, repo,
-path}`), `wtfiles.envs`, `wtfiles.read` (→ `{text, mtime}`), `wtfiles.write` (`{…, text, mtime}`).
+path}`), `wtfiles.envs`, `wtfiles.read` (→ `{text, mtime}`, `mtime` en texto), `wtfiles.stat` (→ `{mtime}`), `wtfiles.write` (`{…, text, mtime}`; `mtime` null = sobrescribir).

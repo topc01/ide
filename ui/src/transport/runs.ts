@@ -31,10 +31,12 @@ export const listWtFiles = (ws: WsClient, place: string, repo: string, path: str
   ws.request("wtfiles.list", { place, repo, path });
 export const envFiles = (ws: WsClient, place: string, repo: string): Promise<{ files: string[] }> =>
   ws.request("wtfiles.envs", { place, repo });
-export const readWtFile = (ws: WsClient, place: string, repo: string, path: string): Promise<{ text: string; mtime: number }> =>
+export const readWtFile = (ws: WsClient, place: string, repo: string, path: string): Promise<{ text: string; mtime: string }> =>
   ws.request("wtfiles.read", { place, repo, path });
+export const statWtFile = (ws: WsClient, place: string, repo: string, path: string): Promise<{ mtime: string | null }> =>
+  ws.request("wtfiles.stat", { place, repo, path });
 export const writeWtFile = (ws: WsClient, place: string, repo: string, path: string, text: string,
-                            mtime: number | null): Promise<{ mtime: number }> =>
+                            mtime: string | null): Promise<{ mtime: string }> =>
   ws.request("wtfiles.write", { place, repo, path, text, mtime });
 
 /** Estado de los servidores, vivo (`runs.changed`). */

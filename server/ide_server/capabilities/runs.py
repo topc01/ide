@@ -81,6 +81,9 @@ def register(registry: Registry, root: Path, manager, runner: Runner):
     async def files_read(p: dict) -> dict:
         return await asyncio.to_thread(wt_files.read, root, p["place"], p["repo"], p["path"])
 
+    async def files_stat(p: dict) -> dict:
+        return await asyncio.to_thread(wt_files.stat, root, p["place"], p["repo"], p["path"])
+
     async def files_write(p: dict) -> dict:
         return await asyncio.to_thread(wt_files.write, root, p["place"], p["repo"], p["path"],
                                        p["text"], p.get("mtime"))
@@ -88,7 +91,7 @@ def register(registry: Registry, root: Path, manager, runner: Runner):
     for channel, handler in {
         "runs.list": list_, "runs.start": start, "runs.stop": stop, "runs.log": log_,
         "prwt.ensure": wt_ensure, "prwt.update": wt_update, "prwt.remove": wt_remove,
-        "wtfiles.list": files_list, "wtfiles.envs": files_envs, "wtfiles.read": files_read,
+        "wtfiles.list": files_list, "wtfiles.envs": files_envs, "wtfiles.read": files_read, "wtfiles.stat": files_stat,
         "wtfiles.write": files_write,
     }.items():
         registry.register(channel, handler)
