@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import shlex
+import secrets
 import shutil
 import subprocess
 import threading
@@ -84,6 +85,24 @@ class ClaudeAgents:
                       env=clean_env(dict(os.environ)))
         except (OSError, subprocess.TimeoutExpired) as exc:
             log.warning("no se pudo detener la sesión de fondo %s: %s", agent_id, exc)
+
+
+def _manager_token(root: Path) -> str:
+    """Secreto de la sesión principal para `ide session send` (`.ide/manager.token`, solo tuyo): se
+    mantiene entre reinicios, así una principal que ya corría sigue pudiendo rutear."""
+    f = root / ".ide" / "manager.token"
+    try:
+        tok = f.read_text().strip()
+        if tok:
+            return tok
+    except OSError:
+        pass
+    tok = secrets.token_urlsafe(32)
+    f.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(tok)
+    return tok
 
 
 def encode_project_dir(path: Path) -> str:
@@ -183,6 +202,7 @@ class Supervisor:
                  which: Callable[[str], str | None] = shutil.which,
                  agents: ClaudeAgents | None = None,
                  write: Callable[[str, bytes], None] | None = None) -> None:
+        self.manager_token = _manager_token(root)   # lo recibe solo el claude de la principal
         self._root, self._spawn, self._kill = root, spawn, kill
         self._url, self._command, self._max = server_url, command, max_running
         self._home = home or Path.home()
@@ -293,6 +313,8 @@ class Supervisor:
         (self._root / ".ide" / "worktrees" / sid).mkdir(parents=True, exist_ok=True)  # --add-dir
         from ide_server.devs import dev_env   # el claude de la sesión sabe su número (ramas, slugs)
         env = {**clean_env(dict(os.environ)), **dev_env(self._root, sid), "IDE_SESSION_ID": sid, "IDE_URL": self._url,
+               # solo la principal: con esto `ide session send` prueba que es ella (ver sessions.send)
+               **({"IDE_MANAGER_TOKEN": self.manager_token} if data.get("kind") == "main" else {}),
                "IDE_WORKSPACE": str(self._root)}
         holder: dict[str, str] = {}
         tid = self._spawn(session_path(self._root, sid), argv, env,

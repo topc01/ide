@@ -3,6 +3,7 @@ import asyncio
 import io
 import logging
 import re
+import secrets
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -168,11 +169,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 raise SessionError("unknown_dev", f"el desarrollo #{n} no tiene sesión")
             sid = hit[0]
         require_session(root, sid)
-        caller = p.get("caller")
-        if caller:                               # desde una sesión: solo la principal rutea
-            ck = (read_toml(session_path(root, require_plain_name(caller, "sesión")) / ".session.toml") or {}).get("kind")
-            if ck != "main":
-                raise SessionError("forbidden", "solo la sesión principal puede mandar prompts a otras sesiones")
+        # solo la principal rutea: lo prueba con el token que el IDE le pasa a SU claude al lanzarla
+        # (un campo "caller" lo podría omitir cualquiera)
+        if not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+            raise SessionError("forbidden", "solo la sesión principal puede mandar prompts a otras sesiones")
+        caller = "manager"
+        # con encabezado: nunca empieza con "!" (claude lo correría como shell) ni con "/", y la
+        # sesión sabe de quién viene
+        text = "[Mensaje de la sesión manager]\n" + text.strip()
         state = supervisor.state(sid)
         if state == "queued":
             raise SessionError("queued", f"{sid} está en cola (max_running): espera a que arranque")

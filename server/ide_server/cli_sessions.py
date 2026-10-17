@@ -315,7 +315,7 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
         if not text or not text.strip():
             raise SessionError("bad_request", "falta el texto: --prompt-file - (stdin) o --prompt")
         sid = a.id if a.id.lstrip("#").isdigit() else normalize_id(a.id)
-        body = {"text": text, **({"caller": env["IDE_SESSION_ID"]} if env.get("IDE_SESSION_ID") else {})}
+        body = {"text": text, "token": env.get("IDE_MANAGER_TOKEN", "")}   # solo la principal lo tiene
         data = _post(http, url, f"/api/sessions/{quote(sid, safe='')}/send", body)
         out.write(f"{data['id']}\t{data['delivered']}\t{data['process']}\n")
         return 0

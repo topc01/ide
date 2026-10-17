@@ -184,10 +184,13 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 ### Rutear a un desarrollo (`ide session send`)
 - `ide session send <id | #n> --prompt-file - | --prompt "…"`: encola un prompt a la sesión de un
   desarrollo (id de la sesión o su número `#8`). Si su `claude` corre, entra a su cola (lo toma al
-  terminar el turno); si está parada, se lanza con él; en cola por `max_running` → `queued`. Desde
-  una sesión solo lo puede usar la **principal** (`forbidden`); el texto va por stdin, no por la shell.
-  Queda en el historial (`prompt`). Canal `sessions.send {id, text, caller}`, HTTP
-  `POST /api/sessions/{id}/send`.
+  terminar el turno); si está parada, se lanza con él; en cola por `max_running` → `queued`. Solo la
+  **principal**: lo prueba con `IDE_MANAGER_TOKEN`, que el IDE le pasa solo a su `claude`
+  (`.ide/manager.token`, permisos 600); sin él → `forbidden`. El texto va por stdin (no por la shell) y
+  llega con el encabezado `[Mensaje de la sesión manager]` (nunca empieza con `!`, que claude
+  correría como shell). No está en los permitidos automáticos de la principal: cada envío pide OK
+  (contenido ajeno, como un ticket o una PR, podría intentar que mande cosas). Queda en el historial
+  (`prompt`). Canal `sessions.send {id, text, token}`, HTTP `POST /api/sessions/{id}/send`.
 - **Nueva conversación** (módulo Desarrollo, con confirmación): para la misma sesión (carpeta,
   worktrees, `SESSION.md`) cierra la conversación de claude y arranca una nueva con contexto limpio
   (la anterior queda en su transcript); a las de ticket/revisión les pide leer su `SESSION.md` y
