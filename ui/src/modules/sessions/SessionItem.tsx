@@ -3,8 +3,9 @@ import { useState, type ReactNode } from "react";
 import { Archive, ExternalLink, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
-import { CardActions, CardCorner, DevIndex, RenameAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
+import type { DevStateInfo } from "./devStates";
 import { PersonChip } from "../../lib/people";
 import { stopSession } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
@@ -26,8 +27,10 @@ function prLabel(url?: string | null): string | null {
 
 /** `prs`: las PRs del desarrollo de la sesión (Mis desarrollos); con más de una se muestran como filas. */
 /** `noArchive`: sin botón archivar (p.ej. revisiones donde pediste cambios: siguen vivas). */
-export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = false, noArchive = false }:
-  { session: FolderSession; actions?: ReactNode; pr?: GhPr; prs?: GhPr[]; onlyActions?: boolean; noArchive?: boolean }) {
+/** `dev`: estado del desarrollo (Mis desarrollos): se muestra y colorea la card si la sección agrupa por él. */
+export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = false, noArchive = false, dev }:
+  { session: FolderSession; actions?: ReactNode; pr?: GhPr; prs?: GhPr[]; onlyActions?: boolean; noArchive?: boolean;
+    dev?: DevStateInfo | null }) {
   const pr = prProp ?? prs?.[0];
   const many = (prs?.length ?? 0) > 1;
   const { activeId, activePrUrl, setActive } = useFolders();
@@ -43,7 +46,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
   return (
     <QueueItem className="px-2 py-1">
       {/* con una PR (sin sesión) elegida, la sesión anterior ya no es el desarrollo activo */}
-      <CardShell tone={tone} onClick={() => setActive(session.id)}
+      <CardShell tone={tone} dev={dev} onClick={() => setActive(session.id)}
         selected={activeId === session.id && !activePrUrl || !!prs?.some((p) => p.url === activePrUrl)}>
         <CardCorner><DepsPause pr={pr} />{worst.ci && <CiMark pr={worst.ci} />}</CardCorner>
         <div className={cn("flex items-start gap-1.5", titlePad(pr))}>
@@ -90,6 +93,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
         </div>
         <CardMeta>
+          {dev && <DevStateLabel dev={dev} prs={prs ?? (pr ? [pr] : [])} />}
           {!many && pr?.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
           {session.prState === "stale" && <span className="text-sky-400"
             title="El PR tiene commits nuevos desde tu revisión: abre la sesión y toca Refrescar">⟳ commits nuevos desde tu revisión</span>}

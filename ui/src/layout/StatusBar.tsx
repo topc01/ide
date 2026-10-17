@@ -80,6 +80,7 @@ export function StatusBar() {
               <span className="text-muted-foreground">({Math.round(ctxPct)}% de {fmtK(ctx.window)})</span>
             </>) : <span className="text-muted-foreground">{activeId ? "sin conversación" : "—"}</span>}
           </span>
+          <WaitingForYou />
           <Window label="5h" w={lim?.fiveHour ?? null} now={now} />
           <Window label="semana" w={lim?.weekly ?? null} now={now} />
           {update?.pending && (
@@ -95,4 +96,18 @@ export function StatusBar() {
       )}
     </footer>
   );
+}
+
+/** Cuántos desarrollos esperan tu input (estado del desarrollo); el tooltip dice cuáles y qué piden. */
+function WaitingForYou() {
+  const states = useFolders((s) => s.tree.devStates);
+  const names = useFolders((s) => s.tree.devNames);
+  const sessions = useFolders((s) => s.tree.sessions);
+  const waiting = Object.entries(states ?? {}).filter(([, v]) => v.status === "waiting-input");
+  if (!waiting.length) return null;
+  const label = (k: string) => names?.[k] ?? (k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2))?.title ?? k.slice(2) : k.slice(2));
+  return (
+    <span className="font-semibold text-orange-300"
+      title={waiting.map(([k, v]) => `${label(k)}${v.note ? ` — ${v.note}` : ""}`).join("\n")}>
+      {waiting.length} {waiting.length === 1 ? "te espera" : "te esperan"}</span>);
 }

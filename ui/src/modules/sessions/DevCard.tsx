@@ -7,6 +7,7 @@ import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
 import { devIndexOf, devName, isHidden } from "./desarrollos";
+import { ago, DEV_STATE, outOfDraft, useCardColor, type DevStateInfo } from "./devStates";
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
 export interface Tone {
@@ -49,8 +50,11 @@ const BG: Record<NonNullable<Tone["bg"]>, string> = {
 };
 /** Cascarón de las cards de la sidebar (sesiones y PRs): fondo = review; el CI va como marca en la
  *  esquina (CiMark), no en el borde; contorno de acento = seleccionada. */
-export function CardShell({ tone, selected, dashed, onClick, children }:
-  { tone: Tone; selected: boolean; dashed?: boolean; onClick?: () => void; children: ReactNode }) {
+/** `dev`: estado del desarrollo; si la sección colorea por esa dimensión, el fondo sale de él. */
+export function CardShell({ tone, selected, dashed, onClick, children, dev }:
+  { tone: Tone; selected: boolean; dashed?: boolean; onClick?: () => void; children: ReactNode; dev?: DevStateInfo | null }) {
+  const colorBy = useCardColor();
+  const bg = colorBy === "dev" ? (dev ? DEV_STATE[dev.status][1] : null) : tone.bg && BG[tone.bg];
   return (
     <div onClick={onClick} title={tone.label} aria-current={selected || undefined}
       className={cn("cursor-pointer rounded-md p-[2px] transition-[margin,filter] duration-150 ease-out",
@@ -63,7 +67,7 @@ export function CardShell({ tone, selected, dashed, onClick, children }:
       {selected && <span aria-hidden className="absolute -left-[9px] top-1/2 h-7 w-1 -translate-y-1/2 rounded-full bg-primary" />}
       <div className={cn("rounded-[4px] bg-card text-xs", dashed
         && "border-2 border-dashed border-border")}>
-        <div className={cn("relative rounded-[4px] px-2 py-1.5", tone.bg && BG[tone.bg])}>
+        <div className={cn("relative rounded-[4px] px-2 py-1.5", bg, colorBy === "dev" && dev?.status === "paused" && "opacity-70")}>
           {children}
         </div>
       </div>
@@ -197,4 +201,19 @@ export function DevIndex({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
   if (n === null) return null;
   return <span title={`desarrollo #${n} (ramas y bases nuevas: d${n}-…)`}
     className="shrink-0 rounded bg-primary/15 px-1 font-mono text-[10px] font-bold text-primary">#{n}</span>;
+}
+
+/** Estado del desarrollo en palabras ("esperando tu input · 2 h"), con la nota en el tooltip. Si el
+ *  desarrollo está activo pero una PR ya salió de draft, lo dice. */
+export function DevStateLabel({ dev, prs = [] }: { dev: DevStateInfo | null; prs?: GhPr[] }) {
+  if (!dev) return null;
+  const [label, , text] = DEV_STATE[dev.status];
+  const tip = dev.inferred ? `${label} (inferido de sus PRs; cámbialo en el módulo Desarrollo)`
+    : `${label}${dev.since ? ` desde hace ${ago(dev.since)}` : ""}${dev.note ? ` — ${dev.note}` : ""}`;
+  return (<>
+    <span title={tip} className={cn("min-w-0 truncate", dev.inferred ? "text-muted-foreground" : text)}>
+      {label}{dev.since && !dev.inferred ? ` · ${ago(dev.since)}` : ""}{dev.note ? ` · ${dev.note}` : ""}</span>
+    {outOfDraft(dev, prs) && <span className="text-amber-300"
+      title="El desarrollo sigue activo pero una PR ya no está en draft (mientras se trabaja, las PRs van en draft)">PR fuera de draft</span>}
+  </>);
 }

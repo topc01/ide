@@ -12,8 +12,9 @@ import { Badge } from "../../components/ui/badge";
 import { SessionItem } from "./SessionItem";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
-import { CardActions, CardCorner, DevIndex, RenameAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { cn } from "../../lib/utils";
+import type { DevStateInfo } from "./devStates";
 import { PersonChip } from "../../lib/people";
 import { usePersistentOpen } from "../../lib/persist";
 
@@ -167,15 +168,15 @@ function OpenPrButton({ pr }: { pr: GhPr }) {
  *  `showAuthor`: en Revisiones (de quién es); `showReviewers`: en Mis PRs (quién la revisa). */
 /** `devKey`: la PR es un desarrollo (Mis desarrollos): su título se puede renombrar. `extraActions`:
  *  más acciones de hover (p.ej. ocultar). */
-export function PrCard({ pr, reviewable = false, openOnClick = false, merge, showAuthor = false, showReviewers = false, devKey, extraActions }:
+export function PrCard({ pr, reviewable = false, openOnClick = false, merge, showAuthor = false, showReviewers = false, devKey, extraActions, dev }:
   { pr: GhPr; reviewable?: boolean; openOnClick?: boolean; merge?: { job?: MergeJob; above: number };
-    showAuthor?: boolean; showReviewers?: boolean; devKey?: string; extraActions?: React.ReactNode }) {
+    showAuthor?: boolean; showReviewers?: boolean; devKey?: string; extraActions?: React.ReactNode; dev?: DevStateInfo | null }) {
   const active = useFolders((s) => s.activePrUrl === pr.url);
   const setActivePr = useFolders((s) => s.setActivePr);
   const tone = devTone(pr, merge?.job);
   return (
     <QueueItem className="px-2 py-1">
-      <CardShell tone={tone} selected={active} dashed
+      <CardShell tone={tone} dev={dev} selected={active} dashed
         onClick={() => { setActivePr(pr.url); if (openOnClick) window.open(pr.url, "_blank", "noopener"); }}>
         <CardCorner><DepsPause pr={pr} /><CiMark pr={pr} /></CardCorner>
         <div className={cn("flex items-start gap-1.5", titlePad(pr))}>
@@ -202,6 +203,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
           {showAuthor && <PersonChip login={pr.author} title={`autor: ${pr.author}`} />}
         </div>
         <CardMeta>
+          {dev && <DevStateLabel dev={dev} prs={[pr]} />}
           {pr.draft && <span>draft</span>}
           {pr.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
           {merge && <MergeStatus url={pr.url} job={merge.job} />}

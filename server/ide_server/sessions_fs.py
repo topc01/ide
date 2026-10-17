@@ -180,7 +180,7 @@ def _create_session_dir(root: Path, *, sid: str, kind: str, permissions: str, pr
         (path / "PROMPT.md").write_text(prompt, encoding="utf-8")
         sf = state_file(kind)
         if sf:
-            first = "analyzing" if kind == "ticket" else "reviewing"
+            first = "investigating" if kind == "ticket" else "reviewing"
             extra = {k: v for k, v in (meta or {}).items() if k != "status"}
             (path / sf).write_text(write_frontmatter({"status": first, **extra}, ""),
                                    encoding="utf-8")

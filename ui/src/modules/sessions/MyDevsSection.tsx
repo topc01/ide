@@ -6,13 +6,14 @@ import { useFolders } from "../../state/folders";
 import { useDevTabs } from "../../state/devTabs";
 import type { FolderSession, GhPr, MergeJob } from "../../transport/folderSessions";
 import { QueueItem, QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
-import { CardActions, CardCorner, DevIndex, RenameAction, CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { worstPr } from "./desarrollos";
 import { CiMark, PrCard, useGithubReviews } from "./ReviewsSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
 import { SessionItem } from "./SessionItem";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { deriveMine, isHidden, type Desarrollo } from "./desarrollos";
+import { devStateOf, type DevStateInfo } from "./devStates";
 import { cn } from "../../lib/utils";
 
 const DOT: Record<string, string> = {
@@ -55,7 +56,7 @@ export function PrRow({ pr, job, bottom, sessionId }: { pr: GhPr; job?: MergeJob
 }
 
 /** Stack tuyo sin sesión: una card con una fila por PR (de abajo hacia arriba). */
-function StackCard({ d }: { d: Desarrollo }) {
+function StackCard({ d, dev }: { d: Desarrollo; dev: DevStateInfo | null }) {
   const { gh } = useGithubReviews();
   const activePrUrl = useFolders((s) => s.activePrUrl);
   const setActivePr = useFolders((s) => s.setActivePr);
@@ -63,7 +64,7 @@ function StackCard({ d }: { d: Desarrollo }) {
   const tone = devTone(bottom, gh?.merges?.[bottom.url]);
   return (
     <QueueItem className="px-2 py-1">
-      <CardShell tone={tone} selected={d.prs.some((p) => p.url === activePrUrl)} dashed onClick={() => {
+      <CardShell tone={tone} dev={dev} selected={d.prs.some((p) => p.url === activePrUrl)} dashed onClick={() => {
         // volver al stack como lo dejaste: la PR de la tab activa (si no, la de abajo)
         const t = useDevTabs.getState().byDev[`st:${bottom.stack?.id}`];
         const last = t?.tabs.find((x) => x.id === t.active)?.url;
@@ -78,6 +79,7 @@ function StackCard({ d }: { d: Desarrollo }) {
           <DevIndex devKey={d.key} prs={d.prs} />
           {d.prs.map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)}
         </div>
+        {dev && <div className="mt-1 flex flex-wrap gap-x-2 text-[11px]"><DevStateLabel dev={dev} prs={d.prs} /></div>}
       </CardShell>
     </QueueItem>
   );
@@ -92,18 +94,19 @@ const STATUSES: [string, string][] = [
 export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
   const { gh, error } = useGithubReviews();
   const links = useFolders((s) => s.tree.devPrs);
+  const states = useFolders((s) => s.tree.devStates);
   const devs = deriveMine(tickets, gh, links);
   const hiddenKeys = useFolders((s) => s.tree.devHidden);
   const ghError = error ?? gh?.error;
-  const all: (Entry & { hidden: boolean })[] = devs.map((d) => ({
-    key: d.key, pr: d.prs[0], session: d.session, status: d.status,
+  const all: (Entry & { hidden: boolean })[] = devs.map((d) => { const dev = d.status === "merges" ? null : devStateOf(states, d.key, d.prs); return {
+    key: d.key, pr: d.prs[0], session: d.session, status: d.status, devState: dev?.status ?? null,
     hidden: d.status !== "merges" && !!isHidden(hiddenKeys, d.key, d.prs),
-    render: () => d.session ? <SessionItem session={d.session} prs={d.prs} actions={<HideToggle devKey={d.key} prs={d.prs} />} />
-      : d.prs.length > 1 ? <StackCard d={d} />
-      : <PrCard pr={d.prs[0]} devKey={d.key} showReviewers extraActions={<HideToggle devKey={d.key} prs={d.prs} />} merge={{
+    render: () => d.session ? <SessionItem session={d.session} prs={d.prs} dev={dev} actions={<HideToggle devKey={d.key} prs={d.prs} />} />
+      : d.prs.length > 1 ? <StackCard d={d} dev={dev} />
+      : <PrCard pr={d.prs[0]} devKey={d.key} dev={dev} showReviewers extraActions={<HideToggle devKey={d.key} prs={d.prs} />} merge={{
           job: d.job ?? gh?.merges?.[d.prs[0].url],
           above: d.prs[0].stack ? d.prs[0].stack.size - d.prs[0].stack.position : 0 }} />,
-  }));
+  }; });
   return (
     <GroupedSection id="mine" title="Mis desarrollos" entries={all.filter((e) => !e.hidden)}
       hidden={all.filter((e) => e.hidden)} gh={gh}

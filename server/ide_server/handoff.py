@@ -13,7 +13,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from ide_server.db import Db
-from ide_server.devs import STATUSES, set_status, sync_from_disk
+from ide_server.devs import STATUSES, normalize, set_status, sync_from_disk
 from ide_server.repos_fs import allocate_port, worktree_path
 from ide_server.session_ops import create_session, notion_session_id
 from ide_server.sessions_fs import (
@@ -102,6 +102,7 @@ def handoff(root: Path, src: Path, *, summary: str, home: Path, notion: str | No
         if not found_id:
             raise SessionError("bad_notion_url", f"--notion: no encuentro el id de la página (32 hex) en {notion!r}")
         notion = found_id[-1]
+    status = normalize("ticket", status)
     if status and status not in STATUSES["ticket"]:
         raise SessionError("bad_status", f"estado inválido: {status!r} ({' | '.join(STATUSES['ticket'])})")
     if not summary.strip():

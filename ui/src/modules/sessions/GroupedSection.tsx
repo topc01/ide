@@ -7,19 +7,21 @@ import { QueueList, QueueSection, QueueSectionContent, QueueSectionLabel, QueueS
 import type { FolderSession, GhPr, GithubReviews } from "../../transport/folderSessions";
 import { usePersistentOpen } from "../../lib/persist";
 import { repoShort } from "./DevCard";
-import { useSidebarConfig, type GroupBy } from "../../state/sidebarConfig";
+import { effectiveColor, useSidebarConfig, type GroupBy } from "../../state/sidebarConfig";
+import { BLOCKED, CardColor, DEV_STATE, DEV_STATE_ORDER, type DevState } from "./devStates";
 import { useStore } from "../../state/store";
 
 /** Un ítem de una sección: una PR (con o sin sesión) o una sesión sin PR conocida. */
 export interface Entry {
   key: string; pr?: GhPr; session?: FolderSession;
-  status: string;                       // grupo por estado (id); el orden y nombre los da `statuses`
+  status: string;                       // grupo por estado de la PR (id); el orden y nombre los da `statuses`
+  devState?: string | null;             // estado del desarrollo (grupo "Por estado del desarrollo")
   render: () => ReactNode;
 }
 
 export type { GroupBy };
 export const GROUP_LABEL: Record<GroupBy, string> = {
-  status: "Por estado", repo: "Por repo", stack: "Por stack", author: "Por autor", none: "Sin agrupar",
+  status: "Por estado de la PR", devstate: "Por estado del desarrollo", repo: "Por repo", stack: "Por stack", author: "Por autor", none: "Sin agrupar",
 };
 
 const repoOf = (e: Entry) => e.pr?.repo
@@ -32,7 +34,11 @@ function groupsOf(entries: Entry[], by: GroupBy, statuses: [string, string][], g
     if (!out.has(k)) out.set(k, { label, items: [] });
     out.get(k)!.items.push(e);
   };
-  if (by === "status") {
+  if (by === "devstate") {
+    for (const k of DEV_STATE_ORDER) out.set(k, { label: DEV_STATE[k][0], items: [] });
+    entries.forEach((e) => add(e.devState ?? "~none", e.devState ? e.devState : "Sin estado", e));
+    for (const [k, g] of [...out]) if (!g.items.length && !BLOCKED.includes(k as DevState)) out.delete(k);   // los bloqueos siempre se ven
+  } else if (by === "status") {
     for (const [k, label] of statuses) out.set(k, { label, items: [] });     // orden fijo, aunque estén vacíos
     entries.forEach((e) => add(e.status, e.status, e));
   } else if (by === "repo") {
@@ -82,6 +88,7 @@ export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, 
     gh: GithubReviews | null; headerExtra?: ReactNode; beforeGroups?: ReactNode; status?: ReactNode; hidden?: Entry[] }) {
   const [open, setOpen] = usePersistentOpen(id);
   const by = useSidebarConfig((s) => s.groupBy[id] ?? "status");
+  const color = effectiveColor(by, useSidebarConfig((s) => s.colorBy[id] ?? "pr"));
   const groups = groupsOf(entries, by, statuses, gh);
   return (
     <Collapsible.Root open={open} onOpenChange={setOpen} className="group/sec mt-3 border-t border-border pt-2">
@@ -99,6 +106,7 @@ export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, 
         </div>
       </div>
       <Collapsible.Content>
+       <CardColor.Provider value={color}>
         {beforeGroups}
         {groups.map(([key, g]) => (
           <QueueSection key={`${by}-${key}`} defaultOpen persistKey={`${id}.${by}.${key}`} className="mt-1">
@@ -114,6 +122,7 @@ export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, 
             </QueueSectionTrigger>
             <QueueSectionContent><QueueList>{hidden.map((e) => <div key={e.key}>{e.render()}</div>)}</QueueList></QueueSectionContent>
           </QueueSection>)}
+       </CardColor.Provider>
       </Collapsible.Content>
     </Collapsible.Root>
   );

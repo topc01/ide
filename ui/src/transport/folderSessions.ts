@@ -22,7 +22,14 @@ export interface SessionsTree {
   devHidden?: string[];                 // desarrollos ocultos en Mis desarrollos (grupo "Ocultos")
   devPrs?: PrLinks;                     // PRs vinculadas a una sesión (siguen aunque cambie la rama)
   devIndex?: Record<string, number>;    // número de cada desarrollo (#12), por clave
+  devStates?: Record<string, { status: string; note?: string | null; since?: string | null }>;   // estado del desarrollo
 }
+/** Estado del desarrollo (local); `status` null = sin estado. */
+export const setDevState = (ws: WsClient, key: string, status: string | null, note: string | null): Promise<{ ok: boolean }> =>
+  ws.request("dev.state", { key, status, note });
+/** "Mandar a revisión": saca de draft las PRs (`gh pr ready`). */
+export const prsReady = (ws: WsClient, urls: string[]): Promise<{ ready: string[]; errors: string[] }> =>
+  ws.request("prs.ready", { urls });
 export type PrLinks = Record<string, { sid: string; out?: boolean }>;
 /** Saca una PR del desarrollo de una sesión (no vuelve aunque el worktree esté en su rama). */
 export const unlinkPr = (ws: WsClient, id: string, url: string): Promise<{ ok: boolean }> =>

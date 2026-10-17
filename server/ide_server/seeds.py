@@ -43,10 +43,16 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
 
 ## Convención de estado
 
-El **estado** de cada sesión vive en la base del IDE: cámbialo con `ide status <estado>`
-(opcional `-m "nota"`), nunca editando el `status:` del archivo. Ticket: analyzing | blocked |
-questions | ready | in-progress | done. Revisión: reviewing | commented | approved |
-changes-requested. `TICKET.md` / `REVIEW.md` guardan el análisis (y el `title` si está vacío).
+El **estado del desarrollo** (qué toca o qué lo frena; distinto del de la PR) vive en la base del
+IDE: cámbialo con `ide status <estado>` (con `-m "nota"` si es un bloqueo: qué falta y de quién),
+nunca editando el `status:` del archivo. Ticket:
+- avanzando: `investigating` | `ready-to-develop` | `developing` | `ready-for-review`
+- bloqueos: `waiting-input` (le hiciste una pregunta al usuario y esperas su respuesta) | `questions`
+  (dudas abiertas) | `blocked-definitions` | `blocked-client` | `blocked-dev` (espera otro desarrollo)
+- `paused`
+Mientras el desarrollo está activo sus PRs van en **draft** (`gh pr create --draft`); al terminar,
+`ide status ready-for-review` y el usuario la manda a revisión desde el IDE. Revisión (sesiones de
+revisión de PR): reviewing | commented | approved | changes-requested. `TICKET.md` / `REVIEW.md` guardan el análisis (y el `title` si está vacío).
 La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide dev show <id>`.
 
 ## Desarrollos, repos y dependencias
@@ -159,7 +165,8 @@ Tu trabajo AHORA es analizar, no implementar:
 4. Escribe TICKET.md: Scope, Repos, Plan (con el orden de merge entre repos/PRs y sus
    dependencias), Bloqueantes, Dudas. Al abrir PRs, declara sus dependencias en la sección
    `## Dependencias` de cada una (ver ../CLAUDE.md).
-   Cambia el estado con `ide status blocked|questions|ready` (no edites el `status:` del archivo).
+   Cambia el estado con `ide status ready-to-develop|questions|blocked-definitions|blocked-client`
+   (con `-m "nota"` en los bloqueos; no edites el `status:` del archivo).
 5. Detente y espera instrucciones.
 """
 
@@ -245,9 +252,11 @@ existir. Por eso es **lo último** que haces en esta sesión.
    - `## Cómo probar` — comandos, datos de prueba, URLs locales.
    Sin secretos ni credenciales.
 
-5. **Estado inicial**, según el resumen: `in-progress` (se está implementando), `questions` (hay
-   dudas que bloquean), `blocked` (espera algo externo), `ready` (analizado, listo para
-   implementar), `analyzing` (todavía entendiendo), `done` (terminado, solo falta mergear).
+5. **Estado inicial**, según el resumen: `developing` (se está implementando), `questions` (hay
+   dudas abiertas), `waiting-input` (espera una respuesta del usuario), `blocked-definitions` /
+   `blocked-client` / `blocked-dev` (espera definiciones, al cliente u otro desarrollo),
+   `ready-to-develop` (analizado, listo para implementar), `investigating` (todavía entendiendo),
+   `ready-for-review` (terminado, falta mandarlo a revisión).
 
 6. **Traspasa** (último comando; no ejecutes nada más después):
    ```bash

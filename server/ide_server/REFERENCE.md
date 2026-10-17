@@ -303,7 +303,7 @@ máx. 2 MB, solo texto UTF-8.
 
 ## 9. Estado de sesiones
 
-**Kinds:** `main` (principal, una), `ticket`, `review`.
+**Kinds:** `main` (principal, una), `ticket`, `review`. Estados de ticket: ver "Estado del desarrollo" (§9b).
 
 **`TICKET.md` / `REVIEW.md`:** frontmatter + cuerpo. El IDE siembra el frontmatter al crear;
 la sesión solo cambia `status` y escribe el cuerpo.
@@ -528,6 +528,23 @@ las cards, el selector (y se busca por `#12`), el módulo Desarrollo e `ide dev 
 (`d12_<nombre>`, ≤ 32, para bases y proyectos docker nuevos) e `IDE_DEV_BRANCH`
 (`<login de GitHub>/d12-<nombre>`): es la rama por defecto de `ide repo add`. `sessions.tree` trae
 `devIndex`.
+
+**Estado del desarrollo** (otra dimensión que el de la PR; solo local): qué toca o qué lo frena.
+Avanzando: `investigating`, `ready-to-develop`, `developing`, `ready-for-review`; bloqueos (para
+destrabar): `waiting-input`, `questions`, `blocked-definitions`, `blocked-client`, `blocked-dev`;
+`paused`. Después de `ready-for-review` manda la PR. Mientras el desarrollo está activo sus PRs van en
+draft (si una salió de draft, la card dice "PR fuera de draft"). Se cambia en el módulo Desarrollo
+(con nota: qué falta y de quién; se ve desde cuándo) o con `ide status <estado> -m nota` desde la
+sesión; una PR sin sesión sin estado puesto lo infiere (draft = desarrollando, si no listo para
+revisión). Con `ready-for-review`, **Mandar a revisión** saca de draft sus PRs (`gh pr ready`; solo las
+tuyas). Al pasar a `waiting-input` desde una sesión llega una notificación de macOS y la barra de
+abajo cuenta "N te esperan". Mis desarrollos agrupa **por estado de la PR** o **por estado del
+desarrollo** (bloqueos primero, siempre visibles); el color de las cards sigue a esa dimensión y,
+si se agrupa por otra cosa (repo, sin agrupar), se elige en Configuración. Los estados de antes se
+migran solos (analyzing → investigating, blocked → blocked-definitions, ready → ready-to-develop,
+in-progress → developing, done → ready-for-review) y se siguen aceptando en `ide status`. Las
+sesiones de revisión siguen con los suyos (dimensión PR). Canales `dev.state {key, status, note}`,
+`prs.ready {urls}`; `sessions.tree` trae `devStates`.
 
 **Ocultar un desarrollo:** el ojo tachado (hover de la card en Mis desarrollos) lo pasa al grupo
 **Ocultos**, al final de la sección y cerrado de entrada (no cuenta en el total); ahí el ojo lo vuelve

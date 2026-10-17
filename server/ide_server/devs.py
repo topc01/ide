@@ -17,10 +17,23 @@ from ide_server.sessions_fs import (
     SessionError, list_sessions, parse_frontmatter, read_session, session_path, state_file, write_frontmatter,
 )
 
+# Estado del DESARROLLO (otra dimensión que el de la PR): qué toca o qué lo frena. Avanzando, después
+# los bloqueos (para destrabar) y `paused`. Después de `ready-for-review` manda la PR (revisión, merge).
+DEV_STATES = ("investigating", "ready-to-develop", "developing", "ready-for-review",
+              "waiting-input", "questions", "blocked-definitions", "blocked-client", "blocked-dev",
+              "paused")
+BLOCKED = ("waiting-input", "questions", "blocked-definitions", "blocked-client", "blocked-dev")
+# los de antes (sesiones viejas, TICKET.md a mano): se aceptan y se traducen
+LEGACY = {"analyzing": "investigating", "blocked": "blocked-definitions", "ready": "ready-to-develop",
+          "in-progress": "developing", "done": "ready-for-review"}
 STATUSES = {
-    "ticket": ("analyzing", "blocked", "questions", "ready", "in-progress", "done"),
+    "ticket": DEV_STATES,
     "review": ("reviewing", "commented", "approved", "changes-requested"),
 }
+
+
+def normalize(kind: str | None, status: str | None) -> str | None:
+    return LEGACY.get(status or "", status) if kind == "ticket" else status
 
 
 def now() -> str:
@@ -50,6 +63,13 @@ def sync_from_disk(root: Path, db: Db, sessions: list[dict] | None = None) -> No
                      data={"kind": disk["kind"], "title": disk["title"], "status": disk["status"]})
             continue
         changes = {k: v for k, v in disk.items() if k != "status" and v is not None and row.get(k) != v}
+        disk["status"] = normalize(disk["kind"], disk["status"])
+        if row.get("status") in LEGACY and row.get("kind") == "ticket":  # estados de antes: se migran
+            changes["status"] = LEGACY[row["status"]]
+            _mirror(root, sid, "ticket", changes["status"])
+            disk["status"] = changes["status"]
+            db.event(now(), "ide", "status", dev=sid, data={"from": row["status"], "to": changes["status"], "note": "migrado"})
+            row = {**row, "status": changes["status"]}
         if disk["status"] and disk["status"] != row.get("status"):   # editado a mano en el archivo
             changes["status"] = disk["status"]
             db.event(now(), "archivo", "status", dev=sid, data={"from": row.get("status"), "to": disk["status"]})
@@ -63,12 +83,21 @@ def sync_from_disk(root: Path, db: Db, sessions: list[dict] | None = None) -> No
             db.event(now(), "ide", "archived", dev=sid)
 
 
+def _mirror(root: Path, sid: str, kind: str | None, status: str) -> None:
+    """Reflejo del estado en TICKET.md/REVIEW.md (lo leen personas y sesiones viejas); la base manda."""
+    f = session_path(root, sid) / (state_file(kind) or "")
+    if f.is_file():
+        meta, body = parse_frontmatter(f.read_text(encoding="utf-8"))
+        f.write_text(write_frontmatter({**meta, "status": status}, body), encoding="utf-8")
+
+
 def set_status(root: Path, db: Db, sid: str, status: str, *, actor: str, note: str | None = None) -> dict:
     sync_from_disk(root, db)
     row = db.dev(sid)
     if row is None or row.get("archived"):
         raise SessionError("unknown_session", f"no existe la sesión {sid}")
     allowed = STATUSES.get(row.get("kind") or "")
+    status = normalize(row.get("kind"), status)
     if not allowed:
         raise SessionError("no_status", f"la sesión {sid} ({row.get('kind')}) no tiene estado")
     if status not in allowed:
@@ -82,7 +111,59 @@ def set_status(root: Path, db: Db, sid: str, status: str, *, actor: str, note: s
         f.write_text(write_frontmatter({**meta, "status": status}, body), encoding="utf-8")
     db.event(now(), actor, "status", dev=sid, pr_url=row.get("prUrl"),
              data={"from": prev, "to": status, **({"note": note} if note else {})})
+    if row.get("kind") == "ticket":
+        _remember(db, f"s:{sid}", status, note, actor, prev)
     return db.dev(sid)
+
+
+def _remember(db: Db, key: str, status: str | None, note: str | None, actor: str, prev: str | None) -> None:
+    """Nota y desde cuándo del estado del desarrollo; avisa (notificación del sistema) si te espera."""
+    old = db.get(f"devstate:{key}") or {}
+    since = old.get("since") if status == prev and old.get("since") else now()
+    db.set(f"devstate:{key}", {"status": status, "note": note, "since": since, "actor": actor})
+    if status == "waiting-input" and prev != "waiting-input" and actor != "ide":
+        _notify_mac(f"{key[2:] if key.startswith('s:') else 'Un desarrollo'} te espera" + (f": {note}" if note else ""))
+
+
+def _notify_mac(message: str) -> None:
+    import subprocess
+    import sys
+    import threading
+    if sys.platform != "darwin":
+        return
+    # el texto va como argumento (no se interpreta como AppleScript)
+    argv = ["osascript", "-e", "on run argv", "-e", 'display notification (item 1 of argv) with title "IDE"',
+            "-e", "end run", message[:200]]
+    threading.Thread(target=lambda: subprocess.run(argv, capture_output=True), daemon=True).start()
+
+
+def set_dev_state(root: Path, db: Db, key: str, status: str | None, *, actor: str, note: str | None = None) -> None:
+    """Estado del desarrollo para cualquier desarrollo (UI). Sesión de ticket = `set_status`; PRs sin
+    sesión: solo en la base. `status` None = sin estado."""
+    if status is not None and status not in DEV_STATES:
+        raise SessionError("bad_status", f"estado inválido: {status!r} ({' | '.join(DEV_STATES)})")
+    if key.startswith("s:"):
+        set_status(root, db, key[2:], status or "investigating", actor=actor, note=note)
+        return
+    prev = (db.get(f"devstate:{key}") or {}).get("status")
+    if status is None:
+        db.delete(f"devstate:{key}")
+    else:
+        _remember(db, key, status, note, actor, prev)
+    db.event(now(), actor, "status", data={"key": key, "from": prev, "to": status, **({"note": note} if note else {})})
+
+
+def dev_states(db: Db) -> dict[str, dict]:
+    """clave → {status, note, since}: los de las sesiones de ticket (base) y los de PRs sin sesión."""
+    out = {k: v for k, v in db.with_prefix("devstate:").items() if not k.startswith("s:")}
+    meta = db.with_prefix("devstate:")
+    for r in db.devs():
+        if r.get("kind") == "ticket" and r.get("status"):
+            m = meta.get(f"s:{r['id']}") or {}
+            same = m.get("status") == r["status"]
+            out[f"s:{r['id']}"] = {"status": r["status"], "note": m.get("note") if same else None,
+                                   "since": m.get("since") if same else None}
+    return out
 
 
 # -- lectura para la sesión principal (ide dev ls / show) -----------------------------------------

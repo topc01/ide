@@ -3,6 +3,7 @@ import asyncio
 import io
 import logging
 import re
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -10,7 +11,7 @@ from ide_server.claude_usage import LimitsPoller, session_context
 from ide_server.config import ui_modules
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
-from ide_server.devs import assign_indices, link_prs, list_devs, set_status, show_dev, sync_from_disk
+from ide_server.devs import assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
 from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
@@ -61,6 +62,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "devHidden": db.hidden_devs() if db else [],
                 "devPrs": db.dev_prs() if db else {},
                 "devIndex": db.with_prefix("devidx:") if db else {},
+                "devStates": dev_states(db) if db else {},
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
 
     async def tree_payload() -> dict:
@@ -261,6 +263,43 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"ok": True}
 
+    async def dev_state(p: dict) -> dict:
+        """Estado del desarrollo desde la UI (cualquier desarrollo; `status` null = sin estado)."""
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        key = p.get("key")
+        if not isinstance(key, str) or not re.match(r"^(s|st|p):.{1,300}$", key):
+            raise SessionError("bad_request", f"clave de desarrollo inválida: {key!r}")
+        note = (p.get("note") or "").strip()[:300] or None
+        await asyncio.to_thread(set_dev_state, root, db, key, p.get("status"), actor="ide", note=note)
+        notify()
+        return {"ok": True}
+
+    async def prs_ready(p: dict) -> dict:
+        """"Mandar a revisión": saca de draft (`gh pr ready`) PRs tuyas en draft del desarrollo."""
+        urls = p.get("urls")
+        if not isinstance(urls, list) or not urls or gh_reviews is None:
+            raise SessionError("bad_request", "faltan las PRs")
+        st = gh_reviews.state
+        mine = {c["url"]: c for lst in (st.get("mine") or {}).values() for c in lst}
+        done, errors = [], []
+        for u in urls:
+            c = mine.get(u)
+            if not c or c.get("author") != f"@{st.get('me')}":
+                errors.append(f"{u}: no es una PR tuya abierta"); continue
+            if not c.get("draft"):
+                continue
+            out = await asyncio.to_thread(subprocess.run, ["gh", "pr", "ready", u], capture_output=True, text=True, timeout=60)
+            if out.returncode != 0:
+                errors.append(f"{u}: {out.stderr.strip() or out.returncode}")
+            else:
+                done.append(u)
+                if db is not None:
+                    db.event(datetime.now().isoformat(timespec="seconds"), "ide", "pr-ready", pr_url=u)
+        if errors and not done:
+            raise SessionError("gh_failed", "; ".join(errors))
+        return {"ready": done, "errors": errors}
+
     async def _sessions_now() -> list[dict]:
         return (await tree_payload())["sessions"]
 
@@ -331,7 +370,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
-        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
+        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,

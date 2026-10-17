@@ -2,7 +2,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { usePersistentOpen } from "../../lib/persist";
-import { useSidebarConfig, type GroupBy } from "../../state/sidebarConfig";
+import { useSidebarConfig, type ColorBy, type GroupBy } from "../../state/sidebarConfig";
 import { GROUP_LABEL } from "../sessions/GroupedSection";
 import { ReviewersPicker, useGithubReviews } from "../sessions/ReviewsSection";
 import { cn } from "../../lib/utils";
@@ -47,7 +47,7 @@ function Choice<T extends string>({ label, value, options, names, onChange }:
 
 /** Módulo Configuración: cómo se ven las secciones de la sidebar (se abre con el ⚙ de cada una). */
 export function ConfigPanel() {
-  const { groupBy, setGroupBy } = useSidebarConfig();
+  const { groupBy, setGroupBy, colorBy, setColorBy } = useSidebarConfig();
   const { gh } = useGithubReviews();
   return (
     <div className="flex w-full min-w-0 flex-col overflow-hidden">
@@ -60,7 +60,15 @@ export function ConfigPanel() {
       </Block>
       <Block id="mine" title="Mis desarrollos">
         <Choice<GroupBy> label="Agrupar" value={groupBy.mine ?? "status"} names={GROUP_LABEL}
-          options={["status", "repo", "none"]} onChange={(g) => setGroupBy("mine", g)} />
+          options={["status", "devstate", "repo", "none"]} onChange={(g) => setGroupBy("mine", g)} />
+        {/* el color sigue a la dimensión que agrupa; solo se elige si se agrupa por otra cosa */}
+        {!["status", "devstate"].includes(groupBy.mine ?? "status") ? (
+          <Choice<ColorBy> label="Color de las cards" value={colorBy.mine ?? "pr"}
+            names={{ pr: "Estado de la PR", dev: "Estado del desarrollo" }}
+            options={["pr", "dev"]} onChange={(c) => setColorBy("mine", c)} />
+        ) : (
+          <p className="mb-2 text-[11px] text-muted-foreground">
+            Color de las cards: el de la agrupación ({(groupBy.mine ?? "status") === "status" ? "estado de la PR" : "estado del desarrollo"}).</p>)}
       </Block>
     </div>
   );
