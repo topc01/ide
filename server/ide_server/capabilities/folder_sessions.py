@@ -564,6 +564,30 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def pr_file_diff(p: dict) -> dict:
         return await asyncio.to_thread(pr_changes.file_diff, root, _pr_card(p["url"]), p["path"], p.get("oldPath"))
 
+    async def pr_reviewers(p: dict) -> dict:
+        """Pedir revisión a (add) o sacar (remove) revisores de una PR tuya: `gh pr edit`."""
+        pr = _pr_card(p["url"])
+        me = (gh_reviews.state if gh_reviews else {}).get("me")
+        if not me or pr.get("author") != f"@{me}":
+            raise SessionError("not_yours", "solo en tus PRs")
+        logins = [l for l in (p.get("add") or []) + (p.get("remove") or [])]
+        if not logins or not all(isinstance(l, str) and re.fullmatch(r"[A-Za-z0-9-]{1,39}(/[A-Za-z0-9_.-]+)?", l) for l in logins):
+            raise SessionError("bad_request", "logins inválidos")
+        args = ["gh", "pr", "edit", p["url"]]
+        if p.get("add"):
+            args += ["--add-reviewer", ",".join(p["add"])]
+        if p.get("remove"):
+            args += ["--remove-reviewer", ",".join(p["remove"])]
+        out = await asyncio.to_thread(subprocess.run, args, capture_output=True, text=True, timeout=60)
+        if out.returncode != 0:
+            raise SessionError("gh_failed", f"gh pr edit: {out.stderr.strip() or out.returncode}")
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), "ide", "reviewers", pr_url=p["url"],
+                     data={"add": p.get("add") or [], "remove": p.get("remove") or []})
+        if gh_reviews is not None:
+            asyncio.get_running_loop().create_task(gh_reviews.poll_once())
+        return {"ok": True}
+
     async def stack_status(p: dict) -> dict:
         """Si el stack de esa PR necesita re-apilar (una rama quedó atrás de su madre) o ponerse al día
         con la base. Las PRs, de abajo hacia arriba."""
@@ -651,7 +675,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
-        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
+        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "pr.reviewers": pr_reviewers, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,

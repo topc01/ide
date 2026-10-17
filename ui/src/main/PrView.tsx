@@ -6,6 +6,7 @@ import { newSessionForPr, startReview } from "../transport/folderSessions";
 import { getWs } from "../transport/wsClient";
 import { Button } from "../components/ui/button";
 import { PrDescription } from "./PrDescription";
+import { PrState } from "./PrState";
 import { useCurrentDev } from "./currentDev";
 import { ReviewDecision } from "./ReviewDecision";
 import { allPrs, CiMark, DepsList, ReviewerChips, StackBadge, useGithubReviews } from "../modules/sessions/ReviewsSection";
@@ -34,7 +35,7 @@ export function PrView({ url }: { url: string }) {
         {pr.head && <span>{pr.head} → {pr.base}</span>}
         <StackBadge pr={pr} /><CiMark pr={pr} />
       </div>
-      <div className="-ml-4"><ReviewerChips pr={pr} /></div>
+      <PrState pr={pr} gh={gh} />
       {!!pr.deps?.length && (
         <div className="mt-4">
           <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Dependencias</div>

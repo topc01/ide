@@ -49,6 +49,9 @@ export const reviewDraft = (ws: WsClient, url: string): Promise<{ id: string | n
 /** Publica TU review en GitHub (`gh pr review --approve | --request-changes`). */
 export const reviewSubmit = (ws: WsClient, url: string, event: "approve" | "request-changes", body: string): Promise<{ ok: boolean }> =>
   ws.request("review.submit", { url, event, body });
+/** Pedir revisión a / sacar revisores de una PR tuya (`gh pr edit`). */
+export const prReviewers = (ws: WsClient, url: string, add: string[], remove: string[] = []): Promise<{ ok: boolean }> =>
+  ws.request("pr.reviewers", { url, add, remove });
 export type PrLinks = Record<string, { sid: string; out?: boolean }>;
 /** Saca una PR del desarrollo de una sesión (no vuelve aunque el worktree esté en su rama). */
 export const unlinkPr = (ws: WsClient, id: string, url: string): Promise<{ ok: boolean }> =>

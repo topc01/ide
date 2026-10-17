@@ -498,6 +498,12 @@ la card de la sesión) y se lanza su `claude`. Si ya existe la devuelve; PR de f
 cerrada → `pr_closed`; rama checkouteada en otro lado → `branch_occupied` (el mensaje dice en qué
 worktree está, para cambiarla de rama ahí).
 
+**Estado y revisores (resumen de la PR):** arriba, el estado de la PR en GitHub en una palabra (Draft,
+Sin revisores, En revisión, Cambios pedidos, Aprobada) y el CI; los revisores con lo que hizo cada uno
+(aprobó, pidió cambios, pendiente). En tus PRs: **+ revisor** (busca entre los miembros de la org y le
+pide revisión), **×** en un revisor pendiente (lo saca) — `gh pr edit --add-reviewer/--remove-reviewer`,
+canal `pr.reviewers {url, add, remove}` — y, si está en draft, **Mandar a revisión** (`gh pr ready`).
+
 **Descripción de la PR (resumen):** el resumen de cada PR muestra su descripción, pedida fresca a
 GitHub al abrirlo (canal `pr.body {url}` → `{body, state}`), **Renderizado** (markdown GFM: tablas,
 checkboxes, links en otra pestaña) o **Crudo** (toggle a la derecha). En Crudo el markdown se edita
