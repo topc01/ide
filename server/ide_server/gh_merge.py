@@ -229,6 +229,69 @@ class Merger:
             self._update(url, state="error", error=f"merge-async: {msg or out.returncode}")
 
     # -- vigilante    # -- vigilante ---------------------------------------------------------------------------
+    # -- restack a pedido (módulo Stack) ------------------------------------------------------------
+    def _own_commits_base(self, full_repo: str, number: int, branch: str, wt: Path) -> str:
+        """El padre del primer commit propio de la PR: desde ahí se re-aplica (`rebase --onto`), así
+        no se arrastran commits viejos de la madre aunque ella se haya reescrito."""
+        out = _run(["gh", "api", f"repos/{full_repo}/pulls/{number}/commits?per_page=250", "--jq", ".[0].sha"])
+        first = out.stdout.strip() if out.returncode == 0 else ""
+        if not first:
+            raise SessionError("gh_failed", f"no pude leer los commits de #{number}: {out.stderr.strip()}")
+        return _check(_run(["git", "rev-parse", f"{first}^"], wt), f"padre del primer commit de #{number}")
+
+    @staticmethod
+    def _local_guard(repo: Path, branches: list[str]) -> list[tuple[Path, str]]:
+        """Worktrees donde están checkouteadas esas ramas: tienen que estar limpios y al día con
+        origin (si no, el push forzado les dejaría la rama divergida). Devuelve (worktree, rama)."""
+        out = _run(["git", "-C", str(repo), "worktree", "list", "--porcelain"]).stdout
+        found, path = [], None
+        for line in out.splitlines():
+            if line.startswith("worktree "):
+                path = Path(line[9:])
+            elif line.startswith("branch refs/heads/") and path and line[18:] in branches:
+                found.append((path, line[18:]))
+        for wt, b in found:
+            if _run(["git", "-C", str(wt), "status", "--porcelain", "--untracked-files=no"]).stdout.strip():
+                raise SessionError("uncommitted_changes", f"{b} tiene cambios sin commitear en {wt}: commitéalos y púshealos antes")
+            _run(["git", "-C", str(wt), "fetch", "origin", "--quiet"])
+            ahead = _run(["git", "-C", str(wt), "rev-list", "--count", f"origin/{b}..HEAD"]).stdout.strip()
+            if ahead not in ("", "0"):
+                raise SessionError("unpushed", f"{b} tiene {ahead} commit(s) sin pushear en {wt}: púshealos antes")
+        return found
+
+    def restack(self, url: str, *, update_base: bool = False) -> dict:
+        """Rebasea cada PR del stack de `url` sobre su madre (y la de abajo sobre su base si
+        `update_base`), empuja con --force-with-lease y deja al día los worktrees que las tienen."""
+        pr, stack = self._find(url)
+        prs = sorted(stack, key=lambda p: p["stack"]["position"]) if stack else [pr]
+        me = self._stacks().get("me")
+        bad = [f"#{p['number']}" for p in prs if p.get("fork") or not me or p.get("author") != f"@{me}"]
+        if bad:
+            raise SessionError("not_yours", "solo se restackean stacks enteros tuyos (no: " + ", ".join(bad) + ")")
+        if any(self.jobs.get(p["url"], {}).get("state") in ACTIVE for p in prs):
+            raise SessionError("merge_pending", "hay un merge en curso en este stack")
+        repo = self._root / pr["repo"]
+        moved: list[str] = []
+        with self._lock(pr["repo"]):
+            wt = self._wt(pr["repo"], pr.get("fullRepo"))
+            guarded = self._local_guard(repo, [p["head"] for p in prs])
+            _check(_run(["git", "fetch", "origin", "--prune"], wt), "git fetch")
+            for i, p in enumerate(prs):
+                if i == 0 and not update_base:
+                    continue
+                onto = f"origin/{p['base']}"
+                upstream = self._own_commits_base(pr["fullRepo"], p["number"], p["head"], wt)
+                old, new = self._rebase(wt, p["head"], onto, upstream=upstream)
+                if new != old:
+                    moved.append(f"#{p['number']}")
+            for path, b in guarded:              # estaban limpios y al día: los dejo en el nuevo head
+                _run(["git", "-C", str(path), "fetch", "origin", "--quiet"])
+                _run(["git", "-C", str(path), "reset", "--hard", f"origin/{b}"])
+        if self._db is not None:
+            self._db.event(datetime.now().isoformat(timespec="seconds"), "ide", "restack", pr_url=url,
+                           data={"moved": moved, "updateBase": update_base})
+        return {"moved": moved}
+
     def _restack(self, url: str) -> None:
         """La PR ya está mergeada: rebasear las de arriba sobre su nueva madre, en orden."""
         j = self.jobs[url]

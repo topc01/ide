@@ -30,6 +30,15 @@ export const setDevState = (ws: WsClient, key: string, status: string | null, no
 /** "Mandar a revisión": saca de draft las PRs (`gh pr ready`). */
 export const prsReady = (ws: WsClient, urls: string[]): Promise<{ ready: string[]; errors: string[] }> =>
   ws.request("prs.ready", { urls });
+export interface PrFile { path: string; oldPath: string | null; status: string; additions: number; deletions: number }
+/** Archivos cambiados de una PR contra su base (en un stack, la PR de abajo). */
+export const prFiles = (ws: WsClient, url: string): Promise<{ files: PrFile[]; base: string; mergeBase: string; local: string | null }> =>
+  ws.request("pr.files", { url });
+export const prFileDiff = (ws: WsClient, url: string, path: string, oldPath: string | null): Promise<{ old: string | null; new: string | null; local: boolean }> =>
+  ws.request("pr.fileDiff", { url, path, oldPath });
+/** Rebasea el stack de la PR (y la de abajo sobre su base si `updateBase`) y empuja con --force-with-lease. */
+export const restackStack = (ws: WsClient, url: string, updateBase: boolean): Promise<{ moved: string[] }> =>
+  ws.request("stack.restack", { url, updateBase });
 export type PrLinks = Record<string, { sid: string; out?: boolean }>;
 /** Saca una PR del desarrollo de una sesión (no vuelve aunque el worktree esté en su rama). */
 export const unlinkPr = (ws: WsClient, id: string, url: string): Promise<{ ok: boolean }> =>

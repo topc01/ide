@@ -13,6 +13,7 @@ from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
 from ide_server.devs import assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
+from ide_server import pr_changes
 from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
 from ide_server.pr_poller import PrPoller
@@ -300,6 +301,29 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             raise SessionError("gh_failed", "; ".join(errors))
         return {"ready": done, "errors": errors}
 
+    def _pr_card(url: str) -> dict:
+        st = gh_reviews.state if gh_reviews else {}
+        lists = [*(st.get("mine") or {}).values(), *(st.get("stacks") or {}).values(),
+                 st.get("pending") or [], st.get("changesRequested") or []]
+        pr = next((c for lst in lists for c in lst if c["url"] == url), None)
+        if pr is None:
+            raise SessionError("unknown_pr", f"no conozco la PR {url} (¿está abierta? espera el próximo poll)")
+        return pr
+
+    async def pr_files(p: dict) -> dict:
+        return await asyncio.to_thread(pr_changes.changes, root, _pr_card(p["url"]))
+
+    async def pr_file_diff(p: dict) -> dict:
+        return await asyncio.to_thread(pr_changes.file_diff, root, _pr_card(p["url"]), p["path"], p.get("oldPath"))
+
+    async def stack_restack(p: dict) -> dict:
+        if merger is None:
+            raise SessionError("github_off", "restack desactivado")
+        res = await asyncio.to_thread(merger.restack, p["url"], update_base=bool(p.get("updateBase")))
+        if gh_reviews is not None:              # que las cards reflejen las ramas movidas
+            asyncio.get_running_loop().create_task(gh_reviews.poll_once())
+        return res
+
     async def _sessions_now() -> list[dict]:
         return (await tree_payload())["sessions"]
 
@@ -370,7 +394,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
-        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
+        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,

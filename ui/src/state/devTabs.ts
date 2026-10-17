@@ -4,14 +4,15 @@ import { create } from "zustand";
 /** Una tab del panel principal. Cada desarrollo tiene su propia fila de tabs. */
 export interface DevTab {
   id: string;                                   // único dentro del desarrollo
-  kind: "claude" | "doc" | "summary" | "script" | "run" | "file";
+  kind: "claude" | "doc" | "summary" | "script" | "run" | "file" | "diff";
   label: string;
   sid?: string;                                 // claude / doc
   url?: string;                                 // summary (PR)
   terminalId?: string;                          // script
   place?: string; repo?: string;                // run / file: worktree (`place` = sesión o `wt-<repo>-<n>`)
   name?: string;                                // run: script
-  path?: string;                                // file: relativa al worktree
+  path?: string;                                // file: relativa al worktree; diff: del repo
+  oldPath?: string | null;                      // diff: si se renombró
 }
 interface DevTabsState {
   byDev: Record<string, { tabs: DevTab[]; active: string | null }>;
@@ -73,3 +74,5 @@ export const runTab = (place: string, repo: string, name: string, label: string)
   ({ id: `run:${place}/${repo}/${name}`, kind: "run", label, place, repo, name });
 export const fileTab = (place: string, repo: string, path: string): DevTab =>
   ({ id: `file:${place}/${repo}/${path}`, kind: "file", label: path.split("/").pop() || path, place, repo, path });
+export const diffTab = (url: string, path: string, oldPath: string | null): DevTab =>
+  ({ id: `diff:${url}:${path}`, kind: "diff", label: `Δ ${path.split("/").pop() || path}`, url, path, oldPath });

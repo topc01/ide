@@ -417,6 +417,19 @@ con veredicto o texto + comentarios generales, por fecha). Se pide a GitHub a de
 `reviews.discussion {url}`) al abrirlo y cada 60 s mientras está abierto (o con ↻). El texto se
 muestra limpio (sin HTML ni imágenes), los largos recortados con "ver más".
 
+**Módulo Stack** (id `stack`): los stacks de las PRs del desarrollo actual (abajo = la base), por repo.
+Click en una PR despliega sus **cambios**: archivos contra su base (en un stack, la rama de abajo:
+solo lo de esa PR; si la rama está en un worktree del IDE, incluye lo no commiteado y lo no
+trackeado), con +/−; click en un archivo abre su **diff** en una tab (lado a lado o unificado, sin
+cambios colapsados). Sale de git local: las refs se traen a `refs/ide/pr/<n>` y `refs/ide/base/<rama>`
+del repo principal (no tocan sus ramas). Acciones: **Mergear** en la de abajo (tuya y aprobada; el
+flujo de merge de siempre), **Restack** (cada PR sobre la de abajo) y **Actualizar desde <base>**
+(también la de abajo sobre su base), solo en stacks enteros tuyos y con confirmación: rebase
+`--onto` desde el primer commit propio de cada PR (no arrastra commits viejos de la madre) y push
+`--force-with-lease`. Se niega si una de esas ramas está en un worktree con cambios sin commitear o
+commits sin pushear (`uncommitted_changes`, `unpushed`); si estaba limpia, la deja en el head nuevo.
+Canales `pr.files {url}`, `pr.fileDiff {url, path, oldPath}`, `stack.restack {url, updateBase}`.
+
 **Tabs por desarrollo (panel principal):** cada desarrollo tiene su propia fila de tabs: `claude`
 (la terminal de la sesión; si está parada se lanza al abrirla), `REVIEW.md`/`TICKET.md`, el
 **resumen** de cada PR y las terminales de los scripts. Al cambiar de desarrollo cambia la fila y al
@@ -642,7 +655,7 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `forbidden_origin`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`, `already_running`,
 `unknown_worktree`, `bad_place`, `git_failed`, `bad_path`, `not_a_dir`, `not_found`, `too_large`,
-`binary`, `changed_on_disk`, `busy`.
+`binary`, `changed_on_disk`, `busy`, `unpushed`.
 
 ## 12. API (para integraciones)
 
