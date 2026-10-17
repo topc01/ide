@@ -36,7 +36,10 @@ def get_token() -> str | None:
 
 
 def set_token(token: str) -> None:
-    out = subprocess.run(["security", "add-generic-password", "-U", "-s", SERVICE, "-a", "bot", "-w", token],
+    """Al llavero por stdin (`security -i`): como argumento quedaría a la vista en `ps`."""
+    if any(c in token for c in "\"\\\n "):
+        raise RuntimeError("token con caracteres inválidos")
+    out = subprocess.run(["security", "-i"], input=f'add-generic-password -U -s {SERVICE} -a bot -w "{token}"\n',
                          capture_output=True, text=True)
     if out.returncode != 0:
         raise RuntimeError(f"no pude guardar el token en el llavero: {out.stderr.strip()}")
@@ -143,7 +146,8 @@ class TelegramBridge:
                         elif "message" in u:
                             await self._message(client, u["message"])
                 except Exception as exc:  # noqa: BLE001 — red caída, token malo: reintentar
-                    log.warning("telegram: %s", exc)
+                    # los errores de httpx traen la URL, que lleva el token: nunca al log
+                    log.warning("telegram: %s", str(exc).replace(self._token or "\0", "<token>"))
                     try:
                         await asyncio.wait_for(stop.wait(), 15)
                     except asyncio.TimeoutError:
