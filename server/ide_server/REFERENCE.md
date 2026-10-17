@@ -178,7 +178,7 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 - `ide session rm <id> [--force]`: si hay cambios sin commitear en algún repo, **se niega antes de tocar nada** (`--force` lo fuerza); si no: para el proceso, corre `archive` de cada repo, quita los worktrees y borra la carpeta. Las branches quedan.
 
 ### Repos y scripts
-- `ide repo add <repo> [--branch b] [--session id]`: worktree en `.ide/worktrees/<id>/<repo>`, symlink en la sesión, reserva `IDE_PORT` y corre `setup` (espera y muestra la salida). Branch default = `<id>`; si está ocupada → error que sugiere `--branch`. `setup` fallido → exit 1, el worktree queda marcado `setup failed` (reintenta con `ide script setup <repo>`).
+- `ide repo add <repo> [--branch b] [--session id]`: worktree en `.ide/worktrees/<id>/<repo>`, symlink en la sesión, reserva `IDE_PORT` y corre `setup` (espera y muestra la salida). Branch default = `IDE_DEV_BRANCH` (`<login>/d<n>-<nombre>`; sin número, `<id>`); si está ocupada → error que sugiere `--branch`. `setup` fallido → exit 1, el worktree queda marcado `setup failed` (reintenta con `ide script setup <repo>`).
 - `ide repo rm <repo> [--force]`: misma regla de cambios sin commitear; corre `archive`; quita worktree y symlink.
 
 ### Traspaso desde Conductor (`ide handoff`)
@@ -253,7 +253,7 @@ del script. Reservados: **`setup`** (corre solo tras `ide repo add`) y **`archiv
 quitar el worktree). Cualquier otro (`run`, `test`, …) se corre con `ide script` o desde el `⋯`
 del repo en la UI (abre una terminal).
 
-cwd = el worktree. Env: `IDE_SESSION_ID`, `IDE_REPO`, `IDE_ROOT_REPO` (repo principal: para
+cwd = el worktree. Env: `IDE_SESSION_ID`, `IDE_DEV_INDEX`/`IDE_DEV_SLUG`/`IDE_DEV_BRANCH` (§9b, número del desarrollo), `IDE_REPO`, `IDE_ROOT_REPO` (repo principal: para
 copiar `.env`, etc.), `IDE_WORKSPACE`, `IDE_PORT` (base de un bloque de 10 puertos reservado por
 sesión+repo, desde 8100, persistido en `.session.toml`). stdin es `/dev/null`.
 
@@ -519,6 +519,15 @@ Desarrollo) o doble click lo renombra **solo en el IDE** (no toca TICKET.md ni G
 la base (`kv`, clave `devname:<s:sesión | st:stack | p:url>`); si una PR o stack con nombre pasa a
 tener sesión, la sesión lo hereda. Lo muestran las cards, el selector de desarrollo (y su búsqueda) e
 `ide dev ls`/`show` (campo `name`). Canal `dev.rename {key, name}`; `sessions.tree` trae `devNames`.
+
+**Número del desarrollo:** cada desarrollo (sesiones, stacks, PRs sueltas y revisiones; no la
+principal) tiene un índice correlativo que nunca se reutiliza (`#12`; base, `kv` `devidx:<clave>`,
+asignado de forma atómica). Una PR/stack con número que pasa a tener sesión se lo hereda. Se ve en
+las cards, el selector (y se busca por `#12`), el módulo Desarrollo e `ide dev ls`/`show`
+(`index`). Lo reciben el `claude` de la sesión y sus scripts: `IDE_DEV_INDEX` (12), `IDE_DEV_SLUG`
+(`d12_<nombre>`, ≤ 32, para bases y proyectos docker nuevos) e `IDE_DEV_BRANCH`
+(`<login de GitHub>/d12-<nombre>`): es la rama por defecto de `ide repo add`. `sessions.tree` trae
+`devIndex`.
 
 **Ocultar un desarrollo:** el ojo tachado (hover de la card en Mis desarrollos) lo pasa al grupo
 **Ocultos**, al final de la sección y cerrado de entrada (no cuenta en el total); ahí el ojo lo vuelve

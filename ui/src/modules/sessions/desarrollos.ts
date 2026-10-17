@@ -51,6 +51,12 @@ export function worstPr(prs: GhPr[]): { review?: GhPr; ci?: GhPr } {
 export function devKeys(key: string, prs: GhPr[] = []): string[] {
   return [key, ...prs.flatMap((p) => [...(p.stack ? [`st:${p.stack.id}`] : []), `p:${p.url}`])];
 }
+/** Número del desarrollo (#12): el de su clave o, si cambió de clave, el de su stack/PRs. */
+export function devIndexOf(index: Record<string, number> | undefined, key: string, prs: GhPr[] = []): number | null {
+  if (!index) return null;
+  for (const k of devKeys(key, prs)) if (index[k] !== undefined) return index[k];
+  return null;
+}
 /** ¿Está oculto? (marcado con su clave o con la de su stack/PRs). */
 export function isHidden(hidden: string[] | undefined, key: string, prs: GhPr[] = []): string | null {
   if (!hidden?.length) return null;

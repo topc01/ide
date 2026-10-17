@@ -4,7 +4,7 @@ import { PrRow } from "../sessions/MyDevsSection";
 import { RepoLine } from "../sessions/RepoLine";
 import { useGithubReviews } from "../sessions/ReviewsSection";
 import { byRepoStack } from "../sessions/desarrollos";
-import { DevTitle, repoShort } from "../sessions/DevCard";
+import { DevIndex, DevTitle, repoShort } from "../sessions/DevCard";
 
 function Label({ children }: { children: React.ReactNode }) {
   return <div className="mx-2.5 mb-1 mt-3 text-[10px] uppercase tracking-wide text-muted-foreground">{children}</div>;
@@ -22,7 +22,8 @@ export function DevPanel() {
   const unlinkable = s && s.kind !== "review" ? s.id : undefined;
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-auto pb-3 text-xs">
-      <div className="mx-2.5 mt-2.5 flex text-sm">
+      <div className="mx-2.5 mt-2.5 flex items-start gap-1.5 text-sm">
+        <span className="mt-0.5"><DevIndex devKey={dev.key} prs={dev.prs} /></span>
         <DevTitle devKey={dev.key} prs={dev.prs} pencil
           original={s?.title ?? dev.prs[0]?.title ?? s?.id ?? ""} />
       </div>

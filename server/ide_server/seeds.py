@@ -55,6 +55,10 @@ La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide 
   las asocia solo, por repo y rama). Si el ticket toca varios repos (p.ej. api + embed), agrega
   cada uno con `ide repo add <repo>`: el desarrollo queda **fullstack** (una card, PRs por repo).
   Usa el mismo nombre de rama en todos los repos del desarrollo.
+- **Número del desarrollo:** cada desarrollo tiene un índice (`#12`, en `$IDE_DEV_INDEX`). Las
+  ramas nuevas van con él: `ide repo add` ya usa `$IDE_DEV_BRANCH` (`<login>/d12-<nombre>`); si creas
+  otra rama a mano, nómbrala `<login>/d12-<tema>`. Los recursos locales nuevos (base y proyecto docker
+  de la api) se llaman `$IDE_DEV_SLUG` (`d12_<nombre>`).
 - **Dependencias entre PRs** (del mismo repo o de otro): decláralas en la descripción de la PR,
   en la sección `## Dependencias` (la de la plantilla de PR), una por línea:
   `finnecto-api#4581`, `owner/repo#N`, `#N` (= mismo repo) o la URL de la PR. Reglas que aplica el IDE:

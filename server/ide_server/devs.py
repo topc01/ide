@@ -8,11 +8,13 @@
 - Los desarrollos que son solo PRs (tuyas o pendientes de revisar, sin sesión) salen de GitHub.
 - `events`: historial de lo que hace el IDE, las sesiones y lo que pasa en GitHub."""
 from __future__ import annotations
+import re
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from ide_server.db import Db
 from ide_server.sessions_fs import (
-    SessionError, list_sessions, parse_frontmatter, session_path, state_file, write_frontmatter,
+    SessionError, list_sessions, parse_frontmatter, read_session, session_path, state_file, write_frontmatter,
 )
 
 STATUSES = {
@@ -42,6 +44,8 @@ def sync_from_disk(root: Path, db: Db, sessions: list[dict] | None = None) -> No
                 "prUrl": s.get("prUrl"), "status": s.get("status")}
         if row is None:
             db.put_dev({"id": sid, **disk, "created": s.get("created") or now(), "updated": now()})
+            if disk["kind"] != "main":
+                db.dev_index(f"s:{sid}")
             db.event(now(), "ide", "created", dev=sid, pr_url=disk["prUrl"],
                      data={"kind": disk["kind"], "title": disk["title"], "status": disk["status"]})
             continue
@@ -181,7 +185,14 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
                     else "review-pending", "name": _name(names, f"st:{first['stack']['id']}" if key.startswith("stack:")
                                                          else f"p:{first['url']}", prs), "title": first["title"], "status": None, "notionUrl": None,
                     "process": None, "repos": [], "prs": [_pr_summary(c) for c in prs]})
-    return out
+    return with_index(db, out)
+
+
+def with_index(db: Db, devs: list[dict]) -> list[dict]:
+    idx = db.with_prefix("devidx:")
+    for d in devs:
+        d["index"] = idx.get(_ui_key(d)) or next((idx[k] for k in _alt_keys(d["prs"]) if k in idx), None)
+    return devs
 
 
 def show_dev(root: Path, db: Db, dev_id: str, sessions: list[dict], gh: dict) -> dict:
@@ -194,3 +205,62 @@ def show_dev(root: Path, db: Db, dev_id: str, sessions: list[dict], gh: dict) ->
     if row and row.get("prUrl") and row["prUrl"] not in urls:
         urls.append(row["prUrl"])
     return {**d, "events": db.events(dev=dev_id if row else None, pr_urls=urls, limit=60)}
+
+
+# -- índice de los desarrollos ----------------------------------------------------------------------
+# Un número correlativo por desarrollo (`#12`), que nunca se reutiliza. Se guarda por clave de la UI
+# (`s:<sesión>`, `st:<stack>`, `p:<url>`); una PR o stack con número que pasa a tener sesión le
+# hereda el número a la sesión.
+
+def _ui_key(d: dict) -> str:
+    """La clave con que la UI nombra el desarrollo (misma regla que `deriveMine`)."""
+    if d["kind"] not in ("pr", "review-pending"):
+        return f"s:{d['id']}"
+    prs = d["prs"]
+    if len(prs) > 1 and prs[0].get("stack"):
+        return f"st:{prs[0]['stack']['id']}"
+    return f"p:{prs[0]['url']}"
+
+
+def _alt_keys(prs: list[dict]) -> list[str]:
+    return [k for c in prs for k in ([f"st:{c['stack']['id']}"] if c.get("stack") else []) + [f"p:{c['url']}"]]
+
+
+def assign_indices(db: Db, devs: list[dict]) -> dict[str, int]:
+    """Da número a los desarrollos que no tienen (sesiones por fecha de creación, después PRs)."""
+    idx: dict[str, int] = db.with_prefix("devidx:")
+    rows = {r["id"]: r for r in db.devs(include_archived=True)}
+    order = sorted(devs, key=lambda d: (d["kind"] in ("pr", "review-pending"),
+                                        (rows.get(d["id"]) or {}).get("created") or "",
+                                        [p.get("number") or 0 for p in d["prs"]]))
+    for d in order:
+        if d["kind"] == "main":
+            continue
+        key = _ui_key(d)
+        if key in idx:
+            continue
+        inherited = next((idx[k] for k in _alt_keys(d["prs"]) if k in idx), None)
+        idx[key] = db.dev_index(key, inherited)
+    return idx
+
+
+def _slug(text: str, sep: str) -> str:
+    return re.sub(r"[^a-z0-9]+", sep, unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()).strip(sep)
+
+
+def dev_env(root: Path, sid: str) -> dict[str, str]:
+    """IDE_DEV_INDEX / IDE_DEV_SLUG (`d12_rendiciones_matematica`, ≤ 32: sirve para bases de Postgres)
+    / IDE_BRANCH_PREFIX (`<login de GitHub>/`) de la sesión, si ya tiene número."""
+    try:
+        info = read_session(root, sid)
+        if info.get("kind") in (None, "main"):
+            return {}
+        db = Db(root)
+        n = db.dev_index(f"s:{sid}")
+        name = db.get(f"devname:s:{sid}") or info.get("title") or sid
+        me = db.get("me")
+    except Exception:  # noqa: BLE001 — sin base: los scripts siguen con lo de siempre
+        return {}
+    slug = f"d{n}_{_slug(name, '_')}"[:32].rstrip("_")
+    return {"IDE_DEV_INDEX": str(n), "IDE_DEV_SLUG": slug,
+            "IDE_DEV_BRANCH": f"{me + '/' if me else ''}d{n}-{_slug(name, '-')}"[:60].rstrip("-")}

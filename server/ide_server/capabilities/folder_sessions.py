@@ -10,7 +10,7 @@ from ide_server.claude_usage import LimitsPoller, session_context
 from ide_server.config import ui_modules
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
-from ide_server.devs import link_prs, list_devs, set_status, show_dev, sync_from_disk
+from ide_server.devs import assign_indices, link_prs, list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
 from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
@@ -45,6 +45,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             status = {d["id"]: d["status"] for d in db.devs()}
             if gh_reviews is not None:
                 link_prs(db, sessions, gh_reviews.state)
+                assign_indices(db, list_devs(root, db, sessions, gh_reviews.state))
             for s in sessions:
                 if status.get(s["id"]):
                     s["status"] = status[s["id"]]
@@ -59,6 +60,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"sessions": sessions, "workspaceRepos": repos, "devNames": db.dev_names() if db else {},
                 "devHidden": db.hidden_devs() if db else [],
                 "devPrs": db.dev_prs() if db else {},
+                "devIndex": db.with_prefix("devidx:") if db else {},
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
 
     async def tree_payload() -> dict:
@@ -101,6 +103,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         """Sesión para seguir trabajando una PR propia (worktree en su rama) y lanzar su claude."""
         res = await asyncio.to_thread(create_pr_session, root, p["url"])
         sid = res["session"]["id"]
+        if db is not None and gh_reviews is not None:      # la sesión hereda el número de la PR/stack
+            pr = next((c for lst in [*(gh_reviews.state.get("mine") or {}).values(), *(gh_reviews.state.get("stacks") or {}).values()]
+                       for c in lst if c["url"] == p["url"]), None)
+            keys = ([f"st:{pr['stack']['id']}"] if pr and pr.get("stack") else []) + [f"p:{p['url']}"]
+            inherit = next((n for k in keys if (n := db.get(f"devidx:{k}")) is not None), None)
+            if inherit is not None:
+                db.dev_index(f"s:{sid}", inherit)
         process = supervisor.start(sid, resume=None if res.get("existed") else False)
         notify()
         return {**res, "process": process}

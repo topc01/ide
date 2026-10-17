@@ -288,7 +288,8 @@ class Supervisor:
             raise SessionError("claude_missing",
                                f"no se encontró `{argv[0]}` en el PATH (¿instalaste claude?)")
         (self._root / ".ide" / "worktrees" / sid).mkdir(parents=True, exist_ok=True)  # --add-dir
-        env = {**clean_env(dict(os.environ)), "IDE_SESSION_ID": sid, "IDE_URL": self._url,
+        from ide_server.devs import dev_env   # el claude de la sesión sabe su número (ramas, slugs)
+        env = {**clean_env(dict(os.environ)), **dev_env(self._root, sid), "IDE_SESSION_ID": sid, "IDE_URL": self._url,
                "IDE_WORKSPACE": str(self._root)}
         holder: dict[str, str] = {}
         tid = self._spawn(session_path(self._root, sid), argv, env,

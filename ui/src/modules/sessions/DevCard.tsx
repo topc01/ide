@@ -6,7 +6,7 @@ import { QueueItemAction, QueueItemActions } from "../../components/ai-elements/
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
-import { devName, isHidden } from "./desarrollos";
+import { devIndexOf, devName, isHidden } from "./desarrollos";
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
 export interface Tone {
@@ -188,4 +188,13 @@ export function RenameAction({ devKey }: { devKey: string }) {
       onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent(RENAME_EVENT, { detail: devKey })); }}>
       <Pencil size={11} />
     </QueueItemAction>);
+}
+
+/** Chip con el número del desarrollo (#12). */
+export function DevIndex({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
+  const index = useFolders((s) => s.tree.devIndex);
+  const n = devIndexOf(index, devKey, prs);
+  if (n === null) return null;
+  return <span title={`desarrollo #${n} (ramas y bases nuevas: d${n}-…)`}
+    className="shrink-0 rounded bg-primary/15 px-1 font-mono text-[10px] font-bold text-primary">#{n}</span>;
 }

@@ -187,7 +187,8 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
             return 0
         for d in devs:
             title = f"{d['name']} ({d['title']})" if d.get("name") else d["title"] or ""
-            out.write(f"{d['id']}\t{d['kind']}\t{d['status'] or '-'}\t{d['process'] or '-'}\t{title}\n")
+            n = f"#{d['index']}" if d.get("index") else "-"
+            out.write(f"{n}\t{d['id']}\t{d['kind']}\t{d['status'] or '-'}\t{d['process'] or '-'}\t{title}\n")
             for p in d["prs"]:
                 out.write(_pr_line(p) + "\n")
         return 0
@@ -195,7 +196,7 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
     if a.json:
         out.write(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
         return 0
-    out.write(f"{d['id']}  {d['kind']}  status={d['status'] or '-'}  claude={d['process'] or '-'}\n"
+    out.write(f"{'#' + str(d['index']) + '  ' if d.get('index') else ''}{d['id']}  {d['kind']}  status={d['status'] or '-'}  claude={d['process'] or '-'}\n"
               + (f"nombre: {d['name']}\n" if d.get("name") else "") + f"{d['title'] or ''}\n")
     if d.get("notionUrl"):
         out.write(f"notion: {d['notionUrl']}\n")

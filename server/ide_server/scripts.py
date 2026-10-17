@@ -46,6 +46,8 @@ def script_env(root: Path, sid: str, repo: str, base_env: dict | None = None) ->
     env = dict(os.environ if base_env is None else base_env)
     env.update(IDE_SESSION_ID=sid, IDE_REPO=repo, IDE_ROOT_REPO=str(root / repo),
                IDE_WORKSPACE=str(root))
+    from ide_server.devs import dev_env       # IDE_DEV_INDEX / IDE_DEV_SLUG / IDE_DEV_BRANCH
+    env.update(dev_env(root, sid))
     port = data.get("ports", {}).get(repo)
     if port is not None:
         env["IDE_PORT"] = str(port)

@@ -12,7 +12,7 @@ import { Badge } from "../../components/ui/badge";
 import { SessionItem } from "./SessionItem";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
-import { CardActions, CardCorner, RenameAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, RenameAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { cn } from "../../lib/utils";
 import { PersonChip } from "../../lib/people";
 import { usePersistentOpen } from "../../lib/persist";
@@ -197,6 +197,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
           </CardActions>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1">
+          {devKey && <DevIndex devKey={devKey} prs={[pr]} />}
           <RefChip repo={pr.repo} number={pr.number} />
           {showAuthor && <PersonChip login={pr.author} title={`autor: ${pr.author}`} />}
         </div>

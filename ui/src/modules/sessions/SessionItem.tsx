@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Archive, ExternalLink, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
-import { CardActions, CardCorner, RenameAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, RenameAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
 import { PersonChip } from "../../lib/people";
 import { stopSession } from "../../transport/folderSessions";
@@ -81,6 +81,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
         </div>
         {/* repos con su número: una chip por PR (con varias, por repo: las filas dan los números) */}
         <div className="mt-1 flex flex-wrap items-center gap-1">
+          <DevIndex devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])} />
           {many ? groups.flatMap((g) => g.stacks.flat()).map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)
             : pr ? <RefChip repo={pr.repo} number={pr.number} pr={pr} />
             : prLabel(session.prUrl) ? <span className="rounded border border-border px-1 font-mono text-[10px] font-bold">{prLabel(session.prUrl)}</span>

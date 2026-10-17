@@ -6,7 +6,7 @@ import { useFolders } from "../../state/folders";
 import { useDevTabs } from "../../state/devTabs";
 import type { FolderSession, GhPr, MergeJob } from "../../transport/folderSessions";
 import { QueueItem, QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
-import { CardActions, CardCorner, RenameAction, CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, RenameAction, CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { worstPr } from "./desarrollos";
 import { CiMark, PrCard, useGithubReviews } from "./ReviewsSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
@@ -75,6 +75,7 @@ function StackCard({ d }: { d: Desarrollo }) {
           <CardActions><RenameAction devKey={d.key} /><HideToggle devKey={d.key} prs={d.prs} /></CardActions>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1" title={`stack de ${d.prs.length} (de abajo hacia arriba)`}>
+          <DevIndex devKey={d.key} prs={d.prs} />
           {d.prs.map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)}
         </div>
       </CardShell>

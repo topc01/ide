@@ -140,6 +140,29 @@ class Db:
     def link_pr(self, url: str, sid: str, *, out: bool = False) -> None:
         self.set(f"devpr:{url}", {"sid": sid, **({"out": True} if out else {})})
 
+    # -- índice de los desarrollos (correlativo, nunca se reutiliza) --------------------------------
+    def dev_index(self, key: str, inherit: int | None = None) -> int:
+        """El número del desarrollo `key`; si no tiene, `inherit` o el siguiente libre (atómico entre
+        procesos: server y CLI pueden asignar a la vez)."""
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._conn.execute("SELECT value FROM kv WHERE key = ?", (f"devidx:{key}",)).fetchone()
+                if row:
+                    n = json.loads(row[0])
+                else:
+                    if inherit is None:
+                        used = [json.loads(v) for (v,) in self._conn.execute(
+                            "SELECT value FROM kv WHERE substr(key, 1, 7) = 'devidx:'").fetchall()]
+                        inherit = max(used, default=0) + 1
+                    n = inherit
+                    self._conn.execute("INSERT INTO kv VALUES (?, ?)", (f"devidx:{key}", json.dumps(n)))
+                self._conn.execute("COMMIT")
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
+        return n
+
     def set_dev_name(self, key: str, name: str | None) -> None:
         if name:
             self.set(f"devname:{key}", name)

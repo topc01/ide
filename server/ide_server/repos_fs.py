@@ -80,6 +80,9 @@ def _add_worktree_locked(root: Path, sid: str, repo: str, branch: str | None,
         add_worktree(repo_path, wt, detach_at, access="ro", base=detach_at)
         branch_name = None
     else:
+        if not branch:                              # `<login>/d12-<nombre>`; sin número, el id de la sesión
+            from ide_server.devs import dev_env
+            branch = dev_env(root, sid).get("IDE_DEV_BRANCH")
         branch_name = branch or sid
         add_worktree(repo_path, wt, branch_name, access="rw")
     try:

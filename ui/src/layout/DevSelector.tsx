@@ -5,8 +5,8 @@ import { useFolders } from "../state/folders";
 import { useStore } from "../state/store";
 import type { FolderSession, GhPr, GithubReviews, PrLinks } from "../transport/folderSessions";
 import { CiMark, DepsBadge, StackBadge, allPrs, useGithubReviews } from "../modules/sessions/ReviewsSection";
-import { deriveMine, devName, worstPr } from "../modules/sessions/desarrollos";
-import { RepoChips } from "../modules/sessions/DevCard";
+import { deriveMine, devIndexOf, devName, worstPr } from "../modules/sessions/desarrollos";
+import { DevIndex, RepoChips } from "../modules/sessions/DevCard";
 import { cn } from "../lib/utils";
 
 /** Un desarrollo = una sesión o una PR (sin sesión) de las listas de la sidebar. */
@@ -55,6 +55,7 @@ function DevLine({ d, names }: { d: Desarrollo; names?: Record<string, string> }
           ? <span className={cn(d.session.process === "running" ? "text-primary" : "text-muted-foreground")}>
               {d.session.process === "running" ? "●" : "○"}</span>
           : <GitPullRequest size={11} className="shrink-0 text-muted-foreground" />}
+        <DevIndex devKey={d.key} prs={prsOf(d)} />
         <span className="truncate text-xs" title={name ? `${name}\n(original: ${original(d)})` : title}>{title}</span>
         {pr && <CiMark pr={pr} />}
       </div>
@@ -89,7 +90,7 @@ export function DevSelector() {
   const current = all.find((d) => activePrUrl ? d.kind === "pr" && d.pr.url === activePrUrl
     : d.kind === "session" && d.session.id === activeId);
   const needle = q.trim().toLowerCase();
-  const shown = all.filter((d) => !needle || `${devName(names, d.key, prsOf(d)) ?? ""} ${original(d)} ${d.kind === "session" ? d.session.id
+  const shown = all.filter((d) => !needle || `#${devIndexOf(tree.devIndex, d.key, prsOf(d)) ?? ""} ${devName(names, d.key, prsOf(d)) ?? ""} ${original(d)} ${d.kind === "session" ? d.session.id
     : `${d.pr.repo}#${d.pr.number}`}`.toLowerCase().includes(needle));
   const pick = (d: Desarrollo) => {
     if (d.kind === "session") setActive(d.session.id); else setActivePr(d.pr.url);

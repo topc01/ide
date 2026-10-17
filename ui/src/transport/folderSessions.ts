@@ -21,6 +21,7 @@ export interface SessionsTree {
   devNames?: Record<string, string>;    // nombre puesto en el IDE, por clave de desarrollo (s:/st:/p:)
   devHidden?: string[];                 // desarrollos ocultos en Mis desarrollos (grupo "Ocultos")
   devPrs?: PrLinks;                     // PRs vinculadas a una sesión (siguen aunque cambie la rama)
+  devIndex?: Record<string, number>;    // número de cada desarrollo (#12), por clave
 }
 export type PrLinks = Record<string, { sid: string; out?: boolean }>;
 /** Saca una PR del desarrollo de una sesión (no vuelve aunque el worktree esté en su rama). */
