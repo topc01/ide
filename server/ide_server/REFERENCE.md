@@ -94,7 +94,7 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
+modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -102,7 +102,7 @@ modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", 
 Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero) hacen
 fallar el arranque con un mensaje que nombra la clave.
 
-`[ui] modules`: ids disponibles `dev`, `terminal`, `prompts`, `stack`, `review`, `deps`, `servers`, `explorer`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
+`[ui] modules`: ids disponibles `dev`, `terminal`, `prompts`, `stack`, `review`, `deps`, `servers`, `db`, `explorer`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
 `notion`, y `chat`. Si `chat` **no** está, el área principal es la vista por sesión (terminal
 `claude` + doc + scripts); si está, vuelve el chat propio.
 
@@ -308,7 +308,7 @@ otro nombre (`build`) y se corre a mano desde Servidores.
 **Servidores** (menú de acciones, id `servers`): los scripts de cada repo del desarrollo actual
 (menos `archive`) con ▶/■, estado en palabras (● corriendo · ◌ parando · ✓ terminó · ✗ falló (exit N) ·
 ■ parado · ⚠ murió; en el tooltip cuándo empezó/terminó; también en la tab del log) y los
-links `localhost:<puerto>` que el script anunció en su salida. Click en uno abre su **log** en una
+link `localhost:<puerto>` del propio servicio: lo que el script declara con `[ide] url: <url>`, si no la línea `Local:` de Vite, si no la primera URL local del log (no las que solo menciona, como la api a la que apunta un front). Click en uno abre su **log** en una
 tab del panel principal (solo lectura; se reinicia en cada corrida; ▶/■ también desde ahí). Abajo,
 lo que corre en **otros** desarrollos (con ■).
 
@@ -321,7 +321,7 @@ archivo). Parar = SIGTERM al grupo y SIGKILL a los 15 s. "Murió" = ya no existe
 terminales del IDE (scripts del ⋯, `claude`) también escriben `[terminó: exit N]` al terminar. Archivar o borrar una sesión (o quitar un repo) **para sus
 servidores** antes de correr `archive`.
 
-**Base de datos** (en Servidores): por cada worktree cuyo `.env` (o `.env.local`) nombra una base
+**Base de datos** (módulo propio, id `db`): por cada worktree cuyo `.env` (o `.env.local`) nombra una base
 (`POSTGRES_NAME`), **Abrir** levanta `pgweb` (`brew install pgweb`) y lo muestra en una tab: tablas,
 filas, estructura y SQL (no es solo lectura: con SQL se puede editar). Solo bases locales: el host
 tiene que ser `127.0.0.1`/`localhost`/`::1` o el de docker (`db`, `postgres`, `host.docker.internal`

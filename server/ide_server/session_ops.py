@@ -13,6 +13,7 @@ from ide_server.config import sessions_config
 from ide_server.repos_fs import add_repo, rm_repo, worktree_path, require_session
 from ide_server.prompts import load_prompt
 from ide_server.sessions_fs import (
+    repo_links,
     SessionError, create_session_dir, new_id, normalize_id, read_session, render_template,
     require_plain_name, session_path, sessions_dir, update_session_toml, read_toml,
 )
@@ -190,7 +191,7 @@ def _create_review(root: Path, req: dict, permissions: str, runner: Runner) -> d
 def check_delete(root: Path, sid: str, *, force: bool = False) -> list[str]:
     """Valida que la sesión se puede borrar (sin cambios sin commitear salvo force)."""
     spath = require_session(root, sid)
-    repos = [p.name for p in spath.iterdir() if p.is_symlink()]
+    repos = [p.name for p in repo_links(spath)]
     if not force:
         dirty = [r for r in repos if worktree_path(root, sid, r).exists()
                  and has_uncommitted_changes(worktree_path(root, sid, r))]
@@ -203,7 +204,7 @@ def check_delete(root: Path, sid: str, *, force: bool = False) -> list[str]:
 def remove_session(root: Path, sid: str, *, force: bool = False) -> None:
     """Quita worktrees y carpeta (el proceso ya debe estar parado)."""
     spath = require_session(root, sid)
-    for repo in [p.name for p in spath.iterdir() if p.is_symlink()]:
+    for repo in [p.name for p in repo_links(spath)]:
         rm_repo(root, sid, repo, force=force, out=io.StringIO())
     shutil.rmtree(spath)
     try:
@@ -263,7 +264,7 @@ def archive_session(root: Path, sid: str, *, force: bool = False, out=None) -> N
     dest = archive_path(root, sid)
     if dest.exists():
         raise SessionError("session_archived", f"ya hay una sesión archivada {sid} ({dest})")
-    repos = [p.name for p in spath.iterdir() if p.is_symlink()]
+    repos = [p.name for p in repo_links(spath)]
     branches: dict[str, str] = {}
     for repo in repos:
         wt = worktree_path(root, sid, repo)

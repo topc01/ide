@@ -103,6 +103,12 @@ def state_file(kind: str | None) -> str | None:
     return STATE_FILE if kind in LEGACY_STATE else None
 
 
+def repo_links(path: Path) -> list[Path]:
+    """Los repos de una sesión: sus symlinks a worktrees (no los TICKET.md/REVIEW.md que quedaron
+    apuntando a SESSION.md tras la migración)."""
+    return sorted(p for p in path.iterdir() if p.is_symlink() and p.name not in LEGACY_STATE.values())
+
+
 def migrate_state_file(path: Path, kind: str | None) -> None:
     """TICKET.md/REVIEW.md de antes → SESSION.md; el nombre viejo queda como symlink (una sesión que
     ya corría y lo lee no se rompe)."""
@@ -240,7 +246,7 @@ def read_session(root: Path, sid: str) -> dict:
         ports = {}
     if not isinstance(setup, dict):
         setup = {}
-    for link in sorted(p for p in path.iterdir() if p.is_symlink()):
+    for link in repo_links(path):
         ok = link.exists()
         info["repos"].append({"name": link.name, "state": "ok" if ok else "missing",
                               "branch": _branch(link) if ok else None,

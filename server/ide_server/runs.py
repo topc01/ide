@@ -96,20 +96,22 @@ class Runner:
 
     @staticmethod
     def _urls(d: Path) -> list[str]:
-        """URLs locales que el proceso anunció (las primeras distintas, p.ej. `API -> http://localhost:8001`)."""
+        """La URL del propio servicio (no las de otros que el log menciona, p.ej. la api a la que apunta un
+        front o el puerto interno de un contenedor). En orden: lo que el script declara con
+        `[ide] url: <url>`, la línea `Local:` de Vite, o la primera URL local del log."""
         try:
             with open(d / "log", "rb") as f:
                 head = f.read(256 * 1024).decode("utf-8", "replace")
         except OSError:
             return []
-        seen: list[str] = []
-        for m in _URL_RE.finditer(_ANSI_RE.sub("", head)):
-            u = m.group(0).rstrip("/").replace("0.0.0.0", "localhost").replace("127.0.0.1", "localhost")
-            if u not in seen:
-                seen.append(u)
-            if len(seen) == 4:
-                break
-        return seen
+        lines = _ANSI_RE.sub("", head).splitlines()
+        norm = lambda u: u.rstrip("/").replace("0.0.0.0", "localhost").replace("127.0.0.1", "localhost")
+        for marker in ("[ide] url:", "Local:"):
+            found = [norm(m.group(0)) for line in lines if marker in line for m in _URL_RE.finditer(line)]
+            if found:
+                return list(dict.fromkeys(found))[:2]
+        first = next((m.group(0) for line in lines for m in _URL_RE.finditer(line)), None)
+        return [norm(first)] if first else []
 
     def status(self, place: str, repo: str, name: str) -> dict:
         return self._status(self._dir(place, repo, name), place, repo, name)

@@ -38,7 +38,8 @@ def _folder_session(root: Path, payload: dict) -> Path | None:
 
 
 def _linked_repos(folder: Path) -> list[str]:
-    return [p.name for p in folder.iterdir() if p.is_symlink()]
+    from ide_server.sessions_fs import repo_links   # sin TICKET.md/REVIEW.md (symlinks a SESSION.md)
+    return [p.name for p in repo_links(folder)]
 
 
 def resolve_cwd(root: Path, payload: dict) -> Path:

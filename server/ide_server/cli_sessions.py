@@ -14,7 +14,7 @@ from ide_server.handoff import handoff
 from ide_server.repos_fs import add_repo, rm_repo, require_session
 from ide_server.scripts import run_script
 from ide_server.session_ops import delete_session
-from ide_server.sessions_fs import SessionError, list_sessions, normalize_id, sessions_dir
+from ide_server.sessions_fs import SessionError, list_sessions, normalize_id, repo_links, sessions_dir
 from ide_server.workspace import find_workspace_root
 from ide_server.worktrees import BranchOccupied, WorktreeError
 
@@ -329,7 +329,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return 0
         repo = a.repo
         if repo is None:
-            repos = [p.name for p in require_session(root, sid).iterdir() if p.is_symlink()]
+            repos = [p.name for p in repo_links(require_session(root, sid))]
             if len(repos) != 1:
                 raise SessionError("ambiguous_repo",
                                    f"la sesión tiene {len(repos)} repos: indica cuál ({', '.join(repos)})")
