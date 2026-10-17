@@ -41,6 +41,7 @@ function Window({ label, w, now }: { label: string; w: UsageWindow | null; now: 
 /** Barra inferior: contexto de la sesión abierta + ventanas de 5 h y semanal de Claude Code. */
 export function StatusBar() {
   const activeId = useFolders((s) => s.activeId);
+  const mainId = useFolders((s) => s.tree.sessions.find((x) => x.kind === "main")?.id);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -73,7 +74,7 @@ export function StatusBar() {
       ) : (
         <div className={cn("flex items-center gap-6 [&>*]:shrink-0", !usage && "opacity-50")}>
           <span className="flex items-center gap-1.5">
-            <span className="text-muted-foreground">ctx{activeId ? ` ${activeId}` : ""}</span>
+            <span className="text-muted-foreground">ctx{activeId ? ` ${activeId === mainId ? "Manager" : activeId}` : ""}</span>
             {ctx ? (<>
               <Meter pct={ctxPct} />
               <span className={tone(ctxPct)}>{fmtK(ctx.window - ctx.used)} libre</span>

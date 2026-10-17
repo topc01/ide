@@ -126,3 +126,23 @@ def file_diff(root: Path, pr: dict, path: str, old_path: str | None = None) -> d
     else:
         new = _show(repo, head, path)
     return {"old": old, "new": new, "local": bool(wt)}
+
+
+def stack_status(root: Path, prs: list[dict]) -> dict:
+    """Qué hace falta en un stack (de abajo hacia arriba): `behindParent` = la rama no contiene el head
+    actual de su madre (cambió la de abajo: hay que re-apilar); `baseAhead` = commits nuevos en la base
+    que la de abajo no tiene (hay que ponerla al día)."""
+    if not prs:
+        return {"behindParent": [], "baseAhead": 0, "base": None}
+    for p in prs:
+        _refs(root, p)
+    repo = _repo(root, prs[0])
+    behind = []
+    for parent, child in zip(prs, prs[1:]):
+        ok = subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor",
+                             f"refs/ide/pr/{parent['number']}", f"refs/ide/pr/{child['number']}"]).returncode == 0
+        if not ok:
+            behind.append(child["url"])
+    bottom = prs[0]
+    ahead = _git(repo, "rev-list", "--count", f"refs/ide/pr/{bottom['number']}..refs/ide/base/{bottom['base']}").strip()
+    return {"behindParent": behind, "baseAhead": int(ahead or 0), "base": bottom["base"]}

@@ -1,9 +1,9 @@
 // ui/src/modules/github/GithubPanel.tsx
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowUpRight, ExternalLink } from "lucide-react";
-import { diffTab, useDevTabs } from "../../state/devTabs";
+import { diffTab, summaryTab, useDevTabs } from "../../state/devTabs";
 import { getWs } from "../../transport/wsClient";
-import { prFiles, restackStack, type MergeJob, type PrFile } from "../../transport/folderSessions";
+import { prFiles, restackStack, stackStatus, type MergeJob, type PrFile } from "../../transport/folderSessions";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "../sessions/MergeControls";
 import { useFolders } from "../../state/folders";
 import type { GhPr, GithubReviews } from "../../transport/folderSessions";
@@ -94,14 +94,15 @@ function PrChanges({ pr }: { pr: GhPr }) {
  *  abierta. destacada la que estás viendo.
  *  `assigned`: tuya o figuras como revisor (si no, va tachada y atenuada). Mergear en la de abajo si es
  *  tuya y está aprobada. */
-function StackItem({ pr, own, assigned, onGoto, viewing, onOpen, mine, job, above }:
-  { pr: GhPr; own: boolean; assigned: boolean; onGoto?: () => void; viewing: boolean; onOpen: () => void;
+function StackItem({ pr, own, assigned, onGoto, viewing, onOpen, onShow, mine, job, above }:
+  { pr: GhPr; own: boolean; assigned: boolean; onGoto?: () => void; viewing: boolean; onOpen: () => void; onShow: () => void;
     mine: boolean; job?: MergeJob; above: number }) {
   const [color, label] = pr.review ? REVIEW[pr.review] : [null, "sin review"];
   const merging = !!job && MERGE_ACTIVE.includes(job.state);
   return (
     <QueueItem className="min-w-0 px-1.5">
-      <div onClick={onOpen} title={viewing ? "Ocultar los archivos cambiados" : "Ver los archivos cambiados de esta PR"}
+      <div onClick={onOpen} onDoubleClick={onShow}
+        title={`${viewing ? "Ocultar" : "Ver"} los archivos cambiados · doble click: abrir la PR (descripción) en el panel principal`}
         className={cn("flex min-w-0 cursor-pointer items-start gap-1.5 rounded border-l-2 border-transparent px-1.5 py-1 text-xs hover:bg-accent/60",
           viewing && "border-primary bg-accent", !assigned && "opacity-50")}>
         <span aria-label={label} title={label}
@@ -130,37 +131,52 @@ function StackItem({ pr, own, assigned, onGoto, viewing, onOpen, mine, job, abov
   );
 }
 
-/** Restack / actualizar desde la base: reescribe ramas (push forzado), así que pide confirmar. */
-function StackActions({ stack, base }: { stack: GhPr[]; base: string }) {
+/** Avisos del stack, solo cuando hace falta: una PR quedó atrás de la de abajo (re-apilar) o la base
+ *  avanzó (poner al día). Reescriben ramas (push forzado), así que piden confirmar. */
+function StackActions({ stack }: { stack: GhPr[] }) {
+  const [st, setSt] = useState<{ behindParent: string[]; baseAhead: number; base: string | null } | null>(null);
   const [confirm, setConfirm] = useState<"restack" | "base" | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const key = stack.map((p) => p.url).join(" ");
+  const check = useCallback(() => { stackStatus(getWs(), stack[0].url).then(setSt).catch(() => setSt(null)); }, [key]);
+  useEffect(check, [check]);
   const run = (updateBase: boolean) => {
     setConfirm(null); setBusy(true); setMsg(null);
     restackStack(getWs(), stack[0].url, updateBase)
-      .then((r) => setMsg(r.moved.length ? `movidas: ${r.moved.join(", ")}` : "ya estaba al día"))
+      .then((r) => { setMsg(r.moved.length ? `listo: movidas ${r.moved.join(", ")}` : "ya estaba al día"); check(); })
       .catch((e: any) => setMsg(`⚠ ${e?.message ?? String(e)}`)).finally(() => setBusy(false));
   };
-  const btn = "rounded border border-border px-1.5 py-px text-[10px] hover:bg-accent disabled:opacity-40";
+  const num = (u: string) => stack.find((p) => p.url === u)?.number;
+  const behind = st?.behindParent ?? [];
+  const btn = "rounded border px-1.5 py-px text-[10px] disabled:opacity-40";
+  if (!st && !msg) return null;
   return (
-    <div className="mx-2.5 mb-1">
-      <div className="flex flex-wrap items-center gap-1">
-        {confirm ? (<>
-          <span className="text-[10px] text-amber-300">
-            {confirm === "restack" ? "Rebasear cada PR sobre la de abajo" : `Rebasear el stack sobre ${base}`} y empujar con --force-with-lease?</span>
-          <button className={cn(btn, "border-amber-400/60 text-amber-300")} disabled={busy} onClick={() => run(confirm === "base")}
-            title="Sí, rebasear y empujar">Sí</button>
-          <button className={btn} onClick={() => setConfirm(null)} title="No">No</button>
-        </>) : (<>
-          {stack.length > 1 && <button className={btn} disabled={busy} onClick={() => setConfirm("restack")}
-            title="Rebasear cada PR sobre la de abajo (tras cambios en una PR de más abajo)">Restack</button>}
-          <button className={btn} disabled={busy} onClick={() => setConfirm("base")}
-            title={`Rebasear ${stack.length > 1 ? "todo el stack" : "la rama"} sobre lo último de ${base}`}>Actualizar desde {base}</button>
-          {busy && <span className="text-[10px] text-muted-foreground">rebaseando…</span>}
-        </>)}
-      </div>
-      {msg && <p role={msg.startsWith("⚠") ? "alert" : undefined}
-        className={cn("mt-0.5 text-[10px]", msg.startsWith("⚠") ? "text-destructive" : "text-muted-foreground")}>{msg}</p>}
+    <div className="mx-2 mb-1 space-y-1 text-[10px]">
+      {behind.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-amber-300">
+          <span title="Cambió una PR de más abajo y las de arriba no la incluyen todavía">
+            {behind.map((u) => `#${num(u)}`).join(", ")} quedó atrás de la de abajo</span>
+          {confirm === "restack" ? (<>
+            <span>¿rebasear y empujar (--force-with-lease)?</span>
+            <button className={cn(btn, "border-amber-400/60")} disabled={busy} title="Sí" onClick={() => run(false)}>Sí</button>
+            <button className={cn(btn, "border-border text-muted-foreground")} title="No" onClick={() => setConfirm(null)}>No</button>
+          </>) : <button className={cn(btn, "border-amber-400/60 hover:bg-amber-400/10")} disabled={busy}
+            title="Rebasear cada PR sobre la de abajo (re-apilar)" onClick={() => setConfirm("restack")}>Re-apilar</button>}
+        </div>)}
+      {!!st?.baseAhead && (
+        <div className="flex flex-wrap items-center gap-1.5 text-sky-300">
+          <span title={`${st.base} tiene commits que el stack no incluye`}>{st.base} avanzó {st.baseAhead} commit{st.baseAhead > 1 ? "s" : ""}</span>
+          {confirm === "base" ? (<>
+            <span>¿rebasear el stack sobre {st.base} y empujar?</span>
+            <button className={cn(btn, "border-sky-400/60")} disabled={busy} title="Sí" onClick={() => run(true)}>Sí</button>
+            <button className={cn(btn, "border-border text-muted-foreground")} title="No" onClick={() => setConfirm(null)}>No</button>
+          </>) : <button className={cn(btn, "border-sky-400/60 hover:bg-sky-400/10")} disabled={busy}
+            title={`Rebasear ${stack.length > 1 ? "todo el stack" : "la rama"} sobre lo último de ${st.base}`}
+            onClick={() => setConfirm("base")}>Poner al día con {st.base}</button>}
+        </div>)}
+      {busy && <p className="text-muted-foreground">rebaseando…</p>}
+      {msg && <p role={msg.startsWith("⚠") ? "alert" : undefined} className={msg.startsWith("⚠") ? "text-destructive" : "text-muted-foreground"}>{msg}</p>}
     </div>
   );
 }
@@ -181,6 +197,8 @@ export function GithubPanel() {
   };
   const prs = useDevPrs();
   const [expanded, setExpanded] = useState<string | null>(null);   // PR con los archivos desplegados
+  const dev = useCurrentDev();
+  const openTab = useDevTabs((s) => s.open);
   // precarga: el server trae las PRs en segundo plano y el click después es inmediato
   const urls = prs.map((p) => p.url).join(" ");
   useEffect(() => { for (const u of urls.split(" ").filter(Boolean)) prFiles(getWs(), u).catch(() => {}); }, [urls]);
@@ -195,15 +213,16 @@ export function GithubPanel() {
         <p className="mx-2.5 text-xs text-muted-foreground">
           {activePrUrl ? "La PR ya no está abierta." : `Las ramas de ${session!.id} no tienen PRs abiertas.`}</p>)}
       {data?.stacks.map((stack) => (
-        <div key={stack[0].url} className="mb-2">
-          <div className="mx-2.5 mb-0.5 font-mono text-[10px] text-muted-foreground">
+        <div key={stack[0].url} className="mx-2 mb-2 rounded-md border border-border bg-card py-1">
+          <div className="mx-2 mb-0.5 font-mono text-[10px] text-muted-foreground">
             {stack[0].repo}{stack.length > 1 ? ` · stack de ${stack.length}` : ""}
           </div>
-          {stack.every((p) => gh?.me && p.author === `@${gh.me}`) && <StackActions stack={stack} base={stack[0].base ?? "develop"} />}
+          {stack.every((p) => gh?.me && p.author === `@${gh.me}`) && <StackActions stack={stack} />}
           <QueueList className="flex-col-reverse">
             {stack.map((pr) => <StackItem key={pr.url} pr={pr} own={data.own.has(pr.url)}
               onGoto={openDev(pr)} viewing={expanded === pr.url}
               onOpen={() => setExpanded(expanded === pr.url ? null : pr.url)}
+              onShow={() => { if (dev) openTab(dev.key, summaryTab(pr.url, `${pr.repo.replace(/^finnecto-/, "").toUpperCase()} #${pr.number}`)); }}
               mine={!!gh?.me && pr.author === `@${gh.me}`} job={gh?.merges?.[pr.url]}
               above={pr.stack ? pr.stack.size - pr.stack.position : 0}
               assigned={!gh?.me || pr.author === `@${gh.me}` || !!pr.reviewers?.some((r) => r.login === gh.me)} />)}

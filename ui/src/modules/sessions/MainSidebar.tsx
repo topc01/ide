@@ -41,10 +41,10 @@ export function MainSidebar() {
       <div className={connected ? "" : "opacity-50"}>
         <div className="flex items-center gap-1.5 px-2.5 pb-1 pt-2.5">
           {main ? (
-            <button title="Abrir la sesión principal" onClick={() => setActive(main.id)} aria-current={activeId === main.id || undefined}
+            <button title={`Abrir la sesión manager (${main.id})`} onClick={() => setActive(main.id)} aria-current={activeId === main.id || undefined}
               className={cn("-my-1 -ml-1.5 flex items-center gap-1.5 rounded border-l-2 border-transparent py-1 pl-1 pr-2 text-xs hover:bg-accent/60",
                 activeId === main.id && "border-primary bg-accent")}>
-              <Star size={12} className="text-primary" /><span className="font-mono">{main.id}</span>
+              <Star size={12} className="text-primary" /><span className="font-semibold">Manager</span>
               <span className="text-muted-foreground">{main.process}</span>
             </button>
           ) : (

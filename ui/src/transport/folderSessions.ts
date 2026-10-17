@@ -38,6 +38,9 @@ export const prFiles = (ws: WsClient, url: string, fresh = false): Promise<{ fil
 export const prFileDiff = (ws: WsClient, url: string, path: string, oldPath: string | null): Promise<{ old: string | null; new: string | null; local: boolean }> =>
   ws.request("pr.fileDiff", { url, path, oldPath });
 /** Rebasea el stack de la PR (y la de abajo sobre su base si `updateBase`) y empuja con --force-with-lease. */
+/** Qué necesita el stack de esa PR: ramas que quedaron atrás de su madre y commits nuevos en la base. */
+export const stackStatus = (ws: WsClient, url: string): Promise<{ behindParent: string[]; baseAhead: number; base: string | null }> =>
+  ws.request("stack.status", { url });
 export const restackStack = (ws: WsClient, url: string, updateBase: boolean): Promise<{ moved: string[] }> =>
   ws.request("stack.restack", { url, updateBase });
 /** El veredicto de la sesión de revisión de una PR y su review listo para publicar (de su SESSION.md). */

@@ -6,6 +6,7 @@ import { newSessionForPr, startReview } from "../transport/folderSessions";
 import { getWs } from "../transport/wsClient";
 import { Button } from "../components/ui/button";
 import { PrDescription } from "./PrDescription";
+import { useCurrentDev } from "./currentDev";
 import { ReviewDecision } from "./ReviewDecision";
 import { allPrs, CiMark, DepsList, ReviewerChips, StackBadge, useGithubReviews } from "../modules/sessions/ReviewsSection";
 
@@ -16,13 +17,15 @@ export function PrView({ url }: { url: string }) {
   const sessions = useFolders((s) => s.tree.sessions);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const dev = useCurrentDev();                  // la PR puede ser del desarrollo de una sesión por su stack
   const pr = gh ? allPrs(gh).find((p) => p.url === url) : undefined;
   if (!gh) return <div className="p-6 text-sm text-muted-foreground">cargando…</div>;
   if (!pr) return <div className="p-6 text-sm text-muted-foreground">La PR ya no está abierta.</div>;
   const toReview = gh.pending.some((p) => p.url === url);
   const link = useFolders.getState().tree.devPrs?.[pr.url];       // vinculada a una sesión (pegajoso)
   const hasSession = sessions.some((s) => s.id === pr.sessionId || s.prUrl === pr.url
-    || (!!link && !link.out && s.id === link.sid));
+    || (!!link && !link.out && s.id === link.sid))
+    || (!!dev?.session && dev.prs.some((p) => p.url === pr.url));
   return (
     <div className="max-w-4xl p-6">
       <h1 className="text-base font-semibold">{pr.title}</h1>

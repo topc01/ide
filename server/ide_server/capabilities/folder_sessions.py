@@ -564,6 +564,15 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def pr_file_diff(p: dict) -> dict:
         return await asyncio.to_thread(pr_changes.file_diff, root, _pr_card(p["url"]), p["path"], p.get("oldPath"))
 
+    async def stack_status(p: dict) -> dict:
+        """Si el stack de esa PR necesita re-apilar (una rama quedó atrás de su madre) o ponerse al día
+        con la base. Las PRs, de abajo hacia arriba."""
+        pr = _pr_card(p["url"])
+        st = gh_reviews.state if gh_reviews else {}
+        prs = sorted((st.get("stacks") or {}).get(pr["stack"]["id"], [pr]) if pr.get("stack") else [pr],
+                     key=lambda c: (c.get("stack") or {}).get("position", 1))
+        return await asyncio.to_thread(pr_changes.stack_status, root, prs)
+
     async def stack_restack(p: dict) -> dict:
         if merger is None:
             raise SessionError("github_off", "restack desactivado")
@@ -642,7 +651,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
-        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
+        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,

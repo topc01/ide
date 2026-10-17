@@ -198,7 +198,7 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
   (la anterior queda en su transcript); a las de ticket/revisión les pide leer su `SESSION.md` y
   resumir dónde quedaron. Un desarrollo = una sesión; esto evita abrir otra cuando la conversación se
   alarga o se ensucia. Canal `sessions.fresh {id}`.
-- **Sesión principal = manager:** `.ide/manager.md` (sembrado por `ide init`, editable) se copia como
+- **Sesión principal = manager** (en la UI se llama **Manager**; el id queda en el tooltip): `.ide/manager.md` (sembrado por `ide init`, editable) se copia como
   `CLAUDE.md` de su carpeta en cada lanzamiento: no implementa, coordina; mira `ide dev ls`, rutea
   con `ide session send` (pregunta si no está claro a qué desarrollo va) y ayuda a destrabar.
 
@@ -466,7 +466,11 @@ muestra limpio (sin HTML ni imágenes), los largos recortados con "ver más".
 Click en una PR despliega bajo su rama sus **archivos cambiados** contra su base (en un stack, la rama
 de abajo: solo lo de esa PR; si la rama está en un worktree del IDE, incluye lo no commiteado y lo no
 trackeado): letra del cambio, nombre, carpeta debajo y +/−. Click en un archivo abre su **diff** en una
-tab (lado a lado o unificado, sin cambios colapsados) y queda destacado en la lista. El server guarda
+tab (lado a lado o unificado, sin cambios colapsados) y queda destacado en la lista. Doble click en una
+PR la abre en el panel principal (resumen + descripción). Cada stack es una card; los avisos aparecen
+solo cuando hace falta: "#n quedó atrás de la de abajo → **Re-apilar**" (una rama no contiene el head
+actual de su madre) y "develop avanzó N commits → **Poner al día con develop**" (canal
+`stack.status {url}` → `{behindParent, baseAhead, base}`). El server guarda
 los cambios 30 s y el módulo los precarga al abrirse (el fetch a GitHub es lo lento). Sale de git local: las refs se traen a `refs/ide/pr/<n>` y `refs/ide/base/<rama>`
 del repo principal (no tocan sus ramas). Acciones: **Mergear** en la de abajo (tuya y aprobada; el
 flujo de merge de siempre), **Restack** (cada PR sobre la de abajo) y **Actualizar desde <base>**
@@ -567,7 +571,8 @@ en el módulo Desarrollo, agrupadas por repo y stack, cada repo/stack con su pro
 En una sesión con varias PRs el fondo lo da la peor review y la marca de CI el peor CI. Agrupa por
 estado (Merges, Devueltas, Esperando revisores, Sin revisores, Draft, Aprobadas, Sin PR); con varias
 PRs manda la **peor**: devuelta > sin revisores > esperando > draft > aprobada. También por repo o
-sin agrupar (⚙). Los módulos Stack, Revisión y Dependencias muestran **todo** el desarrollo (aunque
+sin agrupar (⚙). Los grupos sin nada van juntos en uno solo, **Vacíos** (cerrado); apenas tienen
+un desarrollo vuelven a su lugar. Los módulos Stack, Revisión y Dependencias muestran **todo** el desarrollo (aunque
 se haya elegido una fila), con una cabecera por repo si es fullstack.
 
 **Card:** el título usa todo el ancho; las marcas (⏸, CI) van en la esquina superior derecha y las

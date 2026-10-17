@@ -39,7 +39,8 @@ export function desarrollos(sessions: FolderSession[], gh: GithubReviews | null,
 }
 
 const GROUPS = ["Sesiones", "Mis desarrollos", "Revisiones"];
-const original = (d: Desarrollo) => d.kind === "session" ? d.session.title ?? d.session.id : d.pr.title;
+const original = (d: Desarrollo) => d.kind === "session"
+  ? (d.session.kind === "main" ? "Manager" : d.session.title ?? d.session.id) : d.pr.title;
 const prsOf = (d: Desarrollo) => d.kind === "session" ? d.prs : [d.pr];
 
 function DevLine({ d, names }: { d: Desarrollo; names?: Record<string, string> }) {
@@ -60,7 +61,7 @@ function DevLine({ d, names }: { d: Desarrollo; names?: Record<string, string> }
         {pr && <CiMark pr={pr} />}
       </div>
       <div className="flex items-center gap-1.5 pl-4 font-mono text-[10px] text-muted-foreground">
-        <span className="truncate">{d.kind === "session" ? d.session.id : `${d.pr.repo}#${d.pr.number}`}</span>
+        <span className="truncate">{d.kind === "session" ? (d.session.kind === "main" ? "sesión principal" : d.session.id) : `${d.pr.repo}#${d.pr.number}`}</span>
         {repos.length > 1 && <RepoChips repos={repos} />}
         {pr && (d.kind === "pr" || d.prs.length === 1) && <StackBadge pr={pr} />}
         {pr && <DepsBadge pr={pr} />}

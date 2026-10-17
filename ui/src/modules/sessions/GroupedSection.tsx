@@ -100,13 +100,25 @@ export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, 
       </div>
       <Collapsible.Content>
         {beforeGroups}
-        {groups.map(([key, g]) => (
+        {groups.filter(([, g]) => g.items.length).map(([key, g]) => (
           <QueueSection key={`${by}-${key}`} defaultOpen persistKey={`${id}.${by}.${key}`} className="mt-1">
             <QueueSectionTrigger title={g.label}>
               <QueueSectionLabel label={g.label} count={g.items.length} className="min-w-0 [&>span:first-child]:truncate" />
             </QueueSectionTrigger>
             <QueueSectionContent><QueueList>{g.items.map((e) => <div key={e.key}>{e.render()}</div>)}</QueueList></QueueSectionContent>
           </QueueSection>))}
+        {/* los grupos vacíos, juntos en uno (cerrado): apenas tienen algo vuelven a su lugar */}
+        {groups.some(([, g]) => !g.items.length) && (
+          <QueueSection defaultOpen={false} persistKey={`${id}.${by}.~empty`} className="mt-1 opacity-60">
+            <QueueSectionTrigger title="Grupos sin nada por ahora">
+              <QueueSectionLabel label="Vacíos" count={groups.filter(([, g]) => !g.items.length).length} />
+            </QueueSectionTrigger>
+            <QueueSectionContent>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-4 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                {groups.filter(([, g]) => !g.items.length).map(([key, g]) => <span key={key}>{g.label}</span>)}
+              </div>
+            </QueueSectionContent>
+          </QueueSection>)}
         {hidden.length > 0 && (
           <QueueSection defaultOpen={false} persistKey={`${id}.hidden`} className="mt-1 opacity-70">
             <QueueSectionTrigger title="Desarrollos ocultos (el ojo de cada card los vuelve a mostrar)">
