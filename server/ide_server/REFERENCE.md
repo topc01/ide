@@ -185,8 +185,10 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 - `ide session send <id | #n> --prompt-file - | --prompt "…"`: encola un prompt a la sesión de un
   desarrollo (id de la sesión o su número `#8`). Si su `claude` corre, entra a su cola (lo toma al
   terminar el turno); si está parada, se lanza con él; en cola por `max_running` → `queued`. Solo la
-  **principal**: lo prueba con `IDE_MANAGER_TOKEN`, que el IDE le pasa solo a su `claude`
-  (`.ide/manager.token`, permisos 600); sin él → `forbidden`. El texto va por stdin (no por la shell) y
+  **principal**: lo prueba con `IDE_MANAGER_TOKEN`, que el IDE le pasa solo a su `claude` (vive en
+  memoria, nuevo en cada arranque del server; sin archivo); sin él → `forbidden`. Es una barrera más,
+  no aislamiento: una sesión que puede correr cualquier comando corre con tu usuario y llega a lo
+  local; esa frontera la ponen los permisos de cada sesión. El texto va por stdin (no por la shell) y
   llega con el encabezado `[Mensaje de la sesión manager]` (nunca empieza con `!`, que claude
   correría como shell). No está en los permitidos automáticos de la principal: cada envío pide OK
   (contenido ajeno, como un ticket o una PR, podría intentar que mande cosas). Queda en el historial

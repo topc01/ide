@@ -87,24 +87,6 @@ class ClaudeAgents:
             log.warning("no se pudo detener la sesión de fondo %s: %s", agent_id, exc)
 
 
-def _manager_token(root: Path) -> str:
-    """Secreto de la sesión principal para `ide session send` (`.ide/manager.token`, solo tuyo): se
-    mantiene entre reinicios, así una principal que ya corría sigue pudiendo rutear."""
-    f = root / ".ide" / "manager.token"
-    try:
-        tok = f.read_text().strip()
-        if tok:
-            return tok
-    except OSError:
-        pass
-    tok = secrets.token_urlsafe(32)
-    f.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as fh:
-        fh.write(tok)
-    return tok
-
-
 def encode_project_dir(path: Path) -> str:
     return re.sub(r"[^A-Za-z0-9]", "-", str(path))
 
@@ -202,7 +184,10 @@ class Supervisor:
                  which: Callable[[str], str | None] = shutil.which,
                  agents: ClaudeAgents | None = None,
                  write: Callable[[str, bytes], None] | None = None) -> None:
-        self.manager_token = _manager_token(root)   # lo recibe solo el claude de la principal
+        # secreto de la principal para `ide session send`: solo en memoria y en el entorno de SU claude
+        # (sin archivo: cualquier sesión podría leerlo). Al reiniciar el server los claude se relanzan
+        # (sus PTY mueren con él), así que la principal recibe el nuevo.
+        self.manager_token = secrets.token_urlsafe(32)
         self._root, self._spawn, self._kill = root, spawn, kill
         self._url, self._command, self._max = server_url, command, max_running
         self._home = home or Path.home()
