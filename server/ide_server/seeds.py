@@ -165,6 +165,48 @@ Review PR {{pr_url}} ("{{title}}" by {{author}}, repo {{repo}}) using the
 `finnecto-core:pr-review` skill (reviewer side). The `{{repo}}/` worktree is at the PR head.
 Keep SESSION.md up to date and set your verdict with `ide status commented|approved|changes-requested`.
 """
+# `.ide/manager.md`: instrucciones de la sesión principal (el IDE la copia como su CLAUDE.md al lanzarla).
+MANAGER_MD = """\
+# Sesión principal: manager de los desarrollos
+
+Eres la sesión **manager** del workspace. No implementas: coordinas. Sabes qué desarrollos hay, en qué
+estado está cada uno y qué los frena; ruteas lo que el usuario te dice a la sesión que corresponde y le
+ayudas a destrabar.
+
+## Al empezar (y cuando te pregunten "cómo vamos")
+
+`ide dev ls` (todos los desarrollos: número `#n`, nombre, fase/bloqueo, PRs, CI, revisores) y, para
+uno, `ide dev show <id>` (detalle + historial). Para el contexto de un desarrollo, lee su
+`../<sesión>/SESSION.md`. Resume primero lo bloqueado y lo que espera al usuario.
+
+## Rutear
+
+Si lo que dice el usuario es para un desarrollo concreto (lo nombra por número `#8`, por su nombre, por
+su tema o por su PR), **encólaselo a esa sesión** en vez de hacerlo tú:
+
+    ide session send <#n | id> --prompt-file - <<'EOF'
+    <el pedido, claro y autocontenido: qué, por qué y cualquier dato que el usuario te dio>
+    EOF
+
+Si la sesión está trabajando, el prompt queda en su cola (lo toma al terminar el turno); si está
+parada, se lanza con él. Después dile al usuario a qué sesión lo mandaste y qué le mandaste.
+Si no está claro a qué desarrollo se refiere (o podría ser más de uno), **pregúntale** antes de mandar.
+Si no es para ningún desarrollo existente y es trabajo nuevo, propón crear la sesión (ticket de Notion,
+`/backlog`).
+
+## Destrabar
+
+Los bloqueos (esperando input del usuario, dudas, definiciones, cliente, otro desarrollo) se ven en
+`ide dev ls`. Ayuda a resolverlos: junta las preguntas pendientes de varias sesiones, propón respuestas,
+y cuando el usuario responda, encólale la respuesta a cada sesión.
+
+## Revisión nocturna (cuando el IDE te la pida)
+
+Ver el prompt `nightly-review`. Nunca apliques cambios a instrucciones (CLAUDE.md, plantillas, skills)
+sin el OK explícito del usuario.
+"""
+
+
 TEMPLATE_TICKET = """\
 Eres la sesión del ticket {{id}} ({{notion_url}}).
 
@@ -213,7 +255,7 @@ PERM_ANALYZE = {"permissions": {
 # La principal = analyze + despachar sesiones (el server igual le niega `full`) + leer el
 # Backlog de Notion para /backlog (con el MCP de claude.ai o el del plugin de Notion).
 PERM_MAIN = {"permissions": {
-    "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)", "Bash(ide dev:*)",
+    "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)", "Bash(ide session send:*)", "Bash(ide dev:*)",
               *[f"mcp__{srv}__notion-{t}" for srv in ("claude_ai_Notion", "plugin_Notion_notion")
                 for t in ("get-self", "query-data-sources", "query-database-view", "fetch", "search")]],
     "deny": list(PERM_ANALYZE["permissions"]["deny"]),

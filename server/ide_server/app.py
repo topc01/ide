@@ -192,6 +192,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_open(sid: str):
         return await _http("sessions.open", {"id": sid})
 
+    @app.post("/api/sessions/{sid}/send")
+    async def api_send(sid: str, body: dict):
+        return await _http("sessions.send", {**body, "id": sid})
+
     @app.get("/api/devs")
     async def api_devs():
         return await _http("dev.list", {})

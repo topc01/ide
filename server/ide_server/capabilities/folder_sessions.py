@@ -153,6 +153,41 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                           script_env(root, p["id"], p["repo"]), notify, session_id=p["id"])
         return {"terminalId": tid}
 
+    async def send(p: dict) -> dict:
+        """Encola un prompt a la sesión de un desarrollo (lo usa la principal para rutear): si corre,
+        entra a la cola de claude (lo toma al terminar su turno); si está parada, la lanza con él.
+        `id` = id de la sesión o el número del desarrollo (`#8`/`8`)."""
+        text = p.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise SessionError("bad_request", "falta el texto")
+        sid = str(p.get("id") or "").strip()
+        if re.fullmatch(r"#?\d+", sid) and db is not None:
+            n = int(sid.lstrip("#"))
+            hit = [k[2:] for k, v in db.with_prefix("devidx:").items() if v == n and k.startswith("s:")]
+            if not hit:
+                raise SessionError("unknown_dev", f"el desarrollo #{n} no tiene sesión")
+            sid = hit[0]
+        require_session(root, sid)
+        caller = p.get("caller")
+        if caller:                               # desde una sesión: solo la principal rutea
+            ck = (read_toml(session_path(root, require_plain_name(caller, "sesión")) / ".session.toml") or {}).get("kind")
+            if ck != "main":
+                raise SessionError("forbidden", "solo la sesión principal puede mandar prompts a otras sesiones")
+        state = supervisor.state(sid)
+        if state == "queued":
+            raise SessionError("queued", f"{sid} está en cola (max_running): espera a que arranque")
+        if state == "running":
+            supervisor.send(sid, text)
+            how = "encolado"
+        else:
+            state = supervisor.start(sid, prompt=text)
+            how = "lanzada con el prompt"
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), caller or "ide", "prompt", dev=sid,
+                     data={"text": text[:300]})
+        notify()
+        return {"id": sid, "process": state, "delivered": how}
+
     async def doc(p: dict) -> dict:
         path = require_session(root, p["id"])
         name = state_file(read_toml(path / ".session.toml").get("kind"))
@@ -398,7 +433,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
-        "sessions.stop": stop, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
+        "sessions.stop": stop, "sessions.send": send, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,
     }.items():

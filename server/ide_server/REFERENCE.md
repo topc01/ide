@@ -181,6 +181,17 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 - `ide repo add <repo> [--branch b] [--session id]`: worktree en `.ide/worktrees/<id>/<repo>`, symlink en la sesión, reserva `IDE_PORT` y corre `setup` (espera y muestra la salida). Branch default = `IDE_DEV_BRANCH` (`<login>/d<n>-<nombre>`; sin número, `<id>`); si está ocupada → error que sugiere `--branch`. `setup` fallido → exit 1, el worktree queda marcado `setup failed` (reintenta con `ide script setup <repo>`).
 - `ide repo rm <repo> [--force]`: misma regla de cambios sin commitear; corre `archive`; quita worktree y symlink.
 
+### Rutear a un desarrollo (`ide session send`)
+- `ide session send <id | #n> --prompt-file - | --prompt "…"`: encola un prompt a la sesión de un
+  desarrollo (id de la sesión o su número `#8`). Si su `claude` corre, entra a su cola (lo toma al
+  terminar el turno); si está parada, se lanza con él; en cola por `max_running` → `queued`. Desde
+  una sesión solo lo puede usar la **principal** (`forbidden`); el texto va por stdin, no por la shell.
+  Queda en el historial (`prompt`). Canal `sessions.send {id, text, caller}`, HTTP
+  `POST /api/sessions/{id}/send`.
+- **Sesión principal = manager:** `.ide/manager.md` (sembrado por `ide init`, editable) se copia como
+  `CLAUDE.md` de su carpeta en cada lanzamiento: no implementa, coordina; mira `ide dev ls`, rutea
+  con `ide session send` (pregunta si no está claro a qué desarrollo va) y ayuda a destrabar.
+
 ### Traspaso desde Conductor (`ide handoff`)
 - `ide handoff --from <worktree> [--notion <id|url>] [--status <estado>] [--title t] [--session id] --summary-file <f|->`:
   **mueve** el worktree entero (`git worktree move`; tiene que ser un worktree de un repo del

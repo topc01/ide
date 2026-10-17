@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from urllib.parse import quote
 from pathlib import Path
 from typing import TextIO
 import httpx
@@ -60,6 +61,8 @@ def _parser() -> argparse.ArgumentParser:
     for name in ("open", "stop"):
         s.add_parser(name).add_argument("id")
     rm = s.add_parser("rm"); rm.add_argument("id"); rm.add_argument("--force", action="store_true")
+    sd = s.add_parser("send", help="encola un prompt a la sesión de un desarrollo (id o #número)")
+    sd.add_argument("id"); sd.add_argument("--prompt"); sd.add_argument("--prompt-file", help="'-' = stdin")
     r = sub.add_parser("repo").add_subparsers(dest="cmd", required=True)
     ra = r.add_parser("add"); ra.add_argument("repo"); ra.add_argument("--branch")
     ra.add_argument("--session")
@@ -302,6 +305,19 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
         out.write(f"{sid}\t{state}\t{data['session'].get('path', '')}\n")
         if data.get("log"):
             out.write(data["log"])
+        return 0
+    if a.cmd == "send":
+        try:
+            text = (sys.stdin.read() if a.prompt_file == "-" else Path(a.prompt_file).read_text(encoding="utf-8")) \
+                if a.prompt_file else a.prompt
+        except (OSError, UnicodeDecodeError) as exc:
+            raise SessionError("bad_prompt_file", f"no se pudo leer --prompt-file: {exc}")
+        if not text or not text.strip():
+            raise SessionError("bad_request", "falta el texto: --prompt-file - (stdin) o --prompt")
+        sid = a.id if a.id.lstrip("#").isdigit() else normalize_id(a.id)
+        body = {"text": text, **({"caller": env["IDE_SESSION_ID"]} if env.get("IDE_SESSION_ID") else {})}
+        data = _post(http, url, f"/api/sessions/{quote(sid, safe='')}/send", body)
+        out.write(f"{data['id']}\t{data['delivered']}\t{data['process']}\n")
         return 0
     if a.cmd in ("open", "stop", "rm"):
         a.id = normalize_id(a.id)

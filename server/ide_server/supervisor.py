@@ -112,6 +112,9 @@ def _positional(prompt: str) -> str:
 def install_skills(root: Path, session_dir: Path) -> None:
     """Skills del IDE (`.ide/skills/*`, p.ej. /backlog) en la sesión principal: se copian a su
     `.claude/skills/` (skills de proyecto del cwd de su claude) en cada lanzamiento."""
+    manager = root / ".ide" / "manager.md"    # su rol: manager de los desarrollos (su CLAUDE.md)
+    if manager.is_file():
+        shutil.copyfile(manager, session_dir / "CLAUDE.md")
     src = root / ".ide" / "skills"
     if not src.is_dir():
         return
