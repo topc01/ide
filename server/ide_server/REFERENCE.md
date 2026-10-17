@@ -658,7 +658,10 @@ canales WS `dev.list`, `dev.show`, `dev.status`. Errores: `bad_status`, `no_stat
 Cada sesión anota las correcciones del usuario en la sección `## Feedback` de su `SESSION.md`
 (`- fecha — qué hice → qué me corrigió → lección (general | este desarrollo)`), sin que se lo pidan.
 Cada noche, a la hora de `[manager] nightly` en `config.toml` (default `"03:00"`; `""` la apaga; el IDE
-tiene que estar corriendo), el IDE le encola a la principal `.ide/prompts/nightly-review.md`: junta el
+tiene que estar corriendo), el IDE corre la revisión como manager **en modo restringido**: un `claude -p`
+aparte en la carpeta de la principal (sus instrucciones), que solo puede leer, correr `ide feedback
+collect` y editar en `feedback/` (el material lo pueden haber escrito terceros: PRs, tickets; el prompt
+lo trata como dato; log en `feedback/AAAA-MM-DD.log`). Con `.ide/prompts/nightly-review.md`: junta el
 material con `ide feedback collect --since <última revisión>` (lo anotado + los mensajes del usuario de
 los transcripts de cada sesión, para cazar también las correcciones no anotadas), agrupa patrones,
 revisa si ya están en las instrucciones y escribe un **plan** en
@@ -667,7 +670,7 @@ exacto de cada cambio propuesto. **No aplica nada**: la barra de abajo muestra "
 pendiente"; el usuario le dice a la principal qué aplicar (los `CLAUDE.md` de repos van por PR) y ella
 lo marca `status: applied`. `ide feedback run` (o `POST /api/manager/nightly`, canal
 `manager.nightly`) la pide ya; `ide feedback collect [--since AAAA-MM-DD[THH:MM]] [--json]`.
-La principal tiene permitidos `ide feedback` y escribir en su `feedback/` (de noche nadie aprueba).
+
 
 ## 10. Problemas comunes
 

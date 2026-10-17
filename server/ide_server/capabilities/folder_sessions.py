@@ -3,13 +3,15 @@ import asyncio
 import io
 import logging
 import re
+import threading
+import os
 import secrets
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 from ide_server.claude_usage import LimitsPoller, session_context
-from ide_server.config import manager_config, ui_modules
+from ide_server.config import manager_config, sessions_config, ui_modules
 from ide_server.feedback import pending_plans
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
@@ -30,7 +32,7 @@ from ide_server.sessions_fs import (
     find_main, list_sessions, normalize_id, read_session, read_toml, render_template, require_plain_name,
     session_path, state_file, SessionError, update_session_toml,
 )
-from ide_server.supervisor import Supervisor
+from ide_server.supervisor import Supervisor, clean_env
 from ide_server.workspace import discover_repos
 
 log = logging.getLogger(__name__)
@@ -194,30 +196,58 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"id": sid, "process": state, "delivered": how}
 
+    nightly_state = {"running": False}
+
+    def _run_nightly(main: str, text: str, log_path: Path) -> None:
+        """`claude -p` aparte, en la carpeta de la principal (sus instrucciones de manager), con permisos
+        mínimos: leer, `ide feedback collect` y escribir en `feedback/`. El material que lee lo pueden
+        haber escrito terceros (PRs, tickets): no le damos con qué actuar (ni `ide session`, ni shell)."""
+        import shlex
+        cmd = sessions_config(root)["claude_command"]
+        argv = [*shlex.split(cmd), "-p", text, "--add-dir", str(root),
+                "--allowedTools", "Read", "Glob", "Grep", "Bash(ide feedback collect:*)",
+                "Edit(feedback/**)"]   # Edit cubre toda escritura de archivos (Write(...) no aplica a rutas)
+        env = {**clean_env(dict(os.environ)), "IDE_WORKSPACE": str(root)}
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(log_path, "wb") as fh:
+                subprocess.run(argv, cwd=session_path(root, main), env=env, stdin=subprocess.DEVNULL,
+                               stdout=fh, stderr=subprocess.STDOUT, timeout=1800)
+        except Exception:  # noqa: BLE001
+            log.exception("la revisión nocturna falló")
+        finally:
+            nightly_state["running"] = False
+            try:
+                asyncio.run_coroutine_threadsafe(_notify_async(), loop_box["loop"])
+            except Exception:  # noqa: BLE001
+                pass
+
+    loop_box: dict = {}
+
+    async def _notify_async() -> None:
+        notify()
+
     async def nightly(_p: dict | None = None) -> dict:
-        """Le encola a la principal la revisión de feedback (prompt `nightly-review`) desde la última."""
+        """Revisión de feedback desde la última (prompt `nightly-review`), como manager en modo
+        restringido (ver _run_nightly). Deja un plan en `feedback/` de la principal."""
         main = await asyncio.to_thread(find_main, root)
         if main is None:
             raise SessionError("no_main", "no hay sesión principal")
+        if nightly_state["running"]:
+            raise SessionError("busy", "ya hay una revisión de feedback corriendo")
         now = datetime.now()
         since = (db.get("nightly:since") if db else None) or (now - timedelta(days=7)).isoformat(timespec="minutes")
         text = render_template(await asyncio.to_thread(load_prompt, root, "nightly-review"),
                                {"date": now.date().isoformat(), "since": since})
-        state = supervisor.state(main)
-        if state == "queued":
-            raise SessionError("queued", f"{main} está en cola (max_running)")
-        if state == "running":
-            supervisor.send(main, text)
-            how = "encolado"
-        else:
-            state = supervisor.start(main, prompt=text)
-            how = "lanzada con el prompt"
+        nightly_state["running"] = True
+        loop_box["loop"] = asyncio.get_running_loop()
+        log_path = session_path(root, main) / "feedback" / f"{now.date().isoformat()}.log"
+        threading.Thread(target=_run_nightly, args=(main, text, log_path), daemon=True).start()
         if db is not None:
             db.set("nightly:since", now.isoformat(timespec="minutes"))
             db.set("nightly:last", now.date().isoformat())
             db.event(now.isoformat(timespec="seconds"), "ide", "nightly-review", dev=main, data={"since": since})
-        notify()
-        return {"id": main, "delivered": how, "process": state}
+        return {"id": main, "delivered": f"revisión corriendo aparte (log: feedback/{log_path.name})", "process": "headless"}
 
     async def nightly_loop(stop: asyncio.Event) -> None:
         """A la hora de `[manager] nightly` (si el IDE está corriendo), una vez por día."""
