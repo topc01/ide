@@ -463,12 +463,11 @@ con veredicto o texto + comentarios generales, por fecha). Se pide a GitHub a de
 muestra limpio (sin HTML ni imágenes), los largos recortados con "ver más".
 
 **Módulo Stack** (id `stack`): los stacks de las PRs del desarrollo actual (abajo = la base), por repo.
-Click en una PR abre la tab **Δ <REPO> #n** con sus **cambios**: a la izquierda los archivos contra su
-base (en un stack, la rama de abajo: solo lo de esa PR; si la rama está en un worktree del IDE, incluye
-lo no commiteado y lo no trackeado), con +/− y el que estás viendo destacado; a la derecha su **diff**
-(lado a lado o unificado, sin cambios colapsados); en el stack se destaca la PR que estás viendo. El
-server guarda los cambios 30 s y el módulo los precarga al abrirse (el fetch a GitHub es lo lento);
-↻ los vuelve a traer. Sale de git local: las refs se traen a `refs/ide/pr/<n>` y `refs/ide/base/<rama>`
+Click en una PR despliega bajo su rama sus **archivos cambiados** contra su base (en un stack, la rama
+de abajo: solo lo de esa PR; si la rama está en un worktree del IDE, incluye lo no commiteado y lo no
+trackeado): letra del cambio, nombre, carpeta debajo y +/−. Click en un archivo abre su **diff** en una
+tab (lado a lado o unificado, sin cambios colapsados) y queda destacado en la lista. El server guarda
+los cambios 30 s y el módulo los precarga al abrirse (el fetch a GitHub es lo lento). Sale de git local: las refs se traen a `refs/ide/pr/<n>` y `refs/ide/base/<rama>`
 del repo principal (no tocan sus ramas). Acciones: **Mergear** en la de abajo (tuya y aprobada; el
 flujo de merge de siempre), **Restack** (cada PR sobre la de abajo) y **Actualizar desde <base>**
 (también la de abajo sobre su base), solo en stacks enteros tuyos y con confirmación: rebase

@@ -1,9 +1,9 @@
 // ui/src/modules/github/GithubPanel.tsx
 import { useEffect, useState } from "react";
 import { ArrowUpRight, ExternalLink } from "lucide-react";
-import { changesTab, useDevTabs } from "../../state/devTabs";
+import { diffTab, useDevTabs } from "../../state/devTabs";
 import { getWs } from "../../transport/wsClient";
-import { prFiles, restackStack, type MergeJob } from "../../transport/folderSessions";
+import { prFiles, restackStack, type MergeJob, type PrFile } from "../../transport/folderSessions";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "../sessions/MergeControls";
 import { useFolders } from "../../state/folders";
 import type { GhPr, GithubReviews } from "../../transport/folderSessions";
@@ -13,7 +13,6 @@ import { byRepoStack } from "../sessions/desarrollos";
 import { useCurrentDev } from "../../main/currentDev";
 import { desarrollos } from "../../layout/DevSelector";
 import { cn } from "../../lib/utils";
-import { repoShort } from "../sessions/DevCard";
 
 const REVIEW = {
   approved: ["bg-emerald-500", "aprobada"],
@@ -46,7 +45,53 @@ function devStacks(prs: GhPr[], gh: GithubReviews): { own: Set<string>; stacks: 
   return { own: new Set(prs.map((p) => p.url)), stacks };
 }
 
-/** Una PR del stack: click abre sus cambios (lista + diff) en una tab; destacada la que estás viendo.
+const STATUS: Record<string, [string, string, string]> = {
+  A: ["A", "text-emerald-400", "nuevo"], M: ["M", "text-amber-300", "modificado"], D: ["D", "text-red-400", "borrado"],
+  R: ["R", "text-sky-300", "renombrado"], "?": ["?", "text-emerald-300", "sin trackear (worktree local)"],
+};
+
+/** Archivos cambiados de una PR (contra su base; en un stack, la de abajo), bajo su rama: nombre,
+ *  carpeta debajo y +/−. Click = su diff en una tab; el que estás viendo, destacado. */
+function PrChanges({ pr }: { pr: GhPr }) {
+  const dev = useCurrentDev();
+  const open = useDevTabs((s) => s.open);
+  const active = useDevTabs((s) => dev ? s.byDev[dev.key]?.active : null);
+  const [files, setFiles] = useState<PrFile[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    prFiles(getWs(), pr.url).then((d) => setFiles(d.files)).catch((e: any) => setError(e?.message ?? String(e)));
+  }, [pr.url]);
+  if (error) return <p role="alert" className="mx-3 mb-2 text-[11px] text-destructive">{error}</p>;
+  if (!files) return <p className="mx-3 mb-2 text-[11px] text-muted-foreground">trayendo los cambios…</p>;
+  if (!files.length) return <p className="mx-3 mb-2 text-[11px] text-muted-foreground">Sin cambios contra {pr.base}.</p>;
+  return (
+    <div className="mb-2 ml-3 mr-1 border-l border-border">
+      {files.map((f) => {
+        const [letter, cls, what] = STATUS[f.status] ?? [f.status, "text-muted-foreground", f.status];
+        const slash = f.path.lastIndexOf("/");
+        const on = active === `diff:${pr.url}:${f.path}`;
+        return (
+          <button key={f.path} title={`${what}: ${f.oldPath ? `${f.oldPath} → ` : ""}${f.path}`}
+            onClick={() => dev && open(dev.key, diffTab(pr.url, f.path, f.oldPath))}
+            className={cn("flex w-full min-w-0 items-start gap-2 py-1 pl-2.5 pr-1.5 text-left hover:bg-accent/60",
+              on && "bg-accent")}>
+            <span className={cn("mt-px w-2.5 shrink-0 font-mono text-[11px] font-bold", cls)}>{letter}</span>
+            <span className="min-w-0 flex-1">
+              <span className={cn("block truncate font-mono text-[11px]", on ? "font-semibold text-foreground" : "text-foreground/90")}>
+                {f.path.slice(slash + 1)}</span>
+              {slash >= 0 && <span className="block truncate font-mono text-[10px] text-muted-foreground"
+                style={{ direction: "rtl", textAlign: "left" }}>{f.path.slice(0, slash)}</span>}
+            </span>
+            {(f.additions > 0 || f.deletions > 0) && <span className="mt-px shrink-0 font-mono text-[10px]">
+              <span className="text-emerald-400">+{f.additions}</span> <span className="text-red-400">−{f.deletions}</span></span>}
+          </button>);
+      })}
+    </div>
+  );
+}
+
+/** Una PR del stack: click despliega sus archivos cambiados bajo la rama; destacada la que tienes
+ *  abierta. destacada la que estás viendo.
  *  `assigned`: tuya o figuras como revisor (si no, va tachada y atenuada). Mergear en la de abajo si es
  *  tuya y está aprobada. */
 function StackItem({ pr, own, assigned, onGoto, viewing, onOpen, mine, job, above }:
@@ -56,7 +101,7 @@ function StackItem({ pr, own, assigned, onGoto, viewing, onOpen, mine, job, abov
   const merging = !!job && MERGE_ACTIVE.includes(job.state);
   return (
     <QueueItem className="min-w-0 px-1.5">
-      <div onClick={onOpen} title="Ver los cambios de esta PR (archivos y diff)"
+      <div onClick={onOpen} title={viewing ? "Ocultar los archivos cambiados" : "Ver los archivos cambiados de esta PR"}
         className={cn("flex min-w-0 cursor-pointer items-start gap-1.5 rounded border-l-2 border-transparent px-1.5 py-1 text-xs hover:bg-accent/60",
           viewing && "border-primary bg-accent", !assigned && "opacity-50")}>
         <span aria-label={label} title={label}
@@ -80,6 +125,7 @@ function StackItem({ pr, own, assigned, onGoto, viewing, onOpen, mine, job, abov
           </QueueItemAction>
         </QueueItemActions>
       </div>
+      {viewing && <PrChanges pr={pr} />}
     </QueueItem>
   );
 }
@@ -134,9 +180,7 @@ export function GithubPanel() {
     return () => d.kind === "session" ? setActive(d.session.id) : setActivePr(d.pr.url);
   };
   const prs = useDevPrs();
-  const dev = useCurrentDev();
-  const openTab = useDevTabs((s) => s.open);
-  const activeTab = useDevTabs((s) => dev ? s.byDev[dev.key]?.active : null);
+  const [expanded, setExpanded] = useState<string | null>(null);   // PR con los archivos desplegados
   // precarga: el server trae las PRs en segundo plano y el click después es inmediato
   const urls = prs.map((p) => p.url).join(" ");
   useEffect(() => { for (const u of urls.split(" ").filter(Boolean)) prFiles(getWs(), u).catch(() => {}); }, [urls]);
@@ -158,8 +202,8 @@ export function GithubPanel() {
           {stack.every((p) => gh?.me && p.author === `@${gh.me}`) && <StackActions stack={stack} base={stack[0].base ?? "develop"} />}
           <QueueList className="flex-col-reverse">
             {stack.map((pr) => <StackItem key={pr.url} pr={pr} own={data.own.has(pr.url)}
-              onGoto={openDev(pr)} viewing={activeTab === `changes:${pr.url}`}
-              onOpen={() => dev && openTab(dev.key, changesTab(pr.url, `Δ ${repoShort(pr.repo)} #${pr.number}`))}
+              onGoto={openDev(pr)} viewing={expanded === pr.url}
+              onOpen={() => setExpanded(expanded === pr.url ? null : pr.url)}
               mine={!!gh?.me && pr.author === `@${gh.me}`} job={gh?.merges?.[pr.url]}
               above={pr.stack ? pr.stack.size - pr.stack.position : 0}
               assigned={!gh?.me || pr.author === `@${gh.me}` || !!pr.reviewers?.some((r) => r.login === gh.me)} />)}
