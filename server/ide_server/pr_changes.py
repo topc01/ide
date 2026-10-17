@@ -57,7 +57,22 @@ def _local_worktree(repo: Path, branch: str | None) -> Path | None:
     return None
 
 
-def changes(root: Path, pr: dict) -> dict:
+_cache: dict[str, tuple[float, dict]] = {}
+
+
+def changes(root: Path, pr: dict, *, fresh: bool = False) -> dict:
+    """Con caché de FETCH_TTL (el fetch a GitHub es lo lento); `fresh` la salta (botón ↻)."""
+    hit = _cache.get(pr["url"])
+    if hit and not fresh and time.time() - hit[0] < FETCH_TTL:
+        return hit[1]
+    if fresh:
+        _fetched.pop(pr["url"], None)
+    data = _changes(root, pr)
+    _cache[pr["url"]] = (time.time(), data)
+    return data
+
+
+def _changes(root: Path, pr: dict) -> dict:
     repo, base, head = _refs(root, pr)
     mb = _git(repo, "merge-base", base, head).strip()
     wt = _local_worktree(repo, pr.get("head"))

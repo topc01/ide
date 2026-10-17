@@ -116,10 +116,12 @@ def pending_plans(root: Path) -> list[str]:
         return []
     out = []
     for f in sorted(d.glob("*.md")):
+        if f.name.startswith("material-"):      # lo que juntó el IDE, no un plan
+            continue
         try:
             meta, _ = parse_frontmatter(f.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
             continue
-        if meta.get("status", "pending") == "pending":
+        if meta.get("status") == "pending":
             out.append(f.name)
     return out

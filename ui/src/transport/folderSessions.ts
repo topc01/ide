@@ -33,8 +33,8 @@ export const prsReady = (ws: WsClient, urls: string[]): Promise<{ ready: string[
   ws.request("prs.ready", { urls });
 export interface PrFile { path: string; oldPath: string | null; status: string; additions: number; deletions: number }
 /** Archivos cambiados de una PR contra su base (en un stack, la PR de abajo). */
-export const prFiles = (ws: WsClient, url: string): Promise<{ files: PrFile[]; base: string; mergeBase: string; local: string | null }> =>
-  ws.request("pr.files", { url });
+export const prFiles = (ws: WsClient, url: string, fresh = false): Promise<{ files: PrFile[]; base: string; mergeBase: string; local: string | null }> =>
+  ws.request("pr.files", { url, fresh });
 export const prFileDiff = (ws: WsClient, url: string, path: string, oldPath: string | null): Promise<{ old: string | null; new: string | null; local: boolean }> =>
   ws.request("pr.fileDiff", { url, path, oldPath });
 /** Rebasea el stack de la PR (y la de abajo sobre su base si `updateBase`) y empuja con --force-with-lease. */

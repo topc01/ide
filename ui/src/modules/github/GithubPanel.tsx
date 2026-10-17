@@ -1,9 +1,9 @@
 // ui/src/modules/github/GithubPanel.tsx
-import { useCallback, useEffect, useState } from "react";
-import { ArrowUpRight, ChevronRight, ExternalLink, RefreshCw } from "lucide-react";
-import { diffTab, useDevTabs } from "../../state/devTabs";
+import { useEffect, useState } from "react";
+import { ArrowUpRight, ExternalLink } from "lucide-react";
+import { changesTab, useDevTabs } from "../../state/devTabs";
 import { getWs } from "../../transport/wsClient";
-import { prFiles, restackStack, type MergeJob, type PrFile } from "../../transport/folderSessions";
+import { prFiles, restackStack, type MergeJob } from "../../transport/folderSessions";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "../sessions/MergeControls";
 import { useFolders } from "../../state/folders";
 import type { GhPr, GithubReviews } from "../../transport/folderSessions";
@@ -13,6 +13,7 @@ import { byRepoStack } from "../sessions/desarrollos";
 import { useCurrentDev } from "../../main/currentDev";
 import { desarrollos } from "../../layout/DevSelector";
 import { cn } from "../../lib/utils";
+import { repoShort } from "../sessions/DevCard";
 
 const REVIEW = {
   approved: ["bg-emerald-500", "aprobada"],
@@ -45,65 +46,19 @@ function devStacks(prs: GhPr[], gh: GithubReviews): { own: Set<string>; stacks: 
   return { own: new Set(prs.map((p) => p.url)), stacks };
 }
 
-const STATUS: Record<string, [string, string]> = {
-  A: ["A", "text-emerald-400"], M: ["M", "text-amber-300"], D: ["D", "text-red-400"], R: ["R", "text-sky-300"],
-  "?": ["?", "text-emerald-300"],
-};
-
-/** Archivos cambiados de una PR contra su base (en un stack, la de abajo); click = su diff en una tab. */
-function PrChanges({ pr }: { pr: GhPr }) {
-  const dev = useCurrentDev();
-  const open = useDevTabs((s) => s.open);
-  const [data, setData] = useState<{ files: PrFile[]; base: string; mergeBase: string; local: string | null } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const load = useCallback(() => {
-    setError(null);
-    prFiles(getWs(), pr.url).then(setData).catch((e: any) => setError(e?.message ?? String(e)));
-  }, [pr.url]);
-  useEffect(load, [load]);
-  const total = data?.files.reduce((t, f) => [t[0] + f.additions, t[1] + f.deletions], [0, 0]) ?? [0, 0];
-  return (
-    <div className="mb-1 ml-5 mr-1.5 rounded border border-border bg-background/40 px-1.5 py-1 text-[11px]">
-      <div className="mb-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-        <span title={`contra ${data?.base ?? pr.base} desde ${data?.mergeBase ?? "…"}`}>vs {data?.base ?? pr.base}</span>
-        {data && <span>{data.files.length} archivos · <span className="text-emerald-400">+{total[0]}</span> <span className="text-red-400">−{total[1]}</span></span>}
-        {data?.local && <span title={`La rama está en ${data.local}: incluye lo no commiteado`}>· worktree local</span>}
-        <span className="flex-1" />
-        <button title="Volver a leer los cambios" onClick={load} className="hover:text-foreground"><RefreshCw size={10} /></button>
-      </div>
-      {error && <p role="alert" className="text-destructive">{error}</p>}
-      {!data && !error && <p className="text-muted-foreground">cargando…</p>}
-      {data?.files.map((f) => {
-        const [letter, cls] = STATUS[f.status] ?? [f.status, "text-muted-foreground"];
-        const slash = f.path.lastIndexOf("/");
-        return (
-          <button key={f.path} title={`Ver el diff de ${f.oldPath ? `${f.oldPath} → ` : ""}${f.path}`}
-            onClick={() => dev && open(dev.key, diffTab(pr.url, f.path, f.oldPath))}
-            className="flex w-full min-w-0 items-center gap-1.5 rounded px-1 py-px text-left hover:bg-accent">
-            <span className={cn("w-2.5 shrink-0 font-mono font-bold", cls)}>{letter}</span>
-            <span className="min-w-0 flex-1 truncate font-mono">
-              <span className="text-muted-foreground">{slash >= 0 ? f.path.slice(0, slash + 1) : ""}</span>{f.path.slice(slash + 1)}</span>
-            {(f.additions > 0 || f.deletions > 0) && <span className="shrink-0 font-mono text-[10px]">
-              <span className="text-emerald-400">+{f.additions}</span> <span className="text-red-400">−{f.deletions}</span></span>}
-          </button>);
-      })}
-    </div>
-  );
-}
-
-/** Una PR del stack: click despliega sus cambios. `assigned`: tuya o figuras como revisor (si no, va
- *  tachada y atenuada). Mergear en la de abajo si es tuya y está aprobada. */
-function StackItem({ pr, own, assigned, onGoto, expanded, onToggle, mine, job, above }:
-  { pr: GhPr; own: boolean; assigned: boolean; onGoto?: () => void; expanded: boolean; onToggle: () => void;
+/** Una PR del stack: click abre sus cambios (lista + diff) en una tab; destacada la que estás viendo.
+ *  `assigned`: tuya o figuras como revisor (si no, va tachada y atenuada). Mergear en la de abajo si es
+ *  tuya y está aprobada. */
+function StackItem({ pr, own, assigned, onGoto, viewing, onOpen, mine, job, above }:
+  { pr: GhPr; own: boolean; assigned: boolean; onGoto?: () => void; viewing: boolean; onOpen: () => void;
     mine: boolean; job?: MergeJob; above: number }) {
   const [color, label] = pr.review ? REVIEW[pr.review] : [null, "sin review"];
   const merging = !!job && MERGE_ACTIVE.includes(job.state);
   return (
     <QueueItem className="min-w-0 px-1.5">
-      <div onClick={onToggle} title={expanded ? "Ocultar los cambios" : "Ver los cambios de esta PR"}
+      <div onClick={onOpen} title="Ver los cambios de esta PR (archivos y diff)"
         className={cn("flex min-w-0 cursor-pointer items-start gap-1.5 rounded border-l-2 border-transparent px-1.5 py-1 text-xs hover:bg-accent/60",
-          own && "border-primary bg-accent", !assigned && "opacity-50")}>
-        <ChevronRight size={11} className={cn("mt-1 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-90")} />
+          viewing && "border-primary bg-accent", !assigned && "opacity-50")}>
         <span aria-label={label} title={label}
           className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", color ?? "border border-muted-foreground")} />
         <span className="mt-px font-mono text-[10px] text-muted-foreground">{pr.stack?.position ?? 1}</span>
@@ -125,7 +80,6 @@ function StackItem({ pr, own, assigned, onGoto, expanded, onToggle, mine, job, a
           </QueueItemAction>
         </QueueItemActions>
       </div>
-      {expanded && <PrChanges pr={pr} />}
     </QueueItem>
   );
 }
@@ -180,7 +134,12 @@ export function GithubPanel() {
     return () => d.kind === "session" ? setActive(d.session.id) : setActivePr(d.pr.url);
   };
   const prs = useDevPrs();
-  const [expanded, setExpanded] = useState<string | null>(null);   // PR con los cambios desplegados
+  const dev = useCurrentDev();
+  const openTab = useDevTabs((s) => s.open);
+  const activeTab = useDevTabs((s) => dev ? s.byDev[dev.key]?.active : null);
+  // precarga: el server trae las PRs en segundo plano y el click después es inmediato
+  const urls = prs.map((p) => p.url).join(" ");
+  useEffect(() => { for (const u of urls.split(" ").filter(Boolean)) prFiles(getWs(), u).catch(() => {}); }, [urls]);
   const data = !gh || (!session && !activePrUrl) ? null : devStacks(prs, gh);
   return (
     <div className="flex w-full min-w-0 flex-col overflow-hidden">
@@ -199,7 +158,8 @@ export function GithubPanel() {
           {stack.every((p) => gh?.me && p.author === `@${gh.me}`) && <StackActions stack={stack} base={stack[0].base ?? "develop"} />}
           <QueueList className="flex-col-reverse">
             {stack.map((pr) => <StackItem key={pr.url} pr={pr} own={data.own.has(pr.url)}
-              onGoto={openDev(pr)} expanded={expanded === pr.url} onToggle={() => setExpanded(expanded === pr.url ? null : pr.url)}
+              onGoto={openDev(pr)} viewing={activeTab === `changes:${pr.url}`}
+              onOpen={() => dev && openTab(dev.key, changesTab(pr.url, `Δ ${repoShort(pr.repo)} #${pr.number}`))}
               mine={!!gh?.me && pr.author === `@${gh.me}`} job={gh?.merges?.[pr.url]}
               above={pr.stack ? pr.stack.size - pr.stack.position : 0}
               assigned={!gh?.me || pr.author === `@${gh.me}` || !!pr.reviewers?.some((r) => r.login === gh.me)} />)}

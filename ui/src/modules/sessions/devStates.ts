@@ -76,5 +76,5 @@ export function devStateOf(states: DevStates | undefined, key: string, prs: GhPr
 export const ago = (iso: string | null) => {
   if (!iso) return "";
   const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
-  return s < 60 ? "recién" : s < 3600 ? `${Math.round(s / 60)} min` : s < 86400 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} d`;
+  return s < 60 ? "segundos" : s < 3600 ? `${Math.round(s / 60)} min` : s < 86400 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} d`;
 };

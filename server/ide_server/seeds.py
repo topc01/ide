@@ -50,6 +50,9 @@ nunca editando el `status:` del archivo. Ticket:
 - bloqueo (encima de la fase, con nota; `ide status unblock` vuelve a la fase): `waiting-input` (le
   hiciste una pregunta al usuario y esperas su respuesta) | `questions` (dudas abiertas) |
   `blocked-definitions` | `blocked-client` | `blocked-dev` (espera otro desarrollo) | `paused`
+**Cuando termines un turno con una pregunta o algo que el usuario tiene que decidir**, márcalo:
+`ide status waiting-input -m "<qué necesitas, en una línea>"` (no una nota en `developing`): así le
+aparece en "te esperan" y le llega el aviso. Cuando te responda, `ide status unblock`.
 Mientras el desarrollo está activo sus PRs van en **draft** (`gh pr create --draft`); al terminar,
 `ide status ready-for-review` y el usuario la manda a revisión desde el IDE. Desde ahí la fase la da
 GitHub (en revisión, cambios pedidos, aprobada, mergeando). Revisión (sesiones de

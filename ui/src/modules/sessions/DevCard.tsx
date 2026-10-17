@@ -202,19 +202,23 @@ export function DevIndex({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
     className="shrink-0 rounded bg-primary/15 px-1 font-mono text-[10px] font-bold text-primary">#{n}</span>;
 }
 
-/** Estado en palabras: "bloqueado por el cliente · en revisión · 3 d · nota". Si el desarrollo sigue
- *  activo (puesto a mano) pero una PR ya salió de draft, lo dice. */
+/** Estado del desarrollo en la card: el estado en una palabra con su color (y la fase si está
+ *  bloqueado), cuánto lleva así, y la nota de la sesión en su propia línea. */
 export function DevStateLabel({ dev }: { dev: DevStateInfo | null }) {
   if (!dev) return null;
   const [label, , text] = STATE[dev.state];
-  const parts = [label, ...(dev.block ? [STATE[dev.phase][0]] : []), ...(dev.since && !dev.inferred ? [ago(dev.since)] : [])];
-  const tip = `${label}${dev.block ? ` (fase: ${STATE[dev.phase][0]})` : ""}${dev.github ? " · fase según GitHub" : ""}`
-    + `${dev.inferred ? " · inferido: cámbialo en el módulo Desarrollo" : ""}${dev.since ? ` · desde hace ${ago(dev.since)}` : ""}`
-    + `${dev.note ? ` — ${dev.note}` : ""}`;
-  return (<>
-    <span title={tip} className={cn("min-w-0 truncate", dev.inferred ? "text-muted-foreground" : text)}>
-      {parts.join(" · ")}{dev.note ? ` · ${dev.note}` : ""}</span>
-    {dev.outOfDraft && <span className="text-amber-300"
-      title={`Está "${STATE[dev.manual!][0]}" pero una PR ya no está en draft (mientras se trabaja, las PRs van en draft)`}>PR fuera de draft</span>}
-  </>);
+  const tip = `Estado del desarrollo: ${label}${dev.block ? ` (fase: ${STATE[dev.phase][0]})` : ""}`
+    + `${dev.github ? " · la fase sale de GitHub" : ""}${dev.inferred ? " · deducido de sus PRs (cámbialo en el módulo Desarrollo)" : ""}`
+    + `${dev.since ? ` · desde hace ${ago(dev.since)}` : ""}${dev.note ? `\nNota: ${dev.note}` : ""}`;
+  return (
+    <span title={tip} className="block basis-full">
+      <span className="flex min-w-0 items-baseline gap-1.5">
+        <span className={cn("font-semibold first-letter:uppercase", dev.inferred ? "text-muted-foreground" : text)}>{label}</span>
+        {dev.block && <span className="text-muted-foreground">· {STATE[dev.phase][0]}</span>}
+        {dev.since && !dev.inferred && <span className="text-muted-foreground">· hace {ago(dev.since)}</span>}
+        {dev.outOfDraft && <span className="text-amber-300"
+          title={`Está "${STATE[dev.manual!][0]}" pero una PR ya no está en draft (mientras se trabaja, las PRs van en draft)`}>· PR fuera de draft</span>}
+      </span>
+      {dev.note && <span className="line-clamp-2 italic text-muted-foreground">{dev.note}</span>}
+    </span>);
 }

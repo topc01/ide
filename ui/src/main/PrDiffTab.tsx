@@ -34,7 +34,8 @@ const theme = EditorView.theme({
 }, { dark: true });
 
 /** Diff de un archivo de una PR (contra su base): lado a lado o unificado, solo lectura. */
-export function PrDiffTab({ url, path, oldPath }: { url: string; path: string; oldPath: string | null }) {
+export const PrDiffTab = PrDiffView;
+export function PrDiffView({ url, path, oldPath }: { url: string; path: string; oldPath: string | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<"split" | "unified">(() => {
     try { return (localStorage.getItem("ide.diffMode") as "split" | "unified") || "split"; } catch { return "split"; }

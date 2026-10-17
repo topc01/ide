@@ -266,7 +266,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         # sin shell: el material ya lo juntó el IDE (feedback/material-*.md); leer solo el workspace y tu
         # CLAUDE.md global, editar solo en feedback/ (Edit cubre toda escritura de archivos)
         argv = [*shlex.split(cmd), "-p", text, "--add-dir", str(root),
-                "--allowedTools", f"Read(/{root}/**)", "Read(~/.claude/CLAUDE.md)", "Edit(feedback/**)"]
+                "--allowedTools", f"Read(/{root}/**)", "Read(~/.claude/CLAUDE.md)",
+                f"Edit(/{session_path(root, main)}/feedback/**)"]   # ruta absoluta: la relativa no la toma
         env = {**clean_env(dict(os.environ)), "IDE_WORKSPACE": str(root)}
         try:
             log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -558,7 +559,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return pr
 
     async def pr_files(p: dict) -> dict:
-        return await asyncio.to_thread(pr_changes.changes, root, _pr_card(p["url"]))
+        return await asyncio.to_thread(lambda: pr_changes.changes(root, _pr_card(p["url"]), fresh=bool(p.get("fresh"))))
 
     async def pr_file_diff(p: dict) -> dict:
         return await asyncio.to_thread(pr_changes.file_diff, root, _pr_card(p["url"]), p["path"], p.get("oldPath"))
