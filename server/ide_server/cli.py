@@ -195,7 +195,7 @@ CÓMO UN AGENTE HACE HANDOFF A ESTE IDE (resumen)
 
 def main(argv: list[str] | None = None, *, serve=None, opener=None, build_runner=None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
-    if raw and raw[0] in ("session", "repo", "script", "status", "dev", "handoff", "feedback"):
+    if raw and raw[0] in ("session", "repo", "script", "status", "dev", "handoff", "feedback", "reply", "telegram"):
         from ide_server.cli_sessions import main as sessions_main
         return sessions_main(raw, cwd=Path.cwd(), env=dict(os.environ), home=Path.home())
 

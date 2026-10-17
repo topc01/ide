@@ -202,6 +202,20 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
   `CLAUDE.md` de su carpeta en cada lanzamiento: no implementa, coordina; mira `ide dev ls`, rutea
   con `ide session send` (pregunta si no está claro a qué desarrollo va) y ayuda a destrabar.
 
+### Telegram ↔ sesión manager
+- `ide telegram setup`: pide el token del bot (de @BotFather), lo guarda en el llavero de macOS
+  (servicio `ide-telegram`) y da un código: mandarle `/start <código>` al bot vincula ese chat (10 min;
+  el IDE tiene que estar corriendo). `ide telegram status`. Sin token o sin chat, no hace nada.
+- El IDE lee el bot por long polling (nada expuesto a internet). Solo acepta mensajes privados del
+  chat vinculado; los demás se ignoran. Cada mensaje se le encola a la principal como
+  `[Mensaje de Telegram del usuario]`.
+- `ide reply [texto | --prompt-file -]`: la principal le contesta al usuario (solo a ese chat).
+- `ide session propose <id | #n> --prompt-file -`: la principal propone mandarle algo a una sesión; le
+  llega al usuario con botones **Sí / No** y el IDE lo encola solo con el Sí de ese chat (la sesión no
+  puede autoaprobarse). Ambos solo para la principal (token) y permitidos sin preguntar.
+  Canales `telegram.reply`, `sessions.propose`, `telegram.status`; HTTP `POST /api/telegram/reply`,
+  `POST /api/sessions/{id}/propose`.
+
 ### Traspaso desde Conductor (`ide handoff`)
 - `ide handoff --from <worktree> [--notion <id|url>] [--status <estado>] [--title t] [--session id] --summary-file <f|->`:
   **mueve** el worktree entero (`git worktree move`; tiene que ser un worktree de un repo del
@@ -720,7 +734,7 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `forbidden_origin`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`, `already_running`,
 `unknown_worktree`, `bad_place`, `git_failed`, `bad_path`, `not_a_dir`, `not_found`, `too_large`,
-`binary`, `changed_on_disk`, `busy`, `unpushed`, `no_db`, `db_not_local`, `pgweb_missing`, `pgweb_failed`.
+`binary`, `changed_on_disk`, `busy`, `unpushed`, `no_db`, `telegram_off`, `user_decides`, `db_not_local`, `pgweb_missing`, `pgweb_failed`.
 
 ## 12. API (para integraciones)
 

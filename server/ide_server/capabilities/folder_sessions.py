@@ -13,6 +13,7 @@ from typing import Callable
 from ide_server.claude_usage import LimitsPoller, session_context
 from ide_server.config import manager_config, sessions_config, ui_modules
 from ide_server.feedback import as_markdown, collect, pending_plans
+from ide_server.telegram import TelegramBridge, get_token
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
 from ide_server.devs import assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
@@ -165,14 +166,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         text = p.get("text")
         if not isinstance(text, str) or not text.strip():
             raise SessionError("bad_request", "falta el texto")
-        sid = str(p.get("id") or "").strip()
-        if re.fullmatch(r"#?\d+", sid) and db is not None:
-            n = int(sid.lstrip("#"))
-            hit = [k[2:] for k, v in db.with_prefix("devidx:").items() if v == n and k.startswith("s:")]
-            if not hit:
-                raise SessionError("unknown_dev", f"el desarrollo #{n} no tiene sesión")
-            sid = hit[0]
-        require_session(root, sid)
+        sid = _resolve(p.get("id"))
         # solo la principal rutea: lo prueba con el token que el IDE le pasa a SU claude al lanzarla
         # (un campo "caller" lo podría omitir cualquiera)
         if not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
@@ -181,6 +175,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         # con encabezado: nunca empieza con "!" (claude lo correría como shell) ni con "/", y la
         # sesión sabe de quién viene
         text = "[Mensaje de la sesión manager]\n" + text.strip()
+        state, how = _deliver_to(sid, text, caller)
+        return {"id": sid, "process": state, "delivered": how}
+
+    def _deliver_to(sid: str, text: str, actor: str) -> tuple[str, str]:
+        """Al claude de una sesión: a su cola si corre; si está parada, la lanza con el texto."""
         state = supervisor.state(sid)
         if state == "queued":
             raise SessionError("queued", f"{sid} está en cola (max_running): espera a que arranque")
@@ -191,10 +190,70 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             state = supervisor.start(sid, prompt=text)
             how = "lanzada con el prompt"
         if db is not None:
-            db.event(datetime.now().isoformat(timespec="seconds"), caller or "ide", "prompt", dev=sid,
-                     data={"text": text[:300]})
+            db.event(datetime.now().isoformat(timespec="seconds"), actor, "prompt", dev=sid, data={"text": text[:300]})
         notify()
-        return {"id": sid, "process": state, "delivered": how}
+        return state, how
+
+    def _resolve(raw: str) -> str:
+        """Id de sesión o número de desarrollo (#8/8) → id de sesión."""
+        sid = str(raw or "").strip()
+        if re.fullmatch(r"#?\d+", sid) and db is not None:
+            n = int(sid.lstrip("#"))
+            hit = [k[2:] for k, v in db.with_prefix("devidx:").items() if v == n and k.startswith("s:")]
+            if not hit:
+                raise SessionError("unknown_dev", f"el desarrollo #{n} no tiene sesión")
+            sid = hit[0]
+        require_session(root, sid)
+        return sid
+
+    def _manager_only(p: dict) -> None:
+        if not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+            raise SessionError("forbidden", "solo la sesión principal")
+
+    # -- Telegram (ver telegram.py) ------------------------------------------------------------------
+    async def _tg_deliver(text: str) -> str:
+        main = await asyncio.to_thread(find_main, root)
+        if main is None:
+            raise SessionError("no_main", "no hay sesión principal")
+        _, how = _deliver_to(main, "[Mensaje de Telegram del usuario] (respóndele con `ide reply`; para mandar algo a "
+                             "una sesión usa `ide session propose`)\n" + text, "telegram")
+        return how
+
+    async def _tg_propose_ok(sid: str, text: str) -> str:
+        _, how = _deliver_to(sid, "[Mensaje de la sesión manager]\n" + text, "telegram")
+        return f"Mandado a {sid} ({how})."
+
+    bridge = TelegramBridge(db, deliver=_tg_deliver, propose_ok=_tg_propose_ok) if db is not None else None
+
+    async def tg_reply(p: dict) -> dict:
+        _manager_only(p)
+        if bridge is None:
+            raise SessionError("no_db", "sin base")
+        text = (p.get("text") or "").strip()
+        if not text:
+            raise SessionError("bad_request", "falta el texto")
+        try:
+            await bridge.send(text)
+        except RuntimeError as exc:
+            raise SessionError("telegram_off", str(exc))
+        return {"ok": True}
+
+    async def propose(p: dict) -> dict:
+        """La manager propone mandarle algo a una sesión; se ejecuta solo con tu Sí en Telegram."""
+        _manager_only(p)
+        text = (p.get("text") or "").strip()
+        if not text or bridge is None:
+            raise SessionError("bad_request", "falta el texto")
+        sid = await asyncio.to_thread(_resolve, p.get("id"))
+        n = db.get(f"devidx:s:{sid}") if db else None
+        try:
+            pid = await bridge.propose(sid, f"#{n} ({sid})" if n else sid, text)
+        except RuntimeError as exc:
+            raise SessionError("telegram_off", str(exc))
+        return {"id": sid, "proposal": pid}
+
+    async def tg_status(_p: dict) -> dict:
+        return {"token": bool(await asyncio.to_thread(get_token)), "chat": bool(db and db.get("telegram:chat"))}
 
     nightly_state = {"running": False}
 
@@ -586,10 +645,12 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
-        "sessions.stop": stop, "sessions.send": send, "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
+        "sessions.stop": stop, "sessions.send": send, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
+        "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,
     }.items():
         registry.register(channel, handler)
     notify.nightly_loop = nightly_loop      # type: ignore[attr-defined]
+    notify.telegram = bridge                # type: ignore[attr-defined]
     return notify

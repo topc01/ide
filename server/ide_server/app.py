@@ -136,6 +136,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             asyncio.create_task(save_history_loop(stop_bg)),
             asyncio.create_task(runs_watch(stop_bg)),
             asyncio.create_task(notify_box["fn"].nightly_loop(stop_bg)),
+            *([asyncio.create_task(notify_box["fn"].telegram.run(stop_bg))] if notify_box["fn"].telegram else []),
         ]
         for t in tasks:
             t.add_done_callback(_log_done)
@@ -196,6 +197,14 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     @app.post("/api/sessions/{sid}/send")
     async def api_send(sid: str, body: dict):
         return await _http("sessions.send", {**body, "id": sid})
+
+    @app.post("/api/sessions/{sid}/propose")
+    async def api_propose(sid: str, body: dict):
+        return await _http("sessions.propose", {**body, "id": sid})
+
+    @app.post("/api/telegram/reply")
+    async def api_tg_reply(body: dict):
+        return await _http("telegram.reply", body)
 
     @app.post("/api/manager/nightly")
     async def api_nightly():

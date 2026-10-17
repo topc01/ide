@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 import json
+import re
 import sys
 from urllib.parse import quote
 from pathlib import Path
@@ -63,6 +64,8 @@ def _parser() -> argparse.ArgumentParser:
     rm = s.add_parser("rm"); rm.add_argument("id"); rm.add_argument("--force", action="store_true")
     sd = s.add_parser("send", help="encola un prompt a la sesión de un desarrollo (id o #número)")
     sd.add_argument("id"); sd.add_argument("--prompt"); sd.add_argument("--prompt-file", help="'-' = stdin")
+    sp = s.add_parser("propose", help="propone por Telegram mandarle un prompt a una sesión (se manda con tu Sí)")
+    sp.add_argument("id"); sp.add_argument("--prompt"); sp.add_argument("--prompt-file", help="'-' = stdin")
     r = sub.add_parser("repo").add_subparsers(dest="cmd", required=True)
     ra = r.add_parser("add"); ra.add_argument("repo"); ra.add_argument("--branch")
     ra.add_argument("--session")
@@ -83,6 +86,11 @@ def _parser() -> argparse.ArgumentParser:
     ho.add_argument("--force", action="store_true", help="mover aunque haya procesos corriendo desde ahí")
     ho.add_argument("--install-skill", action="store_true",
                     help="instala la skill /ide-handoff en ~/.claude/skills (para las sesiones de Conductor)")
+    rp = sub.add_parser("reply", help="la principal le responde al usuario por Telegram")
+    rp.add_argument("text", nargs="?"); rp.add_argument("--prompt-file", help="'-' = stdin")
+    tg = sub.add_parser("telegram", help="conectar Telegram con la sesión manager").add_subparsers(dest="cmd", required=True)
+    tg.add_parser("setup", help="guarda el token del bot en el llavero y da el código para vincular tu chat")
+    tg.add_parser("status")
     fb = sub.add_parser("feedback", help="revisión de feedback (sesión manager)").add_subparsers(dest="cmd", required=True)
     fc = fb.add_parser("collect", help="correcciones anotadas + mensajes del usuario de cada sesión desde --since")
     fc.add_argument("--since", help="ISO (AAAA-MM-DD[THH:MM]); default: hace 7 días"); fc.add_argument("--json", action="store_true")
@@ -223,6 +231,29 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
     return 0
 
 
+def _telegram(a, root: Path, url: str | None, http, out: TextIO) -> int:
+    import getpass
+    import secrets as _secrets
+    import time as _time
+    from ide_server.db import Db
+    from ide_server.telegram import get_token, set_token
+    db = Db(root)
+    if a.cmd == "status":
+        out.write(f"token en el llavero: {'sí' if get_token() else 'no'}\nchat vinculado: {'sí' if db.get('telegram:chat') else 'no'}\n")
+        return 0
+    token = getpass.getpass("Token del bot (de @BotFather; no se muestra): ").strip()
+    if not re.fullmatch(r"\d+:[A-Za-z0-9_-]{30,}", token):
+        raise SessionError("bad_request", "eso no parece un token de bot (formato 123456:ABC…)")
+    set_token(token)
+    code = _secrets.token_hex(4)
+    db.set("telegram:pair", {"code": code, "until": _time.time() + 600})
+    db.delete("telegram:chat")
+    out.write("Token guardado en el llavero (servicio ide-telegram).\n"
+              f"Ahora, en Telegram, mándale a tu bot:  /start {code}\n"
+              "(el código vale 10 minutos; el IDE tiene que estar corriendo). Te responde \"Listo\" al vincular.\n")
+    return 0
+
+
 def _feedback(a, root: Path, home: Path, url: str | None, http, out: TextIO) -> int:
     if a.cmd == "run":
         data = _post(http, url, "/api/manager/nightly")
@@ -278,6 +309,15 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _handoff(a, root, home, out)
         if a.group == "feedback":
             return _feedback(a, root, home, url, http, out)
+        if a.group == "reply":
+            text = sys.stdin.read() if a.prompt_file == "-" else (Path(a.prompt_file).read_text(encoding="utf-8") if a.prompt_file else a.text)
+            if not text or not text.strip():
+                raise SessionError("bad_request", "falta el texto (argumento o --prompt-file -)")
+            _post(http, url, "/api/telegram/reply", {"text": text, "token": env.get("IDE_MANAGER_TOKEN", "")})
+            out.write("enviado por Telegram\n")
+            return 0
+        if a.group == "telegram":
+            return _telegram(a, root, url, http, out)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
         if a.group == "repo" and a.cmd == "add":
             info = add_repo(root, sid, a.repo, branch=a.branch, out=out)
@@ -328,7 +368,7 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
         if data.get("log"):
             out.write(data["log"])
         return 0
-    if a.cmd == "send":
+    if a.cmd in ("send", "propose"):
         try:
             text = (sys.stdin.read() if a.prompt_file == "-" else Path(a.prompt_file).read_text(encoding="utf-8")) \
                 if a.prompt_file else a.prompt
@@ -338,8 +378,11 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
             raise SessionError("bad_request", "falta el texto: --prompt-file - (stdin) o --prompt")
         sid = a.id if a.id.lstrip("#").isdigit() else normalize_id(a.id)
         body = {"text": text, "token": env.get("IDE_MANAGER_TOKEN", "")}   # solo la principal lo tiene
-        data = _post(http, url, f"/api/sessions/{quote(sid, safe='')}/send", body)
-        out.write(f"{data['id']}\t{data['delivered']}\t{data['process']}\n")
+        data = _post(http, url, f"/api/sessions/{quote(sid, safe='')}/{a.cmd}", body)
+        if a.cmd == "propose":
+            out.write(f"{data['id']}\tpropuesto por Telegram (se manda cuando el usuario diga Sí)\n")
+        else:
+            out.write(f"{data['id']}\t{data['delivered']}\t{data['process']}\n")
         return 0
     if a.cmd in ("open", "stop", "rm"):
         a.id = normalize_id(a.id)

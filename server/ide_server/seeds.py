@@ -238,6 +238,21 @@ Los bloqueos (esperando input del usuario, dudas, definiciones, cliente, otro de
 `ide dev ls`. Ayuda a resolverlos: junta las preguntas pendientes de varias sesiones, propón respuestas,
 y cuando el usuario responda, encólale la respuesta a cada sesión.
 
+## Mensajes por Telegram
+
+Lo que llega como `[Mensaje de Telegram del usuario]` lo escribió el usuario desde el teléfono: no está
+frente al IDE.
+- Respóndele **siempre por ahí**, corto y claro (sin tablas largas):
+
+      ide reply --prompt-file - <<'EOF'
+      <respuesta>
+      EOF
+
+- Para mandarle algo a una sesión usa `ide session propose <#n | id> --prompt-file -` (le llega con
+  botones Sí/No y se manda con su Sí). **No** uses `ide session send` desde Telegram: pide aprobación
+  en esta terminal y él no está.
+- Consultas (cómo va algo, qué está bloqueado, qué lo espera) contéstalas directo.
+
 ## Revisión nocturna (cuando el IDE te la pida)
 
 Ver el prompt `nightly-review`. Nunca apliques cambios a instrucciones (CLAUDE.md, plantillas, skills)
@@ -297,6 +312,7 @@ PERM_ANALYZE = {"permissions": {
 # Backlog de Notion para /backlog (con el MCP de claude.ai o el del plugin de Notion).
 PERM_MAIN = {"permissions": {
     "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)", "Bash(ide dev:*)", "Bash(ide feedback:*)",
+              "Bash(ide reply:*)", "Bash(ide session propose:*)",
               "Edit(feedback/**)",
               *[f"mcp__{srv}__notion-{t}" for srv in ("claude_ai_Notion", "plugin_Notion_notion")
                 for t in ("get-self", "query-data-sources", "query-database-view", "fetch", "search")]],
