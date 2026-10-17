@@ -19,6 +19,7 @@ from ide_server.db import Db
 from ide_server.devs import assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
 from ide_server import pr_changes
+from ide_server import pins as pins_mod
 from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
 from ide_server.pr_poller import PrPoller
@@ -588,6 +589,33 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             asyncio.get_running_loop().create_task(gh_reviews.poll_once())
         return {"ok": True}
 
+    async def session_messages(p: dict) -> dict:
+        sid = require_plain_name(p["id"], "sesión")
+        return {"messages": await asyncio.to_thread(pins_mod.recent_messages, root, sid, Path.home(), int(p.get("limit") or 15))}
+
+    def _pin_key(key) -> str:
+        if not isinstance(key, str) or not re.match(r"^(s|st|p):.{1,300}$", key):
+            raise SessionError("bad_request", f"clave de desarrollo inválida: {key!r}")
+        return key
+
+    async def pins_list(_p: dict) -> dict:
+        return {"pins": pins_mod.all_pins(db) if db else {}}
+
+    async def pins_add(p: dict) -> dict:
+        text = (p.get("text") or "").strip()
+        if not text or db is None:
+            raise SessionError("bad_request", "falta el texto")
+        pin = pins_mod.add(db, _pin_key(p.get("key")), text, p.get("source"))
+        await manager.broadcast("pins.changed", {"pins": pins_mod.all_pins(db)})
+        return {"pin": pin}
+
+    async def pins_remove(p: dict) -> dict:
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        pins_mod.remove(db, _pin_key(p.get("key")), str(p.get("id")))
+        await manager.broadcast("pins.changed", {"pins": pins_mod.all_pins(db)})
+        return {"ok": True}
+
     async def stack_status(p: dict) -> dict:
         """Si el stack de esa PR necesita re-apilar (una rama quedó atrás de su madre) o ponerse al día
         con la base. Las PRs, de abajo hacia arriba."""
@@ -675,7 +703,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
-        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "pr.reviewers": pr_reviewers, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
+        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "pr.reviewers": pr_reviewers, "session.messages": session_messages,
+        "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,

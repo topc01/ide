@@ -94,7 +94,7 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
+modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "pins", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -102,7 +102,7 @@ modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", 
 Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero) hacen
 fallar el arranque con un mensaje que nombra la clave.
 
-`[ui] modules`: ids disponibles `dev`, `terminal`, `prompts`, `stack`, `review`, `deps`, `servers`, `db`, `explorer`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
+`[ui] modules`: ids disponibles `dev`, `terminal`, `prompts`, `stack`, `review`, `deps`, `servers`, `db`, `pins`, `explorer`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
 `notion`, y `chat`. Si `chat` **no** está, el área principal es la vista por sesión (terminal
 `claude` + doc + scripts); si está, vuelve el chat propio.
 
@@ -330,6 +330,13 @@ servidor). pgweb escucha en 127.0.0.1, en un puerto libre y en su propio origen 
 IDE: lo que muestre no tiene acceso a la API del IDE), bajo un prefijo aleatorio (`/<token>/`) que
 solo conoce la UI: sin el token responde 404. Los pgweb mueren con el server. Canales
 `db.list {place}`, `db.open {place, repo}` (→ `{url, name}`).
+
+**Pines** (módulo, id `pins`): mensajes de claude guardados para usar después (p.ej. un texto para
+mandar por un hilo), por desarrollo. Abajo, los últimos mensajes de claude de la sesión, sacados del
+transcript (texto limpio en markdown, no lo que muestra la terminal), cada uno con 📌 Pinear y Copiar;
+arriba los pineados, con Copiar, ver todo y desfijar. Se guardan en la base (`kv` `pins:<clave>`).
+Canales `session.messages {id, limit}`, `pins.list`, `pins.add {key, text, source}`,
+`pins.remove {key, id}`; evento `pins.changed`.
 
 **PR sin sesión:** Servidores ofrece **Preparar**: crea `.ide/worktrees/wt-<repo>-<n>/<repo>` en
 el head de la PR (`refs/pull/<n>/head`, en detach: no ocupa la rama, no choca con otro checkout ni
