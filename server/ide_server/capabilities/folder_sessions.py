@@ -26,7 +26,7 @@ from ide_server.session_ops import (
 )
 from ide_server.sessions_fs import (
     list_sessions, normalize_id, read_session, read_toml, render_template, require_plain_name,
-    session_path, state_file, SessionError,
+    session_path, state_file, SessionError, update_session_toml,
 )
 from ide_server.supervisor import Supervisor
 from ide_server.workspace import discover_repos
@@ -187,6 +187,25 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                      data={"text": text[:300]})
         notify()
         return {"id": sid, "process": state, "delivered": how}
+
+    async def fresh(p: dict) -> dict:
+        """Nueva conversación en la misma sesión (misma carpeta, worktrees y SESSION.md): para cuando la
+        conversación se alargó o se ensució. La anterior queda en su transcript."""
+        sid = require_plain_name(p["id"], "sesión")
+        require_session(root, sid)
+        supervisor.stop(sid)
+        await asyncio.to_thread(update_session_toml, root, sid,
+                                lambda d: (d.pop("claude_session", None), d.pop("claude_name", None)))
+        kind = (await asyncio.to_thread(read_toml, session_path(root, sid) / ".session.toml")).get("kind")
+        prompt = None if kind == "main" else (
+            "Conversación nueva en este mismo desarrollo (la anterior se cerró para empezar con contexto limpio). "
+            "Lee tu SESSION.md (estado, plan, decisiones y Feedback) y `git status`/`git log` de tus worktrees, "
+            "resúmeme en pocas líneas dónde quedó y qué sigue, y espera instrucciones.")
+        state = supervisor.start(sid, resume=False, prompt=prompt)
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), "ide", "fresh", dev=sid)
+        notify()
+        return {"process": state}
 
     async def doc(p: dict) -> dict:
         path = require_session(root, p["id"])
@@ -433,7 +452,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
-        "sessions.stop": stop, "sessions.send": send, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
+        "sessions.stop": stop, "sessions.send": send, "sessions.fresh": fresh, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,
     }.items():

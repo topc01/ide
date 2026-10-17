@@ -188,6 +188,11 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
   una sesión solo lo puede usar la **principal** (`forbidden`); el texto va por stdin, no por la shell.
   Queda en el historial (`prompt`). Canal `sessions.send {id, text, caller}`, HTTP
   `POST /api/sessions/{id}/send`.
+- **Nueva conversación** (módulo Desarrollo, con confirmación): para la misma sesión (carpeta,
+  worktrees, `SESSION.md`) cierra la conversación de claude y arranca una nueva con contexto limpio
+  (la anterior queda en su transcript); a las de ticket/revisión les pide leer su `SESSION.md` y
+  resumir dónde quedaron. Un desarrollo = una sesión; esto evita abrir otra cuando la conversación se
+  alarga o se ensucia. Canal `sessions.fresh {id}`.
 - **Sesión principal = manager:** `.ide/manager.md` (sembrado por `ide init`, editable) se copia como
   `CLAUDE.md` de su carpeta en cada lanzamiento: no implementa, coordina; mira `ide dev ls`, rutea
   con `ide session send` (pregunta si no está claro a qué desarrollo va) y ayuda a destrabar.

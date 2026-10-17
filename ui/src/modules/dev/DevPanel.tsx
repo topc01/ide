@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useCurrentDev } from "../../main/currentDev";
 import { useFolders } from "../../state/folders";
 import { getWs } from "../../transport/wsClient";
-import { prsReady, setDevState, type GhPr } from "../../transport/folderSessions";
+import { freshSession, prsReady, setDevState, type GhPr } from "../../transport/folderSessions";
 import { Button } from "../../components/ui/button";
 import { ago, BLOCKS, devStateOf, MANUAL_PHASES, STATE, type State } from "../sessions/devStates";
 import { cn } from "../../lib/utils";
@@ -125,11 +125,36 @@ export function DevPanel() {
             </div>))}
         </div>))}
 
+      {s && <FreshConversation sid={s.id} />}
+
       {s && s.kind !== "review" && (<>
         <Label>Worktrees</Label>
         {s.repos.length === 0 && <p className="mx-2.5 text-muted-foreground">La sesión no tiene repos (`ide repo add`).</p>}
         <div className="pr-2.5">{s.repos.map((r) => <RepoLine key={r.name} session={s} repo={r} />)}</div>
       </>)}
+    </div>
+  );
+}
+
+/** Nueva conversación: misma sesión, contexto limpio (la anterior queda en su transcript). */
+function FreshConversation({ sid }: { sid: string }) {
+  const [confirm, setConfirm] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <div className="mx-2.5 mt-3">
+      {confirm ? (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="text-amber-300">¿Cerrar la conversación actual y empezar una nueva? (lee su SESSION.md)</span>
+          <Button size="sm" className="h-6 px-2 text-[11px]" title="Sí: nueva conversación"
+            onClick={() => { setConfirm(false); freshSession(getWs(), sid).then(() => setMsg("conversación nueva lanzada"))
+              .catch((e: any) => setMsg(`⚠ ${e?.message ?? String(e)}`)); }}>Sí</Button>
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" title="No" onClick={() => setConfirm(false)}>No</Button>
+        </div>
+      ) : (
+        <button title="Empezar una conversación nueva de claude en esta sesión (misma carpeta, worktrees y SESSION.md); la anterior queda guardada"
+          onClick={() => { setMsg(null); setConfirm(true); }}
+          className="rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-accent">Nueva conversación</button>)}
+      {msg && <p className={cn("mt-1 text-[11px]", msg.startsWith("⚠") ? "text-destructive" : "text-muted-foreground")}>{msg}</p>}
     </div>
   );
 }

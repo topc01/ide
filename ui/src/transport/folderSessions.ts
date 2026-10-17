@@ -66,6 +66,8 @@ export const fetchPrBody = (ws: WsClient, url: string): Promise<{ body: string; 
 export const savePrBody = (ws: WsClient, url: string, body: string) => ws.request("pr.bodySave", { url, body });
 export const openSession = (ws: WsClient, id: string) => ws.request("sessions.open", { id });
 export const stopSession = (ws: WsClient, id: string) => ws.request("sessions.stop", { id });
+/** Nueva conversación en la misma sesión (misma carpeta, worktrees y SESSION.md). */
+export const freshSession = (ws: WsClient, id: string): Promise<{ process: string }> => ws.request("sessions.fresh", { id });
 export const archiveSession = (ws: WsClient, id: string, force = false) =>
   ws.request("sessions.archive", { id, force });
 export const rmSession = (ws: WsClient, id: string, force = false) =>
