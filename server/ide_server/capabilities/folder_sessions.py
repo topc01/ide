@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable
 from ide_server.claude_usage import LimitsPoller, session_context
 from ide_server.config import manager_config, sessions_config, ui_modules
-from ide_server.feedback import pending_plans
+from ide_server.feedback import as_markdown, collect, pending_plans
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
 from ide_server.devs import assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
@@ -29,7 +29,7 @@ from ide_server.session_ops import (
     remove_session,
 )
 from ide_server.sessions_fs import (
-    find_main, list_sessions, normalize_id, read_session, read_toml, render_template, require_plain_name,
+    find_main, list_sessions, normalize_id, parse_frontmatter, read_session, read_toml, render_template, require_plain_name,
     session_path, state_file, SessionError, update_session_toml,
 )
 from ide_server.supervisor import Supervisor, clean_env
@@ -204,9 +204,10 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         haber escrito terceros (PRs, tickets): no le damos con qué actuar (ni `ide session`, ni shell)."""
         import shlex
         cmd = sessions_config(root)["claude_command"]
+        # sin shell: el material ya lo juntó el IDE (feedback/material-*.md); leer solo el workspace y tu
+        # CLAUDE.md global, editar solo en feedback/ (Edit cubre toda escritura de archivos)
         argv = [*shlex.split(cmd), "-p", text, "--add-dir", str(root),
-                "--allowedTools", "Read", "Glob", "Grep", "Bash(ide feedback collect:*)",
-                "Edit(feedback/**)"]   # Edit cubre toda escritura de archivos (Write(...) no aplica a rutas)
+                "--allowedTools", f"Read(/{root}/**)", "Read(~/.claude/CLAUDE.md)", "Edit(feedback/**)"]
         env = {**clean_env(dict(os.environ)), "IDE_WORKSPACE": str(root)}
         try:
             log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -237,8 +238,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             raise SessionError("busy", "ya hay una revisión de feedback corriendo")
         now = datetime.now()
         since = (db.get("nightly:since") if db else None) or (now - timedelta(days=7)).isoformat(timespec="minutes")
+        date = now.date().isoformat()
+        material = session_path(root, main) / "feedback" / f"material-{date}.md"
+        data = await asyncio.to_thread(collect, root, Path.home(), datetime.fromisoformat(since))
+        material.parent.mkdir(parents=True, exist_ok=True)
+        material.write_text(as_markdown(data), encoding="utf-8")
         text = render_template(await asyncio.to_thread(load_prompt, root, "nightly-review"),
-                               {"date": now.date().isoformat(), "since": since})
+                               {"date": date, "since": since, "material": f"feedback/{material.name}"})
         nightly_state["running"] = True
         loop_box["loop"] = asyncio.get_running_loop()
         log_path = session_path(root, main) / "feedback" / f"{now.date().isoformat()}.log"
@@ -267,6 +273,54 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     await nightly()
                 except Exception:  # noqa: BLE001 — se reintenta en el próximo minuto
                     log.exception("no se pudo pedir la revisión nocturna")
+
+    def _review_session(url: str) -> str | None:
+        for s in list_sessions(root):
+            if s.get("kind") == "review" and s.get("prUrl") == url:
+                return s["id"]
+        return None
+
+    async def review_draft(p: dict) -> dict:
+        """El veredicto de la sesión de revisión y el review listo para publicar (de su SESSION.md)."""
+        sid = await asyncio.to_thread(_review_session, p["url"])
+        if sid is None:
+            return {"id": None, "verdict": None, "body": "", "why": ""}
+        f = session_path(root, sid) / "SESSION.md"
+        _, body = parse_frontmatter(f.read_text(encoding="utf-8")) if f.is_file() else ({}, "")
+        def section(name: str) -> str:
+            m = re.search(rf"^## {name}[^\n]*\n(.*?)(?=^## |\Z)", body, re.M | re.S)
+            return m.group(1).strip() if m else ""
+        v = section("Veredicto")
+        first = v.splitlines()[0].strip().lower() if v else ""
+        verdict = "approve" if first.startswith("aprob") else "request-changes" if "cambio" in first else None
+        return {"id": sid, "verdict": verdict, "why": "\n".join(v.splitlines()[1:]).strip(),
+                "body": section("Review para GitHub")}
+
+    async def review_submit(p: dict) -> dict:
+        """Publica TU review (botones Aprobar / Pedir cambios): `gh pr review`. La sesión solo sugiere."""
+        url, event, body = p.get("url"), p.get("event"), (p.get("body") or "").strip()
+        if event not in ("approve", "request-changes"):
+            raise SessionError("bad_request", "event: approve | request-changes")
+        if event == "request-changes" and not body:
+            raise SessionError("bad_request", "pedir cambios necesita un comentario")
+        st = gh_reviews.state if gh_reviews else {}
+        mine_to_review = {c["url"] for c in [*(st.get("pending") or []), *(st.get("changesRequested") or [])]}
+        sid = await asyncio.to_thread(_review_session, url)
+        if url not in mine_to_review and sid is None:
+            raise SessionError("forbidden", "solo PRs que te pidieron revisar (o con sesión de revisión)")
+        out = await asyncio.to_thread(subprocess.run, ["gh", "pr", "review", url, f"--{event}", "--body-file", "-"],
+                                      input=body, capture_output=True, text=True, timeout=60)
+        if out.returncode != 0:
+            raise SessionError("gh_failed", f"gh pr review: {out.stderr.strip() or out.returncode}")
+        if sid is not None and db is not None:
+            await asyncio.to_thread(set_status, root, db, sid,
+                                    "approved" if event == "approve" else "changes-requested", actor="ide")
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), "ide", f"review-{event}", dev=sid, pr_url=url)
+        if gh_reviews is not None:
+            asyncio.get_running_loop().create_task(gh_reviews.poll_once())
+        notify()
+        return {"ok": True}
 
     async def fresh(p: dict) -> dict:
         """Nueva conversación en la misma sesión (misma carpeta, worktrees y SESSION.md): para cuando la
@@ -532,7 +586,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
-        "sessions.stop": stop, "sessions.send": send, "sessions.fresh": fresh, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
+        "sessions.stop": stop, "sessions.send": send, "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,
     }.items():

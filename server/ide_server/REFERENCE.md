@@ -658,12 +658,13 @@ canales WS `dev.list`, `dev.show`, `dev.status`. Errores: `bad_status`, `no_stat
 Cada sesión anota las correcciones del usuario en la sección `## Feedback` de su `SESSION.md`
 (`- fecha — qué hice → qué me corrigió → lección (general | este desarrollo)`), sin que se lo pidan.
 Cada noche, a la hora de `[manager] nightly` en `config.toml` (default `"03:00"`; `""` la apaga; el IDE
-tiene que estar corriendo), el IDE corre la revisión como manager **en modo restringido**: un `claude -p`
-aparte en la carpeta de la principal (sus instrucciones), que solo puede leer, correr `ide feedback
-collect` y editar en `feedback/` (el material lo pueden haber escrito terceros: PRs, tickets; el prompt
-lo trata como dato; log en `feedback/AAAA-MM-DD.log`). Con `.ide/prompts/nightly-review.md`: junta el
-material con `ide feedback collect --since <última revisión>` (lo anotado + los mensajes del usuario de
-los transcripts de cada sesión, para cazar también las correcciones no anotadas), agrupa patrones,
+tiene que estar corriendo), el IDE junta el material (lo de `ide feedback collect --since <última
+revisión>`: lo anotado + los mensajes del usuario de los transcripts de cada sesión, para cazar también
+las correcciones no anotadas) en `feedback/material-AAAA-MM-DD.md` y corre la revisión como manager **en
+modo restringido**: un `claude -p` aparte en la carpeta de la principal (sus instrucciones), sin shell,
+que solo puede leer el workspace y `~/.claude/CLAUDE.md` y editar en `feedback/` (el material lo pueden
+haber escrito terceros: PRs, tickets; el prompt lo trata como dato; log en `feedback/AAAA-MM-DD.log`).
+Con `.ide/prompts/nightly-review.md`: agrupa patrones,
 revisa si ya están en las instrucciones y escribe un **plan** en
 `.ide/sessions/<principal>/feedback/AAAA-MM-DD.md` (`status: pending`) con evidencia, archivo y texto
 exacto de cada cambio propuesto. **No aplica nada**: la barra de abajo muestra "plan de feedback
