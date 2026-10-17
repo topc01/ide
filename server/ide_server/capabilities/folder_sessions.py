@@ -5,11 +5,12 @@ import logging
 import re
 import secrets
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 from ide_server.claude_usage import LimitsPoller, session_context
-from ide_server.config import ui_modules
+from ide_server.config import manager_config, ui_modules
+from ide_server.feedback import pending_plans
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
 from ide_server.devs import assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
@@ -26,7 +27,7 @@ from ide_server.session_ops import (
     remove_session,
 )
 from ide_server.sessions_fs import (
-    list_sessions, normalize_id, read_session, read_toml, render_template, require_plain_name,
+    find_main, list_sessions, normalize_id, read_session, read_toml, render_template, require_plain_name,
     session_path, state_file, SessionError, update_session_toml,
 )
 from ide_server.supervisor import Supervisor
@@ -65,6 +66,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "devPrs": db.dev_prs() if db else {},
                 "devIndex": db.with_prefix("devidx:") if db else {},
                 "devStates": dev_states(db) if db else {},
+                "feedbackPending": pending_plans(root),
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
 
     async def tree_payload() -> dict:
@@ -191,6 +193,50 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                      data={"text": text[:300]})
         notify()
         return {"id": sid, "process": state, "delivered": how}
+
+    async def nightly(_p: dict | None = None) -> dict:
+        """Le encola a la principal la revisión de feedback (prompt `nightly-review`) desde la última."""
+        main = await asyncio.to_thread(find_main, root)
+        if main is None:
+            raise SessionError("no_main", "no hay sesión principal")
+        now = datetime.now()
+        since = (db.get("nightly:since") if db else None) or (now - timedelta(days=7)).isoformat(timespec="minutes")
+        text = render_template(await asyncio.to_thread(load_prompt, root, "nightly-review"),
+                               {"date": now.date().isoformat(), "since": since})
+        state = supervisor.state(main)
+        if state == "queued":
+            raise SessionError("queued", f"{main} está en cola (max_running)")
+        if state == "running":
+            supervisor.send(main, text)
+            how = "encolado"
+        else:
+            state = supervisor.start(main, prompt=text)
+            how = "lanzada con el prompt"
+        if db is not None:
+            db.set("nightly:since", now.isoformat(timespec="minutes"))
+            db.set("nightly:last", now.date().isoformat())
+            db.event(now.isoformat(timespec="seconds"), "ide", "nightly-review", dev=main, data={"since": since})
+        notify()
+        return {"id": main, "delivered": how, "process": state}
+
+    async def nightly_loop(stop: asyncio.Event) -> None:
+        """A la hora de `[manager] nightly` (si el IDE está corriendo), una vez por día."""
+        while not stop.is_set():
+            try:
+                await asyncio.wait_for(stop.wait(), 60)
+                return
+            except asyncio.TimeoutError:
+                pass
+            hhmm = str(manager_config(root).get("nightly") or "")
+            if not re.fullmatch(r"\d{1,2}:\d{2}", hhmm) or db is None:
+                continue
+            now = datetime.now()
+            h, m = map(int, hhmm.split(":"))
+            if (now.hour, now.minute) >= (h, m) and db.get("nightly:last") != now.date().isoformat():
+                try:
+                    await nightly()
+                except Exception:  # noqa: BLE001 — se reintenta en el próximo minuto
+                    log.exception("no se pudo pedir la revisión nocturna")
 
     async def fresh(p: dict) -> dict:
         """Nueva conversación en la misma sesión (misma carpeta, worktrees y SESSION.md): para cuando la
@@ -456,9 +502,10 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
-        "sessions.stop": stop, "sessions.send": send, "sessions.fresh": fresh, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
+        "sessions.stop": stop, "sessions.send": send, "sessions.fresh": fresh, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,
     }.items():
         registry.register(channel, handler)
+    notify.nightly_loop = nightly_loop      # type: ignore[attr-defined]
     return notify

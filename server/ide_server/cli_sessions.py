@@ -83,6 +83,10 @@ def _parser() -> argparse.ArgumentParser:
     ho.add_argument("--force", action="store_true", help="mover aunque haya procesos corriendo desde ahí")
     ho.add_argument("--install-skill", action="store_true",
                     help="instala la skill /ide-handoff en ~/.claude/skills (para las sesiones de Conductor)")
+    fb = sub.add_parser("feedback", help="revisión de feedback (sesión manager)").add_subparsers(dest="cmd", required=True)
+    fc = fb.add_parser("collect", help="correcciones anotadas + mensajes del usuario de cada sesión desde --since")
+    fc.add_argument("--since", help="ISO (AAAA-MM-DD[THH:MM]); default: hace 7 días"); fc.add_argument("--json", action="store_true")
+    fb.add_parser("run", help="pedirle ya la revisión nocturna a la sesión principal")
     sc = sub.add_parser("script"); sc.add_argument("name"); sc.add_argument("repo", nargs="?")
     sc.add_argument("--session")
     return ap
@@ -219,6 +223,22 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
     return 0
 
 
+def _feedback(a, root: Path, home: Path, url: str | None, http, out: TextIO) -> int:
+    if a.cmd == "run":
+        data = _post(http, url, "/api/manager/nightly")
+        out.write(f"revisión pedida a {data['id']} ({data['delivered']})\n")
+        return 0
+    from datetime import datetime
+    from ide_server.feedback import as_markdown, collect
+    try:
+        since = datetime.fromisoformat(a.since) if a.since else None
+    except ValueError:
+        raise SessionError("bad_request", f"--since inválido: {a.since!r} (AAAA-MM-DD[THH:MM])")
+    data = collect(root, home, since)
+    out.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n" if a.json else as_markdown(data))
+    return 0
+
+
 def _handoff(a, root: Path, home: Path, out: TextIO) -> int:
     if a.install_skill:
         dest = home / ".claude" / "skills" / "ide-handoff" / "SKILL.md"
@@ -256,6 +276,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _dev_cmd(a, url, http, out, env)
         if a.group == "handoff":
             return _handoff(a, root, home, out)
+        if a.group == "feedback":
+            return _feedback(a, root, home, url, http, out)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
         if a.group == "repo" and a.cmd == "add":
             info = add_repo(root, sid, a.repo, branch=a.branch, out=out)

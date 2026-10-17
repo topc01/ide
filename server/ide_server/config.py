@@ -39,5 +39,10 @@ def reviews_config(root: Path) -> dict:
             **load_workspace_config(root).get("reviews", {})}
 
 
+def manager_config(root: Path) -> dict:
+    """[manager] nightly = "HH:MM" (revisión nocturna de feedback; "" la apaga)."""
+    return {"nightly": "03:00", **load_workspace_config(root).get("manager", {})}
+
+
 def ui_modules(root: Path) -> list[str]:
     return list(load_workspace_config(root).get("ui", {}).get("modules", ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "explorer", "config"]))

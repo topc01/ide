@@ -651,6 +651,22 @@ por cada cambio (la primera vez no, para no inundar). Los estados de Notion no s
 API: `GET /api/devs`, `GET /api/devs/{id}`, `POST /api/devs/{id}/status` (`{status, note, actor}`);
 canales WS `dev.list`, `dev.show`, `dev.status`. Errores: `bad_status`, `no_status`, `unknown_dev`.
 
+## 9e. Feedback y revisión nocturna (mejora con el uso)
+
+Cada sesión anota las correcciones del usuario en la sección `## Feedback` de su `SESSION.md`
+(`- fecha — qué hice → qué me corrigió → lección (general | este desarrollo)`), sin que se lo pidan.
+Cada noche, a la hora de `[manager] nightly` en `config.toml` (default `"03:00"`; `""` la apaga; el IDE
+tiene que estar corriendo), el IDE le encola a la principal `.ide/prompts/nightly-review.md`: junta el
+material con `ide feedback collect --since <última revisión>` (lo anotado + los mensajes del usuario de
+los transcripts de cada sesión, para cazar también las correcciones no anotadas), agrupa patrones,
+revisa si ya están en las instrucciones y escribe un **plan** en
+`.ide/sessions/<principal>/feedback/AAAA-MM-DD.md` (`status: pending`) con evidencia, archivo y texto
+exacto de cada cambio propuesto. **No aplica nada**: la barra de abajo muestra "plan de feedback
+pendiente"; el usuario le dice a la principal qué aplicar (los `CLAUDE.md` de repos van por PR) y ella
+lo marca `status: applied`. `ide feedback run` (o `POST /api/manager/nightly`, canal
+`manager.nightly`) la pide ya; `ide feedback collect [--since AAAA-MM-DD[THH:MM]] [--json]`.
+La principal tiene permitidos `ide feedback` y escribir en su `feedback/` (de noche nadie aprueba).
+
 ## 10. Problemas comunes
 
 Cada sesión fija su conversación de `claude`: `claude_session` (nueva con `--session-id`,

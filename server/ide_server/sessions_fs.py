@@ -284,6 +284,7 @@ def seed_workspace(root: Path) -> list[Path]:
         ide / "prompts" / "review-pr.md": seeds.PROMPT_REVIEW_PR,
         ide / "skills" / "backlog" / "SKILL.md": seeds.SKILL_BACKLOG,
         ide / "manager.md": seeds.MANAGER_MD,
+        ide / "prompts" / "nightly-review.md": seeds.PROMPT_NIGHTLY,
         ide / "permissions" / "analyze.json": json.dumps(seeds.PERM_ANALYZE, indent=2) + "\n",
         ide / "permissions" / "main.json": json.dumps(seeds.PERM_MAIN, indent=2) + "\n",
         ide / "permissions" / "full.json": json.dumps(seeds.PERM_FULL, indent=2) + "\n",

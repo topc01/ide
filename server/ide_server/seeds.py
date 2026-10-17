@@ -165,6 +165,42 @@ Review PR {{pr_url}} ("{{title}}" by {{author}}, repo {{repo}}) using the
 `finnecto-core:pr-review` skill (reviewer side). The `{{repo}}/` worktree is at the PR head.
 Keep SESSION.md up to date and set your verdict with `ide status commented|approved|changes-requested`.
 """
+# `.ide/prompts/nightly-review.md`: lo que el IDE le encola a la principal cada noche ([manager] nightly).
+PROMPT_NIGHTLY = """\
+Revisión nocturna de feedback ({{date}}).
+
+1. Junta el material desde la última revisión ({{since}}):
+   `ide feedback collect --since {{since}}`
+   Trae, por sesión, lo anotado en `## Feedback` de su SESSION.md y los mensajes del usuario de sus
+   transcripts (con lo último que había dicho la sesión antes).
+2. Detecta las **correcciones**, también las que la sesión NO anotó: el usuario dice que algo está mal,
+   redirige, rechaza, repite un pedido que no se cumplió, aclara una preferencia o un supuesto
+   equivocado. Ignora los prompts que mandó el IDE (revisiones de PR, traspasos) y las instrucciones
+   normales de trabajo.
+3. Agrúpalas por patrón. Para cada patrón decide si es **general** (sirve para cualquier sesión),
+   **de un repo** o **una preferencia del usuario**, y revisa si ya está cubierto en las instrucciones
+   actuales: `../CLAUDE.md` (todas las sesiones), `../templates/*.md`, `../../manager.md`,
+   `../../skills/*/SKILL.md`, el `CLAUDE.md` de cada repo, `~/.claude/CLAUDE.md`.
+4. Escribe el plan en `feedback/{{date}}.md` (en tu carpeta) con este formato:
+
+       ---
+       status: pending
+       since: {{since}}
+       ---
+       # Plan de feedback {{date}}
+       ## 1. <título corto del patrón>
+       - Evidencia: <sesión, fecha y cita corta de cada corrección>
+       - Dónde: <archivo exacto>
+       - Cambio propuesto: <el texto exacto a agregar o reemplazar>
+       ## 2. …
+
+   Pocas propuestas, concretas y sin contradicciones; nada de una sola vez salvo que sea grave. Si no
+   hay nada que proponer, escribe el archivo igual con "Sin propuestas" (y `status: applied`).
+5. **No apliques nada.** El usuario lo revisa en la mañana; cuando te diga cuáles aplicar, aplícalas
+   (los `CLAUDE.md` de repos van por PR), marca cada una como aplicada y pon `status: applied`.
+"""
+
+
 # `.ide/manager.md`: instrucciones de la sesión principal (el IDE la copia como su CLAUDE.md al lanzarla).
 MANAGER_MD = """\
 # Sesión principal: manager de los desarrollos
@@ -255,7 +291,8 @@ PERM_ANALYZE = {"permissions": {
 # La principal = analyze + despachar sesiones (el server igual le niega `full`) + leer el
 # Backlog de Notion para /backlog (con el MCP de claude.ai o el del plugin de Notion).
 PERM_MAIN = {"permissions": {
-    "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)", "Bash(ide session send:*)", "Bash(ide dev:*)",
+    "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)", "Bash(ide dev:*)", "Bash(ide feedback:*)",
+              "Write(feedback/**)", "Edit(feedback/**)",
               *[f"mcp__{srv}__notion-{t}" for srv in ("claude_ai_Notion", "plugin_Notion_notion")
                 for t in ("get-self", "query-data-sources", "query-database-view", "fetch", "search")]],
     "deny": list(PERM_ANALYZE["permissions"]["deny"]),

@@ -81,6 +81,7 @@ export function StatusBar() {
             </>) : <span className="text-muted-foreground">{activeId ? "sin conversación" : "—"}</span>}
           </span>
           <WaitingForYou />
+          <FeedbackPending />
           <Window label="5h" w={lim?.fiveHour ?? null} now={now} />
           <Window label="semana" w={lim?.weekly ?? null} now={now} />
           {update?.pending && (
@@ -110,4 +111,17 @@ function WaitingForYou() {
     <span className="font-semibold text-orange-300"
       title={waiting.map(([k, v]) => `${label(k)}${v.note ? ` — ${v.note}` : ""}`).join("\n")}>
       {waiting.length} {waiting.length === 1 ? "te espera" : "te esperan"}</span>);
+}
+
+/** La revisión nocturna dejó un plan de feedback sin revisar: click = ir a la sesión principal. */
+function FeedbackPending() {
+  const plans = useFolders((s) => s.tree.feedbackPending);
+  const main = useFolders((s) => s.tree.sessions.find((x) => x.kind === "main"));
+  const setActive = useFolders((s) => s.setActive);
+  if (!plans?.length || !main) return null;
+  return (
+    <button onClick={() => setActive(main.id)}
+      title={`La sesión manager dejó ${plans.length === 1 ? "un plan" : `${plans.length} planes`} de feedback para revisar (${plans.join(", ")}): pídele que te lo muestre y dile qué aplicar`}
+      className="rounded border border-primary/60 px-1 text-primary hover:bg-primary/10">
+      plan de feedback pendiente</button>);
 }
