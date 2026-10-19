@@ -265,6 +265,15 @@ class Supervisor:
         # el Enter aparte: pegado junto al texto, claude lo toma como parte del paste
         threading.Timer(0.4, lambda: self._running.get(sid) == tid and self._write(tid, b"\r")).start()
 
+    def paste(self, sid: str, text: str) -> None:
+        """Pega `text` en el input de su claude como un paste de terminal (sin Enter): así una ruta a
+        una imagen entra como adjunto ([Image #n]), igual que arrastrar un archivo a la terminal."""
+        tid = self._running.get(sid)
+        if tid is None or self._write is None:
+            raise SessionError("not_running", f"la sesión {sid} no está corriendo")
+        clean = _CTRL_RE.sub("", text.replace("\r", " ").replace("\n", " "))
+        self._write(tid, b"\x1b[200~" + clean.encode() + b"\x1b[201~")
+
     def _launch(self, sid: str, resume: bool, prompt: str | None = None) -> None:
         path = session_path(self._root, sid)
         # Cada sesión fija su conversación de claude (`claude_session` en .session.toml): nueva

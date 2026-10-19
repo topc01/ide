@@ -1,10 +1,10 @@
 // ui/src/main/DevTabsView.tsx
 import { useEffect, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Paperclip, Plus, X } from "lucide-react";
 import { useFolders } from "../state/folders";
 import { claudeTab, docTab, scriptTab, summaryTab, useDevTabs, type DevTab } from "../state/devTabs";
 import type { FolderSession, GhPr } from "../transport/folderSessions";
-import { newSessionForPr, openSession, refreshReview, startReview } from "../transport/folderSessions";
+import { attachFile, newSessionForPr, openSession, refreshReview, startReview } from "../transport/folderSessions";
 import { openTerminal } from "../transport/terminalChannel";
 import { getWs } from "../transport/wsClient";
 import { useGithubReviews } from "../modules/sessions/ReviewsSection";
@@ -35,6 +35,25 @@ function ClaudeTab({ session }: { session: FolderSession }) {
     }
   }, [session.id, session.process, session.terminalId, session.launchError]);
   const act = (p: Promise<unknown>) => p.catch((e: any) => setError(e?.message ?? String(e)));
+  // adjuntos: el archivo va a la carpeta de la sesión y su ruta se pega en el input de claude
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [drag, setDrag] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const upload = (files: FileList) => {
+    for (const f of Array.from(files)) {
+      if (f.size > 10 * 1024 * 1024) { setNote(`${f.name}: pesa más de 10 MB`); continue; }
+      const r = new FileReader();
+      r.onload = () => {
+        const data = String(r.result).split(",", 2)[1] ?? "";
+        setNote(`adjuntando ${f.name}…`);
+        attachFile(getWs(), session.id, f.name || "pegado.png", data)
+          .then((res) => setNote(res.pasted ? `${f.name} adjuntado (Enter para mandarlo)` : `${f.name} guardado en attachments/ (claude no está corriendo)`))
+          .catch((e: any) => setNote(`⚠ ${e?.message ?? String(e)}`));
+      };
+      r.readAsDataURL(f);
+    }
+  };
+  useEffect(() => { if (!note) return; const t = setTimeout(() => setNote(null), 6000); return () => clearTimeout(t); }, [note]);
   return (
     <div className="flex h-full flex-col">
       {session.prState === "stale" && (
@@ -43,7 +62,20 @@ function ClaudeTab({ session }: { session: FolderSession }) {
           <Button title="Mover el worktree al head nuevo del PR" size="sm" onClick={() => act(refreshReview(getWs(), session.id))}>Refrescar</Button>
         </div>)}
       {error && <p role="alert" className="px-3 py-1 text-xs text-destructive">{error}</p>}
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1" onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDrag(true); } }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={(e) => { if (e.dataTransfer.files.length) { e.preventDefault(); setDrag(false); upload(e.dataTransfer.files); } }}
+        onPasteCapture={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); e.stopPropagation(); upload(e.clipboardData.files); } }}>
+        {session.terminalId && (
+          <div className="absolute right-3 top-2 z-10 flex items-center gap-2">
+            {note && <span className="rounded bg-card/90 px-2 py-0.5 text-[11px] text-muted-foreground shadow">{note}</span>}
+            <button title="Adjuntar archivos a la conversación (también: arrastrarlos o pegarlos con ⌘V)" aria-label="Adjuntar archivos"
+              onClick={() => fileRef.current?.click()}
+              className="rounded-md border border-border bg-card/90 p-1.5 text-muted-foreground shadow hover:text-foreground"><Paperclip size={13} /></button>
+            <input ref={fileRef} type="file" multiple hidden onChange={(e) => { if (e.target.files) upload(e.target.files); e.target.value = ""; }} />
+          </div>)}
+        {drag && <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center border-2 border-dashed border-primary bg-background/70 text-sm text-primary">
+          Suelta para adjuntar a la conversación</div>}
         {session.terminalId ? <TerminalTab key={session.terminalId} id={session.terminalId} /> : (
           <div className="flex flex-col items-start gap-2 p-6 text-sm">
             {session.process === "queued" ? <span className="text-muted-foreground">En cola (max_running)…</span> : (<>

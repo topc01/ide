@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import base64
 import io
 import logging
 import re
@@ -383,6 +384,28 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"ok": True}
 
+    async def attach(p: dict) -> dict:
+        """Adjuntar un archivo a la conversación: se guarda en `attachments/` de la sesión (su claude lo
+        lee sin pedir permiso) y, si corre, se pega su ruta en el input (las imágenes entran como
+        [Image #n]). Por WS en base64 (máx. 10 MB)."""
+        sid = require_plain_name(p["id"], "sesión")
+        require_session(root, sid)
+        try:
+            raw = base64.b64decode(p.get("data") or "", validate=True)
+        except (ValueError, TypeError):
+            raise SessionError("bad_request", "archivo inválido")
+        if not raw or len(raw) > 10 * 1024 * 1024:
+            raise SessionError("too_large", "el archivo tiene que pesar entre 1 byte y 10 MB")
+        name = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(str(p.get("name") or "archivo")).name).strip("-.") or "archivo"
+        d = session_path(root, sid) / "attachments"
+        d.mkdir(exist_ok=True)
+        f = d / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{name[-80:]}"
+        await asyncio.to_thread(f.write_bytes, raw)
+        pasted = supervisor.state(sid) == "running"
+        if pasted:
+            supervisor.paste(sid, f" {f} ")
+        return {"path": str(f), "pasted": pasted}
+
     async def fresh(p: dict) -> dict:
         """Nueva conversación en la misma sesión (misma carpeta, worktrees y SESSION.md): para cuando la
         conversación se alargó o se ensució. La anterior queda en su transcript."""
@@ -708,7 +731,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
-        "sessions.stop": stop, "sessions.send": send, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
+        "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
         "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,

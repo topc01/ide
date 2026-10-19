@@ -497,6 +497,12 @@ PR tuya sin sesión, una **sesión en su rama** (ver abajo); en una PR de otro s
 **sesión de revisión** (se abre su `claude`); y **reabre** lo cerrado
 (doc, resúmenes de las otras PRs del desarrollo). × cierra la tab sin parar nada. Sin límite de tabs.
 
+**Adjuntar archivos a la conversación** (tab `claude`): arrastrar archivos encima, pegarlos con ⌘V
+(p.ej. una captura) o el botón 📎. Se guardan en `attachments/` de la carpeta de la sesión (su
+`claude` los lee sin pedir permiso; máx. 10 MB c/u) y, si `claude` corre, su ruta se pega en el input
+como un paste de terminal (sin Enter): las imágenes entran como `[Image #n]`, igual que arrastrarlas a
+una terminal. Canal `sessions.attach {id, name, data(base64)}` → `{path, pasted}`.
+
 **Sesión para una PR propia** (`+` de las tabs o **Crear sesión** en el resumen; canal
 `sessions.newForPr {url}`): sesión de ticket `dev-<repo>-<n>` con el worktree en la rama de la PR
 (en un stack, la de más arriba: contiene a todas). Trae la rama de `origin` y, si no existe local,

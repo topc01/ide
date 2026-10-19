@@ -60,6 +60,9 @@ export const listPins = (ws: WsClient): Promise<{ pins: Record<string, Pin[]> }>
 export const addPin = (ws: WsClient, key: string, text: string, source: string | null): Promise<{ pin: Pin }> =>
   ws.request("pins.add", { key, text, source });
 export const removePin = (ws: WsClient, key: string, id: string): Promise<{ ok: boolean }> => ws.request("pins.remove", { key, id });
+/** Adjuntar un archivo a la conversación de una sesión (se guarda en su carpeta y se pega su ruta). */
+export const attachFile = (ws: WsClient, id: string, name: string, data: string): Promise<{ path: string; pasted: boolean }> =>
+  ws.request("sessions.attach", { id, name, data });
 export type PrLinks = Record<string, { sid: string; out?: boolean }>;
 /** Saca una PR del desarrollo de una sesión (no vuelve aunque el worktree esté en su rama). */
 export const unlinkPr = (ws: WsClient, id: string, url: string): Promise<{ ok: boolean }> =>
