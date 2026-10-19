@@ -1,13 +1,13 @@
 // ui/src/modules/sessions/DevCard.tsx
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Eye, EyeOff, Pause, Pencil } from "lucide-react";
-import { hideDev, renameDev, type GhPr, type MergeJob } from "../../transport/folderSessions";
+import { hideDev, renameDev, setDevState, type GhPr, type MergeJob } from "../../transport/folderSessions";
 import { QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
 import { devIndexOf, devName, isHidden } from "./desarrollos";
-import { ago, STATE, type DevStateInfo } from "./devStates";
+import { ago, BLOCKS, MANUAL_PHASES, STATE, type DevStateInfo, type State } from "./devStates";
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
 export interface Tone {
@@ -203,16 +203,21 @@ export function DevIndex({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
 }
 
 /** Estado del desarrollo en la card: el estado en una palabra con su color (y la fase si está
- *  bloqueado), cuánto lleva así, y la nota de la sesión en su propia línea. */
-export function DevStateLabel({ dev }: { dev: DevStateInfo | null }) {
+ *  bloqueado), cuánto lleva así, y la nota de la sesión en su propia línea. Click (con `devKey`) =
+ *  cambiarlo ahí mismo (por si la sesión quedó desactualizada). */
+export function DevStateLabel({ dev, devKey }: { dev: DevStateInfo | null; devKey?: string }) {
+  const [open, setOpen] = useState(false);
   if (!dev) return null;
   const [label, , text] = STATE[dev.state];
   const tip = `Estado del desarrollo: ${label}${dev.block ? ` (fase: ${STATE[dev.phase][0]})` : ""}`
-    + `${dev.github ? " · la fase sale de GitHub" : ""}${dev.inferred ? " · deducido de sus PRs (cámbialo en el módulo Desarrollo)" : ""}`
-    + `${dev.since ? ` · desde hace ${ago(dev.since)}` : ""}${dev.note ? `\nNota: ${dev.note}` : ""}`;
+    + `${dev.github ? " · la fase sale de GitHub" : ""}${dev.inferred ? " · deducido de sus PRs" : ""}`
+    + `${dev.since ? ` · desde hace ${ago(dev.since)}` : ""}${dev.note ? `\nNota: ${dev.note}` : ""}`
+    + (devKey ? "\nClick: cambiar el estado" : "");
   return (
-    <span title={tip} className="block basis-full">
-      <span className="flex min-w-0 items-baseline gap-1.5">
+    <span className="relative block basis-full">
+      <span title={tip} role={devKey ? "button" : undefined}
+        onClick={devKey ? (e) => { e.stopPropagation(); setOpen((o) => !o); } : undefined}
+        className={cn("flex min-w-0 items-baseline gap-1.5", devKey && "cursor-pointer hover:underline decoration-dotted")}>
         <span className={cn("font-semibold first-letter:uppercase", dev.inferred ? "text-muted-foreground" : text)}>{label}</span>
         {dev.block && <span className="text-muted-foreground">· {STATE[dev.phase][0]}</span>}
         {dev.since && !dev.inferred && <span className="text-muted-foreground">· hace {ago(dev.since)}</span>}
@@ -220,5 +225,44 @@ export function DevStateLabel({ dev }: { dev: DevStateInfo | null }) {
           title={`Está "${STATE[dev.manual!][0]}" pero una PR ya no está en draft (mientras se trabaja, las PRs van en draft)`}>· PR fuera de draft</span>}
       </span>
       {dev.note && <span className="line-clamp-2 italic text-muted-foreground">{dev.note}</span>}
+      {open && devKey && <StateMenu dev={dev} devKey={devKey} onClose={() => setOpen(false)} />}
     </span>);
+}
+
+/** Menú para cambiar el estado desde la card: fase, bloqueo (con nota) o destrabar. */
+function StateMenu({ dev, devKey, onClose }: { dev: DevStateInfo; devKey: string; onClose: () => void }) {
+  const [note, setNote] = useState(dev.note ?? "");
+  const [err, setErr] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const out = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("mousedown", out); document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", out); document.removeEventListener("keydown", esc); };
+  }, [onClose]);
+  const set = (st: string | null, n: string | null = null) =>
+    setDevState(getWs(), devKey, st, n).then(onClose).catch((e: any) => setErr(e?.message ?? String(e)));
+  const chip = (st: State, on: boolean, onClick: () => void) => {
+    const [l, bg, t] = STATE[st];
+    return <button key={st} onClick={onClick} title={on ? `Está así: ${l}` : `Pasar a "${l}"`}
+      className={cn("rounded border px-1.5 py-0.5 text-[11px]", bg, t, on ? "border-current font-semibold" : "border-transparent opacity-70 hover:opacity-100")}>{l}</button>;
+  };
+  return (
+    <div ref={ref} onClick={(e) => e.stopPropagation()}
+      className="absolute inset-x-0 top-full z-40 mt-1 rounded-md border border-border bg-popover p-2 text-xs shadow-lg">
+      <div className="mb-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">Fase</div>
+      <div className="flex flex-wrap gap-1">{MANUAL_PHASES.map((st) => chip(st, dev.manual === st, () => set(st)))}</div>
+      {dev.github && <p className="mt-1 text-[10px] text-muted-foreground">Ahora la fase la da GitHub: {STATE[dev.phase][0]}.</p>}
+      <div className="mb-0.5 mt-2 text-[10px] uppercase tracking-wide text-muted-foreground">Bloqueo</div>
+      <div className="flex flex-wrap gap-1">
+        {BLOCKS.map((st) => chip(st, dev.block === st, () => set(st, note.trim() || null)))}
+        {dev.block && <button onClick={() => set("unblock")} title={`Quitar el bloqueo (vuelve a "${STATE[dev.phase][0]}")`}
+          className="rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-accent">destrabar</button>}
+      </div>
+      <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} aria-label="Nota"
+        placeholder="nota del bloqueo: qué falta y de quién"
+        onKeyDown={(e) => { if (e.key === "Enter" && dev.block) set(dev.block, note.trim() || null); }}
+        className="mt-1.5 w-full rounded border border-border bg-background px-1.5 py-0.5 text-[11px] outline-none focus:border-primary" />
+      {err && <p role="alert" className="mt-1 text-[11px] text-destructive">{err}</p>}
+    </div>);
 }

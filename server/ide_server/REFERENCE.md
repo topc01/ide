@@ -626,7 +626,7 @@ en revisión, cambios pedidos, aprobada, mergeando, mergeada. Sin nada puesto se
 desarrollando). Bloqueos (tapan la fase sin borrarla, con nota y desde cuándo): `waiting-input`,
 `questions`, `blocked-definitions`, `blocked-client`, `blocked-dev`, `paused`; `unblock` vuelve a la
 fase. Mientras el desarrollo está activo sus PRs van en draft (si la fase puesta es activa y una PR
-salió de draft, la card dice "PR fuera de draft"). Se cambia en el módulo Desarrollo (fase, bloqueo
+salió de draft, la card dice "PR fuera de draft"). Se cambia con click en el estado de la card (menú: fase, bloqueo con nota, destrabar), en el módulo Desarrollo (fase, bloqueo
 con nota, destrabar; en PRs sin sesión, "borrar estado") o con `ide status <fase|bloqueo|unblock>
 -m nota` desde la sesión. Con `ready-for-review`, **Mandar a revisión** saca de draft sus PRs (`gh pr
 ready`; solo las tuyas). Al bloquearse en `waiting-input` desde una sesión llega una notificación de

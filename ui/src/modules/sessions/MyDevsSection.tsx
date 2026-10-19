@@ -79,7 +79,7 @@ function StackCard({ d, dev }: { d: Desarrollo; dev: DevStateInfo | null }) {
           <DevIndex devKey={d.key} prs={d.prs} />
           {d.prs.map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)}
         </div>
-        {dev && <div className="mt-1 flex flex-wrap gap-x-2 text-[11px]"><DevStateLabel dev={dev} /></div>}
+        {dev && <div className="mt-1 flex flex-wrap gap-x-2 text-[11px]"><DevStateLabel dev={dev} devKey={d.key} /></div>}
       </CardShell>
     </QueueItem>
   );
