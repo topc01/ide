@@ -6,9 +6,8 @@ import { useFolders } from "../state/folders";
 import { Button } from "../components/ui/button";
 import { cn } from "../lib/utils";
 
-/** Tu decisión sobre una PR que revisas: el veredicto que sugiere la sesión de revisión, su review
- *  listo para publicar (editable) y los botones Aprobar / Pedir cambios (publican con `gh pr review`).
- *  La sesión nunca publica sola. */
+/** Tu revisión de una PR: el veredicto de la sesión de revisión (que lo publica en GitHub) y los
+ *  botones Aprobar / Pedir cambios para publicarlo o corregirlo tú (`gh pr review`). */
 export function ReviewDecision({ url }: { url: string }) {
   const tree = useFolders((s) => s.tree);       // se relee cuando la sesión actualiza su SESSION.md
   const [draft, setDraft] = useState<{ id: string | null; verdict: string | null; why: string; body: string } | null>(null);
@@ -28,8 +27,8 @@ export function ReviewDecision({ url }: { url: string }) {
       .then(() => setMsg(event === "approve" ? "Aprobada en GitHub" : "Pediste cambios en GitHub"))
       .catch((e: any) => setMsg(`⚠ ${e?.message ?? String(e)}`)).finally(() => setBusy(false));
   };
-  const verdict = draft?.verdict === "approve" ? ["Sugiere aprobar", "text-emerald-400"]
-    : draft?.verdict === "request-changes" ? ["Sugiere pedir cambios", "text-amber-300"] : null;
+  const verdict = draft?.verdict === "approve" ? ["La sesión: aprobar", "text-emerald-400"]
+    : draft?.verdict === "request-changes" ? ["La sesión: pedir cambios", "text-amber-300"] : null;
   const done = session?.status === "approved" || session?.status === "changes-requested";
   return (
     <div className="mt-5 rounded-md border border-border p-3">

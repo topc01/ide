@@ -699,19 +699,18 @@ por cada cambio (la primera vez no, para no inundar). Los estados de Notion no s
 API: `GET /api/devs`, `GET /api/devs/{id}`, `POST /api/devs/{id}/status` (`{status, note, actor}`);
 canales WS `dev.list`, `dev.show`, `dev.status`. Errores: `bad_status`, `no_status`, `unknown_dev`.
 
-## 9d-bis. Revisar PRs: la sesión sugiere, el usuario decide
+## 9d-bis. Revisar PRs
 
 El botón de revisión (Revisiones / resumen de la PR) crea o reusa la sesión de revisión y le **dispara
-directo la skill** (`.ide/prompts/review-pr.md`: `/finnecto-core:pr-review <url> — Modo IDE…`), con la
-directiva de no publicar nada en GitHub. La sesión deja en `SESSION.md` `## Veredicto` (primera línea
-"Aprobar" o "Pedir cambios" y por qué), `## Review para GitHub` (el cuerpo listo) y `## Hallazgos`, y
-marca `ide status suggests-approve | suggests-changes`. Estados de revisión: `reviewing`,
-`suggests-approve`, `suggests-changes`, `approved`, `changes-requested` (ya no existe `commented`: se
-migra a `reviewing`). `approved` / `changes-requested` solo los pone el IDE (`user_decides` si una
-sesión lo intenta): en el resumen de la PR y en el módulo Desarrollo, **Tu revisión** muestra el
-veredicto sugerido, el review editable y los botones **Aprobar** / **Pedir cambios** (con confirmación;
-pedir cambios exige comentario) que publican con `gh pr review` — solo PRs que te pidieron revisar o con
-sesión de revisión. Canales `review.draft {url}`, `review.submit {url, event, body}`.
+directo la skill** (`.ide/prompts/review-pr.md`: `/finnecto-core:pr-review <url> — Revisión desde el
+IDE…`). La sesión **publica la review en GitHub** como indica la skill (comentarios inline, hilos y
+veredicto), deja en `SESSION.md` `## Veredicto` (primera línea "Aprobar" o "Pedir cambios" y por qué) y
+`## Hallazgos`, y marca `ide status approved | changes-requested`. Estados de revisión: `reviewing`,
+`suggests-approve`, `suggests-changes` (veredicto sin publicar), `approved`, `changes-requested` (ya no
+existe `commented`: se migra a `reviewing`). En el resumen de la PR y en el módulo Desarrollo, **Tu
+revisión** muestra el veredicto y los botones **Aprobar** / **Pedir cambios** (con confirmación; pedir
+cambios exige comentario) para publicar o corregir el veredicto tú (`gh pr review`) — solo PRs que te
+pidieron revisar o con sesión de revisión. Canales `review.draft {url}`, `review.submit {url, event, body}`.
 
 ## 9e. Feedback y revisión nocturna (mejora con el uso)
 
@@ -766,7 +765,7 @@ retomada con `--resume <id>`; las sesiones viejas adoptan la transcripción más
 `forbidden_origin`, `github_off`, `bad_settings`, `unknown_prompt`, `queued`, `queue_full`, `not_running`, `no_doc`, `claude_missing`, `no_server`, `no_session`, `server_error`,
 `timeout`, `bad_frontmatter`, `bad_request`, `unknown_channel`, `already_running`,
 `unknown_worktree`, `bad_place`, `git_failed`, `bad_path`, `not_a_dir`, `not_found`, `too_large`,
-`binary`, `changed_on_disk`, `busy`, `unpushed`, `no_db`, `telegram_off`, `user_decides`, `db_not_local`, `pgweb_missing`, `pgweb_failed`.
+`binary`, `changed_on_disk`, `busy`, `unpushed`, `no_db`, `telegram_off`, `db_not_local`, `pgweb_missing`, `pgweb_failed`.
 
 ## 12. API (para integraciones)
 

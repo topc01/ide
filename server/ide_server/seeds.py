@@ -56,8 +56,8 @@ aparece en "te esperan" y le llega el aviso. Cuando te responda, `ide status unb
 Mientras el desarrollo está activo sus PRs van en **draft** (`gh pr create --draft`); al terminar,
 `ide status ready-for-review` y el usuario la manda a revisión desde el IDE. Desde ahí la fase la da
 GitHub (en revisión, cambios pedidos, aprobada, mergeando). Revisión (sesiones de
-revisión de PR): reviewing | suggests-approve | suggests-changes (tu veredicto; aprobar o pedir cambios
-en GitHub lo hace el usuario con los botones del IDE, y quedan approved | changes-requested). `SESSION.md` guarda el análisis (y el `title` si está vacío).
+revisión de PR): reviewing | approved | changes-requested (el veredicto que publicaste en GitHub;
+suggests-approve | suggests-changes si todavía no lo publicaste). `SESSION.md` guarda el análisis (y el `title` si está vacío).
 La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide dev show <id>`.
 
 ## Desarrollos, repos y dependencias
@@ -172,7 +172,7 @@ Lanzadas, ya existían y errores (con el mensaje). El estado de cada una se ve e
 
 # `.ide/prompts/review-pr.md`: el botón de revisión de la UI lo envía a la sesión del PR.
 PROMPT_REVIEW_PR = """\
-/finnecto-core:pr-review {{pr_url}} — Modo IDE (repo {{repo}}; el worktree `{{repo}}/` está en el head de la PR). NO publiques nada en GitHub: ni review, ni comentarios, ni respuestas, ni re-requests; el usuario aprueba o pide cambios desde el IDE. Deja en SESSION.md: `## Veredicto` (primera línea: "Aprobar" o "Pedir cambios", y por qué en pocas líneas), `## Review para GitHub` (el cuerpo listo para publicar: resumen + hallazgos numerados con archivo:línea y la sugerencia concreta) y `## Hallazgos` (detalle por severidad). Al terminar: `ide status suggests-approve` o `ide status suggests-changes`.
+/finnecto-core:pr-review {{pr_url}} — Revisión desde el IDE (repo {{repo}}; el worktree `{{repo}}/` está en el head de la PR). Publica la review en GitHub como indica la skill (comentarios inline, hilos y veredicto). Deja además en SESSION.md `## Veredicto` (primera línea "Aprobar" o "Pedir cambios" y por qué) y `## Hallazgos` (por severidad), y marca `ide status approved` o `ide status changes-requested` según el veredicto que publicaste.
 """
 # `.ide/prompts/nightly-review.md`: lo que el IDE le encola a la principal cada noche ([manager] nightly).
 PROMPT_NIGHTLY = """\
@@ -292,11 +292,9 @@ El worktree `{{repo}}/` está en el head del PR (detached).
 
 1. Revisa el diff contra la base (`gh pr diff {{pr_url}}`, y lee el código alrededor).
 2. Escribe SESSION.md con hallazgos por severidad (bloqueante / importante / menor / nit).
-3. Deja en SESSION.md `## Veredicto` (primera línea "Aprobar" o "Pedir cambios" y por qué) y
-   `## Review para GitHub` (el cuerpo listo para publicar), y marca `ide status suggests-approve` o
-   `ide status suggests-changes`.
-4. NO publiques nada en GitHub (ni review ni comentarios): aprobar o pedir cambios lo decide el
-   usuario con los botones del IDE.
+3. Publica la review en GitHub (comentarios inline y veredicto). Deja en SESSION.md `## Veredicto`
+   (primera línea "Aprobar" o "Pedir cambios" y por qué) y marca `ide status approved` o
+   `ide status changes-requested` según lo que publicaste.
 """
 
 _READ_ONLY_BASH = [
