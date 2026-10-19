@@ -63,7 +63,7 @@ export const removePin = (ws: WsClient, key: string, id: string): Promise<{ ok: 
 /** Adjuntar un archivo a la conversación de una sesión (se guarda en su carpeta y se pega su ruta). */
 export const attachFile = (ws: WsClient, id: string, name: string, data: string, paste = true): Promise<{ path: string; pasted: boolean }> =>
   ws.request("sessions.attach", { id, name, data, paste });
-export interface Attachment { name: string; size: number; path: string; at: string }
+export interface Attachment { name: string; size: number; path: string; at: string; kind: "image" | "pdf" | "text" | "other" }
 export const listAttachments = (ws: WsClient, id: string): Promise<{ dir: string; files: Attachment[] }> =>
   ws.request("attachments.list", { id });
 export const renameAttachment = (ws: WsClient, id: string, name: string, to: string): Promise<{ name: string }> =>

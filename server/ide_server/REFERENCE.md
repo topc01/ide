@@ -504,10 +504,10 @@ como un paste de terminal (sin Enter): las imágenes entran como `[Image #n]`, i
 una terminal. Canal `sessions.attach {id, name, data(base64), paste}` → `{path, pasted}`.
 **Módulo Adjuntos** (id `attachments`): los adjuntos de la sesión del desarrollo, del más nuevo al más
 viejo: click los abre en una tab (imagen o PDF en línea, texto legible, lo demás para descargar);
-renombrar, descargar, copiar la ruta, borrar (con confirmación) y subir más (sin pegarlos en la
+renombrar (si el nombre nuevo no trae extensión, se mantiene la original), descargar, copiar la ruta, borrar (con confirmación) y subir más (sin pegarlos en la
 conversación). Las sesiones saben (su `CLAUDE.md`) que `attachments/` es lo que el usuario comparte y
 dejan ahí lo que generan para él. Se sirven por `GET /api/sessions/{id}/attachments/{nombre}[?download=1]`
-(mismos chequeos de origen; lo que no es PDF/imagen se sirve como texto en sandbox). Canales
+(mismos chequeos de origen; el tipo sale de la extensión o, si no tiene, del contenido; lo que no es PDF/imagen se sirve como texto en sandbox). Canales
 `attachments.list|rename|delete`.
 
 **Sesión para una PR propia** (`+` de las tabs o **Crear sesión** en el resumen; canal

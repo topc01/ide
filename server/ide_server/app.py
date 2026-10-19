@@ -198,6 +198,16 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_send(sid: str, body: dict):
         return await _http("sessions.send", {**body, "id": sid})
 
+    def _sniff(f: Path) -> str | None:
+        """Tipo por el contenido (archivos sin extensión, p.ej. renombrados a mano)."""
+        with open(f, "rb") as fh:
+            head = fh.read(16)
+        for magic, mime in ((b"\x89PNG", "image/png"), (b"\xff\xd8\xff", "image/jpeg"), (b"GIF8", "image/gif"),
+                            (b"%PDF", "application/pdf")):
+            if head.startswith(magic):
+                return mime
+        return "image/webp" if head[:4] == b"RIFF" and head[8:12] == b"WEBP" else None
+
     @app.get("/api/sessions/{sid}/attachments/{name}")
     async def api_attachment(sid: str, name: str, download: int = 0):
         """Un adjunto de la sesión (vista previa o descarga). /api: mismos chequeos de origen."""
@@ -212,7 +222,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         # descarga: siempre como adjunto. Vista: nosniff, y todo lo que no es PDF/imagen va en sandbox
         # (un .html o .svg adjunto no corre en el origen del IDE); el visor de PDF no funciona en sandbox
         import mimetypes
-        mime = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
+        mime = mimetypes.guess_type(f.name)[0] or _sniff(f) or "application/octet-stream"
         safe = mime == "application/pdf" or (mime.startswith("image/") and mime != "image/svg+xml")
         headers = {"X-Content-Type-Options": "nosniff"}
         if not safe:

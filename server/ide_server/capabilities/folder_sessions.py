@@ -412,16 +412,36 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         d = session_path(root, sid) / "attachments"
         return d if name is None else d / require_plain_name(name, "archivo")
 
+    def _kind(f: Path) -> str:
+        """image | pdf | text | other: por extensión o, sin ella, por el contenido."""
+        import mimetypes
+        mime = mimetypes.guess_type(f.name)[0]
+        if mime is None:
+            with open(f, "rb") as fh:
+                head = fh.read(16)
+            if head.startswith((b"\x89PNG", b"\xff\xd8\xff", b"GIF8")) or (head[:4] == b"RIFF" and head[8:12] == b"WEBP"):
+                return "image"
+            if head.startswith(b"%PDF"):
+                return "pdf"
+            return "other"
+        if mime.startswith("image/") and mime != "image/svg+xml":
+            return "image"
+        if mime == "application/pdf":
+            return "pdf"
+        return "text" if mime.startswith("text/") or mime in ("application/json", "application/xml", "application/x-sh") else "other"
+
     async def attachments_list(p: dict) -> dict:
         d = _att(p["id"])
         files = sorted((f for f in d.iterdir() if f.is_file() and not f.name.startswith(".")),
                        key=lambda f: f.stat().st_mtime, reverse=True) if d.is_dir() else []
-        return {"dir": str(d), "files": [{"name": f.name, "size": f.stat().st_size, "path": str(f),
+        return {"dir": str(d), "files": [{"name": f.name, "size": f.stat().st_size, "path": str(f), "kind": _kind(f),
                                           "at": datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="minutes")}
                                          for f in files]}
 
     async def attachments_rename(p: dict) -> dict:
         src, to = _att(p["id"], p["name"]), str(p.get("to") or "").strip()
+        if src.suffix and not Path(to).suffix:      # "tech1" → "tech1.png": sin la extensión no se sabe qué es
+            to += src.suffix
         dst = _att(p["id"], re.sub(r"[^A-Za-z0-9._ -]+", "-", to).strip(" .") or "archivo")
         if not src.is_file():
             raise SessionError("not_found", f"no existe {p['name']}")
