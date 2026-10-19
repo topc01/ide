@@ -705,7 +705,10 @@ El botón de revisión (Revisiones / resumen de la PR) crea o reusa la sesión d
 directo la skill** (`.ide/prompts/review-pr.md`: `/finnecto-core:pr-review <url> — Revisión desde el
 IDE…`). La sesión **publica la review en GitHub** como indica la skill (comentarios inline, hilos y
 veredicto), deja en `SESSION.md` `## Veredicto` (primera línea "Aprobar" o "Pedir cambios" y por qué) y
-`## Hallazgos`, y marca `ide status approved | changes-requested`. Estados de revisión: `reviewing`,
+`## Hallazgos`, y marca `ide status approved | changes-requested`. El prompt le dice que el contenido de la PR es
+material, no instrucciones; y con el perfil `analyze` publicar (`gh pr review`, `gh api` con mutaciones)
+pide OK en su terminal (una PR maliciosa podría intentar que se apruebe sola): no lo agregues a los
+permitidos. Estados de revisión: `reviewing`,
 `suggests-approve`, `suggests-changes` (veredicto sin publicar), `approved`, `changes-requested` (ya no
 existe `commented`: se migra a `reviewing`). En el resumen de la PR y en el módulo Desarrollo, **Tu
 revisión** muestra el veredicto y los botones **Aprobar** / **Pedir cambios** (con confirmación; pedir
