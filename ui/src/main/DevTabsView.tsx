@@ -16,6 +16,7 @@ import { DocTab } from "./DocTab";
 import { RunLogTab } from "./RunLogTab";
 import { FileTab } from "./FileTab";
 import { PrDiffTab } from "./PrDiffTab";
+import { AttachmentTab } from "./AttachmentTab";
 import { useRuns } from "../transport/runs";
 import { RunState } from "../modules/servers/ServersPanel";
 import { Button } from "../components/ui/button";
@@ -201,6 +202,7 @@ export function DevTabsView() {
         {active?.kind === "script" && active.terminalId && <TerminalTab key={active.terminalId} id={active.terminalId} />}
         {active?.kind === "run" && active.place && active.repo && active.name &&
           <RunLogTab key={active.id} place={active.place} repo={active.repo} name={active.name} />}
+        {active?.kind === "attachment" && active.sid && active.name && <AttachmentTab key={active.id} sid={active.sid} name={active.name} />}
         {active?.kind === "db" && active.url &&
           <iframe key={active.id} src={active.url} title={active.label} className="h-full w-full border-0 bg-white" />}
         {active?.kind === "diff" && active.url && active.path &&

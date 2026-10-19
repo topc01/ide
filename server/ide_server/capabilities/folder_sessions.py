@@ -401,10 +401,40 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         d.mkdir(exist_ok=True)
         f = d / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{name[-80:]}"
         await asyncio.to_thread(f.write_bytes, raw)
-        pasted = supervisor.state(sid) == "running"
+        pasted = p.get("paste", True) is not False and supervisor.state(sid) == "running"
         if pasted:
             supervisor.paste(sid, f" {f} ")
         return {"path": str(f), "pasted": pasted}
+
+    def _att(sid: str, name: str | None = None) -> Path:
+        require_plain_name(sid, "sesión")
+        require_session(root, sid)
+        d = session_path(root, sid) / "attachments"
+        return d if name is None else d / require_plain_name(name, "archivo")
+
+    async def attachments_list(p: dict) -> dict:
+        d = _att(p["id"])
+        files = sorted((f for f in d.iterdir() if f.is_file() and not f.name.startswith(".")),
+                       key=lambda f: f.stat().st_mtime, reverse=True) if d.is_dir() else []
+        return {"dir": str(d), "files": [{"name": f.name, "size": f.stat().st_size, "path": str(f),
+                                          "at": datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="minutes")}
+                                         for f in files]}
+
+    async def attachments_rename(p: dict) -> dict:
+        src, to = _att(p["id"], p["name"]), str(p.get("to") or "").strip()
+        dst = _att(p["id"], re.sub(r"[^A-Za-z0-9._ -]+", "-", to).strip(" .") or "archivo")
+        if not src.is_file():
+            raise SessionError("not_found", f"no existe {p['name']}")
+        if dst.exists():
+            raise SessionError("exists", f"ya hay un archivo {dst.name}")
+        src.rename(dst)
+        return {"name": dst.name, "path": str(dst)}
+
+    async def attachments_delete(p: dict) -> dict:
+        f = _att(p["id"], p["name"])
+        if f.is_file():
+            f.unlink()
+        return {"ok": True}
 
     async def fresh(p: dict) -> dict:
         """Nueva conversación en la misma sesión (misma carpeta, worktrees y SESSION.md): para cuando la
@@ -731,7 +761,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
-        "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
+        "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
+        "attachments.rename": attachments_rename, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
         "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,

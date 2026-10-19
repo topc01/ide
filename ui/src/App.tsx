@@ -17,6 +17,7 @@ import "./modules/deps/register";
 import "./modules/servers/register";
 import "./modules/db/register";
 import "./modules/pins/register";
+import "./modules/attachments/register";
 import "./modules/explorer/register";
 import "./modules/config/register";
 import { ActionMenu } from "./layout/ActionMenu";

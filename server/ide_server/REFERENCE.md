@@ -94,7 +94,7 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "pins", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
+modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "pins", "attachments", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -102,7 +102,7 @@ modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", 
 Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero) hacen
 fallar el arranque con un mensaje que nombra la clave.
 
-`[ui] modules`: ids disponibles `dev`, `terminal`, `prompts`, `stack`, `review`, `deps`, `servers`, `db`, `pins`, `explorer`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
+`[ui] modules`: ids disponibles `dev`, `terminal`, `prompts`, `stack`, `review`, `deps`, `servers`, `db`, `pins`, `attachments`, `explorer`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
 `notion`, y `chat`. Si `chat` **no** está, el área principal es la vista por sesión (terminal
 `claude` + doc + scripts); si está, vuelve el chat propio.
 
@@ -501,7 +501,14 @@ PR tuya sin sesión, una **sesión en su rama** (ver abajo); en una PR de otro s
 (p.ej. una captura) o el botón 📎. Se guardan en `attachments/` de la carpeta de la sesión (su
 `claude` los lee sin pedir permiso; máx. 10 MB c/u) y, si `claude` corre, su ruta se pega en el input
 como un paste de terminal (sin Enter): las imágenes entran como `[Image #n]`, igual que arrastrarlas a
-una terminal. Canal `sessions.attach {id, name, data(base64)}` → `{path, pasted}`.
+una terminal. Canal `sessions.attach {id, name, data(base64), paste}` → `{path, pasted}`.
+**Módulo Adjuntos** (id `attachments`): los adjuntos de la sesión del desarrollo, del más nuevo al más
+viejo: click los abre en una tab (imagen o PDF en línea, texto legible, lo demás para descargar);
+renombrar, descargar, copiar la ruta, borrar (con confirmación) y subir más (sin pegarlos en la
+conversación). Las sesiones saben (su `CLAUDE.md`) que `attachments/` es lo que el usuario comparte y
+dejan ahí lo que generan para él. Se sirven por `GET /api/sessions/{id}/attachments/{nombre}[?download=1]`
+(mismos chequeos de origen; lo que no es PDF/imagen se sirve como texto en sandbox). Canales
+`attachments.list|rename|delete`.
 
 **Sesión para una PR propia** (`+` de las tabs o **Crear sesión** en el resumen; canal
 `sessions.newForPr {url}`): sesión de ticket `dev-<repo>-<n>` con el worktree en la rama de la PR

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Repo } from "../transport/envelope";
 
-export type PanelId = "search" | "changes" | "graphite" | "tasks" | "terminal" | "notion" | "files" | "prompts" | "github" | "stack" | "review" | "deps" | "config" | "servers" | "explorer" | "dev" | "db" | "pins";
+export type PanelId = "search" | "changes" | "graphite" | "tasks" | "terminal" | "notion" | "files" | "prompts" | "github" | "stack" | "review" | "deps" | "config" | "servers" | "explorer" | "dev" | "db" | "pins" | "attachments";
 export interface Tab { id: string; type: "file" | "task" | "branch" | "terminal" | "page" | "airegex"; label: string; }
 
 export interface SearchOptions { caseSensitive: boolean; wholeWord: boolean; include: string; exclude: string; context: number; }

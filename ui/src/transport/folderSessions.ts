@@ -61,8 +61,17 @@ export const addPin = (ws: WsClient, key: string, text: string, source: string |
   ws.request("pins.add", { key, text, source });
 export const removePin = (ws: WsClient, key: string, id: string): Promise<{ ok: boolean }> => ws.request("pins.remove", { key, id });
 /** Adjuntar un archivo a la conversación de una sesión (se guarda en su carpeta y se pega su ruta). */
-export const attachFile = (ws: WsClient, id: string, name: string, data: string): Promise<{ path: string; pasted: boolean }> =>
-  ws.request("sessions.attach", { id, name, data });
+export const attachFile = (ws: WsClient, id: string, name: string, data: string, paste = true): Promise<{ path: string; pasted: boolean }> =>
+  ws.request("sessions.attach", { id, name, data, paste });
+export interface Attachment { name: string; size: number; path: string; at: string }
+export const listAttachments = (ws: WsClient, id: string): Promise<{ dir: string; files: Attachment[] }> =>
+  ws.request("attachments.list", { id });
+export const renameAttachment = (ws: WsClient, id: string, name: string, to: string): Promise<{ name: string }> =>
+  ws.request("attachments.rename", { id, name, to });
+export const deleteAttachment = (ws: WsClient, id: string, name: string): Promise<{ ok: boolean }> =>
+  ws.request("attachments.delete", { id, name });
+export const attachmentUrl = (sid: string, name: string, download = false) =>
+  `/api/sessions/${encodeURIComponent(sid)}/attachments/${encodeURIComponent(name)}${download ? "?download=1" : ""}`;
 export type PrLinks = Record<string, { sid: string; out?: boolean }>;
 /** Saca una PR del desarrollo de una sesión (no vuelve aunque el worktree esté en su rama). */
 export const unlinkPr = (ws: WsClient, id: string, url: string): Promise<{ ok: boolean }> =>

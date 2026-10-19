@@ -87,6 +87,13 @@ La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide 
   Para que el embed hable con la api de tu sesión: en el `.env.local` del embed,
   `VITE_API_PROXY_TARGET=http://localhost:<API_PORT>` (el `API_PORT` está en el `.env` de la api).
 
+## Adjuntos del usuario
+
+Los archivos que el usuario te comparte (capturas, documentos, planillas) quedan en `attachments/` de
+tu carpeta, con fecha en el nombre (`AAAAMMDD-HHMMSS-<nombre>`); el usuario puede renombrarlos. Cuando
+mencione un archivo, una captura o "te adjunté", míralos ahí (`ls -t attachments/`) y léelos. Si
+generas un archivo para él (un CSV, un informe), déjalo también ahí: lo ve en el módulo Adjuntos.
+
 ## Feedback (para mejorar con el uso)
 
 Cuando el usuario te corrija (algo que hiciste mal, una preferencia suya, una decisión que no te

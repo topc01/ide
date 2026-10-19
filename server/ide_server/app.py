@@ -198,6 +198,28 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_send(sid: str, body: dict):
         return await _http("sessions.send", {**body, "id": sid})
 
+    @app.get("/api/sessions/{sid}/attachments/{name}")
+    async def api_attachment(sid: str, name: str, download: int = 0):
+        """Un adjunto de la sesión (vista previa o descarga). /api: mismos chequeos de origen."""
+        from fastapi.responses import FileResponse
+        from ide_server.sessions_fs import require_plain_name, session_path
+        try:
+            f = session_path(root, require_plain_name(sid, "sesión")) / "attachments" / require_plain_name(name, "archivo")
+        except Exception:
+            return JSONResponse({"code": "bad_request", "message": "nombre inválido"}, status_code=400)
+        if not f.is_file():
+            return JSONResponse({"code": "not_found", "message": "no existe"}, status_code=404)
+        # descarga: siempre como adjunto. Vista: nosniff, y todo lo que no es PDF/imagen va en sandbox
+        # (un .html o .svg adjunto no corre en el origen del IDE); el visor de PDF no funciona en sandbox
+        import mimetypes
+        mime = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
+        safe = mime == "application/pdf" or (mime.startswith("image/") and mime != "image/svg+xml")
+        headers = {"X-Content-Type-Options": "nosniff"}
+        if not safe:
+            headers["Content-Security-Policy"] = "sandbox; default-src 'none'; style-src 'unsafe-inline'"
+        return FileResponse(f, filename=f.name if download else None, media_type=mime if safe or download else "text/plain",
+                            content_disposition_type="attachment" if download else "inline", headers=headers)
+
     @app.post("/api/sessions/{sid}/propose")
     async def api_propose(sid: str, body: dict):
         return await _http("sessions.propose", {**body, "id": sid})
