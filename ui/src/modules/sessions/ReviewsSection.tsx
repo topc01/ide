@@ -10,6 +10,7 @@ import { getWs } from "../../transport/wsClient";
 import { QueueList, QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
 import { Badge } from "../../components/ui/badge";
 import { SessionItem } from "./SessionItem";
+import { ReviewVerdictActions } from "./ReviewVerdict";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
 import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
@@ -185,6 +186,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
             {devKey && <RenameAction devKey={devKey} />}
             <StateAction dev={dev} devKey={devKey} />
             {reviewable && <ReviewButton pr={pr} />}
+            {reviewable && <ReviewVerdictActions pr={pr} />}
             {extraActions}
             {merge && canMerge(pr) && !(merge.job && MERGE_ACTIVE.includes(merge.job.state))
               && merge.job?.state !== "done" && <MergeButton pr={pr} above={merge.above} />}
@@ -281,8 +283,10 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
     return { key: pr.url, pr, session: s, status, render: () => s
       // pendientes de revisar: solo revisar y abrir en GitHub (sin parar/archivar)
       ? <SessionItem session={s} pr={pr} onlyActions={reviewable} noArchive={status === "changes"}
-          actions={reviewable ? <><ReviewButton pr={pr} /><OpenPrButton pr={pr} /></> : null} />
-      : <PrCard pr={pr} reviewable={reviewable} showAuthor devKey={`p:${pr.url}`} /> };
+          actions={reviewable ? <><ReviewButton pr={pr} /><ReviewVerdictActions pr={pr} /><OpenPrButton pr={pr} /></>
+            : <ReviewVerdictActions pr={pr} />} />
+      : <PrCard pr={pr} reviewable={reviewable} showAuthor devKey={`p:${pr.url}`}
+          extraActions={reviewable ? undefined : <ReviewVerdictActions pr={pr} />} /> };
   };
   const entries: Entry[] = [
     ...(gh?.pending ?? []).map((pr) => prEntry(pr, "pending", true)),

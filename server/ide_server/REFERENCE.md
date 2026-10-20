@@ -393,7 +393,10 @@ tienen pendientes. La sección se colapsa desde su título; Pendientes / Pedí c
 grupos fijos. En las pendientes, el botón de revisión (hover) envía
 `.ide/prompts/review-pr.md` (pega + Enter) a la sesión del PR: si no existe la crea (como
 `--review <url>`, con ese prompt en vez de la plantilla `review`); si está parada la retoma con el
-prompt; si está en cola falla con `queued`. Errores de `gh` se ven como `⚠ github`.
+prompt; si está en cola falla con `queued`. En las pendientes y en "Pedí cambios", **Aprobar** (✓) y
+**Pedir cambios** (hover) abren una ventana con el comentario (precargado con la sección "Review para
+GitHub" de la sesión de revisión, editable; obligatorio para pedir cambios) y piden confirmar antes de
+publicar (`gh pr review`, canal `review.submit`). Errores de `gh` se ven como `⚠ github`.
 
 **Mis PRs** (sidebar principal, bajo Revisiones): tus PRs abiertas de la org (del mismo poll),
 agrupadas como el inbox de Graphite: **Devueltas** (`reviewDecision` = `CHANGES_REQUESTED` y sin reviews pedidas pendientes),
@@ -607,7 +610,10 @@ un desarrollo vuelven a su lugar. Los módulos Stack, Revisión y Dependencias m
 se haya elegido una fila), con una cabecera por repo si es fullstack.
 
 **Card:** el título usa todo el ancho; las marcas (⏸, CI) van en la esquina superior derecha y las
-acciones aparecen en hover flotando sobre esa esquina (tapan el título, no le quitan ancho).
+acciones aparecen en hover flotando sobre esa esquina (tapan el título, no le quitan ancho). Las
+cards no tienen "parar claude" (se para desde la terminal). En Mis desarrollos, si un revisor pidió
+cambios, **Pedir re-review** (↺, con confirmación) se lo vuelve a pedir a quienes pidieron cambios en
+cada PR del desarrollo (`gh pr edit --add-reviewer`, canal `pr.reviewers`).
 
 **Nombre del desarrollo:** el lápiz (acciones de hover de la card, o junto al título en el módulo
 Desarrollo) o doble click lo renombra **solo en el IDE** (no toca SESSION.md ni GitHub); vacío vuelve al original, que queda en el tooltip. Se guarda en

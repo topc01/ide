@@ -11,6 +11,7 @@ import { worstPr } from "./desarrollos";
 import { CiMark, PrCard, useGithubReviews } from "./ReviewsSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
 import { SessionItem } from "./SessionItem";
+import { RereviewAction } from "./ReviewVerdict";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { deriveMine, isHidden, type Desarrollo } from "./desarrollos";
 import { BLOCKS, devStateOf, STATE, STATE_ORDER, type Block, type DevStateInfo } from "./devStates";
@@ -73,7 +74,7 @@ function StackCard({ d, dev }: { d: Desarrollo; dev: DevStateInfo | null }) {
         <CardCorner><DepsPause pr={bottom} />{worstPr(d.prs).ci && <CiMark pr={worstPr(d.prs).ci!} />}</CardCorner>
         <div className={cn("flex items-start gap-1.5", titlePad(bottom))}>
           <DevTitle devKey={d.key} prs={d.prs} original={bottom.title} />
-          <CardActions><RenameAction devKey={d.key} /><StateAction dev={dev} devKey={d.key} /><HideToggle devKey={d.key} prs={d.prs} /></CardActions>
+          <CardActions><RenameAction devKey={d.key} /><StateAction dev={dev} devKey={d.key} /><RereviewAction prs={d.prs} /><HideToggle devKey={d.key} prs={d.prs} /></CardActions>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1" title={`stack de ${d.prs.length} (de abajo hacia arriba)`}>
           <DevIndex devKey={d.key} prs={d.prs} />
@@ -103,9 +104,9 @@ export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
     return {
     key: d.key, pr: d.prs[0], session: d.session, status: dev.state,
     hidden: d.status !== "merges" && !!isHidden(hiddenKeys, d.key, d.prs),
-    render: () => d.session ? <SessionItem session={d.session} prs={d.prs} merged={d.merged} dev={dev} actions={<HideToggle devKey={d.key} prs={d.prs} />} />
+    render: () => d.session ? <SessionItem session={d.session} prs={d.prs} merged={d.merged} dev={dev} actions={<><RereviewAction prs={d.prs} /><HideToggle devKey={d.key} prs={d.prs} /></>} />
       : d.prs.length > 1 ? <StackCard d={d} dev={dev} />
-      : <PrCard pr={d.prs[0]} devKey={d.key} dev={dev} showReviewers extraActions={<HideToggle devKey={d.key} prs={d.prs} />} merge={{
+      : <PrCard pr={d.prs[0]} devKey={d.key} dev={dev} showReviewers extraActions={<><RereviewAction prs={d.prs} /><HideToggle devKey={d.key} prs={d.prs} /></>} merge={{
           job: d.job ?? gh?.merges?.[d.prs[0].url],
           above: d.prs[0].stack ? d.prs[0].stack.size - d.prs[0].stack.position : 0 }} />,
   }; });

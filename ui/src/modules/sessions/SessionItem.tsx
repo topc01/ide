@@ -1,13 +1,12 @@
 // ui/src/modules/sessions/SessionItem.tsx
 import { useState, type ReactNode } from "react";
-import { Archive, ExternalLink, Square } from "lucide-react";
+import { Archive, ExternalLink } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
 import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
 import type { DevStateInfo } from "./devStates";
 import { PersonChip } from "../../lib/people";
-import { stopSession } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
@@ -67,15 +66,6 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
               <QueueItemAction aria-label={`Abrir ${session.id} en GitHub`} title="Abrir la PR en GitHub" asChild>
                 <a href={pr?.url ?? session.prUrl ?? ""} target="_blank" rel="noreferrer"
                   onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
-              </QueueItemAction>)}
-            {!onlyActions && session.process !== "stopped" && (
-              <QueueItemAction aria-label={`Parar ${session.id}`} title="Parar el claude de esta sesión"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setError(null);
-                  stopSession(getWs(), session.id).catch((err: any) => setError(err?.message ?? String(err)));
-                }}>
-                <Square size={11} />
               </QueueItemAction>)}
             {!onlyActions && !noArchive && (
               <QueueItemAction aria-label={`Archivar ${session.id}`} title="Archivar"
