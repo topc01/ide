@@ -305,6 +305,33 @@ class GithubReviews:
                                data={"title": n.get("title")})
         self._db.delete_prs(n["url"] for n in closed)
         self._db.put_refs({f"{n['repository']['nameWithOwner'].lower()}#{n['number']}": _ref(n) for n in closed})
+        self._keep_closed(closed)
+
+    def _keep_closed(self, nodes: list[dict]) -> None:
+        """Las cerradas/mergeadas de un desarrollo con sesión quedan guardadas (`prclosed:<url>`): la
+        card las sigue mostrando y, si están todas mergeadas, el desarrollo pasa a "mergeado"."""
+        links = self._db.dev_prs()
+        for n in nodes:
+            if n.get("state") in _CLOSED and n["url"] in links:
+                self._db.set(f"prclosed:{n['url']}", {**_card(n), "merged": n["state"] == "MERGED"})
+
+    async def _backfill_closed(self, open_urls: set[str]) -> None:
+        """PRs vinculadas que ya no están abiertas y no se guardaron (se cerraron antes de esto): una
+        consulta por URL (`resource`), una sola vez."""
+        known = self._db.with_prefix("prclosed:")
+        urls = [u for u, l in self._db.dev_prs().items()
+                if not l.get("out") and u not in open_urls and u not in known][:20]
+        if not urls:
+            return
+        q = "query(%s) { %s }" % (", ".join(f"$u{i}: URI!" for i in range(len(urls))),
+                                  " ".join(f"r{i}: resource(url: $u{i}) {{ {_FIELDS} }}" for i in range(len(urls))))
+        args = ["-f", f"query={q}"] + [x for i, u in enumerate(urls) for x in ("-f", f"u{i}={u}")]
+        data = json.loads(await _graphql(self._gh, args)).get("data") or {}
+        self._keep_closed([n for n in data.values() if n])
+
+    def _closed(self) -> list[dict]:
+        links = self._db.dev_prs()
+        return [c for u, c in self._db.with_prefix("prclosed:").items() if u in links and not links[u].get("out")]
 
     async def _sync(self, scope: str) -> str:
         """Trae a la base lo que cambió. Devuelve el login del viewer."""
@@ -430,6 +457,11 @@ class GithubReviews:
                 res = parse_result(data, {m["login"] for m in members})
                 await self._annotate_deps(res, data)
                 self._record_events(res)
+                try:
+                    await self._backfill_closed({n["url"] for n in data["data"]["open"]["nodes"] if n})
+                except Exception:  # noqa: BLE001 — lo de las mergeadas no tumba el resto
+                    log.exception("PRs cerradas de los desarrollos")
+                res["closed"] = self._closed()
                 self.state = {**res, "members": members, "selected": self._db.get("reviewers"),
                               "error": None, "lastOk": _iso(self._clock()), "orgs": orgs}
             except RuntimeError as exc:

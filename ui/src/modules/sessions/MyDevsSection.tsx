@@ -6,7 +6,7 @@ import { useFolders } from "../../state/folders";
 import { useDevTabs } from "../../state/devTabs";
 import type { FolderSession, GhPr, MergeJob } from "../../transport/folderSessions";
 import { QueueItem, QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
-import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { worstPr } from "./desarrollos";
 import { CiMark, PrCard, useGithubReviews } from "./ReviewsSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
@@ -73,7 +73,7 @@ function StackCard({ d, dev }: { d: Desarrollo; dev: DevStateInfo | null }) {
         <CardCorner><DepsPause pr={bottom} />{worstPr(d.prs).ci && <CiMark pr={worstPr(d.prs).ci!} />}</CardCorner>
         <div className={cn("flex items-start gap-1.5", titlePad(bottom))}>
           <DevTitle devKey={d.key} prs={d.prs} original={bottom.title} />
-          <CardActions><RenameAction devKey={d.key} /><HideToggle devKey={d.key} prs={d.prs} /></CardActions>
+          <CardActions><RenameAction devKey={d.key} /><StateAction dev={dev} devKey={d.key} /><HideToggle devKey={d.key} prs={d.prs} /></CardActions>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1" title={`stack de ${d.prs.length} (de abajo hacia arriba)`}>
           <DevIndex devKey={d.key} prs={d.prs} />
@@ -99,11 +99,11 @@ export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
   const hiddenKeys = useFolders((s) => s.tree.devHidden);
   const ghError = error ?? gh?.error;
   const all: (Entry & { hidden: boolean })[] = devs.map((d) => {
-    const dev = devStateOf(states, d.key, d.prs, d.job ?? (d.prs[0] ? gh?.merges?.[d.prs[0].url] : undefined));
+    const dev = devStateOf(states, d.key, d.prs, d.job ?? (d.prs[0] ? gh?.merges?.[d.prs[0].url] : undefined), d.merged);
     return {
     key: d.key, pr: d.prs[0], session: d.session, status: dev.state,
     hidden: d.status !== "merges" && !!isHidden(hiddenKeys, d.key, d.prs),
-    render: () => d.session ? <SessionItem session={d.session} prs={d.prs} dev={dev} actions={<HideToggle devKey={d.key} prs={d.prs} />} />
+    render: () => d.session ? <SessionItem session={d.session} prs={d.prs} merged={d.merged} dev={dev} actions={<HideToggle devKey={d.key} prs={d.prs} />} />
       : d.prs.length > 1 ? <StackCard d={d} dev={dev} />
       : <PrCard pr={d.prs[0]} devKey={d.key} dev={dev} showReviewers extraActions={<HideToggle devKey={d.key} prs={d.prs} />} merge={{
           job: d.job ?? gh?.merges?.[d.prs[0].url],

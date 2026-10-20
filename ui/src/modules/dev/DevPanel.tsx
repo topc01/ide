@@ -6,7 +6,7 @@ import { useFolders } from "../../state/folders";
 import { getWs } from "../../transport/wsClient";
 import { freshSession, prsReady, setDevState, type GhPr } from "../../transport/folderSessions";
 import { Button } from "../../components/ui/button";
-import { ago, BLOCKS, devStateOf, MANUAL_PHASES, STATE, type State } from "../sessions/devStates";
+import { ago, BLOCKS, devStateOf, PHASES, STATE, type State } from "../sessions/devStates";
 import { cn } from "../../lib/utils";
 import { PrRow } from "../sessions/MyDevsSection";
 import { RepoLine } from "../sessions/RepoLine";
@@ -27,12 +27,12 @@ function StateButton({ st, on, faded, onClick, disabled, title }:
     {label}</button>;
 }
 
-/** Estado del desarrollo: la fase (a mano hasta "listo para revisión"; después la da GitHub) y un
- *  bloqueo opcional encima, con nota. Con "listo para revisión", sacar sus PRs de draft. */
-function StateEditor({ devKey, prs }: { devKey: string; prs: GhPr[] }) {
+/** Estado del desarrollo: la fase (cualquiera; la puesta a mano gana hasta que GitHub cambie) y una
+ *  pausa opcional encima, con nota. Con "listo para revisión", sacar sus PRs de draft. */
+function StateEditor({ devKey, prs, merged }: { devKey: string; prs: GhPr[]; merged?: GhPr[] }) {
   const states = useFolders((s) => s.tree.devStates);
   const { gh } = useGithubReviews();
-  const cur = devStateOf(states, devKey, prs);
+  const cur = devStateOf(states, devKey, prs, prs[0] ? gh?.merges?.[prs[0].url] : undefined, merged);
   const [note, setNote] = useState(cur.note ?? "");
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -41,29 +41,29 @@ function StateEditor({ devKey, prs }: { devKey: string; prs: GhPr[] }) {
     setBusy(what); setMsg(null);
     p.then(() => ok && setMsg(ok)).catch((e: any) => setMsg(`⚠ ${e?.message ?? String(e)}`)).finally(() => setBusy(null));
   };
-  const set = (st: string | null, n: string | null = null) => act("state", setDevState(getWs(), devKey, st, n));
+  const set = (st: string | null, n: string | null = null, g?: string | null) => act("state", setDevState(getWs(), devKey, st, n, g));
   const drafts = prs.filter((p) => p.draft && gh?.me && p.author === `@${gh.me}`);
   return (
     <div className="mx-2.5">
       <div className="mb-0.5 text-[10px] text-muted-foreground">Fase</div>
       <div className="flex flex-wrap gap-1">
-        {MANUAL_PHASES.map((st) => <StateButton key={st} st={st} disabled={busy !== null}
-          on={(cur.manual ?? (cur.inferred ? cur.phase : null)) === st} faded={cur.inferred || cur.github}
-          title={cur.manual === st ? `Fase puesta: ${STATE[st][0]}` : `Pasar a "${STATE[st][0]}" (quita el bloqueo)`}
-          onClick={() => set(st)} />)}
+        {PHASES.map((st) => <StateButton key={st} st={st} disabled={busy !== null}
+          on={cur.phase === st} faded={cur.inferred || cur.github}
+          title={`${STATE[st][3]}${cur.phase === st ? "" : ` — pasar a "${STATE[st][0]}" (quita la pausa)`}`}
+          onClick={() => set(st, null, cur.gh)} />)}
       </div>
       {cur.github && <p className="mt-1 text-[11px]">Según GitHub: <span className={STATE[cur.phase][2]}>{STATE[cur.phase][0]}</span></p>}
       {cur.inferred && <p className="mt-1 text-[10px] text-muted-foreground">Sin fase puesta: se deduce de sus PRs.</p>}
       {cur.outOfDraft && <p className="mt-1 text-[11px] text-amber-300">Está "{STATE[cur.manual!][0]}" pero una PR ya no está en draft.</p>}
 
-      <div className="mb-0.5 mt-2.5 text-[10px] text-muted-foreground">Bloqueo</div>
+      <div className="mb-0.5 mt-2.5 text-[10px] text-muted-foreground">Pausa (tapa la fase)</div>
       <div className="flex flex-wrap gap-1">
         {BLOCKS.map((st) => <StateButton key={st} st={st} disabled={busy !== null} on={cur.block === st}
-          title={cur.block === st ? `Bloqueado: ${STATE[st][0]}` : `Bloquear: ${STATE[st][0]} (con la nota de abajo)`}
+          title={`${STATE[st][3]}${cur.block === st ? "" : " (con la nota de abajo)"}`}
           onClick={() => set(st, note.trim() || null)} />)}
         {cur.block && <button disabled={busy !== null} onClick={() => set("unblock")}
-          title={`Quitar el bloqueo (vuelve a "${STATE[cur.phase][0]}")`}
-          className="rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-accent">destrabar</button>}
+          title={`Quitar la pausa (vuelve a "${STATE[cur.phase][0]}")`}
+          className="rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-accent">quitar</button>}
       </div>
       <div className="mt-1.5 flex gap-1">
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300}
@@ -111,7 +111,7 @@ export function DevPanel() {
 
       {s?.kind !== "review" && s?.kind !== "main" && (<>
         <Label>Estado del desarrollo</Label>
-        <StateEditor devKey={dev.key} prs={dev.prs} />
+        <StateEditor devKey={dev.key} prs={dev.prs} merged={dev.merged} />
       </>)}
 
       <Label>PRs</Label>

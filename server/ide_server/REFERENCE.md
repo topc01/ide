@@ -369,7 +369,7 @@ notion_url: https://www.notion.so/...
 ---
 ## Scope … ## Repos … ## Plan … ## Bloqueantes … ## Dudas …
 ```
-- Ticket: `analyzing` · `blocked` · `questions` · `ready` · `in-progress` · `done`.
+- Ticket: las fases y pausas del estado del desarrollo (`investigating` · `developing` · … · `waiting-input` · `blocked` · `paused`; ver "Estado del desarrollo"; los nombres viejos se migran).
 - Review: `reviewing` · `commented` · `approved` · `changes-requested`.
 - Derivados por el server (no se escriben): proceso `running` / `queued` / `stopped`;
   revisiones `stale` (el PR tiene commits nuevos; "Refrescar" en la UI) / `merged` / `closed`;
@@ -625,57 +625,33 @@ las cards, el selector (y se busca por `#12`), el módulo Desarrollo e `ide dev 
 `devIndex`.
 
 **Estado del desarrollo** (uno solo, unificado con el de la PR; solo local): una **fase** y, encima,
-un **bloqueo** opcional. Fases a mano: `investigating`, `ready-to-develop`, `developing`,
-`ready-for-review`; con PRs fuera de draft la fase la da GitHub (la peor de sus PRs): sin revisores,
-en revisión, cambios pedidos, aprobada, mergeando, mergeada. Sin nada puesto se deduce (draft =
-desarrollando). Bloqueos (tapan la fase sin borrarla, con nota y desde cuándo): `waiting-input`,
-`questions`, `blocked-definitions`, `blocked-client`, `blocked-dev`, `paused`; `unblock` vuelve a la
-fase. Mientras el desarrollo está activo sus PRs van en draft (si la fase puesta es activa y una PR
-salió de draft, la card dice "PR fuera de draft"). Se cambia con click en el estado de la card (menú: fase, bloqueo con nota, destrabar), en el módulo Desarrollo (fase, bloqueo
-con nota, destrabar; en PRs sin sesión, "borrar estado") o con `ide status <fase|bloqueo|unblock>
--m nota` desde la sesión. Con `ready-for-review`, **Mandar a revisión** saca de draft sus PRs (`gh pr
-ready`; solo las tuyas). Al bloquearse en `waiting-input` desde una sesión llega una notificación de
-macOS y la barra de abajo cuenta "N te esperan". Mis desarrollos agrupa **por estado** (bloqueos
-primero y siempre visibles; después el flujo; grupos vacíos ocultos) y el fondo de cada card es el
-color de su estado. Los estados de antes se migran solos (analyzing → investigating, blocked →
-blocked-definitions, ready → ready-to-develop, in-progress → developing, done → ready-for-review) y
-se aceptan en `ide status`. Las sesiones de revisión siguen con los suyos. Base: `kv`
-`devstate:<clave>` = `{phase, block, note, since}`; canales `dev.state {key, status, note}` (fase,
-bloqueo, `unblock` o null) y `prs.ready {urls}`; `sessions.tree` trae `devStates`.
-
-**Ocultar un desarrollo:** el ojo tachado (hover de la card en Mis desarrollos) lo pasa al grupo
-**Ocultos**, al final de la sección y cerrado de entrada (no cuenta en el total); ahí el ojo lo vuelve
-a mostrar. Solo el IDE (base, `kv` `devhidden:<clave>`; misma herencia de clave que el nombre). Los
-merges recientes no se ocultan. Canal `dev.hide {key, hidden}`; `sessions.tree` trae `devHidden`.
-
-**Secciones Revisiones y Mis desarrollos** (misma estructura): título colapsable con el total, grupos
-colapsables y la misma card. El ⚙ de cada sección (y el de la sidebar principal, para Mis desarrollos)
-abre el **módulo Configuración** (id `config`; cada sección es una card colapsable, recordada) en esa sección: **agrupar por** estado, repo, stack
-(con el título de la PR de abajo), autor (solo Revisiones) o sin agrupar; en Revisiones también
-los revisores visibles en los chips. El agrupado se recuerda por navegador. La card seleccionada
-lleva contorno de acento, una barrita a la izquierda y ocupa todo el ancho; las demás son un poco
-más angostas y se ensanchan al pasar el mouse. Si la seleccionada queda fuera de la zona visible de
-la sidebar, aparece una píldora horizontal de acento, centrada, fija arriba o abajo (según dónde quedó): crece
-al acercar el puntero y muy cerca se transforma (animado) en una mini-card con repo, número y título; click =
-scroll hasta centrarla.
-
-**Sección Configuración** (al final de la sidebar principal, mismo encabezado colapsable que
-Mis desarrollos y Revisiones): las customizaciones de Claude Code (overview, roles, agents,
-skills, instructions, hooks, MCP servers, plugins, tools); click abre su detalle.
-
-**Secciones:** qué secciones están abiertas o cerradas (Revisiones, Mis PRs y sus grupos, grupos
-de sesiones, secciones del módulo Revisión) se recuerda entre recargas, por navegador
-(`localStorage`).
-
-**Abrir sesión:** seleccionar una sesión parada en la sidebar la lanza (retoma su conversación); si falla queda "Reintentar".
-
-**Barra inferior:** contexto de la sesión abierta (último turno de su transcript en
-`~/.claude/projects/`; ventana 1M si `model` de `~/.claude/settings.json` tiene `[1m]` o se pasó de
-200k) y las ventanas de 5 h y semanal con el tiempo hasta el reinicio. Los límites salen del
-endpoint OAuth de `/usage` (`api.anthropic.com/api/oauth/usage`, no documentado) con el token de
-Claude Code (`claudeAiOauth` en el llavero `Claude Code-credentials` o
-`~/.claude/.credentials.json`); el server lo consulta cada 60 s (ante 429 duplica la espera, tope
-5 min) y la UI lee cada 5 s. Sin tokens. Errores se ven como `⚠ límites: …`.
+una **pausa** opcional. Fases: `investigating` (investigando), `developing` (desarrollando),
+`ready-for-review` (listo para revisión), `testing` (en testeo: PRs fuera de draft sin revisores),
+`in-review`, `changes-requested`, `approved`, `merged` (y "mergeando" mientras el IDE mergea). Con
+PRs fuera de draft la fase la da GitHub (la peor de sus PRs; mergeado si todas lo están). Cualquier
+fase se puede poner a mano desde la UI: guarda la fase de GitHub de ese momento (`gh`) y gana hasta
+que GitHub cambie (una review, un merge); "↺ usar la de GitHub" la suelta. Las que pone una sesión
+con `ide status` no se fijan (manda GitHub). Sin nada puesto se deduce (draft = desarrollando).
+Pausas (tapan la fase sin borrarla, con nota y desde cuándo): `waiting-input`, `blocked` (la nota
+dice por qué o de quién), `paused`; `unblock` vuelve a la fase. Las sesiones también pueden
+cambiarlo encima de lo puesto a mano. Mientras el desarrollo está activo sus PRs van en draft (si la
+fase puesta es activa y una PR salió de draft, la card dice "PR fuera de draft"). Se cambia con la
+acción de hover 🚩 de la card (menú flotante con cada estado y qué significa, nota, quitar la pausa),
+en el módulo Desarrollo (en PRs sin sesión, también "borrar estado") o con `ide status
+<fase|pausa|unblock> -m nota` desde la sesión. Con `ready-for-review`, **Mandar a revisión** saca de
+draft sus PRs (`gh pr ready`; solo las tuyas). Al pasar a `waiting-input` desde una sesión llega una
+notificación de macOS y la barra de abajo cuenta "N te esperan". Mis desarrollos agrupa **por
+estado** (pausas primero; después el flujo) y el fondo de cada card es el color de su estado; si
+agrupa por estado la card no lo repite (solo la nota), si no, lo muestra como píldora. Las PRs
+**mergeadas** de un desarrollo con sesión siguen en su card (chips moradas ✓, click = GitHub): el IDE
+las guarda al cerrarse (`kv` `prclosed:<url>`; las vinculadas que ya estaban cerradas se consultan una
+vez) y `reviews.github` las trae en `closed`. Los estados de antes se migran solos (analyzing /
+ready / ready-to-develop → investigating, in-progress → developing, done → ready-for-review,
+questions → waiting-input, blocked-definitions / blocked-client / blocked-dev → blocked con el motivo
+en la nota, needs-reviewers → testing) y se aceptan en `ide status`. Las sesiones de revisión siguen
+con los suyos. Base: `kv` `devstate:<clave>` = `{phase, block, note, since, gh?}`; canales
+`dev.state {key, status, note, gh?}` (fase, pausa, `unblock` o null; `gh` = fase de GitHub al
+ponerla a mano) y `prs.ready {urls}`; `sessions.tree` trae `devStates`.
 
 ## 9d. Estado de los desarrollos en la base (y la sesión principal)
 
@@ -683,8 +659,8 @@ La **base** (`.ide/ide.db`, tabla `devs`) es la fuente de verdad del estado de c
 sesión: tipo, título, ticket de Notion, PR (revisiones) y `status`. Las sesiones lo cambian con
 **`ide status <estado>`** (opcional `-m "nota"`; el estado se refleja en `SESSION.md`
 para quien lo lea). Si una sesión edita a mano el `status:` del archivo, se adopta y queda en el
-historial como "archivo". Estados válidos — ticket: analyzing | blocked | questions | ready |
-in-progress | done; revisión: reviewing | commented | approved | changes-requested.
+historial como "archivo". Estados válidos — ticket: las fases y pausas de arriba (y `unblock`);
+revisión: reviewing | approved | changes-requested | suggests-approve | suggests-changes.
 
 **Historial** (tabla `events`): quién hizo qué y cuándo — el IDE (sesión creada, archivada,
 revisión lanzada, merge: rebasando / esperando CI / mergeada / error), las sesiones (`ide status`

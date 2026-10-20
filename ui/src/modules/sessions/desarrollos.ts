@@ -13,6 +13,7 @@ export interface Desarrollo {
   prs: GhPr[];                      // de abajo hacia arriba (la primera es la próxima a mergear)
   status: MineStatus | "nopr" | "merges";
   job?: MergeJob;                   // merge de una PR que ya no está abierta (grupo Merges)
+  merged?: GhPr[];                  // sus PRs ya mergeadas (siguen en la card; no cuentan para acciones)
 }
 
 const byPosition = (a: GhPr, b: GhPr) => (a.stack?.position ?? 0) - (b.stack?.position ?? 0);
@@ -82,7 +83,9 @@ export function deriveMine(tickets: FolderSession[], gh: GithubReviews | null, l
   for (const [k, list] of Object.entries(gh?.mine ?? {}) as [MineStatus, GhPr[]][]) {
     for (const pr of list ?? []) { bucket.set(pr.url, k); mine.push(pr); }
   }
-  const taken = new Set<string>();
+  // las ya mergeadas de cada sesión (las cerradas sin mergear no: se abandonaron)
+  const closed = (gh?.closed ?? []).filter((p) => p.merged && links[p.url] && !links[p.url].out);
+  const taken = new Set<string>(closed.map((p) => p.url));
   const stackOf = (pr: GhPr) => pr.stack ? mine.filter((p) => p.stack?.id === pr.stack!.id) : [pr];
   const out: Desarrollo[] = [];
   const status = (prs: GhPr[]): Desarrollo["status"] => prs.length ? worstStatus(prs, bucket) : "nopr";
@@ -98,7 +101,8 @@ export function deriveMine(tickets: FolderSession[], gh: GithubReviews | null, l
     const prs = byRepoStack([...new Set(own.flatMap(stackOf))].filter((p) => !taken.has(p.url)))
       .flatMap((g) => g.stacks.flat());
     prs.forEach((p) => taken.add(p.url));
-    out.push({ key: `s:${s.id}`, session: s, prs, status: status(prs) });
+    const merged = closed.filter((p) => links[p.url]?.sid === s.id);
+    out.push({ key: `s:${s.id}`, session: s, prs, status: prs.length || !merged.length ? status(prs) : "merges", merged });
   }
   // (2) stacks sin sesión y (3) PRs sueltas
   for (const pr of mine) {
@@ -110,7 +114,7 @@ export function deriveMine(tickets: FolderSession[], gh: GithubReviews | null, l
   // merges cuya PR ya no está abierta (GitHub la mergeó): siguen visibles (moradas 24 h)
   const recent = (j: MergeJob) => j.state !== "done" || (!!j.merged_at && Date.now() - Date.parse(j.merged_at) < 864e5);
   for (const [url, job] of Object.entries(gh?.merges ?? {})) {
-    if (bucket.has(url) || !recent(job)) continue;
+    if (bucket.has(url) || taken.has(url) || !recent(job)) continue;
     const pr: GhPr = { url, title: job.title ?? url, number: job.number ?? 0, repo: job.repo ?? "", author: "",
       draft: false, updatedAt: null, sessionId: "", head: null, base: null, review: null, stack: null };
     out.push({ key: `m:${url}`, prs: [pr], status: "merges", job });

@@ -1,13 +1,15 @@
 // ui/src/modules/sessions/DevCard.tsx
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Eye, EyeOff, Pause, Pencil } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Eye, EyeOff, Flag, Pause, Pencil } from "lucide-react";
 import { hideDev, renameDev, setDevState, type GhPr, type MergeJob } from "../../transport/folderSessions";
 import { QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
 import { devIndexOf, devName, isHidden } from "./desarrollos";
-import { ago, BLOCKS, MANUAL_PHASES, STATE, type DevStateInfo, type State } from "./devStates";
+import { ago, BLOCKS, PHASES, STATE, type DevStateInfo, type State } from "./devStates";
+import { useSidebarConfig } from "../../state/sidebarConfig";
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
 export interface Tone {
@@ -139,6 +141,13 @@ export function RefChip({ repo, number, title, pr }: { repo: string; number?: nu
   const active = useFolders((s) => !!pr && s.activePrUrl === pr.url);
   const setActivePr = useFolders((s) => s.setActivePr);
   const dot = pr?.review ? { approved: "bg-emerald-500", changes: "bg-amber-400", review: "bg-sky-500" }[pr.review] : null;
+  // mergeada: morada con ✓; click la abre en GitHub (ya no está entre las abiertas)
+  if (pr?.merged) {
+    return <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+      title={`${pr.repo}#${pr.number}: ${pr.title} (mergeada; click: abrir en GitHub)`}
+      className="inline-flex shrink-0 items-center gap-0.5 rounded border border-purple-400/50 px-1 font-mono text-[10px] font-bold tracking-wide text-purple-300 hover:border-purple-300">
+      ✓ {repoShort(repo)}{number ? ` #${number}` : ""}</a>;
+  }
   return <span title={title ?? (pr ? `${pr.repo}#${pr.number}: ${pr.title}` : number ? `${repo}#${number}` : repo)}
     onClick={pr ? (e) => { e.stopPropagation(); setActivePr(pr.url); } : undefined}
     className={cn("inline-flex shrink-0 items-center gap-1 rounded border px-1 font-mono text-[10px] font-bold tracking-wide text-foreground/90",
@@ -202,67 +211,96 @@ export function DevIndex({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
     className="shrink-0 rounded bg-primary/15 px-1 font-mono text-[10px] font-bold text-primary">#{n}</span>;
 }
 
-/** Estado del desarrollo en la card: el estado en una palabra con su color (y la fase si está
- *  bloqueado), cuánto lleva así, y la nota de la sesión en su propia línea. Click (con `devKey`) =
- *  cambiarlo ahí mismo (por si la sesión quedó desactualizada). */
-export function DevStateLabel({ dev, devKey }: { dev: DevStateInfo | null; devKey?: string }) {
-  const [open, setOpen] = useState(false);
+/** Estado del desarrollo en la card: una píldora con su color, cuánto lleva así y la nota de la
+ *  sesión en su propia línea. Si Mis desarrollos ya agrupa por estado, el grupo lo dice: solo la nota.
+ *  Se cambia con la acción de hover (StateAction). */
+export function DevStateLabel({ dev }: { dev: DevStateInfo | null; devKey?: string }) {
+  const grouped = useSidebarConfig((s) => (s.groupBy.mine ?? "status") === "status");
   if (!dev) return null;
   const [label, , text] = STATE[dev.state];
   const tip = `Estado del desarrollo: ${label}${dev.block ? ` (fase: ${STATE[dev.phase][0]})` : ""}`
     + `${dev.github ? " · la fase sale de GitHub" : ""}${dev.inferred ? " · deducido de sus PRs" : ""}`
-    + `${dev.since ? ` · desde hace ${ago(dev.since)}` : ""}${dev.note ? `\nNota: ${dev.note}` : ""}`
-    + (devKey ? "\nClick: cambiar el estado" : "");
+    + `${dev.since ? ` · desde hace ${ago(dev.since)}` : ""}${dev.note ? `\nNota: ${dev.note}` : ""}`;
   return (
-    <span className="relative block basis-full">
-      <span title={tip} role={devKey ? "button" : undefined}
-        onClick={devKey ? (e) => { e.stopPropagation(); setOpen((o) => !o); } : undefined}
-        className={cn("flex min-w-0 items-baseline gap-1.5", devKey && "cursor-pointer hover:underline decoration-dotted")}>
-        <span className={cn("font-semibold first-letter:uppercase", dev.inferred ? "text-muted-foreground" : text)}>{label}</span>
-        {dev.block && <span className="text-muted-foreground">· {STATE[dev.phase][0]}</span>}
-        {dev.since && !dev.inferred && <span className="text-muted-foreground">· hace {ago(dev.since)}</span>}
-        {dev.outOfDraft && <span className="text-amber-300"
-          title={`Está "${STATE[dev.manual!][0]}" pero una PR ya no está en draft (mientras se trabaja, las PRs van en draft)`}>· PR fuera de draft</span>}
-      </span>
+    <span className="block basis-full" title={tip}>
+      {!grouped && (
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className={cn("rounded-sm border border-current px-1.5 text-[10px] font-semibold uppercase tracking-wide",
+            dev.inferred ? "text-muted-foreground" : text)}>{label}</span>
+          {dev.block && <span className="text-muted-foreground">{STATE[dev.phase][0]}</span>}
+          {dev.since && !dev.inferred && <span className="text-muted-foreground">hace {ago(dev.since)}</span>}
+        </span>)}
+      {dev.outOfDraft && <span className="block text-amber-300"
+        title={`Está "${STATE[dev.manual!][0]}" pero una PR ya no está en draft (mientras se trabaja, las PRs van en draft)`}>PR fuera de draft</span>}
       {dev.note && <span className="line-clamp-2 italic text-muted-foreground">{dev.note}</span>}
-      {open && devKey && <StateMenu dev={dev} devKey={devKey} onClose={() => setOpen(false)} />}
     </span>);
 }
 
-/** Menú para cambiar el estado desde la card: fase, bloqueo (con nota) o destrabar. */
-function StateMenu({ dev, devKey, onClose }: { dev: DevStateInfo; devKey: string; onClose: () => void }) {
+/** Acción de hover "Cambiar estado": abre el menú flotante con todos los estados. */
+export function StateAction({ dev, devKey }: { dev: DevStateInfo | null | undefined; devKey?: string }) {
+  const [at, setAt] = useState<DOMRect | null>(null);
+  if (!dev || !devKey) return null;
+  return (
+    <>
+      <QueueItemAction aria-label="Cambiar el estado" title={`Cambiar el estado (ahora: ${STATE[dev.state][0]})`}
+        onClick={(e) => { e.stopPropagation(); setAt(at ? null : (e.currentTarget as HTMLElement).getBoundingClientRect()); }}>
+        <Flag size={11} />
+      </QueueItemAction>
+      {at && createPortal(<StateMenu dev={dev} devKey={devKey} at={at} onClose={() => setAt(null)} />, document.body)}
+    </>);
+}
+
+/** Menú para cambiar el estado: las fases (cualquiera; la puesta gana hasta que GitHub cambie) y las
+ *  pausas (con nota). Flota sobre todo (portal), con fondo sólido. */
+function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: string; at: DOMRect; onClose: () => void }) {
   const [note, setNote] = useState(dev.note ?? "");
   const [err, setErr] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: at.bottom + 4, left: Math.max(8, at.right - 288) });
   useEffect(() => {
     const out = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("mousedown", out); document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", out); document.removeEventListener("keydown", esc); };
   }, [onClose]);
-  const set = (st: string | null, n: string | null = null) =>
-    setDevState(getWs(), devKey, st, n).then(onClose).catch((e: any) => setErr(e?.message ?? String(e)));
-  const chip = (st: State, on: boolean, onClick: () => void) => {
-    const [l, bg, t] = STATE[st];
-    return <button key={st} onClick={onClick} title={on ? `Está así: ${l}` : `Pasar a "${l}"`}
-      className={cn("rounded border px-1.5 py-0.5 text-[11px]", bg, t, on ? "border-current font-semibold" : "border-transparent opacity-70 hover:opacity-100")}>{l}</button>;
+  useEffect(() => {                             // que no se salga de la pantalla por abajo
+    const h = ref.current?.offsetHeight ?? 0;
+    if (pos.top + h > window.innerHeight - 8) setPos((p) => ({ ...p, top: Math.max(8, at.top - h - 4) }));
+  }, [at, pos.top]);
+  const set = (st: string | null, n: string | null = null, gh?: string | null) =>
+    setDevState(getWs(), devKey, st, n, gh).then(onClose).catch((e: any) => setErr(e?.message ?? String(e)));
+  const row = (st: State, on: boolean, onClick: () => void, extra?: string) => {
+    const [l, bg, t, what] = STATE[st];
+    return (
+      <button key={st} onClick={onClick} title={on ? `Está así: ${l}` : `Pasar a "${l}"`}
+        className={cn("flex w-full items-start gap-2 rounded px-1.5 py-1 text-left hover:bg-accent", on && "bg-accent/70")}>
+        <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full border border-current", bg, t)} />
+        <span className="min-w-0 flex-1">
+          <span className={cn("block font-semibold", t)}>{l}{extra && <span className="ml-1 font-normal text-muted-foreground">{extra}</span>}</span>
+          <span className="block text-[10px] leading-tight text-muted-foreground">{what}</span>
+        </span>
+        {on && <span className="text-primary">✓</span>}
+      </button>);
   };
   return (
-    <div ref={ref} onClick={(e) => e.stopPropagation()}
-      className="absolute inset-x-0 top-full z-40 mt-1 rounded-md border border-border bg-popover p-2 text-xs shadow-lg">
-      <div className="mb-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">Fase</div>
-      <div className="flex flex-wrap gap-1">{MANUAL_PHASES.map((st) => chip(st, dev.manual === st, () => set(st)))}</div>
-      {dev.github && <p className="mt-1 text-[10px] text-muted-foreground">Ahora la fase la da GitHub: {STATE[dev.phase][0]}.</p>}
-      <div className="mb-0.5 mt-2 text-[10px] uppercase tracking-wide text-muted-foreground">Bloqueo</div>
-      <div className="flex flex-wrap gap-1">
-        {BLOCKS.map((st) => chip(st, dev.block === st, () => set(st, note.trim() || null)))}
-        {dev.block && <button onClick={() => set("unblock")} title={`Quitar el bloqueo (vuelve a "${STATE[dev.phase][0]}")`}
-          className="rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-accent">destrabar</button>}
-      </div>
+    <div ref={ref} onClick={(e) => e.stopPropagation()} style={{ top: pos.top, left: pos.left }}
+      className="fixed z-50 max-h-[80vh] w-72 overflow-y-auto rounded-md border border-border bg-popover p-1.5 text-xs text-popover-foreground shadow-xl">
+      <div className="px-1.5 pb-0.5 pt-1 text-[10px] uppercase tracking-wide text-muted-foreground">Fase</div>
+      {PHASES.map((st) => row(st, dev.phase === st, () => set(st, null, dev.gh),
+        dev.gh === st ? "(GitHub)" : undefined))}
+      {dev.manual && dev.gh && !dev.github && dev.manual !== dev.gh && (
+        <button onClick={() => set(dev.manual, null)} title="Dejar que la fase la dé GitHub otra vez"
+          className="w-full rounded px-1.5 py-1 text-left text-muted-foreground hover:bg-accent hover:text-foreground">
+          ↺ usar la de GitHub ({STATE[dev.gh][0]})</button>)}
+      <div className="px-1.5 pb-0.5 pt-2 text-[10px] uppercase tracking-wide text-muted-foreground">Pausa (tapa la fase)</div>
       <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} aria-label="Nota"
-        placeholder="nota del bloqueo: qué falta y de quién"
+        placeholder="nota: qué falta y de quién"
         onKeyDown={(e) => { if (e.key === "Enter" && dev.block) set(dev.block, note.trim() || null); }}
-        className="mt-1.5 w-full rounded border border-border bg-background px-1.5 py-0.5 text-[11px] outline-none focus:border-primary" />
-      {err && <p role="alert" className="mt-1 text-[11px] text-destructive">{err}</p>}
+        className="mx-1.5 mb-1 w-[calc(100%-12px)] rounded border border-border bg-background px-1.5 py-0.5 text-[11px] outline-none focus:border-primary" />
+      {BLOCKS.map((st) => row(st, dev.block === st, () => set(st, note.trim() || null)))}
+      {dev.block && (
+        <button onClick={() => set("unblock")} title={`Quitar la pausa (vuelve a "${STATE[dev.phase][0]}")`}
+          className="w-full rounded px-1.5 py-1 text-left hover:bg-accent">✕ quitar {STATE[dev.block][0]} (vuelve a {STATE[dev.phase][0]})</button>)}
+      {err && <p role="alert" className="px-1.5 py-1 text-[11px] text-destructive">{err}</p>}
     </div>);
 }

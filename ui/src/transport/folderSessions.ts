@@ -26,8 +26,9 @@ export interface SessionsTree {
   feedbackPending?: string[];            // planes de feedback de la manager sin revisar
 }
 /** Estado del desarrollo (local); `status` null = sin estado. */
-export const setDevState = (ws: WsClient, key: string, status: string | null, note: string | null): Promise<{ ok: boolean }> =>
-  ws.request("dev.state", { key, status, note });
+/** `gh`: la fase de GitHub al ponerla a mano (la puesta gana hasta que GitHub cambie); sin `gh` manda GitHub. */
+export const setDevState = (ws: WsClient, key: string, status: string | null, note: string | null, gh?: string | null): Promise<{ ok: boolean }> =>
+  ws.request("dev.state", { key, status, note, ...(gh !== undefined ? { gh } : {}) });
 /** "Mandar a revisión": saca de draft las PRs (`gh pr ready`). */
 export const prsReady = (ws: WsClient, urls: string[]): Promise<{ ready: string[]; errors: string[] }> =>
   ws.request("prs.ready", { urls });
@@ -135,6 +136,7 @@ export interface GhPr {
   reviewers?: { login: string; state: "requested" | "approved" | "changes" }[];
   ci?: "success" | "failure" | "pending" | null; conflict?: boolean;
   deps?: PrDep[]; depsPending?: number;     // dependencias declaradas en "## Dependencias"
+  merged?: boolean;                         // solo en `closed`: ya no está abierta (true = mergeada)
 }
 /** Dependencia (directa o transitiva, `via` = por cuál directa se llega) de una PR. */
 export interface PrDep {
@@ -148,6 +150,7 @@ export interface GithubReviews {
   mine: Partial<Record<"returned" | "waiting" | "missing" | "draft" | "approved", GhPr[]>>;
   stacks?: Record<string, GhPr[]>;      // id del stack -> PRs de abajo hacia arriba
   merges?: Record<string, MergeJob>;    // url -> merge armado desde el IDE
+  closed?: GhPr[];                      // PRs de desarrollos con sesión que ya se cerraron/mergearon
 }
 export const fetchGithubReviews = (ws: WsClient): Promise<GithubReviews> => ws.request("reviews.github", {});
 export const startReview = (ws: WsClient, url: string): Promise<{ id: string; created: boolean; process: Process }> =>

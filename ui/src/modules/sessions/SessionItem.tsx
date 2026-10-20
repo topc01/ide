@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Archive, ExternalLink, Square } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
-import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
 import type { DevStateInfo } from "./devStates";
 import { PersonChip } from "../../lib/people";
@@ -28,9 +28,10 @@ function prLabel(url?: string | null): string | null {
 /** `prs`: las PRs del desarrollo de la sesión (Mis desarrollos); con más de una se muestran como filas. */
 /** `noArchive`: sin botón archivar (p.ej. revisiones donde pediste cambios: siguen vivas). */
 /** `dev`: estado del desarrollo (Mis desarrollos): se muestra y colorea la card si la sección agrupa por él. */
-export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = false, noArchive = false, dev }:
+/** `merged`: sus PRs ya mergeadas (chips moradas). */
+export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = false, noArchive = false, dev, merged = [] }:
   { session: FolderSession; actions?: ReactNode; pr?: GhPr; prs?: GhPr[]; onlyActions?: boolean; noArchive?: boolean;
-    dev?: DevStateInfo | null }) {
+    dev?: DevStateInfo | null; merged?: GhPr[] }) {
   const pr = prProp ?? prs?.[0];
   const many = (prs?.length ?? 0) > 1;
   const { activeId, activePrUrl, setActive } = useFolders();
@@ -59,6 +60,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
           <CardActions>
             <RenameAction devKey={`s:${session.id}`} />
+            <StateAction dev={dev} devKey={`s:${session.id}`} />
             {actions}
             {/* toda card con PR se puede abrir en GitHub (las pendientes ya lo traen en `actions`) */}
             {!onlyActions && (pr?.url ?? session.prUrl) && (
@@ -87,9 +89,11 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           <DevIndex devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])} />
           {many ? groups.flatMap((g) => g.stacks.flat()).map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)
             : pr ? <RefChip repo={pr.repo} number={pr.number} pr={pr} />
+            : merged.length ? null
             : prLabel(session.prUrl) ? <span className="rounded border border-border px-1 font-mono text-[10px] font-bold">{prLabel(session.prUrl)}</span>
             : repos.length ? repos.map((r) => <RefChip key={r} repo={r} />)
             : <span className="font-mono text-[10px] text-muted-foreground">{session.id}</span>}
+          {merged.map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)}
           {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
         </div>
         <CardMeta>

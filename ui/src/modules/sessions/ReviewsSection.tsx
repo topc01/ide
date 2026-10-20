@@ -12,7 +12,7 @@ import { Badge } from "../../components/ui/badge";
 import { SessionItem } from "./SessionItem";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
-import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { cn } from "../../lib/utils";
 import type { DevStateInfo } from "./devStates";
 import { PersonChip } from "../../lib/people";
@@ -183,6 +183,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
           <DevTitle devKey={devKey} prs={[pr]} original={pr.title} />
           <CardActions>
             {devKey && <RenameAction devKey={devKey} />}
+            <StateAction dev={dev} devKey={devKey} />
             {reviewable && <ReviewButton pr={pr} />}
             {extraActions}
             {merge && canMerge(pr) && !(merge.job && MERGE_ACTIVE.includes(merge.job.state))

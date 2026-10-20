@@ -18,15 +18,22 @@ from ide_server.sessions_fs import (
 )
 
 # Estado del desarrollo (uno solo, unificado con el de la PR): una FASE que avanza y, encima, un
-# BLOQUEO opcional. Las fases manuales llegan hasta `ready-for-review`; con PRs fuera de draft la fase
-# la da GitHub (sin revisores, en revisión, cambios pedidos, aprobada, mergeando; la calcula la UI).
-# El bloqueo (con nota) tapa la fase sin borrarla: `unblock` vuelve a la fase en que estaba.
-PHASES = ("investigating", "ready-to-develop", "developing", "ready-for-review")
-BLOCKS = ("waiting-input", "questions", "blocked-definitions", "blocked-client", "blocked-dev", "paused")
+# BLOQUEO opcional. Con PRs fuera de draft la fase la da GitHub (en testeo = sin revisores, en revisión,
+# cambios pedidos, aprobada, mergeando, mergeada; la calcula la UI). Cualquier fase se puede poner a
+# mano: si se pone desde la UI guarda la fase de GitHub de ese momento (`gh`) y gana hasta que GitHub
+# cambie. El bloqueo (con nota) tapa la fase sin borrarla: `unblock` vuelve a la fase en que estaba.
+PHASES = ("investigating", "developing", "ready-for-review", "testing", "in-review", "changes-requested",
+          "approved", "merged")
+BLOCKS = ("waiting-input", "blocked", "paused")
 DEV_STATES = PHASES + BLOCKS
 # los de antes (sesiones viejas, TICKET.md a mano): se aceptan y se traducen
-LEGACY = {"analyzing": "investigating", "blocked": "blocked-definitions", "ready": "ready-to-develop",
-          "in-progress": "developing", "done": "ready-for-review"}
+LEGACY = {"analyzing": "investigating", "ready": "investigating", "in-progress": "developing",
+          "done": "ready-for-review", "ready-to-develop": "investigating", "questions": "waiting-input",
+          "blocked-definitions": "blocked", "blocked-client": "blocked", "blocked-dev": "blocked",
+          "needs-reviewers": "testing"}
+# los "bloqueado por …" de antes pasan a `blocked` con el motivo en la nota
+LEGACY_NOTE = {"blocked-definitions": "por definiciones", "blocked-client": "por el cliente",
+               "blocked-dev": "por otro desarrollo"}
 STATUSES = {
     "ticket": DEV_STATES + ("unblock",),
     # approved / changes-requested: el veredicto publicado (por la sesión o con los botones del IDE);
@@ -102,6 +109,12 @@ def _mirror(root: Path, sid: str, kind: str | None, status: str) -> None:
 def _state(db: Db, key: str, row_status: str | None = None) -> dict:
     """{phase, block, note, since} guardado (o deducido del estado de la sesión / formato viejo)."""
     cur = dict(db.get(f"devstate:{key}") or {})
+    if cur.get("block") in LEGACY_NOTE and not cur.get("note"):
+        cur["note"] = LEGACY_NOTE[cur["block"]]
+    for f in ("phase", "block", "status"):
+        if cur.get(f) in LEGACY:
+            cur[f] = LEGACY[cur[f]]
+    row_status = LEGACY.get(row_status or "", row_status)
     if "phase" not in cur and "block" not in cur:
         old = cur.pop("status", None) or row_status
         cur["phase"] = old if old in PHASES else (None if old in BLOCKS else cur.get("phase"))
@@ -113,13 +126,22 @@ def _state(db: Db, key: str, row_status: str | None = None) -> dict:
     return cur
 
 
-def _apply(db: Db, key: str, status: str | None, note: str | None, actor: str, row_status: str | None = None) -> tuple[str | None, str | None]:
-    """Aplica `status` (fase, bloqueo, `unblock` o None = nada) y devuelve (efectivo antes, después)."""
+_KEEP = object()
+
+
+def _apply(db: Db, key: str, status: str | None, note: str | None, actor: str, row_status: str | None = None,
+           gh=_KEEP) -> tuple[str | None, str | None]:
+    """Aplica `status` (fase, bloqueo, `unblock` o None = nada) y devuelve (efectivo antes, después).
+    `gh`: la fase de GitHub cuando se puso una fase a mano desde la UI (la fase puesta gana mientras
+    GitHub siga en esa); una fase puesta sin `gh` (sesiones) deja mandar a GitHub."""
     cur = _state(db, key, row_status)
     phase, block = cur.get("phase"), cur.get("block")
+    pinned = "gh" in cur
+    pin = cur.get("gh")
     before = block or phase
     if status in PHASES:
         phase, block = status, None
+        pinned, pin = gh is not _KEEP, None if gh is _KEEP else gh
     elif status in BLOCKS:
         block = status
     elif status == "unblock":
@@ -132,13 +154,13 @@ def _apply(db: Db, key: str, status: str | None, note: str | None, actor: str, r
         db.delete(f"devstate:{key}")
     else:
         db.set(f"devstate:{key}", {"phase": phase, "block": block, "note": note if status != "unblock" else None,
-                                   "since": since, "actor": actor})
+                                   "since": since, "actor": actor, **({"gh": pin} if pinned else {})})
     if block == "waiting-input" and before != "waiting-input" and actor != "ide":
         _notify_mac(f"{key[2:] if key.startswith('s:') else 'Un desarrollo'} te espera" + (f": {note}" if note else ""))
     return before, after
 
 
-def set_status(root: Path, db: Db, sid: str, status: str, *, actor: str, note: str | None = None) -> dict:
+def set_status(root: Path, db: Db, sid: str, status: str, *, actor: str, note: str | None = None, gh=_KEEP) -> dict:
     sync_from_disk(root, db)
     row = db.dev(sid)
     if row is None or row.get("archived"):
@@ -152,7 +174,7 @@ def set_status(root: Path, db: Db, sid: str, status: str, *, actor: str, note: s
     prev = row.get("status")
     effective = status
     if row["kind"] == "ticket":
-        _, effective = _apply(db, f"s:{sid}", status, note, actor, prev)
+        _, effective = _apply(db, f"s:{sid}", status, note, actor, prev, gh)
         effective = effective or "investigating"
     db.put_dev({**row, "status": effective, "updated": now()})
     _mirror(root, sid, row["kind"], effective)
@@ -173,15 +195,16 @@ def _notify_mac(message: str) -> None:
     threading.Thread(target=lambda: subprocess.run(argv, capture_output=True), daemon=True).start()
 
 
-def set_dev_state(root: Path, db: Db, key: str, status: str | None, *, actor: str, note: str | None = None) -> None:
+def set_dev_state(root: Path, db: Db, key: str, status: str | None, *, actor: str, note: str | None = None,
+                  gh=_KEEP) -> None:
     """Desde la UI, para cualquier desarrollo: una fase, un bloqueo, `unblock`, o None (PRs sin sesión:
     sin estado puesto). Sesión de ticket = `set_status`; PRs sin sesión: solo en la base."""
     if status is not None and status not in STATUSES["ticket"]:
         raise SessionError("bad_status", f"estado inválido: {status!r} ({' | '.join(STATUSES['ticket'])})")
     if key.startswith("s:"):
-        set_status(root, db, key[2:], status or "unblock", actor=actor, note=note)
+        set_status(root, db, key[2:], status or "unblock", actor=actor, note=note, gh=gh)
         return
-    before, after = _apply(db, key, status, note, actor)
+    before, after = _apply(db, key, status, note, actor, gh=gh)
     db.event(now(), actor, "status", data={"key": key, "from": before, "to": after, **({"note": note} if note else {})})
 
 
@@ -194,7 +217,8 @@ def dev_states(db: Db) -> dict[str, dict]:
     for r in db.devs():
         if r.get("kind") == "ticket" and r.get("status"):
             out[f"s:{r['id']}"] = _state(db, f"s:{r['id']}", r["status"])
-    return {k: {x: v.get(x) for x in ("phase", "block", "note", "since")} for k, v in out.items()}
+    return {k: {**{x: v.get(x) for x in ("phase", "block", "note", "since")}, **({"gh": v["gh"]} if "gh" in v else {})}
+            for k, v in out.items()}
 
 
 # -- lectura para la sesión principal (ide dev ls / show) -----------------------------------------

@@ -46,16 +46,18 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
 El **estado del desarrollo** (qué toca o qué lo frena; distinto del de la PR) vive en la base del
 IDE: cámbialo con `ide status <estado>` (con `-m "nota"` si es un bloqueo: qué falta y de quién),
 nunca editando el `status:` del archivo. Ticket:
-- fase: `investigating` | `ready-to-develop` | `developing` | `ready-for-review`
-- bloqueo (encima de la fase, con nota; `ide status unblock` vuelve a la fase): `waiting-input` (le
-  hiciste una pregunta al usuario y esperas su respuesta) | `questions` (dudas abiertas) |
-  `blocked-definitions` | `blocked-client` | `blocked-dev` (espera otro desarrollo) | `paused`
+- fase: `investigating` | `developing` | `ready-for-review` (las que pones tú; después la da GitHub:
+  `testing`, `in-review`, `changes-requested`, `approved`, `merged`)
+- pausa (encima de la fase, con nota; `ide status unblock` vuelve a la fase): `waiting-input` (le
+  hiciste una pregunta al usuario, tiene dudas por responder o necesitas su OK) | `blocked` (no se
+  puede avanzar: la nota dice por qué o de quién; p.ej. "definiciones de producto", "el cliente",
+  "#12") | `paused`
 **Cuando termines un turno con una pregunta o algo que el usuario tiene que decidir**, márcalo:
 `ide status waiting-input -m "<qué necesitas, en una línea>"` (no una nota en `developing`): así le
 aparece en "te esperan" y le llega el aviso. Cuando te responda, `ide status unblock`.
 Mientras el desarrollo está activo sus PRs van en **draft** (`gh pr create --draft`); al terminar,
 `ide status ready-for-review` y el usuario la manda a revisión desde el IDE. Desde ahí la fase la da
-GitHub (en revisión, cambios pedidos, aprobada, mergeando). Revisión (sesiones de
+GitHub (en testeo = fuera de draft sin revisores, en revisión, cambios pedidos, aprobada, mergeada). Revisión (sesiones de
 revisión de PR): reviewing | approved | changes-requested (el veredicto que publicaste en GitHub;
 suggests-approve | suggests-changes si todavía no lo publicaste). `SESSION.md` guarda el análisis (y el `title` si está vacío).
 La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide dev show <id>`.
@@ -282,8 +284,8 @@ Tu trabajo AHORA es analizar, no implementar:
 4. Escribe SESSION.md: Scope, Repos, Plan (con el orden de merge entre repos/PRs y sus
    dependencias), Bloqueantes, Dudas. Al abrir PRs, declara sus dependencias en la sección
    `## Dependencias` de cada una (ver ../CLAUDE.md).
-   Cambia el estado con `ide status ready-to-develop|questions|blocked-definitions|blocked-client`
-   (con `-m "nota"` en los bloqueos; no edites el `status:` del archivo).
+   Cambia el estado con `ide status investigating|waiting-input|blocked` (con `-m "nota"` en las
+   pausas: qué falta y de quién; no edites el `status:` del archivo).
 5. Detente y espera instrucciones.
 """
 
@@ -372,11 +374,10 @@ existir. Por eso es **lo último** que haces en esta sesión.
    - `## Cómo probar` — comandos, datos de prueba, URLs locales.
    Sin secretos ni credenciales.
 
-5. **Estado inicial**, según el resumen: `developing` (se está implementando), `questions` (hay
-   dudas abiertas), `waiting-input` (espera una respuesta del usuario), `blocked-definitions` /
-   `blocked-client` / `blocked-dev` (espera definiciones, al cliente u otro desarrollo),
-   `ready-to-develop` (analizado, listo para implementar), `investigating` (todavía entendiendo),
-   `ready-for-review` (terminado, falta mandarlo a revisión).
+5. **Estado inicial**, según el resumen: `developing` (se está implementando), `waiting-input`
+   (dudas abiertas o espera una respuesta del usuario), `blocked -m "<por qué o de quién>"`
+   (espera definiciones, al cliente u otro desarrollo), `investigating` (todavía entendiendo o
+   analizado sin empezar), `ready-for-review` (terminado, falta mandarlo a revisión).
 
 6. **Traspasa** (último comando; no ejecutes nada más después):
    ```bash

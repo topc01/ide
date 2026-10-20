@@ -17,7 +17,7 @@ from ide_server.feedback import as_markdown, collect, pending_plans
 from ide_server.telegram import TelegramBridge, get_token
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
-from ide_server.devs import assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
+from ide_server.devs import PHASES, assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
 from ide_server import pr_changes
 from ide_server import pins as pins_mod
@@ -616,7 +616,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if not isinstance(key, str) or not re.match(r"^(s|st|p):.{1,300}$", key):
             raise SessionError("bad_request", f"clave de desarrollo inválida: {key!r}")
         note = (p.get("note") or "").strip()[:300] or None
-        await asyncio.to_thread(set_dev_state, root, db, key, p.get("status"), actor="ide", note=note)
+        # fase de GitHub al ponerla a mano: la puesta gana hasta que GitHub cambie
+        extra = {}
+        if "gh" in p:
+            if p["gh"] is not None and p["gh"] not in (*PHASES, "merging"):
+                raise SessionError("bad_request", f"fase de GitHub inválida: {p['gh']!r}")
+            extra["gh"] = p["gh"]
+        await asyncio.to_thread(set_dev_state, root, db, key, p.get("status"), actor="ide", note=note, **extra)
         notify()
         return {"ok": True}
 
