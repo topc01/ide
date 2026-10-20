@@ -508,7 +508,10 @@ viejo: click los abre en una tab (imagen o PDF en línea, texto legible, lo dem�
 conversación). Las sesiones saben (su `CLAUDE.md`) que `attachments/` es lo que el usuario comparte y
 dejan ahí lo que generan para él. Se sirven por `GET /api/sessions/{id}/attachments/{nombre}[?download=1]`
 (mismos chequeos de origen; el tipo sale de la extensión o, si no tiene, del contenido; lo que no es PDF/imagen se sirve como texto en sandbox). Canales
-`attachments.list|rename|delete|link`.
+`attachments.list|rename|delete|link`. **Artefactos:** cada ~20 s el IDE revisa lo nuevo de los
+transcripts de las sesiones y, si su claude publicó un artefacto (herramienta `Artifact`: "Published
+<archivo> at https://claude.ai/…artifact/…"), guarda el link en sus Adjuntos como
+`<fecha>-artefacto-<nombre>.url` (sin repetir links; también recoge los ya publicados).
 
 **Sesión para una PR propia** (`+` de las tabs o **Crear sesión** en el resumen; canal
 `sessions.newForPr {url}`): sesión de ticket `dev-<repo>-<n>` con el worktree en la rama de la PR

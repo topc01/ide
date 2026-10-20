@@ -69,7 +69,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     merger = Merger(root, stacks=lambda: gh_reviews.state, db=db, on_change=lambda: notify_box["github"]())
     runner = Runner(root)
     viewer = DbViewer(root)
-    runs_watch = runs_cap.register(registry, root, manager, runner, viewer)
+    runs_watch = runs_cap.register(registry, root, manager, runner, viewer, db)
     notify_box["fn"] = folder_cap.register(registry, root, manager, hooks=hooks,
                                            supervisor=supervisor, poller=poller,
                                            gh_reviews=gh_reviews, limits=limits, merger=merger, db=db,

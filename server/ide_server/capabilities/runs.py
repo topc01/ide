@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from ide_server import pr_worktrees, wt_files
+from ide_server import artifacts, pr_worktrees, wt_files
 from ide_server.plugins import Registry
 from ide_server.runs import Runner
 from ide_server.scripts import has_script
@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 POLL = 2.0
 
 
-def register(registry: Registry, root: Path, manager, runner: Runner, viewer=None):
+def register(registry: Registry, root: Path, manager, runner: Runner, viewer=None, db=None):
     last: dict = {"payload": None}
 
     def payload() -> dict:
@@ -25,13 +25,22 @@ def register(registry: Registry, root: Path, manager, runner: Runner, viewer=Non
             last["payload"] = p
             await manager.broadcast("runs.changed", p)
 
+    tick = {"n": 0}
+
     async def watch(stop: asyncio.Event) -> None:
-        """Detecta servidores que terminan solos (o que arrancó/paró otro) y avisa."""
+        """Detecta servidores que terminan solos (o que arrancó/paró otro) y avisa. Cada ~20 s, además,
+        guarda en Adjuntos los artefactos que publicaron las sesiones (ver artifacts.py)."""
         while not stop.is_set():
             try:
                 await broadcast()
             except Exception:  # noqa: BLE001
                 log.exception("no se pudo emitir runs.changed")
+            tick["n"] += 1
+            if db is not None and tick["n"] % 10 == 1:
+                try:
+                    await asyncio.to_thread(artifacts.scan, root, Path.home(), db)
+                except Exception:  # noqa: BLE001
+                    log.exception("no se pudieron revisar los artefactos")
             try:
                 await asyncio.wait_for(stop.wait(), POLL)
             except asyncio.TimeoutError:
