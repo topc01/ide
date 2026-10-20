@@ -332,9 +332,11 @@ solo conoce la UI: sin el token responde 404. Los pgweb mueren con el server. Ca
 `db.list {place}`, `db.open {place, repo}` (→ `{url, name}`).
 
 **Pines** (módulo, id `pins`): mensajes de claude guardados para usar después (p.ej. un texto para
-mandar por un hilo), por desarrollo. Abajo, los últimos mensajes de claude de la sesión, sacados del
-transcript (texto limpio en markdown, no lo que muestra la terminal), cada uno con 📌 Pinear y Copiar;
-arriba los pineados, con Copiar, ver todo y desfijar. Se guardan en la base (`kv` `pins:<clave>`).
+mandar por un hilo), por desarrollo. Se pinea desde la tab `claude`: al pasar el mouse por una línea de
+un mensaje de claude aparece 📌 y pinea el mensaje completo, sacado del transcript (texto limpio en
+markdown, no lo que muestra la terminal); si la línea no se reconoce (tablas, bloques de código),
+seleccionar texto muestra "📌 Pinear selección" (pinea el mensaje que lo contiene o, si no, la
+selección). El módulo lista solo los pineados, con Copiar, ver todo y desfijar. Se guardan en la base (`kv` `pins:<clave>`).
 Canales `session.messages {id, limit}`, `pins.list`, `pins.add {key, text, source}`,
 `pins.remove {key, id}`; evento `pins.changed`.
 

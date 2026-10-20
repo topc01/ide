@@ -5,7 +5,8 @@ import "@xterm/xterm/css/xterm.css";
 import { replayTerminal, subscribeTerminal, writeTerminal, resizeTerminal } from "../transport/terminalChannel";
 import { getWs } from "../transport/wsClient";
 
-export function TerminalTab({ id }: { id: string }) {
+/** `onTerm`: para quien necesite leer la terminal (p.ej. pinear mensajes desde la tab claude). */
+export function TerminalTab({ id, onTerm }: { id: string; onTerm?: (term: Terminal | null) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const term = new Terminal({
@@ -53,7 +54,8 @@ export function TerminalTab({ id }: { id: string }) {
     // re-ajustar al mostrarse (estaba `hidden` → 0x0) o al cambiar el tamaño del panel
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
     if (ro && ref.current) ro.observe(ref.current);
-    return () => { ro?.disconnect(); unsubscribe(); term.dispose(); };
+    onTerm?.(term);
+    return () => { onTerm?.(null); ro?.disconnect(); unsubscribe(); term.dispose(); };
   }, [id]);
   return <div ref={ref} className="h-full w-full bg-terminal-bg" />;
 }

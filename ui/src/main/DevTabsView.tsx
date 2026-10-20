@@ -17,6 +17,8 @@ import { RunLogTab } from "./RunLogTab";
 import { FileTab } from "./FileTab";
 import { PrDiffTab } from "./PrDiffTab";
 import { AttachmentTab } from "./AttachmentTab";
+import { PinOverlay } from "./PinOverlay";
+import type { Terminal } from "@xterm/xterm";
 import { useRuns } from "../transport/runs";
 import { RunState } from "../modules/servers/ServersPanel";
 import { Button } from "../components/ui/button";
@@ -38,6 +40,7 @@ function ClaudeTab({ session }: { session: FolderSession }) {
   const act = (p: Promise<unknown>) => p.catch((e: any) => setError(e?.message ?? String(e)));
   // adjuntos: el archivo va a la carpeta de la sesión y su ruta se pega en el input de claude
   const fileRef = useRef<HTMLInputElement>(null);
+  const [term, setTerm] = useState<Terminal | null>(null);   // para pinear mensajes con hover
   const [drag, setDrag] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const upload = (files: FileList) => {
@@ -77,7 +80,10 @@ function ClaudeTab({ session }: { session: FolderSession }) {
           </div>)}
         {drag && <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center border-2 border-dashed border-primary bg-background/70 text-sm text-primary">
           Suelta para adjuntar a la conversación</div>}
-        {session.terminalId ? <TerminalTab key={session.terminalId} id={session.terminalId} /> : (
+        {session.terminalId ? (
+          <PinOverlay term={term} sid={session.id} devKey={`s:${session.id}`}>
+            <TerminalTab key={session.terminalId} id={session.terminalId} onTerm={setTerm} />
+          </PinOverlay>) : (
           <div className="flex flex-col items-start gap-2 p-6 text-sm">
             {session.process === "queued" ? <span className="text-muted-foreground">En cola (max_running)…</span> : (<>
               {session.launchError && <p role="alert" className="text-xs text-destructive">{session.launchError}</p>}
