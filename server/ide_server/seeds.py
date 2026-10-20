@@ -91,7 +91,8 @@ La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide 
 
 Los archivos que el usuario te comparte (capturas, documentos, planillas) quedan en `attachments/` de
 tu carpeta, con fecha en el nombre (`AAAAMMDD-HHMMSS-<nombre>`); el usuario puede renombrarlos. Cuando
-mencione un archivo, una captura o "te adjunté", míralos ahí (`ls -t attachments/`) y léelos. Si
+mencione un archivo, una captura, un link o "te adjunté", míralos ahí (`ls -t attachments/`) y léelos; los
+links que comparte son archivos `.url` (la línea `URL=…`). Si
 generas un archivo para él (un CSV, un informe), déjalo también ahí: lo ve en el módulo Adjuntos.
 
 ## Feedback (para mejorar con el uso)

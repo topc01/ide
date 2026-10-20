@@ -412,6 +412,12 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         d = session_path(root, sid) / "attachments"
         return d if name is None else d / require_plain_name(name, "archivo")
 
+    def _link(f: Path) -> str | None:
+        if f.suffix.lower() != ".url":
+            return None
+        m = re.search(r"^URL=(https?://\S+)", f.read_text(encoding="utf-8", errors="replace"), re.M)
+        return m.group(1) if m else None
+
     def _kind(f: Path) -> str:
         """image | pdf | text | other: por extensión o, sin ella, por el contenido."""
         import mimetypes
@@ -435,8 +441,24 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         files = sorted((f for f in d.iterdir() if f.is_file() and not f.name.startswith(".")),
                        key=lambda f: f.stat().st_mtime, reverse=True) if d.is_dir() else []
         return {"dir": str(d), "files": [{"name": f.name, "size": f.stat().st_size, "path": str(f), "kind": _kind(f),
+                                          "url": _link(f),
                                           "at": datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="minutes")}
                                          for f in files]}
+
+    async def attachments_link(p: dict) -> dict:
+        """Un link como adjunto: `<nombre>.url` (acceso directo estándar, `URL=…`; claude lo lee)."""
+        url = str(p.get("url") or "").strip()
+        if not re.fullmatch(r"https?://\S{3,2000}", url):
+            raise SessionError("bad_request", "tiene que ser un link http(s)")
+        from urllib.parse import urlparse
+        u = urlparse(url)
+        base = str(p.get("name") or "").strip() or (u.netloc + u.path).strip("/").replace("/", "-")
+        name = (re.sub(r"[^A-Za-z0-9._ -]+", "-", base).strip(" .-") or "link")[:80]
+        d = _att(p["id"])
+        d.mkdir(exist_ok=True)
+        f = d / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{name}.url"
+        f.write_text(f"[InternetShortcut]\nURL={url}\n", encoding="utf-8")
+        return {"name": f.name}
 
     async def attachments_rename(p: dict) -> dict:
         src, to = _att(p["id"], p["name"]), str(p.get("to") or "").strip()
@@ -782,7 +804,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
-        "attachments.rename": attachments_rename, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
+        "attachments.rename": attachments_rename, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
         "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,
