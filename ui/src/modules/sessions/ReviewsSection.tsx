@@ -12,6 +12,7 @@ import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { SessionItem } from "./SessionItem";
+import { waitingFirst } from "./activity";
 import { ReviewVerdictActions } from "./ReviewVerdict";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
@@ -365,7 +366,7 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
   }
 
   return (
-    <GroupedSection id="reviews" title="Revisiones" entries={entries} gh={gh}
+    <GroupedSection id="reviews" title="Revisiones" entries={waitingFirst(entries)} gh={gh}
       statuses={[["pending", "Pendientes"], ["changes", "Pedí cambios"], ["approved", "Aprobé"],
                  ["closed", "Cerradas"], ["others", "Otras"]]}
       status={<>

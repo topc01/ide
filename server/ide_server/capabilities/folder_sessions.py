@@ -23,6 +23,7 @@ from ide_server import pr_changes
 from ide_server import pins as pins_mod
 from ide_server import later as later_mod
 from ide_server import evidence as evidence_mod
+from ide_server import activity as activity_mod
 from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
 from ide_server.pr_poller import PrPoller
@@ -63,7 +64,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         for s in sessions:
             p = snap.get(s["id"], {})
             s.update(process=p.get("process", "stopped"), terminalId=p.get("terminalId"),
-                     launchError=p.get("launchError"), attention=p.get("attention"))
+                     launchError=p.get("launchError"), attention=p.get("attention"), activity=p.get("activity"))
             if s["kind"] == "review":
                 s.update({"prState": None, "pollError": None, "lastOk": None,
                           **derived.get(s["id"], {})})
@@ -575,9 +576,44 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         merger.retry(p["url"])
         return {"ok": True}
 
+    async def session_activity(p: dict) -> dict:
+        """Hooks de claude (`ide hook`): UserPromptSubmit = trabajando; Stop / Notification (permiso,
+        inactivo) = esperando tu input, con la primera línea de su último mensaje como nota."""
+        sid = require_plain_name(p["id"], "sesión")
+        if supervisor.state(sid) != "running":
+            return {"ok": False}
+        ev = p.get("event")
+        if ev == "UserPromptSubmit":
+            supervisor.set_activity(sid, "working")
+            return {"ok": True}
+        if ev == "Stop":
+            note = await asyncio.to_thread(activity_mod.last_note, p.get("transcript_path"), Path.home())
+            prev = supervisor.set_activity(sid, "waiting", note, "turn")
+        elif ev == "Notification":
+            kind = p.get("notification_type") or ""
+            msg = activity_mod.first_line(str(p.get("message") or "")) or None
+            if kind == "permission_prompt" or "permission" in (msg or "").lower():
+                prev = supervisor.set_activity(sid, "waiting", msg, "permission")
+            elif (supervisor.snapshot().get(sid, {}).get("activity") or {}).get("state") != "waiting":
+                prev = supervisor.set_activity(sid, "waiting", msg, "idle")
+            else:
+                return {"ok": True}
+        else:
+            return {"ok": False}
+        if prev == "working":                   # aviso de macOS al pasar a esperarte
+            from ide_server.devs import _notify_mac
+            label = (db.get(f"devname:s:{sid}") if db else None) or sid
+            note = (supervisor.snapshot().get(sid, {}).get("activity") or {}).get("note")
+            _notify_mac(f"{label} te espera" + (f": {note}" if note else ""))
+        return {"ok": True}
+
     async def dev_status(p: dict) -> dict:
         if db is None:
             raise SessionError("no_db", "sin base")
+        if p.get("status") == "waiting-input":  # ya no es un estado: el IDE lo detecta (hooks)
+            return {"dev": db.dev(require_plain_name(p["id"], "sesión")),
+                    "message": "ya no hace falta: el IDE detecta solo cuando terminas el turno y esperas al "
+                               "usuario (la primera línea de tu último mensaje es lo que ve)"}
         row = await asyncio.to_thread(set_status, root, db, require_plain_name(p["id"], "sesión"),
                                       p["status"], actor=p.get("actor") or "ide", note=p.get("note"))
         notify()
@@ -998,6 +1034,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "evidence.list": evidence_list, "evidence.new": evidence_new, "evidence.save": evidence_save,
         "evidence.duplicate": evidence_duplicate, "evidence.delete": evidence_delete, "evidence.shot": evidence_shot,
         "evidence.markdown": evidence_markdown, "evidence.github": evidence_github,
+        "sessions.activity": session_activity,
         "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss, "later.resolve": later_resolve,
         "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,

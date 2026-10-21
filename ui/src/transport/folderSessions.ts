@@ -15,6 +15,8 @@ export interface FolderSession {
   prState?: "stale" | "merged" | "closed" | null; pollError?: string | null; lastOk?: string | null;
   attention?: string | null;      // "trust": claude espera que confirmes la carpeta
   stackPrs?: string[] | null;     // revisión de un stack: sus PRs, de abajo hacia arriba
+  // actividad de su claude (hooks): trabajando o esperando tu input (nota = 1ª línea de su último mensaje)
+  activity?: { state: "working" | "waiting"; since: string; note: string | null; reason: string | null } | null;
 }
 export interface ScriptInfo { name: string; executable: boolean; }
 export interface SessionsTree {

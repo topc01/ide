@@ -11,10 +11,11 @@ import { worstPr } from "./desarrollos";
 import { CiMark, PrCard, useGithubReviews } from "./ReviewsSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
 import { SessionItem } from "./SessionItem";
+import { waitingFirst } from "./activity";
 import { RereviewAction } from "./ReviewVerdict";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { deriveMine, isHidden, type Desarrollo } from "./desarrollos";
-import { BLOCKS, devStateOf, STATE, STATE_ORDER, type Block, type DevStateInfo } from "./devStates";
+import { devStateOf, STATE, STATE_ORDER, type DevStateInfo } from "./devStates";
 import { cn } from "../../lib/utils";
 
 const DOT: Record<string, string> = {
@@ -90,7 +91,7 @@ function StackCard({ d, dev }: { d: Desarrollo; dev: DevStateInfo | null }) {
 /** Los grupos: todos los estados en su orden, pero solo los que tienen algo (los bloqueos se ven siempre:
  *  son lo que hay que destrabar). */
 const statusesFor = (present: Set<string>): [string, string][] =>
-  STATE_ORDER.filter((k) => present.has(k) || (BLOCKS.includes(k as Block) && k !== "paused")).map((k) => [k, STATE[k][0]]);
+  STATE_ORDER.filter((k) => present.has(k) || k === "blocked").map((k) => [k, STATE[k][0]]);
 
 /** Mis desarrollos: sesiones de ticket y PRs propias unificadas (una card por desarrollo). */
 export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
@@ -112,7 +113,7 @@ export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
           above: d.prs[0].stack ? d.prs[0].stack.size - d.prs[0].stack.position : 0 }} />,
   }; });
   return (
-    <GroupedSection id="mine" title="Mis desarrollos" entries={all.filter((e) => !e.hidden)}
+    <GroupedSection id="mine" title="Mis desarrollos" entries={waitingFirst(all.filter((e) => !e.hidden))}
       hidden={all.filter((e) => e.hidden)} gh={gh}
       statuses={statusesFor(new Set(all.filter((e) => !e.hidden).map((e) => e.status)))}
       status={<>

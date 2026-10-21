@@ -409,7 +409,7 @@ notion_url: https://www.notion.so/...
 ---
 ## Scope … ## Repos … ## Plan … ## Bloqueantes … ## Dudas …
 ```
-- Ticket: las fases y pausas del estado del desarrollo (`investigating` · `developing` · … · `waiting-input` · `blocked` · `paused`; ver "Estado del desarrollo"; los nombres viejos se migran).
+- Ticket: las fases y pausas del estado del desarrollo (`investigating` · `developing` · … · `blocked` · `paused`; ver "Estado del desarrollo"; los nombres viejos se migran).
 - Review: `reviewing` · `commented` · `approved` · `changes-requested`.
 - Derivados por el server (no se escriben): proceso `running` / `queued` / `stopped`;
   revisiones `stale` (el PR tiene commits nuevos; "Refrescar" en la UI) / `merged` / `closed`;
@@ -687,15 +687,30 @@ PRs fuera de draft la fase la da GitHub (la peor de sus PRs; mergeado si todas l
 fase se puede poner a mano desde la UI: guarda la fase de GitHub de ese momento (`gh`) y gana hasta
 que GitHub cambie (una review, un merge); "↺ usar la de GitHub" la suelta. Las que pone una sesión
 con `ide status` no se fijan (manda GitHub). Sin nada puesto se deduce (draft = desarrollando).
-Pausas (tapan la fase sin borrarla, con nota y desde cuándo): `waiting-input`, `blocked` (la nota
-dice por qué o de quién), `paused`; `unblock` vuelve a la fase. Las sesiones también pueden
+Pausas (tapan la fase sin borrarla, con nota y desde cuándo): `blocked` (la nota dice por qué o de
+quién), `paused`; `unblock` vuelve a la fase. ("esperando tu input" ya no es un estado del desarrollo:
+es la **actividad** de la sesión, ver abajo; los `waiting-input` que quedaron puestos se ven hasta que
+los cambies, y `ide status waiting-input` ya no hace nada: responde que no hace falta.) Las sesiones también pueden
 cambiarlo encima de lo puesto a mano. Mientras el desarrollo está activo sus PRs van en draft (si la
 fase puesta es activa y una PR salió de draft, la card dice "PR fuera de draft"). Se cambia con la
 acción de hover 🚩 de la card (menú flotante con cada estado y qué significa, nota, quitar la pausa),
 en el módulo Desarrollo (en PRs sin sesión, también "borrar estado") o con `ide status
 <fase|pausa|unblock> -m nota` desde la sesión. Con `ready-for-review`, **Mandar a revisión** saca de
-draft sus PRs (`gh pr ready`; solo las tuyas). Al pasar a `waiting-input` desde una sesión llega una
-notificación de macOS y la barra de abajo cuenta "N te esperan". Mis desarrollos agrupa **por
+draft sus PRs (`gh pr ready`; solo las tuyas).
+
+**Actividad de la sesión** (otra dimensión, automática): el IDE instala hooks de Claude Code en
+`.claude/settings.json` de cada sesión (UserPromptSubmit, Stop, Notification → `ide hook`, que le
+avisa al IDE por `POST /api/sessions/{id}/activity`; canal `sessions.activity`). Estados:
+**trabajando** (empezó un turno), **esperando tu input** (terminó el turno o pide un permiso; nota =
+primera línea de su último mensaje, o el texto del permiso) y **stale** (el claude no corre y el
+desarrollo sigue activo: no mergeado ni pausado; revisión sin veredicto publicado). Se ve en el punto
+junto al título de la card (ámbar con pulso = trabajando, naranjo = te espera, rojo = stale, ○ =
+parado sin pendientes) y, si te espera, la nota debajo en naranjo; las que te esperan suben al
+principio de su grupo; la barra de abajo cuenta "N te esperan" (sin la manager), y al pasar de
+trabajando a esperarte llega una notificación de macOS. Al aprobar un permiso en la terminal vuelve
+a trabajando. Los claude lanzados antes de esto no tienen hooks hasta relanzarlos (se ven como
+"corriendo"). `sessions.tree` trae `activity` por sesión; `ide dev ls` muestra `TE ESPERA` /
+`trabajando` con la nota. Mis desarrollos agrupa **por
 estado** (pausas primero; después el flujo) y el fondo de cada card es el color de su estado; si
 agrupa por estado la card no lo repite (solo la nota), si no, lo muestra como píldora. Las PRs
 **mergeadas** de un desarrollo con sesión siguen en su card (chips moradas ✓, click = GitHub): el IDE
@@ -716,9 +731,9 @@ sesión: tipo, título, ticket de Notion, PR (revisiones) y `status`. Las sesion
 para quien lo lea). Si una sesión edita a mano el `status:` del archivo, se adopta y queda en el
 historial como "archivo". Estados válidos — ticket: las fases y pausas de arriba (y `unblock`);
 revisión: reviewing | approved | changes-requested | suggests-approve | suggests-changes, más las
-pausas `waiting-input` | `blocked` | `paused` | `unblock`, que van aparte, encima del veredicto (p.ej.
-el veredicto listo esperando el OK del usuario para publicar): cuentan en "N te esperan", avisan por
-macOS, la card de Revisiones las muestra con su nota, y marcar un veredicto las quita.
+pausas `blocked` | `paused` | `unblock`, que van aparte, encima del veredicto (la card de Revisiones
+las muestra con su nota, y marcar un veredicto las quita). Que te espera (p.ej. el OK para publicar)
+lo dice su actividad.
 
 **Historial** (tabla `events`): quién hizo qué y cuándo — el IDE (sesión creada, archivada,
 revisión lanzada, merge: rebasando / esperando CI / mergeada / error), las sesiones (`ide status`

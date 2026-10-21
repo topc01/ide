@@ -30,6 +30,9 @@ export const STATE: Record<State, [string, string, string, string]> = {
 export const STATE_ORDER: State[] = ["waiting-input", "blocked", "changes-requested", "investigating", "developing",
   "ready-for-review", "testing", "in-review", "approved", "merging", "merged", "paused"];
 export const BLOCKS: Block[] = ["waiting-input", "blocked", "paused"];
+/** Las pausas que se ponen: "esperando tu input" ya no es del desarrollo (es la actividad de la
+ *  sesión, por los hooks); las que quedaron puestas se ven hasta que las cambies. */
+export const PICK_BLOCKS: Block[] = ["blocked", "paused"];
 /** Las fases que se pueden poner a mano (todas menos "mergeando", que solo la da el merge). */
 export const PHASES: Phase[] = ["investigating", "developing", "ready-for-review", "testing", "in-review",
   "changes-requested", "approved", "merged"];

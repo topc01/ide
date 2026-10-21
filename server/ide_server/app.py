@@ -218,6 +218,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_later_add(body: dict):
         return await _http("later.add", body)
 
+    @app.post("/api/sessions/{sid}/activity")
+    async def api_activity(sid: str, body: dict):
+        return await _http("sessions.activity", {**body, "id": sid})
+
     @app.post("/api/sessions/{sid}/send")
     async def api_send(sid: str, body: dict):
         return await _http("sessions.send", {**body, "id": sid})

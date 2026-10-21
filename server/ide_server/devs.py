@@ -312,6 +312,9 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
         out.append({"id": row["id"], "kind": row["kind"], "name": _name(names, f"s:{row['id']}", prs),
                     "title": row["title"], "status": row["status"],
                     "notionUrl": row["notionUrl"], "process": s.get("process"),
+                    # trabajando / esperando al usuario (hooks de claude), con la 1ª línea de su último mensaje
+                    "activity": (s.get("activity") or {}).get("state") if s.get("process") == "running" else None,
+                    "activityNote": (s.get("activity") or {}).get("note") if s.get("process") == "running" else None,
                     "repos": [{"name": r["name"], "branch": r.get("branch")} for r in s.get("repos", [])],
                     "prs": [_pr_summary(c) for c in sorted(prs, key=lambda c: (c.get("stack") or {}).get("position", 0))]})
     # solo PRs: las mías (por stack) y las que me pidieron revisar, sin sesión

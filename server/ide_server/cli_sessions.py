@@ -79,6 +79,7 @@ def _parser() -> argparse.ArgumentParser:
     es.add_argument("--session")
     el = ev.add_parser("ls", help="las corridas con sus pasos y capturas"); el.add_argument("--json", action="store_true")
     el.add_argument("--session")
+    sub.add_parser("hook", help="(lo llaman los hooks de claude) le avisa al IDE si la sesión trabaja o te espera")
     lt = sub.add_parser("later", help="pendientes para después (preguntas/temas que el usuario verá otro día)").add_subparsers(dest="cmd", required=True)
     la = lt.add_parser("add", help="deja un pendiente en el desarrollo de la sesión")
     la.add_argument("text"); la.add_argument("-m", "--context", help="contexto: qué se necesita y por qué")
@@ -233,6 +234,22 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
     return 0
 
 
+def _hook(url: str | None, http, env: dict) -> int:
+    """Hook de Claude Code: lee el evento por stdin y se lo pasa al IDE. Nunca falla (exit 0): un hook
+    que falla molesta a claude."""
+    from urllib.parse import quote
+    try:
+        sid = env.get("IDE_SESSION_ID")
+        ev = json.loads(sys.stdin.read() or "{}")
+        if sid and url:
+            http.post(f"{url}/api/sessions/{quote(sid, safe='')}/activity", timeout=3, json={
+                "event": ev.get("hook_event_name"), "notification_type": ev.get("notification_type"),
+                "message": ev.get("message"), "transcript_path": ev.get("transcript_path")})
+    except Exception:  # noqa: BLE001
+        pass
+    return 0
+
+
 def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
     if a.cmd == "add":
         sid = a.session or env.get("IDE_SESSION_ID")
@@ -274,7 +291,7 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
         data = _post(http, url, f"/api/devs/{quote(sid, safe='')}/status",
                      {"status": a.status, "note": a.note, "actor": actor})
-        out.write(f"{sid}\t{data['dev']['status']}\n")
+        out.write(f"{sid}\t{data['dev']['status']}\n" + (f"{data['message']}\n" if data.get("message") else ""))
         return 0
     if a.cmd == "ls":
         devs = _get(http, url, "/api/devs")["devs"]
@@ -284,7 +301,10 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         for d in devs:
             title = f"{d['name']} ({d['title']})" if d.get("name") else d["title"] or ""
             n = f"#{d['index']}" if d.get("index") else "-"
-            out.write(f"{n}\t{d['id']}\t{d['kind']}\t{d['status'] or '-'}\t{d['process'] or '-'}\t{title}\n")
+            proc = {"waiting": "TE ESPERA", "working": "trabajando"}.get(d.get("activity") or "", d["process"] or "-")
+            out.write(f"{n}\t{d['id']}\t{d['kind']}\t{d['status'] or '-'}\t{proc}\t{title}\n")
+            if d.get("activity") == "waiting" and d.get("activityNote"):
+                out.write(f"    › {d['activityNote']}\n")
             for p in d["prs"]:
                 out.write(_pr_line(p) + "\n")
         return 0
@@ -386,6 +406,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _session(a, root, url, http, out, err, env)
         if a.group in ("status", "dev"):
             return _dev_cmd(a, url, http, out, env)
+        if a.group == "hook":
+            return _hook(url, http, env)
         if a.group == "later":
             return _later_cmd(a, url, http, out, env)
         if a.group == "evidencias":

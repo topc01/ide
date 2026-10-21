@@ -6,7 +6,7 @@ import { useFolders } from "../../state/folders";
 import { getWs } from "../../transport/wsClient";
 import { freshSession, prsReady, setDevState, type GhPr } from "../../transport/folderSessions";
 import { Button } from "../../components/ui/button";
-import { ago, BLOCKS, devStateOf, PHASES, STATE, type State } from "../sessions/devStates";
+import { ago, PICK_BLOCKS, devStateOf, PHASES, STATE, type State } from "../sessions/devStates";
 import { cn } from "../../lib/utils";
 import { PrRow } from "../sessions/MyDevsSection";
 import { RepoLine } from "../sessions/RepoLine";
@@ -58,7 +58,7 @@ function StateEditor({ devKey, prs, merged }: { devKey: string; prs: GhPr[]; mer
 
       <div className="mb-0.5 mt-2.5 text-[10px] text-muted-foreground">Pausa (tapa la fase)</div>
       <div className="flex flex-wrap gap-1">
-        {BLOCKS.map((st) => <StateButton key={st} st={st} disabled={busy !== null} on={cur.block === st}
+        {PICK_BLOCKS.map((st) => <StateButton key={st} st={st} disabled={busy !== null} on={cur.block === st}
           title={`${STATE[st][3]}${cur.block === st ? "" : " (con la nota de abajo)"}`}
           onClick={() => set(st, note.trim() || null)} />)}
         {cur.block && <button disabled={busy !== null} onClick={() => set("unblock")}

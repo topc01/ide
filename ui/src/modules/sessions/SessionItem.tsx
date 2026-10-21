@@ -6,6 +6,7 @@ import { CardMeta, CiMark } from "./ReviewsSection";
 import { CardActions, CardCorner, DevIndex, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
 import { ago, STATE, type Block, type DevStateInfo } from "./devStates";
+import { ACTIVITY, activityOf } from "./activity";
 import { PersonChip } from "../../lib/people";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
@@ -14,7 +15,6 @@ import { Badge } from "../../components/ui/badge";
 import { ConfirmArchiveDialog } from "./ConfirmArchiveDialog";
 import { cn } from "../../lib/utils";
 
-const DOT = { running: ["●", "corriendo"], stopped: ["○", "parada"], queued: ["◌", "en cola"] } as const;
 
 /** `pr`: la PR de GitHub de la sesión (si se conoce): agrega su posición en el stack.
  *  `onlyActions`: el hover muestra solo `actions` (sin parar/archivar). */
@@ -36,7 +36,9 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
   const { activeId, activePrUrl, setActive } = useFolders();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dot, label] = DOT[session.process];
+  const act = activityOf(session, dev);
+  const [dot, dotCls, label] = ACTIVITY[act];
+  const waitNote = act === "waiting" ? session.activity?.note : null;
   // varias PRs (stack o fullstack): el tono y el CI los da la peor
   const worst = many ? worstPr(prs!) : { review: pr, ci: pr };
   const tone = devTone(worst.review, undefined, { merged: session.prState === "merged", status: session.status });
@@ -52,8 +54,9 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
         selected={activeId === session.id && !activePrUrl || !!prs?.some((p) => p.url === activePrUrl)}>
         <CardCorner><DepsPause pr={pr} />{worst.ci && <CiMark pr={worst.ci} />}</CardCorner>
         <div className={cn("flex items-start gap-1.5", titlePad(pr))}>
-          <span aria-label={label} title={`claude ${label}`}
-            className={cn(session.process === "running" ? "text-primary" : "text-muted-foreground")}>{dot}</span>
+          <span aria-label={label} title={`${label}${session.activity?.since && session.process === "running"
+            ? ` (desde ${new Date(session.activity.since).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })})` : ""}${waitNote ? `\n${waitNote}` : ""}`}
+            className={dotCls}>{dot}</span>
           <DevTitle devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])}
             original={session.title ?? pr?.title ?? prLabel(session.prUrl) ?? session.id} />
           {(session.error || session.launchError) && (
@@ -90,6 +93,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
         </div>
         <CardMeta>
+          {waitNote && <span className="line-clamp-2 basis-full text-orange-300" title={`Último mensaje de claude: ${waitNote}`}>› {waitNote}</span>}
           {dev && <DevStateLabel dev={dev} devKey={`s:${session.id}`} />}
           {isReview && pause?.block && (
             <span className="block basis-full" title={`La sesión de revisión está en pausa: ${STATE[pause.block as Block]?.[0] ?? pause.block}`

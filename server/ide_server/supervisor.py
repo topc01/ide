@@ -1,6 +1,7 @@
 # server/ide_server/supervisor.py
 from __future__ import annotations
 import json
+from datetime import datetime
 import logging
 import os
 import re
@@ -142,6 +143,30 @@ def enable_plugins(session_dir: Path, plugins: list[str]) -> None:
         f.write_text(json.dumps({**data, "enabledPlugins": wanted}, indent=2) + "\n", encoding="utf-8")
 
 
+HOOK_EVENTS = ("UserPromptSubmit", "Stop", "Notification")
+
+
+def install_hooks(session_dir: Path) -> None:
+    """Hooks de Claude Code en `.claude/settings.json` de la sesión: `ide hook` le avisa al IDE cuándo
+    claude empieza un turno (trabajando), lo termina o pide un permiso (esperando tu input)."""
+    f = session_dir / ".claude" / "settings.json"
+    data = {}
+    if f.is_file():
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            raise SessionError("bad_settings", f"{f} no es JSON válido: {exc}") from exc
+    hooks = dict(data.get("hooks") or {})
+    ours = {"type": "command", "command": "ide hook", "timeout": 5}
+    for ev in HOOK_EVENTS:
+        groups = [g for g in hooks.get(ev) or []
+                  if not any(h.get("command") == "ide hook" for h in g.get("hooks") or [])]
+        hooks[ev] = groups + [{"hooks": [ours]}]
+    if hooks != data.get("hooks"):
+        f.parent.mkdir(exist_ok=True)
+        f.write_text(json.dumps({**data, "hooks": hooks}, indent=2) + "\n", encoding="utf-8")
+
+
 def build_argv(root: Path, sid: str, *, command: str, resume: bool,
                claude_session: str | None = None, claude_name: str | None = None,
                prompt: str | None = None) -> list[str]:
@@ -199,6 +224,8 @@ class Supervisor:
         self._queue: list[tuple[str, bool]] = []
         self._errors: dict[str, str] = {}
         self._head: dict[str, bytes] = {}           # sid -> inicio de la salida del proceso
+        # actividad de su claude (por los hooks): {state: working|waiting, since, note, reason}
+        self._activity: dict[str, dict] = {}
         self._attention: dict[str, str] = {}        # sid -> "trust"
 
     def state(self, sid: str) -> str:
@@ -212,7 +239,16 @@ class Supervisor:
         sids = set(self._running) | {q for q, _ in self._queue} | set(self._errors)
         return {sid: {"process": self.state(sid), "terminalId": self._running.get(sid),
                       "launchError": self._errors.get(sid),
-                      "attention": self._attention.get(sid)} for sid in sids}
+                      "attention": self._attention.get(sid),
+                      "activity": self._activity.get(sid) if sid in self._running else None} for sid in sids}
+
+    def set_activity(self, sid: str, state: str, note: str | None = None, reason: str | None = None) -> str | None:
+        """Devuelve el estado anterior."""
+        prev = (self._activity.get(sid) or {}).get("state")
+        self._activity[sid] = {"state": state, "note": note, "reason": reason,
+                               "since": datetime.now().isoformat(timespec="seconds")}
+        self._on_change()
+        return prev
 
     def start(self, sid: str, *, resume: bool | None = None, prompt: str | None = None) -> str:
         path = session_path(self._root, sid)
@@ -285,6 +321,7 @@ class Supervisor:
             enable_plugins(path, list(reviews_config(self._root)["plugins"]))
         if data.get("kind") == "main":
             install_skills(self._root, path)
+        install_hooks(path)
         cs, name = data.get("claude_session"), data.get("claude_name")
         if not cs or not name:
             cs = cs or (latest_transcript_id(path, self._home) if resume else None) or str(uuid.uuid4())
@@ -319,6 +356,9 @@ class Supervisor:
         holder["tid"] = tid
         self._forget(sid)
         self._running[sid] = tid
+        # hasta el primer hook: con prompt trabaja; sin prompt queda en el input
+        self._activity[sid] = {"state": "working" if prompt else "waiting", "note": None, "reason": "launch",
+                               "since": datetime.now().isoformat(timespec="seconds")}
         self._errors.pop(sid, None)
 
     def _forget(self, sid: str) -> None:
@@ -338,7 +378,9 @@ class Supervisor:
             self._on_change()
 
     def _on_input(self, sid: str, tid: str | None) -> None:
-        """El usuario escribió en la terminal: asumimos que respondió el diálogo."""
+        """El usuario escribió en la terminal: asumimos que respondió el diálogo (o el permiso)."""
+        if (self._activity.get(sid) or {}).get("reason") == "permission":
+            self.set_activity(sid, "working")
         if tid is not None and self._running.get(sid) == tid and \
                 self._attention.pop(sid, None) is not None:
             self._head[sid] = b""         # seguir mirando: puede venir otro diálogo (bypass)
@@ -348,6 +390,7 @@ class Supervisor:
         if tid is None or self._running.get(sid) != tid:
             return
         del self._running[sid]
+        self._activity.pop(sid, None)
         if says_backgrounded(self._head.get(sid, b"")):
             self._errors[sid] = ("claude dice que la conversación sigue en segundo plano y no se "
                                  "pudo reenganchar: revisa `claude agents` (attach o stop)")

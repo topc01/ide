@@ -1,6 +1,7 @@
 // ui/src/layout/StatusBar.tsx
 import { useEffect, useState } from "react";
 import { useFolders } from "../state/folders";
+import { isWaiting } from "../modules/sessions/activity";
 import { fetchUsage, type Usage, type UsageWindow } from "../transport/folderSessions";
 import { getWs } from "../transport/wsClient";
 import { cn } from "../lib/utils";
@@ -100,12 +101,15 @@ export function StatusBar() {
   );
 }
 
-/** Cuántos desarrollos esperan tu input (estado del desarrollo); el tooltip dice cuáles y qué piden. */
+/** Cuántas sesiones esperan tu input (su claude terminó el turno o pide un permiso; más las que
+ *  quedaron marcadas "esperando tu input" de antes); el tooltip dice cuáles y qué dicen. */
 function WaitingForYou() {
   const states = useFolders((s) => s.tree.devStates);
   const names = useFolders((s) => s.tree.devNames);
   const sessions = useFolders((s) => s.tree.sessions);
-  const waiting = Object.entries(states ?? {}).filter(([, v]) => v.block === "waiting-input");
+  const byActivity = sessions.filter((x) => x.kind !== "main" && isWaiting(x)).map((x) => [`s:${x.id}`, { note: x.activity?.note ?? null }] as const);
+  const legacy = Object.entries(states ?? {}).filter(([k, v]) => v.block === "waiting-input" && !byActivity.some(([b]) => b === k));
+  const waiting = [...byActivity, ...legacy];
   if (!waiting.length) return null;
   const label = (k: string) => names?.[k] ?? (k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2))?.title ?? k.slice(2) : k.slice(2));
   return (

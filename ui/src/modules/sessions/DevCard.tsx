@@ -9,7 +9,7 @@ import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
 import { devIndexOf, devKeys, devName, isHidden } from "./desarrollos";
 import { useStore } from "../../state/store";
-import { ago, BLOCKS, PHASES, STATE, type DevStateInfo, type State } from "./devStates";
+import { ago, PICK_BLOCKS, PHASES, STATE, type DevStateInfo, type State } from "./devStates";
 import { useSidebarConfig } from "../../state/sidebarConfig";
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
@@ -298,7 +298,7 @@ function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: st
         placeholder="nota: qué falta y de quién"
         onKeyDown={(e) => { if (e.key === "Enter" && dev.block) set(dev.block, note.trim() || null); }}
         className="mx-1.5 mb-1 w-[calc(100%-12px)] rounded border border-border bg-background px-1.5 py-0.5 text-[11px] outline-none focus:border-primary" />
-      {BLOCKS.map((st) => row(st, dev.block === st, () => set(st, note.trim() || null)))}
+      {PICK_BLOCKS.map((st) => row(st, dev.block === st, () => set(st, note.trim() || null)))}
       {dev.block && (
         <button onClick={() => set("unblock")} title={`Quitar la pausa (vuelve a "${STATE[dev.phase][0]}")`}
           className="w-full rounded px-1.5 py-1 text-left hover:bg-accent">✕ quitar {STATE[dev.block][0]} (vuelve a {STATE[dev.phase][0]})</button>)}
