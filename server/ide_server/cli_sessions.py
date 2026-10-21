@@ -400,9 +400,7 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
             out.write(data["log"])
         return 0
     if a.cmd == "review-stack":
-        body: dict = {"urls": a.urls}
-        if env.get("IDE_SESSION_ID"):            # lo pide una sesión: solo la principal puede
-            body["caller"] = env["IDE_SESSION_ID"]
+        body = {"urls": a.urls, "token": env.get("IDE_MANAGER_TOKEN", "")}   # solo la principal lo tiene
         data = _post(http, url, "/api/reviews/stack", body, timeout=600)   # gh + fetch + setup
         out.write(f"{data['id']}\t{'creada' if data['created'] else 'existe'}\t{data['process']}\n")
         return 0

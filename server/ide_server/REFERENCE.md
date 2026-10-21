@@ -178,8 +178,9 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 - `ide session review-stack <url> [<url>…]`: lo mismo que "Revisar stack" de la UI (ver Revisiones):
   una sesión `stack-<repo>-<n>` que revisa esas PRs de un stack (tienen que estar pendientes de tu
   review); con **una sola URL** toma todas las pendientes de su stack. Archiva las sesiones de
-  revisión individuales de esas PRs y lanza la nueva. Desde una sesión, solo la principal puede.
-  Imprime `<id>\t<creada|existe>\t<proceso>`. HTTP `POST /api/reviews/stack {urls, caller?}`.
+  revisión individuales de esas PRs y lanza la nueva. Solo la sesión principal (manager) puede: va
+  con su token (`IDE_MANAGER_TOKEN`, como `ide session send`); a mano, usa el botón de la UI.
+  Imprime `<id>\t<creada|existe>\t<proceso>`. HTTP `POST /api/reviews/stack {urls, token}`.
 - `ide session rm <id> [--force]`: si hay cambios sin commitear en algún repo, **se niega antes de tocar nada** (`--force` lo fuerza); si no: para el proceso, corre `archive` de cada repo, quita los worktrees y borra la carpeta. Las branches quedan.
 
 ### Repos y scripts

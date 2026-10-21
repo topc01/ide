@@ -196,7 +196,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.post("/api/reviews/stack")
     async def api_review_stack(body: dict):
-        return await _http("reviews.startStack", body)
+        return await _http("reviews.startStack", {**body, "_http": True})
 
     @app.get("/api/later")
     async def api_later(all: bool = False):

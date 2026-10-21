@@ -859,13 +859,10 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def review_start_stack(p: dict) -> dict:
         """"Revisar stack": una sola sesión para las PRs de un stack que te pidieron revisar (de abajo
         hacia arriba). Archiva las sesiones de revisión individuales de esas PRs."""
-        if p.get("caller"):                     # desde una sesión (`ide session review-stack`): solo la principal
-            try:
-                kind = read_toml(session_path(root, normalize_id(p["caller"])) / ".session.toml").get("kind")
-            except (SessionError, OSError, ValueError):
-                kind = None
-            if kind != "main":
-                raise SessionError("forbidden", "solo la sesión principal puede crear sesiones")
+        # por HTTP (`ide session review-stack`): solo la principal, con el token que el IDE le pasa a SU
+        # claude (en memoria); `_http` lo pone la ruta, no el cliente
+        if p.get("_http") and not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+            raise SessionError("forbidden", "solo la sesión principal puede crear revisiones de stack por CLI")
         st = gh_reviews.state if gh_reviews else {}
         pending = {c["url"]: c for c in st.get("pending") or []}
         urls = [u.strip() for u in p.get("urls") or [] if isinstance(u, str)]
