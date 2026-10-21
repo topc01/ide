@@ -423,8 +423,9 @@ stack con 2 o más PRs que te pidieron revisar; con confirmación): una sola ses
 `.ide/prompts/review-stack.md` (`{{prs}}` = la lista de abajo hacia arriba): las revisa una por una,
 cada una contra su base, deja por PR en SESSION.md `## <repo>#<n>` con `### Veredicto`, `### Hallazgos`
 y `### Review para GitHub`, y al final pide OK para publicar todas. Las sesiones individuales de esas
-PRs se archivan. Cada PR del stack sigue en su card, apuntando a la sesión del stack; Aprobar / Pedir
-cambios usan el review de su sección. `.session.toml` guarda `stack_prs` (la sesión trae `stackPrs`);
+PRs se archivan. Con la sesión creada, sus PRs se ven en **una sola card** (la de la sesión, con una
+chip por PR de abajo hacia arriba; click en una chip abre esa PR); Aprobar / Pedir cambios de cada PR
+usan el review de su sección. `.session.toml` guarda `stack_prs` (la sesión trae `stackPrs`);
 canal `reviews.startStack {urls}` (también `ide session review-stack`). Errores de `gh` se ven como `⚠ github`.
 
 **Mis PRs** (sidebar principal, bajo Revisiones): tus PRs abiertas de la org (del mismo poll),

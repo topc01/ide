@@ -335,9 +335,21 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
       : <PrCard pr={pr} reviewable={reviewable} showAuthor devKey={`p:${pr.url}`}
           extraActions={reviewable ? (stack ? <StackReviewButton prs={stack} /> : undefined) : <ReviewVerdictActions pr={pr} />} /> };
   };
+  // las PRs de una revisión de stack van juntas en UNA card (la de la sesión), de abajo hacia arriba
+  const listed = [...(gh?.pending ?? []).map((pr) => [pr, "pending"] as const),
+    ...(gh?.changesRequested ?? []).map((pr) => [pr, "changes"] as const)];
+  const stackEntries = new Map<string, Entry>();
+  for (const [pr, status] of listed) {
+    const s = stackSession.get(pr.url);
+    if (!s || stackEntries.has(s.id)) continue;
+    const prs = listed.map(([p]) => p).filter((p) => s.stackPrs!.includes(p.url))
+      .sort((a, b) => (a.stack?.position ?? 0) - (b.stack?.position ?? 0));
+    stackEntries.set(s.id, { key: s.id, pr: prs[0], session: s, status,
+      render: () => <SessionItem session={s} prs={prs} onlyActions /> });
+  }
   const entries: Entry[] = [
-    ...(gh?.pending ?? []).map((pr) => prEntry(pr, "pending", true)),
-    ...(gh?.changesRequested ?? []).map((pr) => prEntry(pr, "changes", false)),
+    ...listed.filter(([pr]) => !stackSession.has(pr.url)).map(([pr, status]) => prEntry(pr, status, status === "pending")),
+    ...stackEntries.values(),
   ];
   const onGithub = new Set(entries.flatMap((e) => [e.pr!.sessionId, ...(e.session ? [e.session.id] : [])]));
   // las que no están pendientes ni con cambios pedidos: mergeadas/cerradas, aprobadas por mí o el resto
