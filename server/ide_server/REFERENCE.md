@@ -696,7 +696,10 @@ sesión: tipo, título, ticket de Notion, PR (revisiones) y `status`. Las sesion
 **`ide status <estado>`** (opcional `-m "nota"`; el estado se refleja en `SESSION.md`
 para quien lo lea). Si una sesión edita a mano el `status:` del archivo, se adopta y queda en el
 historial como "archivo". Estados válidos — ticket: las fases y pausas de arriba (y `unblock`);
-revisión: reviewing | approved | changes-requested | suggests-approve | suggests-changes.
+revisión: reviewing | approved | changes-requested | suggests-approve | suggests-changes, más las
+pausas `waiting-input` | `blocked` | `paused` | `unblock`, que van aparte, encima del veredicto (p.ej.
+el veredicto listo esperando el OK del usuario para publicar): cuentan en "N te esperan", avisan por
+macOS, la card de Revisiones las muestra con su nota, y marcar un veredicto las quita.
 
 **Historial** (tabla `events`): quién hizo qué y cuándo — el IDE (sesión creada, archivada,
 revisión lanzada, merge: rebasando / esperando CI / mergeada / error), las sesiones (`ide status`

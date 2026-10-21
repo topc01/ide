@@ -5,7 +5,7 @@ import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
 import { CardActions, CardCorner, DevIndex, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
-import type { DevStateInfo } from "./devStates";
+import { ago, STATE, type Block, type DevStateInfo } from "./devStates";
 import { PersonChip } from "../../lib/people";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
@@ -43,6 +43,8 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
   const groups = many ? byRepoStack(prs!) : [];
   const repos = [...new Set([...session.repos.map((r) => r.name), ...(prs ?? []).map((p) => p.repo)])].sort();
   const isReview = session.kind === "review";
+  // revisión en pausa (p.ej. esperando tu OK para publicar): va encima del veredicto
+  const pause = useFolders((st) => isReview ? st.tree.devStates?.[`s:${session.id}`] : undefined);
   return (
     <QueueItem className="px-2 py-1">
       {/* con una PR (sin sesión) elegida, la sesión anterior ya no es el desarrollo activo */}
@@ -89,6 +91,14 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
         </div>
         <CardMeta>
           {dev && <DevStateLabel dev={dev} devKey={`s:${session.id}`} />}
+          {isReview && pause?.block && (
+            <span className="block basis-full" title={`La sesión de revisión está en pausa: ${STATE[pause.block as Block]?.[0] ?? pause.block}`
+              + `${pause.note ? `\nNota: ${pause.note}` : ""}\n(la sesión la quita al seguir)`}>
+              <span className={cn("rounded-sm border border-current px-1.5 text-[10px] font-semibold uppercase tracking-wide",
+                STATE[pause.block as Block]?.[2])}>{STATE[pause.block as Block]?.[0] ?? pause.block}</span>
+              {pause.since && <span className="ml-1.5 text-muted-foreground">hace {ago(pause.since)}</span>}
+              {pause.note && <span className="line-clamp-2 italic text-muted-foreground">{pause.note}</span>}
+            </span>)}
           {!many && pr?.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
           {session.prState === "stale" && <span className="text-sky-400"
             title="El PR tiene commits nuevos desde tu revisión: abre la sesión y toca Refrescar">⟳ commits nuevos desde tu revisión</span>}

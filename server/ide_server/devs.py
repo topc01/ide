@@ -38,7 +38,9 @@ STATUSES = {
     "ticket": DEV_STATES + ("unblock",),
     # approved / changes-requested: el veredicto publicado (por la sesión o con los botones del IDE);
     # suggests-*: veredicto todavía sin publicar
-    "review": ("reviewing", "suggests-approve", "suggests-changes", "approved", "changes-requested"),
+    # + las pausas (encima del veredicto): p.ej. `waiting-input` con el veredicto listo, esperando tu OK
+    "review": ("reviewing", "suggests-approve", "suggests-changes", "approved", "changes-requested")
+              + BLOCKS + ("unblock",),
 }
 
 
@@ -176,6 +178,13 @@ def set_status(root: Path, db: Db, sid: str, status: str, *, actor: str, note: s
     if row["kind"] == "ticket":
         _, effective = _apply(db, f"s:{sid}", status, note, actor, prev, gh)
         effective = effective or "investigating"
+    elif status in BLOCKS or status == "unblock":   # revisión: la pausa va aparte, el veredicto queda
+        _apply(db, f"s:{sid}", status, note, actor)
+        db.event(now(), actor, "status", dev=sid, pr_url=row.get("prUrl"),
+                 data={"from": prev, "to": status, **({"note": note} if note else {})})
+        return db.dev(sid)
+    elif db.get(f"devstate:s:{sid}"):           # revisión con veredicto nuevo: se destraba
+        _apply(db, f"s:{sid}", "unblock", None, actor)
     db.put_dev({**row, "status": effective, "updated": now()})
     _mirror(root, sid, row["kind"], effective)
     db.event(now(), actor, "status", dev=sid, pr_url=row.get("prUrl"),
@@ -209,7 +218,7 @@ def set_dev_state(root: Path, db: Db, key: str, status: str | None, *, actor: st
 
 
 def dev_states(db: Db) -> dict[str, dict]:
-    """clave → {phase, block, note, since}: sesiones de ticket y PRs sin sesión."""
+    """clave → {phase, block, note, since}: sesiones de ticket, revisiones pausadas y PRs sin sesión."""
     out = {}
     for k in db.with_prefix("devstate:"):
         if not k.startswith("s:"):
@@ -217,6 +226,8 @@ def dev_states(db: Db) -> dict[str, dict]:
     for r in db.devs():
         if r.get("kind") == "ticket" and r.get("status"):
             out[f"s:{r['id']}"] = _state(db, f"s:{r['id']}", r["status"])
+        elif r.get("kind") == "review" and (cur := db.get(f"devstate:s:{r['id']}")) and cur.get("block"):
+            out[f"s:{r['id']}"] = _state(db, f"s:{r['id']}")   # revisión pausada (p.ej. esperando tu OK)
     return {k: {**{x: v.get(x) for x in ("phase", "block", "note", "since")}, **({"gh": v["gh"]} if "gh" in v else {})}
             for k, v in out.items()}
 
