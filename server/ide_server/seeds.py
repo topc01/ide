@@ -55,6 +55,14 @@ nunca editando el `status:` del archivo. Ticket:
 **Cuando termines un turno con una pregunta o algo que el usuario tiene que decidir**, márcalo:
 `ide status waiting-input -m "<qué necesitas, en una línea>"` (no una nota en `developing`): así le
 aparece en "te esperan" y le llega el aviso. Cuando te responda, `ide status unblock`.
+
+**Para después:** si el usuario no puede responder ahora (p.ej. "esto lo veo con el equipo", "déjalo
+para después"), o tú ves una pregunta que puede esperar, déjala como pendiente para que no se pierda:
+`ide later add "<la pregunta, autocontenida>" -m "<contexto: qué necesitas y por qué>"`. El usuario
+los ve en el módulo "Para después". Sigue con todo lo que puedas hacer sin esa respuesta; si ya no
+puedes avanzar, `ide status blocked -m "pendiente: <qué>"`. La respuesta te llega como
+`[Respuesta del usuario a un pendiente que quedó para después]`: retoma con ella (y `ide status
+unblock` si estabas bloqueado por eso).
 Mientras el desarrollo está activo sus PRs van en **draft** (`gh pr create --draft`); al terminar,
 `ide status ready-for-review` y el usuario la manda a revisión desde el IDE. Desde ahí la fase la da
 GitHub (en testeo = fuera de draft sin revisores, en revisión, cambios pedidos, aprobada, mergeada). Revisión (sesiones de
@@ -211,7 +219,10 @@ Revisión nocturna de feedback ({{date}}).
 
    Pocas propuestas, concretas y sin contradicciones; nada de una sola vez salvo que sea grave. Si no
    hay nada que proponer, escribe el archivo igual con "Sin propuestas" (y `status: applied`).
-5. **No apliques nada.** El usuario lo revisa en la mañana; cuando te diga cuáles aplicar, aplícalas
+5. Si el material trae **pendientes para después** abiertos hace más de 7 días, agrega al final del plan
+   `## Recordatorio: pendientes para después` con esa lista (no son propuestas: es para que el
+   usuario no los pierda).
+6. **No apliques nada.** El usuario lo revisa en la mañana; cuando te diga cuáles aplicar, aplícalas
    (los `CLAUDE.md` de repos van por PR), marca cada una como aplicada y pon `status: applied`.
 """
 
@@ -228,7 +239,9 @@ ayudas a destrabar.
 
 `ide dev ls` (todos los desarrollos: número `#n`, nombre, fase/bloqueo, PRs, CI, revisores) y, para
 uno, `ide dev show <id>` (detalle + historial). Para el contexto de un desarrollo, lee su
-`../<sesión>/SESSION.md`. Resume primero lo bloqueado y lo que espera al usuario.
+`../<sesión>/SESSION.md`. Resume primero lo bloqueado y lo que espera al usuario. Mira también
+`ide later ls`: los **pendientes para después** (preguntas o temas que el usuario dejó para verlos otro
+día, p.ej. con el equipo); recuérdale los que llevan varios días (también por Telegram si te escribe).
 
 ## Rutear
 
@@ -247,8 +260,7 @@ Si no es para ningún desarrollo existente y es trabajo nuevo, propón crear la 
 
 ## Destrabar
 
-Los bloqueos (esperando input del usuario, dudas, definiciones, cliente, otro desarrollo) se ven en
-`ide dev ls`. Ayuda a resolverlos: junta las preguntas pendientes de varias sesiones, propón respuestas,
+Las pausas (esperando input del usuario, bloqueado con su nota) se ven en `ide dev ls`. Ayuda a resolverlos: junta las preguntas pendientes de varias sesiones, propón respuestas,
 y cuando el usuario responda, encólale la respuesta a cada sesión.
 
 ## Mensajes por Telegram

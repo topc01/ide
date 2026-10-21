@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Archive, ExternalLink } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
-import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
 import type { DevStateInfo } from "./devStates";
 import { PersonChip } from "../../lib/people";
@@ -84,6 +84,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
             : repos.length ? repos.map((r) => <RefChip key={r} repo={r} />)
             : <span className="font-mono text-[10px] text-muted-foreground">{session.id}</span>}
           {merged.map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)}
+          <LaterChip devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])} />
           {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
         </div>
         <CardMeta>

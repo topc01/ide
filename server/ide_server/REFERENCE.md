@@ -94,7 +94,7 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "pins", "attachments", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
+modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "pins", "later", "attachments", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -330,6 +330,21 @@ servidor). pgweb escucha en 127.0.0.1, en un puerto libre y en su propio origen 
 IDE: lo que muestre no tiene acceso a la API del IDE), bajo un prefijo aleatorio (`/<token>/`) que
 solo conoce la UI: sin el token responde 404. Los pgweb mueren con el server. Canales
 `db.list {place}`, `db.open {place, repo}` (→ `{url, name}`).
+
+**Para después** (módulo, id `later`): pendientes de los desarrollos que el usuario no puede resolver
+ahora (p.ej. una pregunta que tiene que conversar con el equipo), para que no se pierdan. Los deja la
+sesión con **`ide later add "<pregunta>" -m "<contexto>"`** (dentro de la sesión; `--session <id>`
+afuera) o el usuario desde el módulo ("Agregar a" el desarrollo actual). El módulo lista los abiertos
+de todos los desarrollos, agrupados por desarrollo (el actual primero), con de quién y hace cuánto.
+**Responder** le manda la respuesta a la sesión (encolada o la lanza; encabezado `[Respuesta del
+usuario a un pendiente que quedó para después]`) y lo cierra; en desarrollos sin sesión solo queda
+anotada. ✕ lo descarta. La card muestra "⏱ N" (click abre el módulo). La sesión sigue con lo que
+pueda; si ya no puede avanzar pasa a `blocked -m "pendiente: …"`. La manager los ve con **`ide later
+ls`** (`--all` incluye cerrados, `--json`) y en el material de la revisión nocturna (recuerda los de
+más de 7 días). Base: `kv` `later:<id>` = `{id, key, text, context, actor, created, status
+(open|answered|dismissed), answer, resolved}`; canales `later.add {key, text, context}`, `later.list
+{all}`, `later.answer {id, answer}`, `later.dismiss {id}`; HTTP `GET/POST /api/later`;
+`sessions.tree` trae `later` (los abiertos).
 
 **Pines** (módulo, id `pins`): mensajes de claude guardados para usar después (p.ej. un texto para
 mandar por un hilo), por desarrollo. Se pinea desde la tab `claude`: al pasar el mouse por una línea de

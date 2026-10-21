@@ -21,6 +21,7 @@ from ide_server.devs import PHASES, assign_indices, dev_states, link_prs, set_de
 from ide_server.gh_merge import Merger
 from ide_server import pr_changes
 from ide_server import pins as pins_mod
+from ide_server import later as later_mod
 from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
 from ide_server.pr_poller import PrPoller
@@ -71,6 +72,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "devPrs": db.dev_prs() if db else {},
                 "devIndex": db.with_prefix("devidx:") if db else {},
                 "devStates": dev_states(db) if db else {},
+                "later": later_mod.items(db) if db else [],
                 "feedbackPending": pending_plans(root),
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
 
@@ -717,6 +719,55 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         await manager.broadcast("pins.changed", {"pins": pins_mod.all_pins(db)})
         return {"ok": True}
 
+    # -- pendientes "para después" ----------------------------------------------------------------
+    async def later_add(p: dict) -> dict:
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        key = _pin_key(p.get("key") or (f"s:{p['sid']}" if p.get("sid") else None))
+        actor = p.get("actor") if isinstance(p.get("actor"), str) and p["actor"].startswith(("claude:", "cli")) else "usuario"
+        try:
+            item = later_mod.add(db, key, p.get("text") or "", p.get("context"), actor)
+        except ValueError as exc:
+            raise SessionError("bad_request", str(exc)) from exc
+        db.event(datetime.now().isoformat(timespec="seconds"), actor, "later",
+                 dev=key[2:] if key.startswith("s:") else None, data={"text": item["text"][:300]})
+        notify()
+        return {"item": item}
+
+    async def later_list(p: dict) -> dict:
+        return {"items": later_mod.items(db, open_only=not p.get("all")) if db else []}
+
+    async def later_answer(p: dict) -> dict:
+        """Responder un pendiente: la respuesta se le manda a la sesión (si el desarrollo tiene)."""
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        item = later_mod.get(db, str(p.get("id")))
+        answer = (p.get("answer") or "").strip()
+        if item is None or item["status"] != "open":
+            raise SessionError("not_found", "ese pendiente ya no está abierto")
+        if not answer:
+            raise SessionError("bad_request", "falta la respuesta")
+        how = "anotada"
+        sid = item["key"][2:] if item["key"].startswith("s:") else None
+        if sid and session_path(root, sid).is_dir():
+            # con encabezado: nunca empieza con "!" o "/", y la sesión sabe qué es
+            text = ("[Respuesta del usuario a un pendiente que quedó para después]\n"
+                    f"Pendiente: {item['text']}\nRespuesta: {answer}")
+            _, how = _deliver_to(sid, text, "usuario")
+        later_mod.close(db, item["id"], "answered", answer)
+        notify()
+        return {"ok": True, "delivered": how}
+
+    async def later_dismiss(p: dict) -> dict:
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        try:
+            later_mod.close(db, str(p.get("id")), "dismissed")
+        except KeyError as exc:
+            raise SessionError("not_found", "no existe ese pendiente") from exc
+        notify()
+        return {"ok": True}
+
     async def stack_status(p: dict) -> dict:
         """Si el stack de esa PR necesita re-apilar (una rama quedó atrás de su madre) o ponerse al día
         con la base. Las PRs, de abajo hacia arriba."""
@@ -805,6 +856,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
         "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "pr.reviewers": pr_reviewers, "session.messages": session_messages,
+        "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss,
         "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,

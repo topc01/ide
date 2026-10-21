@@ -6,7 +6,7 @@ import { useFolders } from "../../state/folders";
 import { useDevTabs } from "../../state/devTabs";
 import type { FolderSession, GhPr, MergeJob } from "../../transport/folderSessions";
 import { QueueItem, QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
-import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { worstPr } from "./desarrollos";
 import { CiMark, PrCard, useGithubReviews } from "./ReviewsSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
@@ -79,6 +79,7 @@ function StackCard({ d, dev }: { d: Desarrollo; dev: DevStateInfo | null }) {
         <div className="mt-1 flex flex-wrap items-center gap-1" title={`stack de ${d.prs.length} (de abajo hacia arriba)`}>
           <DevIndex devKey={d.key} prs={d.prs} />
           {d.prs.map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)}
+          <LaterChip devKey={d.key} prs={d.prs} />
         </div>
         {dev && <div className="mt-1 flex flex-wrap gap-x-2 text-[11px]"><DevStateLabel dev={dev} devKey={d.key} /></div>}
       </CardShell>

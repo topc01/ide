@@ -71,6 +71,12 @@ def _parser() -> argparse.ArgumentParser:
     ra.add_argument("--session")
     st = sub.add_parser("status", help="cambia el estado de la sesión (queda en la base y en el historial)")
     st.add_argument("status"); st.add_argument("-m", "--note"); st.add_argument("--session")
+    lt = sub.add_parser("later", help="pendientes para después (preguntas/temas que el usuario verá otro día)").add_subparsers(dest="cmd", required=True)
+    la = lt.add_parser("add", help="deja un pendiente en el desarrollo de la sesión")
+    la.add_argument("text"); la.add_argument("-m", "--context", help="contexto: qué se necesita y por qué")
+    la.add_argument("--session")
+    ll = lt.add_parser("ls", help="pendientes abiertos de todos los desarrollos")
+    ll.add_argument("--json", action="store_true"); ll.add_argument("--all", action="store_true", help="también respondidos/descartados")
     dv = sub.add_parser("dev").add_subparsers(dest="cmd", required=True)
     dls = dv.add_parser("ls"); dls.add_argument("--json", action="store_true")
     dsh = dv.add_parser("show"); dsh.add_argument("id"); dsh.add_argument("--json", action="store_true")
@@ -182,6 +188,27 @@ def _pr_line(p: dict) -> str:
     deps = f" ⏸{p['depsPending']}" if p.get("depsPending") else ""
     return (f"    {p['repo']}#{p['number']}{stack} review={p.get('review') or '-'} ci={p.get('ci') or '-'}"
             f"{' draft' if p.get('draft') else ''}{deps}  {p['title']}" + (f"  [{who}]" if who else ""))
+
+
+def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
+    if a.cmd == "add":
+        sid = a.session or env.get("IDE_SESSION_ID")
+        if not sid:
+            raise SessionError("no_session", "no estoy dentro de una sesión: usa --session <id>")
+        actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
+        data = _post(http, url, "/api/later", {"sid": sid, "text": a.text, "context": a.context, "actor": actor})
+        out.write(f"pendiente {data['item']['id']} en {sid}\n")
+        return 0
+    items = _get(http, url, "/api/later" + ("?all=true" if a.all else ""))["items"]
+    if a.json:
+        out.write(json.dumps(items, ensure_ascii=False, indent=2) + "\n")
+        return 0
+    for it in items:
+        out.write(f"{it['created'][:10]}\t{it['key']}\t{it['status']}\t{it['text']}"
+                  + (f"\t({it['context']})" if it.get("context") else "") + "\n")
+    if not items:
+        out.write("(ninguno)\n")
+    return 0
 
 
 def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
@@ -305,6 +332,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _session(a, root, url, http, out, err, env)
         if a.group in ("status", "dev"):
             return _dev_cmd(a, url, http, out, env)
+        if a.group == "later":
+            return _later_cmd(a, url, http, out, env)
         if a.group == "handoff":
             return _handoff(a, root, home, out)
         if a.group == "feedback":

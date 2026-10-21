@@ -13,7 +13,7 @@ import { SessionItem } from "./SessionItem";
 import { ReviewVerdictActions } from "./ReviewVerdict";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
-import { CardActions, CardCorner, DevIndex, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { cn } from "../../lib/utils";
 import type { DevStateInfo } from "./devStates";
 import { PersonChip } from "../../lib/people";
@@ -203,6 +203,7 @@ export function PrCard({ pr, reviewable = false, openOnClick = false, merge, sho
         <div className="mt-1 flex flex-wrap items-center gap-1">
           {devKey && <DevIndex devKey={devKey} prs={[pr]} />}
           <RefChip repo={pr.repo} number={pr.number} />
+          {devKey && <LaterChip devKey={devKey} prs={[pr]} />}
           {showAuthor && <PersonChip login={pr.author} title={`autor: ${pr.author}`} />}
         </div>
         <CardMeta>

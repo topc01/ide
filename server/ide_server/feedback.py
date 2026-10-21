@@ -88,7 +88,14 @@ def collect(root: Path, home: Path, since: datetime | None = None) -> dict:
         if msgs or noted:
             out.append({"id": s["id"], "kind": s["kind"], "title": s.get("title"), "feedback": noted,
                         "messages": msgs[-MAX_MSGS:]})
-    return {"since": since.isoformat(timespec="minutes"), "sessions": out}
+    try:                                        # pendientes para después, abiertos (los ve la manager)
+        from ide_server.db import Db
+        from ide_server import later
+        db = Db(root)
+        pending = later.as_markdown(db, db.dev_names())
+    except Exception:  # noqa: BLE001 — sin base: sin esa sección
+        pending = None
+    return {"since": since.isoformat(timespec="minutes"), "sessions": out, "later": pending}
 
 
 def as_markdown(data: dict) -> str:
@@ -106,6 +113,8 @@ def as_markdown(data: dict) -> str:
             lines.append("")
     if not data["sessions"]:
         lines.append("(nada nuevo)")
+    if data.get("later"):
+        lines += ["", "## Pendientes para después (abiertos, más viejos primero)", data["later"]]
     return "\n".join(lines) + "\n"
 
 

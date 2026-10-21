@@ -24,7 +24,19 @@ export interface SessionsTree {
   devIndex?: Record<string, number>;    // número de cada desarrollo (#12), por clave
   devStates?: Record<string, { phase?: string | null; block?: string | null; note?: string | null; since?: string | null }>;   // fase + bloqueo
   feedbackPending?: string[];            // planes de feedback de la manager sin revisar
+  later?: LaterItem[];                  // pendientes para después, abiertos
 }
+/** Pendiente "para después" de un desarrollo (lo deja la sesión con `ide later add` o el usuario). */
+export interface LaterItem {
+  id: string; key: string; text: string; context: string | null; actor: string; created: string;
+  status: "open" | "answered" | "dismissed"; answer: string | null; resolved: string | null;
+}
+export const laterAdd = (ws: WsClient, key: string, text: string, context: string | null): Promise<{ item: LaterItem }> =>
+  ws.request("later.add", { key, text, context });
+/** Responder: si el desarrollo tiene sesión, la respuesta se le manda (`delivered` dice cómo). */
+export const laterAnswer = (ws: WsClient, id: string, answer: string): Promise<{ ok: boolean; delivered: string }> =>
+  ws.request("later.answer", { id, answer });
+export const laterDismiss = (ws: WsClient, id: string): Promise<{ ok: boolean }> => ws.request("later.dismiss", { id });
 /** Estado del desarrollo (local); `status` null = sin estado. */
 /** `gh`: la fase de GitHub al ponerla a mano (la puesta gana hasta que GitHub cambie); sin `gh` manda GitHub. */
 export const setDevState = (ws: WsClient, key: string, status: string | null, note: string | null, gh?: string | null): Promise<{ ok: boolean }> =>

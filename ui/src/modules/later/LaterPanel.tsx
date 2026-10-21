@@ -1,0 +1,107 @@
+// ui/src/modules/later/LaterPanel.tsx
+import { useState } from "react";
+import { Send, X } from "lucide-react";
+import { useCurrentDev } from "../../main/currentDev";
+import { useFolders } from "../../state/folders";
+import { getWs } from "../../transport/wsClient";
+import { laterAdd, laterAnswer, laterDismiss, type LaterItem } from "../../transport/folderSessions";
+import { Button } from "../../components/ui/button";
+import { devKeys, devName } from "../sessions/desarrollos";
+import { ago } from "../sessions/devStates";
+import { cn } from "../../lib/utils";
+
+const field = "w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] text-foreground outline-none focus:border-primary";
+
+/** Nombre corto de un desarrollo por su clave: "#12 nombre". */
+function useDevLabel() {
+  const tree = useFolders((s) => s.tree);
+  return (key: string) => {
+    const n = tree.devIndex?.[key];
+    const sid = key.startsWith("s:") ? key.slice(2) : null;
+    const name = devName(tree.devNames, key) ?? (sid ? tree.sessions.find((s) => s.id === sid)?.title : null)
+      ?? key.replace(/^p:https:\/\/github\.com\/[^/]+\/([^/]+)\/pull\/(\d+)$/, "$1#$2");
+    return `${n !== undefined ? `#${n} ` : ""}${name ?? key}`;
+  };
+}
+
+/** Un pendiente: texto, contexto, de quién y hace cuánto; Responder (se le manda a la sesión) o descartar. */
+function Item({ it }: { it: LaterItem }) {
+  const [answer, setAnswer] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const toSession = it.key.startsWith("s:");
+  const send = () => {
+    if (!answer?.trim()) return;
+    setBusy(true); setMsg(null);
+    laterAnswer(getWs(), it.id, answer.trim()).catch((e: any) => { setMsg(`⚠ ${e?.message ?? String(e)}`); setBusy(false); });
+  };
+  return (
+    <div className="mx-2 mb-1.5 rounded-md border border-border bg-card p-2">
+      <div className="mb-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+        <span>{it.actor.startsWith("claude") ? "la sesión" : "tú"} · hace {ago(it.created)}</span>
+        <span className="flex-1" />
+        <button title="Descartar (sin responder)" aria-label="Descartar"
+          onClick={() => laterDismiss(getWs(), it.id).catch((e: any) => setMsg(`⚠ ${e?.message ?? String(e)}`))}
+          className="rounded p-0.5 hover:bg-accent hover:text-foreground"><X size={12} /></button>
+      </div>
+      <p className="whitespace-pre-wrap break-words text-[12px] leading-snug">{it.text}</p>
+      {it.context && <p className="mt-0.5 whitespace-pre-wrap break-words text-[11px] italic text-muted-foreground">{it.context}</p>}
+      {answer === null ? (
+        <button title={toSession ? "Responder: la respuesta se le manda a la sesión" : "Anotar la respuesta"}
+          onClick={() => setAnswer("")} className="mt-1 text-[11px] text-primary hover:underline">Responder</button>
+      ) : (
+        <div className="mt-1.5">
+          <textarea autoFocus value={answer} onChange={(e) => setAnswer(e.target.value)} rows={3}
+            placeholder="qué se decidió" aria-label="Respuesta"
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send(); if (e.key === "Escape") setAnswer(null); }}
+            className={cn(field, "resize-y")} />
+          <div className="mt-1 flex items-center gap-1">
+            <Button size="sm" className="h-6 gap-1 px-2 text-[11px]" disabled={busy || !answer.trim()} onClick={send}
+              title={toSession ? "Mandar la respuesta a la sesión (⌘Enter)" : "Guardar la respuesta (⌘Enter)"}>
+              <Send size={11} />{toSession ? "Mandar a la sesión" : "Guardar"}</Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" title="Cancelar" onClick={() => setAnswer(null)}>Cancelar</Button>
+          </div>
+        </div>)}
+      {msg && <p role="alert" className="mt-1 text-[11px] text-destructive">{msg}</p>}
+    </div>);
+}
+
+/** Módulo Para después: los pendientes abiertos de todos los desarrollos (el actual primero). Los deja
+ *  la sesión (`ide later add`) o tú desde acá. */
+export function LaterPanel() {
+  const dev = useCurrentDev();
+  const items = useFolders((s) => s.tree.later) ?? [];
+  const label = useDevLabel();
+  const [text, setText] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const mineKeys = dev ? devKeys(dev.key, dev.prs) : [];
+  const groups = new Map<string, LaterItem[]>();
+  for (const it of items) groups.set(it.key, [...(groups.get(it.key) ?? []), it]);
+  const order = [...groups.keys()].sort((a, b) => Number(mineKeys.includes(b)) - Number(mineKeys.includes(a)));
+  const add = () => {
+    if (!dev || !text.trim()) return;
+    setErr(null);
+    laterAdd(getWs(), dev.key, text.trim(), null).then(() => setText("")).catch((e: any) => setErr(e?.message ?? String(e)));
+  };
+  return (
+    <div className="flex h-full flex-col overflow-auto pb-3 text-xs">
+      {dev && (
+        <div className="mx-2.5 mt-2.5">
+          <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Agregar a {label(dev.key)}</div>
+          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="algo para ver después (⌘Enter)"
+            aria-label="Nuevo pendiente" onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) add(); }}
+            className={cn(field, "resize-y")} />
+          <Button size="sm" className="mt-1 h-6 px-2 text-[11px]" disabled={!text.trim()} onClick={add}
+            title="Dejar este pendiente en el desarrollo actual">Agregar</Button>
+          {err && <p role="alert" className="mt-1 text-[11px] text-destructive">{err}</p>}
+        </div>)}
+      {!items.length && <p className="mx-2.5 mt-3 text-[11px] text-muted-foreground">
+        Nada pendiente. Las sesiones dejan acá lo que les dices que verás después (`ide later add`).</p>}
+      {order.map((key) => (
+        <div key={key} className="mt-3">
+          <div className={cn("mx-2.5 mb-1 truncate text-[10px] font-semibold uppercase tracking-wide",
+            mineKeys.includes(key) ? "text-primary" : "text-muted-foreground")} title={key}>{label(key)} · {groups.get(key)!.length}</div>
+          {groups.get(key)!.map((it) => <Item key={it.id} it={it} />)}
+        </div>))}
+    </div>);
+}

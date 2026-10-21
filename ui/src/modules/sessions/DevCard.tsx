@@ -1,13 +1,14 @@
 // ui/src/modules/sessions/DevCard.tsx
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Eye, EyeOff, Flag, Pause, Pencil } from "lucide-react";
+import { Clock, Eye, EyeOff, Flag, Pause, Pencil } from "lucide-react";
 import { hideDev, renameDev, setDevState, type GhPr, type MergeJob } from "../../transport/folderSessions";
 import { QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
-import { devIndexOf, devName, isHidden } from "./desarrollos";
+import { devIndexOf, devKeys, devName, isHidden } from "./desarrollos";
+import { useStore } from "../../state/store";
 import { ago, BLOCKS, PHASES, STATE, type DevStateInfo, type State } from "./devStates";
 import { useSidebarConfig } from "../../state/sidebarConfig";
 
@@ -303,4 +304,18 @@ function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: st
           className="w-full rounded px-1.5 py-1 text-left hover:bg-accent">✕ quitar {STATE[dev.block][0]} (vuelve a {STATE[dev.phase][0]})</button>)}
       {err && <p role="alert" className="px-1.5 py-1 text-[11px] text-destructive">{err}</p>}
     </div>);
+}
+
+/** Chip "⏱ N": pendientes para después del desarrollo; click abre el módulo Para después. */
+export function LaterChip({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
+  const items = useFolders((s) => s.tree.later);
+  const { activePanel, setActivePanel, innerSidebarOpen, toggleInnerSidebar } = useStore();
+  const keys = devKeys(devKey, prs);
+  const n = (items ?? []).filter((it) => keys.includes(it.key)).length;
+  if (!n) return null;
+  return (
+    <button title={`${n} pendiente${n > 1 ? "s" : ""} para después (abre el módulo Para después)`}
+      onClick={(e) => { e.stopPropagation(); if (activePanel !== "later") setActivePanel("later"); if (!innerSidebarOpen) toggleInnerSidebar(); }}
+      className="inline-flex shrink-0 items-center gap-0.5 rounded border border-yellow-400/40 px-1 font-mono text-[10px] font-bold text-yellow-300 hover:border-yellow-300">
+      <Clock size={10} />{n}</button>);
 }
