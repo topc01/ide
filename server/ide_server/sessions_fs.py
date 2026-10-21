@@ -240,7 +240,9 @@ def read_session(root: Path, sid: str) -> dict:
         kind = None
     info.update(kind=kind, permissions=data.get("permissions"),
                 created=str(data.get("created", "")), prUrl=data.get("pr_url"),
-                reviewedSha=data.get("reviewed_sha"))
+                reviewedSha=data.get("reviewed_sha"),
+                # revisión de un stack: las PRs que revisa, de abajo hacia arriba (pr_url = la de arriba)
+                stackPrs=[u for u in data.get("stack_prs") or [] if isinstance(u, str)] or None)
     ports, setup = data.get("ports", {}), data.get("setup", {})
     if not isinstance(ports, dict):
         ports = {}
@@ -288,6 +290,7 @@ def seed_workspace(root: Path) -> list[Path]:
         sessions_dir(root) / "templates" / "review.md": seeds.TEMPLATE_REVIEW,
         ide / "prompts" / "tickets-y-prs.md": seeds.PROMPT_TICKETS_PRS,
         ide / "prompts" / "review-pr.md": seeds.PROMPT_REVIEW_PR,
+        ide / "prompts" / "review-stack.md": seeds.PROMPT_REVIEW_STACK,
         ide / "skills" / "backlog" / "SKILL.md": seeds.SKILL_BACKLOG,
         ide / "manager.md": seeds.MANAGER_MD,
         ide / "prompts" / "nightly-review.md": seeds.PROMPT_NIGHTLY,

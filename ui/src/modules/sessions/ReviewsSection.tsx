@@ -1,14 +1,16 @@
 // ui/src/modules/sessions/ReviewsSection.tsx
 import { useEffect, useState } from "react";
-import { Archive, Check, ChevronRight, ExternalLink, Layers2, Link2, Loader2, MoreHorizontal, Plus, ScanEye, X } from "lucide-react";
+import { Archive, Check, ChevronRight, ExternalLink, Layers, Layers2, Link2, Loader2, MoreHorizontal, Plus, ScanEye, X } from "lucide-react";
 import { Collapsible } from "radix-ui";
 import { useFolders } from "../../state/folders";
 import {
-  dismissMerge, fetchGithubReviews, onGithubReviews, setReviewers, startReview, type MergeJob, type FolderSession, type GhPr, type GithubReviews,
+  dismissMerge, fetchGithubReviews, onGithubReviews, setReviewers, startReview, startStackReview, type MergeJob, type FolderSession, type GhPr, type GithubReviews,
 } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { QueueList, QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
 import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { SessionItem } from "./SessionItem";
 import { ReviewVerdictActions } from "./ReviewVerdict";
 import { GroupedSection, type Entry } from "./GroupedSection";
@@ -18,6 +20,40 @@ import { cn } from "../../lib/utils";
 import type { DevStateInfo } from "./devStates";
 import { PersonChip } from "../../lib/people";
 import { usePersistentOpen } from "../../lib/persist";
+
+/** "Revisar stack": una sola sesión que revisa, de abajo hacia arriba, las PRs de este stack que te
+ *  pidieron revisar (las sesiones individuales de esas PRs se archivan). Pide confirmar. */
+function StackReviewButton({ prs }: { prs: GhPr[] }) {
+  const setActive = useFolders((s) => s.setActive);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const go = () => {
+    setBusy(true); setError(null);
+    startStackReview(getWs(), prs.map((p) => p.url)).then((r) => { setOpen(false); setActive(r.id); })
+      .catch((err: any) => setError(err?.message ?? String(err))).finally(() => setBusy(false));
+  };
+  return (<>
+    <QueueItemAction aria-label="Revisar stack" title={`Revisar el stack completo en una sesión (${prs.length} PRs, de abajo hacia arriba)`}
+      onClick={(e) => { e.stopPropagation(); setOpen(true); }}><Layers size={11} /></QueueItemAction>
+    {open && (
+      <Dialog open onOpenChange={(o) => { if (!o) setOpen(false); }}>
+        <DialogContent onClick={(e) => e.stopPropagation()} className="max-w-md">
+          <DialogHeader><DialogTitle className="text-sm">¿Revisar el stack en una sola sesión?</DialogTitle></DialogHeader>
+          <ol className="list-decimal space-y-0.5 pl-5 text-xs">
+            {prs.map((p) => <li key={p.url}><span className="font-mono font-bold">{repoShort(p.repo)} #{p.number}</span> {p.title}</li>)}
+          </ol>
+          <p className="text-[11px] text-muted-foreground">Las revisa de abajo hacia arriba y al final te pide OK para publicar. Si alguna ya
+            tiene su sesión de revisión, se archiva.</p>
+          {error && <p role="alert" className="text-xs text-destructive">⚠ {error}</p>}
+          <DialogFooter className="gap-2">
+            <Button size="sm" variant="ghost" title="No" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button size="sm" disabled={busy} title="Crear la sesión del stack y empezar" onClick={go}>{busy ? "Creando…" : "Revisar stack"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>)}
+  </>);
+}
 
 /** Botón de revisión: envía `.ide/prompts/review-pr.md` a la sesión del PR (la crea si falta). */
 function ReviewButton({ pr }: { pr: GhPr }) {
@@ -278,22 +314,32 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
     ? gh.selected.map((login) => ({ login, count: counts.get(login) ?? 0 })).sort((a, b) => b.count - a.count)
     : gh?.reviewers ?? [];
 
+  // revisión de stack: cada PR que incluye apunta a esa sesión
+  const stackSession = new Map(sessions.flatMap((s) => (s.stackPrs ?? []).map((u) => [u, s] as const)));
+  // stacks con 2+ PRs pendientes: "Revisar stack" (de abajo hacia arriba)
+  const pendingByStack = new Map<string, GhPr[]>();
+  for (const pr of gh?.pending ?? []) if (pr.stack) pendingByStack.set(pr.stack.id, [...(pendingByStack.get(pr.stack.id) ?? []), pr]);
+  const stackOf = (pr: GhPr) => {
+    const l = pr.stack ? pendingByStack.get(pr.stack.id) ?? [] : [];
+    return l.length > 1 && !stackSession.has(pr.url) ? [...l].sort((a, b) => a.stack!.position - b.stack!.position) : null;
+  };
   // una entrada por PR (con su sesión si la tiene) + las sesiones de revisión que no están en GitHub
   const prEntry = (pr: GhPr, status: string, reviewable: boolean): Entry => {
-    const s = byId.get(pr.sessionId);
+    const s = stackSession.get(pr.url) ?? byId.get(pr.sessionId);
+    const stack = reviewable ? stackOf(pr) : null;
     return { key: pr.url, pr, session: s, status, render: () => s
       // pendientes de revisar: solo revisar y abrir en GitHub (sin parar/archivar)
       ? <SessionItem session={s} pr={pr} onlyActions={reviewable} noArchive={status === "changes"}
-          actions={reviewable ? <><ReviewButton pr={pr} /><ReviewVerdictActions pr={pr} /><OpenPrButton pr={pr} /></>
+          actions={reviewable ? <>{!s.stackPrs && <ReviewButton pr={pr} />}{stack && <StackReviewButton prs={stack} />}<ReviewVerdictActions pr={pr} /><OpenPrButton pr={pr} /></>
             : <ReviewVerdictActions pr={pr} />} />
       : <PrCard pr={pr} reviewable={reviewable} showAuthor devKey={`p:${pr.url}`}
-          extraActions={reviewable ? undefined : <ReviewVerdictActions pr={pr} />} /> };
+          extraActions={reviewable ? (stack ? <StackReviewButton prs={stack} /> : undefined) : <ReviewVerdictActions pr={pr} />} /> };
   };
   const entries: Entry[] = [
     ...(gh?.pending ?? []).map((pr) => prEntry(pr, "pending", true)),
     ...(gh?.changesRequested ?? []).map((pr) => prEntry(pr, "changes", false)),
   ];
-  const onGithub = new Set(entries.map((e) => e.pr!.sessionId));
+  const onGithub = new Set(entries.flatMap((e) => [e.pr!.sessionId, ...(e.session ? [e.session.id] : [])]));
   // las que no están pendientes ni con cambios pedidos: mergeadas/cerradas, aprobadas por mí o el resto
   const groupOf = (s: FolderSession, pr?: GhPr) => {
     if (s.prState === "merged" || s.prState === "closed") return "closed";

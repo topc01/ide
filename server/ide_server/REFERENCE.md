@@ -411,7 +411,15 @@ grupos fijos. En las pendientes, el botón de revisión (hover) envía
 prompt; si está en cola falla con `queued`. En las pendientes y en "Pedí cambios", **Aprobar** (✓) y
 **Pedir cambios** (hover) abren una ventana con el comentario (precargado con la sección "Review para
 GitHub" de la sesión de revisión, editable; obligatorio para pedir cambios) y piden confirmar antes de
-publicar (`gh pr review`, canal `review.submit`). Errores de `gh` se ven como `⚠ github`.
+publicar (`gh pr review`, canal `review.submit`). **Revisar stack** (hover, en las pendientes de un
+stack con 2 o más PRs que te pidieron revisar; con confirmación): una sola sesión de revisión
+`stack-<repo>-<n de la de abajo>` para esas PRs, con el worktree en el head de la de arriba y el prompt
+`.ide/prompts/review-stack.md` (`{{prs}}` = la lista de abajo hacia arriba): las revisa una por una,
+cada una contra su base, deja por PR en SESSION.md `## <repo>#<n>` con `### Veredicto`, `### Hallazgos`
+y `### Review para GitHub`, y al final pide OK para publicar todas. Las sesiones individuales de esas
+PRs se archivan. Cada PR del stack sigue en su card, apuntando a la sesión del stack; Aprobar / Pedir
+cambios usan el review de su sección. `.session.toml` guarda `stack_prs` (la sesión trae `stackPrs`);
+canal `reviews.startStack {urls}`. Errores de `gh` se ven como `⚠ github`.
 
 **Mis PRs** (sidebar principal, bajo Revisiones): tus PRs abiertas de la org (del mismo poll),
 agrupadas como el inbox de Graphite: **Devueltas** (`reviewDecision` = `CHANGES_REQUESTED` y sin reviews pedidas pendientes),

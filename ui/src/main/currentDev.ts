@@ -22,6 +22,9 @@ export function useCurrentDev(): Dev | null {
   const session = tree.sessions.find((s) => s.id === activeId);
   if (!session) return null;
   const mine = gh && session.kind !== "review" ? deriveMine(tickets, gh, tree.devPrs).find((d) => d.session?.id === session.id) : undefined;
-  const prs = gh ? (session.kind === "review" ? allPrs(gh).filter((p) => p.sessionId === session.id) : mine?.prs ?? []) : [];
+  // revisión de stack: sus PRs (de abajo hacia arriba); si no, la de la sesión
+  const reviewed = (p: GhPr) => session.stackPrs ? session.stackPrs.includes(p.url) : p.sessionId === session.id;
+  const prs = gh ? (session.kind === "review"
+    ? allPrs(gh).filter(reviewed).sort((a, b) => (a.stack?.position ?? 0) - (b.stack?.position ?? 0)) : mine?.prs ?? []) : [];
   return { key: `s:${session.id}`, session, prs, merged: mine?.merged };
 }

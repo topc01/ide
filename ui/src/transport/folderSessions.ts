@@ -14,6 +14,7 @@ export interface FolderSession {
   prUrl?: string | null; reviewedSha?: string | null;
   prState?: "stale" | "merged" | "closed" | null; pollError?: string | null; lastOk?: string | null;
   attention?: string | null;      // "trust": claude espera que confirmes la carpeta
+  stackPrs?: string[] | null;     // revisión de un stack: sus PRs, de abajo hacia arriba
 }
 export interface ScriptInfo { name: string; executable: boolean; }
 export interface SessionsTree {
@@ -165,6 +166,9 @@ export interface GithubReviews {
   closed?: GhPr[];                      // PRs de desarrollos con sesión que ya se cerraron/mergearon
 }
 export const fetchGithubReviews = (ws: WsClient): Promise<GithubReviews> => ws.request("reviews.github", {});
+/** "Revisar stack": una sesión para varias PRs pendientes de un stack (archiva las individuales). */
+export const startStackReview = (ws: WsClient, urls: string[]): Promise<{ id: string; created: boolean; process: Process }> =>
+  ws.request("reviews.startStack", { urls });
 export const startReview = (ws: WsClient, url: string): Promise<{ id: string; created: boolean; process: Process }> =>
   ws.request("reviews.start", { url });
 export interface MergeJob {

@@ -188,6 +188,66 @@ def _create_review(root: Path, req: dict, permissions: str, runner: Runner) -> d
     return {"session": read_session(root, sid), "log": log.getvalue()}
 
 
+def stack_review_id(urls: list[str]) -> str:
+    repo, number = parse_pr_url(urls[0])
+    return normalize_id(f"stack-{repo}-{number}")
+
+
+def create_stack_review(root: Path, urls: list[str], *, runner: Runner = _run) -> dict:
+    """Una sesión de revisión para varias PRs de un stack (`urls` de abajo hacia arriba, mismo
+    repo): worktree en el head de la de arriba, prompt `review-stack` con la lista. Si ya existe,
+    se devuelve."""
+    from ide_server import seeds
+    repo = parse_pr_url(urls[0])[0]
+    if any(parse_pr_url(u)[0] != repo for u in urls):
+        raise SessionError("bad_request", "las PRs de un stack son del mismo repo")
+    if repo not in {r["id"] for r in discover_repos(root)}:
+        raise SessionError("unknown_repo", f"el stack es de {repo}, que no está en el workspace")
+    sid = stack_review_id(urls)
+    if archive_path(root, sid).exists():
+        raise SessionError("session_archived", f"la sesión {sid} está archivada")
+    if session_path(root, sid).exists():
+        return {"session": read_session(root, sid), "log": "", "existed": True}
+    prs = []
+    for u in urls:
+        out = runner(["gh", "pr", "view", u, "--json", "title,author,headRefOid,headRefName,baseRefName,state,number"])
+        if out.returncode != 0:
+            raise SessionError("gh_failed", f"gh pr view falló: {out.stderr.strip() or out.returncode}")
+        prs.append({**json.loads(out.stdout), "url": u})
+    top = prs[-1]
+    author = "@" + top["author"]["login"]
+    lines = "\n".join(f"{i + 1}. {repo}#{p['number']} — {p['title']} ({p['url']}; rama `{p['headRefName']}`, base "
+                      f"`{p['baseRefName']}`)" for i, p in enumerate(prs))
+    try:
+        text = load_prompt(root, "review-stack")
+    except SessionError:                        # workspace de antes: la del IDE
+        text = seeds.PROMPT_REVIEW_STACK
+    prompt = render_template(text, {"id": sid, "repo": repo, "prs": lines, "author": author})
+    title = f"Stack {repo} ({len(prs)}): {prs[0]['title']}"
+    create_session_dir(root, sid=sid, kind="review", permissions=_resolve_permissions(root, {}), prompt=prompt,
+                       meta={"title": title, "author": author, "pr_url": top["url"]})
+    log = io.StringIO()
+    try:
+        update_session_toml(root, sid, lambda d: d.update(pr_url=top["url"], reviewed_sha=top["headRefOid"],
+                                                          stack_prs=urls))
+        for p in prs:
+            _fetch_pr(root, repo, p["number"], runner)
+        try:
+            add_repo(root, sid, repo, detach_at=top["headRefOid"], out=log)
+        except SessionError as exc:
+            if exc.code != "setup_failed":
+                raise
+            log.write(f"\n{exc}\n")
+    except Exception:
+        wt = worktree_path(root, sid, repo)
+        if wt.exists():
+            subprocess.run(["git", "-C", str(root / repo), "worktree", "remove", "--force", str(wt)],
+                           capture_output=True)
+        shutil.rmtree(session_path(root, sid), ignore_errors=True)
+        raise
+    return {"session": read_session(root, sid), "log": log.getvalue()}
+
+
 def check_delete(root: Path, sid: str, *, force: bool = False) -> list[str]:
     """Valida que la sesión se puede borrar (sin cambios sin commitear salvo force)."""
     spath = require_session(root, sid)

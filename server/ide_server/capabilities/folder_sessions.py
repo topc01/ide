@@ -29,7 +29,7 @@ from ide_server.prompts import list_prompts, load_prompt
 from ide_server.repos_fs import require_session, rm_repo, worktree_path
 from ide_server.scripts import list_scripts, script_argv, script_env
 from ide_server.session_ops import (
-    archive_session, check_delete, create_pr_session, create_session, parse_pr_url, refresh_review,
+    archive_session, check_delete, create_pr_session, create_session, create_stack_review, parse_pr_url, refresh_review,
     remove_session,
 )
 from ide_server.sessions_fs import (
@@ -339,10 +339,16 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     log.exception("no se pudo pedir la revisión nocturna")
 
     def _review_session(url: str) -> str | None:
+        """La sesión que revisa la PR: la suya o la de un stack que la incluye."""
+        found = None
         for s in list_sessions(root):
-            if s.get("kind") == "review" and s.get("prUrl") == url:
+            if s.get("kind") != "review":
+                continue
+            if url in (s.get("stackPrs") or []):
                 return s["id"]
-        return None
+            if s.get("prUrl") == url:
+                found = s["id"]
+        return found
 
     async def review_draft(p: dict) -> dict:
         """El veredicto de la sesión de revisión y el review listo para publicar (de su SESSION.md)."""
@@ -351,8 +357,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             return {"id": None, "verdict": None, "body": "", "why": ""}
         f = session_path(root, sid) / "SESSION.md"
         _, body = parse_frontmatter(f.read_text(encoding="utf-8")) if f.is_file() else ({}, "")
+        level = "##"
+        stack = (await asyncio.to_thread(read_session, root, sid)).get("stackPrs")
+        if stack:                               # revisión de stack: la sección `## <repo>#<n>` de esta PR
+            repo, number = parse_pr_url(p["url"])
+            m = re.search(rf"^## [^\n]*{re.escape(repo)}#{number}\b[^\n]*\n(.*?)(?=^## |\Z)", body, re.M | re.S)
+            body, level = (m.group(1) if m else ""), "###"
         def section(name: str) -> str:
-            m = re.search(rf"^## {name}[^\n]*\n(.*?)(?=^## |\Z)", body, re.M | re.S)
+            m = re.search(rf"^{level} {name}[^\n]*\n(.*?)(?=^{level} |^## |\Z)", body, re.M | re.S)
             return m.group(1).strip() if m else ""
         v = section("Veredicto")
         first = v.splitlines()[0].strip().lower() if v else ""
@@ -376,7 +388,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                                       input=body, capture_output=True, text=True, timeout=60)
         if out.returncode != 0:
             raise SessionError("gh_failed", f"gh pr review: {out.stderr.strip() or out.returncode}")
-        if sid is not None and db is not None:
+        stack = sid is not None and (await asyncio.to_thread(read_session, root, sid)).get("stackPrs")
+        if sid is not None and db is not None and not stack:   # en un stack, la sesión marca el total
             await asyncio.to_thread(set_status, root, db, sid,
                                     "approved" if event == "approve" else "changes-requested", actor="ide")
         if db is not None:
@@ -843,6 +856,37 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"id": sid, "created": False, "process": state}
 
+    async def review_start_stack(p: dict) -> dict:
+        """"Revisar stack": una sola sesión para las PRs de un stack que te pidieron revisar (de abajo
+        hacia arriba). Archiva las sesiones de revisión individuales de esas PRs."""
+        st = gh_reviews.state if gh_reviews else {}
+        pending = {c["url"]: c for c in st.get("pending") or []}
+        urls = p.get("urls") or []
+        if len(urls) < 2 or not all(isinstance(u, str) and u in pending for u in urls):
+            raise SessionError("bad_request", "Revisar stack: al menos 2 PRs que te pidieron revisar")
+        stacks = {(pending[u].get("stack") or {}).get("id") for u in urls}
+        if len(stacks) != 1 or None in stacks:
+            raise SessionError("bad_request", "esas PRs no son del mismo stack")
+        urls = sorted(urls, key=lambda u: pending[u]["stack"]["position"])
+        for u in urls:                          # las sesiones individuales se reemplazan por la del stack
+            repo, number = parse_pr_url(u)
+            old = normalize_id(f"pr-{repo}-{number}")
+            if (session_path(root, old) / ".session.toml").is_file():
+                if runner is not None:
+                    await asyncio.to_thread(runner.stop_place, old)
+                supervisor.stop(old)
+                await asyncio.to_thread(archive_session, root, old, force=True)
+        res = await asyncio.to_thread(create_stack_review, root, urls)
+        sid = res["session"]["id"]
+        process = supervisor.state(sid)
+        if not res.get("existed"):
+            process = supervisor.start(sid, resume=False)
+        if db is not None:
+            for u in urls:
+                db.event(datetime.now().isoformat(timespec="seconds"), "ide", "review-start", dev=sid, pr_url=u)
+        notify()
+        return {"id": sid, "created": not res.get("existed"), "process": process}
+
     async def usage(p: dict) -> dict:
         ctx = None
         sid = p.get("sessionId")
@@ -854,7 +898,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"context": ctx, "limits": lim}
 
     for channel, handler in {
-        "reviews.github": github, "reviews.start": review_start, "reviews.setReviewers": set_reviewers,
+        "reviews.github": github, "reviews.start": review_start, "reviews.startStack": review_start_stack, "reviews.setReviewers": set_reviewers,
         "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "pr.reviewers": pr_reviewers, "session.messages": session_messages,
         "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss,
         "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
