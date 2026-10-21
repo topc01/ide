@@ -208,3 +208,19 @@ export interface Usage {
 }
 export const fetchUsage = (ws: WsClient, sessionId: string | null): Promise<Usage> =>
   ws.request("usage.get", { sessionId });
+
+/** Evidencias: pasos de prueba con capturas (módulo Evidencias). */
+export interface EvidenceStep { id: string; title: string; detail: string; shot: boolean; shots: string[]; done: boolean }
+export interface EvidenceRun { id: string; label: string; created: string; steps: EvidenceStep[] }
+export const evidenceList = (ws: WsClient, id: string): Promise<{ runs: EvidenceRun[] }> => ws.request("evidence.list", { id });
+export const evidenceNew = (ws: WsClient, id: string, label: string, steps: Partial<EvidenceStep>[] = []): Promise<{ run: EvidenceRun }> =>
+  ws.request("evidence.new", { id, label, steps });
+export const evidenceSave = (ws: WsClient, id: string, run: EvidenceRun): Promise<{ run: EvidenceRun }> => ws.request("evidence.save", { id, run });
+export const evidenceDuplicate = (ws: WsClient, id: string, run: string, label: string): Promise<{ run: EvidenceRun }> =>
+  ws.request("evidence.duplicate", { id, run, label });
+export const evidenceDelete = (ws: WsClient, id: string, run: string): Promise<{ ok: boolean }> => ws.request("evidence.delete", { id, run });
+export const evidenceShot = (ws: WsClient, id: string, run: string, step: string, name: string, data: string): Promise<{ run: EvidenceRun }> =>
+  ws.request("evidence.shot", { id, run, step, name, data });
+export const evidenceMarkdown = (ws: WsClient, id: string, run: string): Promise<{ markdown: string }> => ws.request("evidence.markdown", { id, run });
+export const evidenceGithub = (ws: WsClient, id: string, run: string, url: string): Promise<{ ok: boolean; comment: string }> =>
+  ws.request("evidence.github", { id, run, url });

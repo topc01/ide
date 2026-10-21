@@ -73,6 +73,12 @@ def _parser() -> argparse.ArgumentParser:
     ra.add_argument("--session")
     st = sub.add_parser("status", help="cambia el estado de la sesión (queda en la base y en el historial)")
     st.add_argument("status"); st.add_argument("-m", "--note"); st.add_argument("--session")
+    ev = sub.add_parser("evidencias", help="pasos de prueba con capturas (módulo Evidencias)").add_subparsers(dest="cmd", required=True)
+    es = ev.add_parser("set", help="crea una corrida con los pasos (markdown: un ítem de lista por paso; 📸 o [captura] = lleva captura)")
+    es.add_argument("--label", default="PR"); es.add_argument("--file", default="-", help="markdown ('-' = stdin)")
+    es.add_argument("--session")
+    el = ev.add_parser("ls", help="las corridas con sus pasos y capturas"); el.add_argument("--json", action="store_true")
+    el.add_argument("--session")
     lt = sub.add_parser("later", help="pendientes para después (preguntas/temas que el usuario verá otro día)").add_subparsers(dest="cmd", required=True)
     la = lt.add_parser("add", help="deja un pendiente en el desarrollo de la sesión")
     la.add_argument("text"); la.add_argument("-m", "--context", help="contexto: qué se necesita y por qué")
@@ -190,6 +196,38 @@ def _pr_line(p: dict) -> str:
     deps = f" ⏸{p['depsPending']}" if p.get("depsPending") else ""
     return (f"    {p['repo']}#{p['number']}{stack} review={p.get('review') or '-'} ci={p.get('ci') or '-'}"
             f"{' draft' if p.get('draft') else ''}{deps}  {p['title']}" + (f"  [{who}]" if who else ""))
+
+
+def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) -> int:
+    from urllib.parse import quote
+    sid = a.session or env.get("IDE_SESSION_ID")
+    if not sid:
+        raise SessionError("no_session", "no estoy dentro de una sesión: usa --session <id>")
+    path = f"/api/sessions/{quote(normalize_id(sid), safe='')}/evidence"
+    if a.cmd == "set":
+        try:
+            md = sys.stdin.read() if a.file == "-" else Path(a.file).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise SessionError("bad_file", f"no se pudo leer --file: {exc}")
+        run = _post(http, url, path, {"label": a.label, "markdown": md})["run"]
+        out.write(f"{run['id']}\t{run['label']}\t{len(run['steps'])} pasos\n")
+        if not run["steps"]:
+            out.write("aviso: no encontré pasos (un ítem de lista por paso: '1. …' o '- …')\n")
+        return 0
+    runs = _get(http, url, path)["runs"]
+    if a.json:
+        out.write(json.dumps(runs, ensure_ascii=False, indent=2) + "\n")
+        return 0
+    att = root / ".ide" / "sessions" / normalize_id(sid) / "attachments"
+    for r in runs:
+        out.write(f"# {r['label']} ({r['id']})\n")
+        for n, st in enumerate(r["steps"], 1):
+            out.write(f"{n}. [{'x' if st['done'] else ' '}] {st['title']}\n")
+            for shot in st["shots"]:
+                out.write(f"     {att / shot}\n")
+    if not runs:
+        out.write("(sin evidencias)\n")
+    return 0
 
 
 def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
@@ -336,6 +374,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _dev_cmd(a, url, http, out, env)
         if a.group == "later":
             return _later_cmd(a, url, http, out, env)
+        if a.group == "evidencias":
+            return _evidence_cmd(a, root, url, http, out, env)
         if a.group == "handoff":
             return _handoff(a, root, home, out)
         if a.group == "feedback":

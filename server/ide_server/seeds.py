@@ -56,6 +56,12 @@ nunca editando el `status:` del archivo. Ticket:
 `ide status waiting-input -m "<qué necesitas, en una línea>"` (no una nota en `developing`): así le
 aparece en "te esperan" y le llega el aviso. Cuando te responda, `ide status unblock`.
 
+**Evidencias:** cuando el desarrollo está listo para probar, deja la guía de pruebas para el
+usuario: qué hacer en la plataforma, paso a paso, y dónde sacar captura. Va por stdin en markdown, un
+ítem de lista por paso (las líneas de abajo son su detalle; `📸` = lleva captura):
+`ide evidencias set --label PR <<'EOF'` … `EOF`. El usuario la sigue en el módulo Evidencias y
+adjunta las capturas a cada paso (quedan en `attachments/`; `ide evidencias ls` muestra las rutas).
+
 **Para después:** si el usuario no puede responder ahora (p.ej. "esto lo veo con el equipo", "déjalo
 para después"), o tú ves una pregunta que puede esperar, déjala como pendiente para que no se pierda:
 `ide later add "<la pregunta, autocontenida>" -m "<contexto: qué necesitas y por qué>"`. El usuario

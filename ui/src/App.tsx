@@ -18,6 +18,7 @@ import "./modules/servers/register";
 import "./modules/db/register";
 import "./modules/pins/register";
 import "./modules/later/register";
+import "./modules/evidence/register";
 import "./modules/attachments/register";
 import "./modules/explorer/register";
 import "./modules/config/register";

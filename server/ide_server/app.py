@@ -198,6 +198,14 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_review_stack(body: dict):
         return await _http("reviews.startStack", {**body, "_http": True})
 
+    @app.get("/api/sessions/{sid}/evidence")
+    async def api_evidence(sid: str):
+        return await _http("evidence.list", {"id": sid})
+
+    @app.post("/api/sessions/{sid}/evidence")
+    async def api_evidence_new(sid: str, body: dict):
+        return await _http("evidence.new", {"label": body.get("label"), "markdown": body.get("markdown") or "", "id": sid})
+
     @app.get("/api/later")
     async def api_later(all: bool = False):
         return await _http("later.list", {"all": all})

@@ -22,6 +22,7 @@ from ide_server.gh_merge import Merger
 from ide_server import pr_changes
 from ide_server import pins as pins_mod
 from ide_server import later as later_mod
+from ide_server import evidence as evidence_mod
 from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
 from ide_server.pr_poller import PrPoller
@@ -732,6 +733,78 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         await manager.broadcast("pins.changed", {"pins": pins_mod.all_pins(db)})
         return {"ok": True}
 
+    # -- evidencias (pasos de prueba con capturas) ------------------------------------------------
+    def _ev_sid(p: dict) -> str:
+        sid = require_plain_name(p["id"], "sesión")
+        require_session(root, sid)
+        return sid
+
+    async def evidence_list(p: dict) -> dict:
+        return {"runs": await asyncio.to_thread(evidence_mod.runs, root, _ev_sid(p))}
+
+    async def evidence_new(p: dict) -> dict:
+        """Corrida nueva: con pasos (`steps`), o desde markdown (`markdown`, como `ide evidencias set`)."""
+        sid = _ev_sid(p)
+        steps = evidence_mod.parse_steps(p["markdown"]) if isinstance(p.get("markdown"), str) else (p.get("steps") or [])
+        run = await asyncio.to_thread(evidence_mod.new, root, sid, str(p.get("label") or "PR"), steps)
+        notify()
+        return {"run": run}
+
+    async def evidence_save(p: dict) -> dict:
+        sid = _ev_sid(p)
+        if not isinstance(p.get("run"), dict):
+            raise SessionError("bad_request", "falta la corrida")
+        run = await asyncio.to_thread(evidence_mod.save, root, sid, p["run"])
+        notify()
+        return {"run": run}
+
+    async def evidence_duplicate(p: dict) -> dict:
+        run = await asyncio.to_thread(evidence_mod.duplicate, root, _ev_sid(p), str(p.get("run")),
+                                      str(p.get("label") or "Ticket"))
+        notify()
+        return {"run": run}
+
+    async def evidence_delete(p: dict) -> dict:
+        await asyncio.to_thread(evidence_mod.delete, root, _ev_sid(p), str(p.get("run")))
+        notify()
+        return {"ok": True}
+
+    async def evidence_shot(p: dict) -> dict:
+        """Una captura para un paso (base64, máx. 10 MB): a attachments/ y al paso, que queda hecho."""
+        sid = _ev_sid(p)
+        try:
+            raw = base64.b64decode(p.get("data") or "", validate=True)
+        except (ValueError, TypeError):
+            raise SessionError("bad_request", "archivo inválido")
+        if not raw or len(raw) > 10 * 1024 * 1024:
+            raise SessionError("too_large", "la captura tiene que pesar entre 1 byte y 10 MB")
+        run = await asyncio.to_thread(evidence_mod.add_shot, root, sid, str(p.get("run")), str(p.get("step")),
+                                      str(p.get("name") or "captura.png"), raw)
+        notify()
+        return {"run": run}
+
+    async def evidence_markdown(p: dict) -> dict:
+        text, _ = await asyncio.to_thread(lambda: evidence_mod.markdown(root, _ev_sid(p), str(p.get("run")), images=False))
+        return {"markdown": text}
+
+    async def evidence_github(p: dict) -> dict:
+        """Comentario en una PR del desarrollo con los pasos y las capturas (`gh pr comment --attach`:
+        sube cada imagen y reemplaza su ruta en el texto). Solo desde la UI, que pide confirmar."""
+        sid = _ev_sid(p)
+        url = str(p.get("url") or "")
+        parse_pr_url(url)
+        text, files = await asyncio.to_thread(evidence_mod.markdown, root, sid, str(p.get("run")))
+        if len(files) > 50:
+            raise SessionError("too_many", "gh sube hasta 50 archivos por comentario")
+        args = ["gh", "pr", "comment", url, "--body-file", "-"] + [x for f in files for x in ("--attach", str(f))]
+        out = await asyncio.to_thread(subprocess.run, args, input=text, capture_output=True, text=True, timeout=300)
+        if out.returncode != 0:
+            raise SessionError("gh_failed", f"gh pr comment: {out.stderr.strip() or out.returncode}")
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), "ide", "evidence-github", dev=sid, pr_url=url,
+                     data={"run": p.get("run"), "shots": len(files)})
+        return {"ok": True, "comment": out.stdout.strip()}
+
     # -- pendientes "para después" ----------------------------------------------------------------
     async def later_add(p: dict) -> dict:
         if db is None:
@@ -907,6 +980,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.startStack": review_start_stack, "reviews.setReviewers": set_reviewers,
         "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "pr.reviewers": pr_reviewers, "session.messages": session_messages,
+        "evidence.list": evidence_list, "evidence.new": evidence_new, "evidence.save": evidence_save,
+        "evidence.duplicate": evidence_duplicate, "evidence.delete": evidence_delete, "evidence.shot": evidence_shot,
+        "evidence.markdown": evidence_markdown, "evidence.github": evidence_github,
         "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss,
         "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,

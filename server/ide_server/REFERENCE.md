@@ -94,7 +94,7 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "pins", "later", "attachments", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
+modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "pins", "later", "evidence", "attachments", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -336,6 +336,23 @@ servidor). pgweb escucha en 127.0.0.1, en un puerto libre y en su propio origen 
 IDE: lo que muestre no tiene acceso a la API del IDE), bajo un prefijo aleatorio (`/<token>/`) que
 solo conoce la UI: sin el token responde 404. Los pgweb mueren con el server. Canales
 `db.list {place}`, `db.open {place, repo}` (→ `{url, name}`).
+
+**Evidencias** (módulo, id `evidence`): la guía de pruebas de un desarrollo con sesión, con capturas.
+La sesión define los pasos con **`ide evidencias set [--label PR] [--file f|-]`** (markdown: cada
+ítem de lista `1.`/`-`/`- [ ]` es un paso, las líneas siguientes su detalle; `📸` o `[captura]` = lleva
+captura) o el usuario los edita en el módulo (lápiz: título, detalle, "lleva captura", ↑↓, borrar,
++ paso). El paso actual es el primero sin hacer: una captura pegada (click en el módulo y ⌘V),
+arrastrada o subida (+ de cada paso, para uno en particular) se guarda en `attachments/` de la sesión
+(`<fecha>-evidencia-<corrida>-paso<n>-<k>.png`), se suma al paso (puede tener varias), lo marca ✓ y
+avanza; el checkbox marca/desmarca a mano. Varias **corridas** por sesión (chips arriba): + crea una
+vacía, **Duplicar** copia los pasos sin capturas (p.ej. "PR" y después "Ticket"). **Copiar** deja el
+markdown en el portapapeles (para Notion: cada captura va como `[captura: <nombre>]`; las imágenes se
+arrastran desde Adjuntos). **Subir a
+GitHub** (elige la PR del desarrollo, con confirmación) publica un comentario con los pasos y las
+capturas (`gh pr comment --body-file - --attach <cada captura>`: gh sube cada imagen y reemplaza su
+ruta en el texto; máx. 50). `ide evidencias ls [--json]` muestra las corridas con las rutas de las
+capturas. Archivo: `.ide/sessions/<id>/evidence/<corrida>.json`; canales `evidence.list|new|save|
+duplicate|delete|shot|markdown|github`; HTTP `GET/POST /api/sessions/{id}/evidence`.
 
 **Para después** (módulo, id `later`): pendientes de los desarrollos que el usuario no puede resolver
 ahora (p.ej. una pregunta que tiene que conversar con el equipo), para que no se pierdan. Los deja la
