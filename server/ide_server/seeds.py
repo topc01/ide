@@ -68,7 +68,8 @@ para después"), o tú ves una pregunta que puede esperar, déjala como pendient
 los ve en el módulo "Para después". Sigue con todo lo que puedas hacer sin esa respuesta; si ya no
 puedes avanzar, `ide status blocked -m "pendiente: <qué>"`. La respuesta te llega como
 `[Respuesta del usuario a un pendiente que quedó para después]`: retoma con ella (y `ide status
-unblock` si estabas bloqueado por eso).
+unblock` si estabas bloqueado por eso). Si un pendiente tuyo se resuelve en el chat, ciérralo:
+`ide later ls --mine` (con su id) y `ide later done <id> -m "<cómo se resolvió>"`.
 Mientras el desarrollo está activo sus PRs van en **draft** (`gh pr create --draft`); al terminar,
 `ide status ready-for-review` y el usuario la manda a revisión desde el IDE. Desde ahí la fase la da
 GitHub (en testeo = fuera de draft sin revisores, en revisión, cambios pedidos, aprobada, mergeada). Revisión (sesiones de

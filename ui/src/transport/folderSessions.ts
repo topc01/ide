@@ -30,13 +30,16 @@ export interface SessionsTree {
 /** Pendiente "para después" de un desarrollo (lo deja la sesión con `ide later add` o el usuario). */
 export interface LaterItem {
   id: string; key: string; text: string; context: string | null; actor: string; created: string;
-  status: "open" | "answered" | "dismissed"; answer: string | null; resolved: string | null;
+  status: "open" | "answered" | "resolved" | "dismissed"; answer: string | null; resolved: string | null;
 }
 export const laterAdd = (ws: WsClient, key: string, text: string, context: string | null): Promise<{ item: LaterItem }> =>
   ws.request("later.add", { key, text, context });
 /** Responder: si el desarrollo tiene sesión, la respuesta se le manda (`delivered` dice cómo). */
 export const laterAnswer = (ws: WsClient, id: string, answer: string): Promise<{ ok: boolean; delivered: string }> =>
   ws.request("later.answer", { id, answer });
+/** Cerrar como resuelto sin mandarle nada a la sesión (se resolvió en el chat). */
+export const laterResolve = (ws: WsClient, id: string, note: string | null = null): Promise<{ ok: boolean }> =>
+  ws.request("later.resolve", { id, note });
 export const laterDismiss = (ws: WsClient, id: string): Promise<{ ok: boolean }> => ws.request("later.dismiss", { id });
 /** Estado del desarrollo (local); `status` null = sin estado. */
 /** `gh`: la fase de GitHub al ponerla a mano (la puesta gana hasta que GitHub cambie); sin `gh` manda GitHub. */

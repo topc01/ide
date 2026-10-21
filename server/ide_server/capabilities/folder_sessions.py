@@ -844,6 +844,21 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"ok": True, "delivered": how}
 
+    async def later_resolve(p: dict) -> dict:
+        """Cerrar como resuelto sin mandarle nada a la sesión (se resolvió en el chat): desde la UI o la
+        sesión (`ide later done`), con una nota opcional de cómo."""
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        item = later_mod.get(db, str(p.get("id")))
+        if item is None or item["status"] != "open":
+            raise SessionError("not_found", "ese pendiente ya no está abierto")
+        actor = p.get("actor") if isinstance(p.get("actor"), str) and p["actor"].startswith(("claude:", "cli")) else "usuario"
+        later_mod.close(db, item["id"], "resolved", (p.get("note") or "").strip()[:2000] or None)
+        db.event(datetime.now().isoformat(timespec="seconds"), actor, "later-resolved",
+                 dev=item["key"][2:] if item["key"].startswith("s:") else None, data={"text": item["text"][:300]})
+        notify()
+        return {"ok": True}
+
     async def later_dismiss(p: dict) -> dict:
         if db is None:
             raise SessionError("no_db", "sin base")
@@ -983,7 +998,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "evidence.list": evidence_list, "evidence.new": evidence_new, "evidence.save": evidence_save,
         "evidence.duplicate": evidence_duplicate, "evidence.delete": evidence_delete, "evidence.shot": evidence_shot,
         "evidence.markdown": evidence_markdown, "evidence.github": evidence_github,
-        "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss,
+        "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss, "later.resolve": later_resolve,
         "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,

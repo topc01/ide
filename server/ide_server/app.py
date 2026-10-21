@@ -210,6 +210,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_later(all: bool = False):
         return await _http("later.list", {"all": all})
 
+    @app.post("/api/later/{item_id}/resolve")
+    async def api_later_resolve(item_id: str, body: dict):
+        return await _http("later.resolve", {**body, "id": item_id})
+
     @app.post("/api/later")
     async def api_later_add(body: dict):
         return await _http("later.add", body)

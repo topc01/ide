@@ -85,6 +85,9 @@ def _parser() -> argparse.ArgumentParser:
     la.add_argument("--session")
     ll = lt.add_parser("ls", help="pendientes abiertos de todos los desarrollos")
     ll.add_argument("--json", action="store_true"); ll.add_argument("--all", action="store_true", help="también respondidos/descartados")
+    ll.add_argument("--mine", action="store_true", help="solo los del desarrollo de esta sesión")
+    ld = lt.add_parser("done", help="marca un pendiente como resuelto (p.ej. se resolvió en el chat)")
+    ld.add_argument("id"); ld.add_argument("-m", "--note", help="cómo se resolvió")
     dv = sub.add_parser("dev").add_subparsers(dest="cmd", required=True)
     dls = dv.add_parser("ls"); dls.add_argument("--json", action="store_true")
     dsh = dv.add_parser("show"); dsh.add_argument("id"); dsh.add_argument("--json", action="store_true")
@@ -239,12 +242,23 @@ def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         data = _post(http, url, "/api/later", {"sid": sid, "text": a.text, "context": a.context, "actor": actor})
         out.write(f"pendiente {data['item']['id']} en {sid}\n")
         return 0
+    if a.cmd == "done":
+        from urllib.parse import quote
+        actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
+        _post(http, url, f"/api/later/{quote(a.id, safe='')}/resolve", {"note": a.note, "actor": actor})
+        out.write(f"{a.id}\tresuelto\n")
+        return 0
     items = _get(http, url, "/api/later" + ("?all=true" if a.all else ""))["items"]
+    if a.mine:
+        sid = env.get("IDE_SESSION_ID")
+        if not sid:
+            raise SessionError("no_session", "--mine: no estoy dentro de una sesión")
+        items = [it for it in items if it["key"] == f"s:{sid}"]
     if a.json:
         out.write(json.dumps(items, ensure_ascii=False, indent=2) + "\n")
         return 0
     for it in items:
-        out.write(f"{it['created'][:10]}\t{it['key']}\t{it['status']}\t{it['text']}"
+        out.write(f"{it['id']}\t{it['created'][:10]}\t{it['key']}\t{it['status']}\t{it['text']}"
                   + (f"\t({it['context']})" if it.get("context") else "") + "\n")
     if not items:
         out.write("(ninguno)\n")

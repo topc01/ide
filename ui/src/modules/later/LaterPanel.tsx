@@ -1,10 +1,10 @@
 // ui/src/modules/later/LaterPanel.tsx
 import { useState } from "react";
-import { Send, X } from "lucide-react";
+import { Check, Send, X } from "lucide-react";
 import { useCurrentDev } from "../../main/currentDev";
 import { useFolders } from "../../state/folders";
 import { getWs } from "../../transport/wsClient";
-import { laterAdd, laterAnswer, laterDismiss, type LaterItem } from "../../transport/folderSessions";
+import { laterAdd, laterAnswer, laterDismiss, laterResolve, type LaterItem } from "../../transport/folderSessions";
 import { Button } from "../../components/ui/button";
 import { devKeys, devName } from "../sessions/desarrollos";
 import { ago } from "../sessions/devStates";
@@ -40,6 +40,9 @@ function Item({ it }: { it: LaterItem }) {
       <div className="mb-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
         <span>{it.actor.startsWith("claude") ? "la sesión" : "tú"} · hace {ago(it.created)}</span>
         <span className="flex-1" />
+        <button title="Resuelto: cerrarlo sin mandarle nada a la sesión (se resolvió en el chat)" aria-label="Resuelto"
+          onClick={() => laterResolve(getWs(), it.id).catch((e: any) => setMsg(`⚠ ${e?.message ?? String(e)}`))}
+          className="rounded p-0.5 hover:bg-accent hover:text-emerald-400"><Check size={12} /></button>
         <button title="Descartar (sin responder)" aria-label="Descartar"
           onClick={() => laterDismiss(getWs(), it.id).catch((e: any) => setMsg(`⚠ ${e?.message ?? String(e)}`))}
           className="rounded p-0.5 hover:bg-accent hover:text-foreground"><X size={12} /></button>

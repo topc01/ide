@@ -361,12 +361,14 @@ afuera) o el usuario desde el módulo ("Agregar a" el desarrollo actual). El mó
 de todos los desarrollos, agrupados por desarrollo (el actual primero), con de quién y hace cuánto.
 **Responder** le manda la respuesta a la sesión (encolada o la lanza; encabezado `[Respuesta del
 usuario a un pendiente que quedó para después]`) y lo cierra; en desarrollos sin sesión solo queda
-anotada. ✕ lo descarta. La card muestra "⏱ N" (click abre el módulo). La sesión sigue con lo que
+anotada. **Resuelto** (✓) lo cierra sin mandarle nada a la sesión (se resolvió en el chat). ✕ lo
+descarta. La sesión cierra los suyos con **`ide later done <id> [-m "cómo se resolvió"]`** (`ide later
+ls --mine` los lista con su id). La card muestra "⏱ N" (click abre el módulo). La sesión sigue con lo que
 pueda; si ya no puede avanzar pasa a `blocked -m "pendiente: …"`. La manager los ve con **`ide later
 ls`** (`--all` incluye cerrados, `--json`) y en el material de la revisión nocturna (recuerda los de
 más de 7 días). Base: `kv` `later:<id>` = `{id, key, text, context, actor, created, status
-(open|answered|dismissed), answer, resolved}`; canales `later.add {key, text, context}`, `later.list
-{all}`, `later.answer {id, answer}`, `later.dismiss {id}`; HTTP `GET/POST /api/later`;
+(open|answered|resolved|dismissed), answer, resolved}`; canales `later.add {key, text, context}`, `later.list
+{all}`, `later.answer {id, answer}`, `later.resolve {id, note}`, `later.dismiss {id}`; HTTP `GET/POST /api/later`, `POST /api/later/{id}/resolve`;
 `sessions.tree` trae `later` (los abiertos).
 
 **Pines** (módulo, id `pins`): mensajes de claude guardados para usar después (p.ej. un texto para
