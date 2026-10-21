@@ -51,7 +51,13 @@ def parse_steps(md: str) -> list[dict]:
 def _step(s: dict) -> dict:
     return {"id": str(s.get("id") or secrets.token_hex(4)), "title": str(s.get("title") or "").strip()[:500],
             "detail": str(s.get("detail") or "").strip()[:4000], "shot": bool(s.get("shot", True)),
-            "shots": [str(x) for x in s.get("shots") or [] if isinstance(x, str)], "done": bool(s.get("done"))}
+            "shots": [x for x in s.get("shots") or [] if _bare(x)], "done": bool(s.get("done"))}
+
+
+def _bare(name) -> bool:
+    """Una captura es un nombre de archivo pelado de attachments/ (nunca una ruta: se sube a GitHub)."""
+    return isinstance(name, str) and bool(re.fullmatch(r"[A-Za-z0-9._-]{1,200}", name)) \
+        and Path(name).name == name and name not in (".", "..")
 
 
 def runs(root: Path, sid: str) -> list[dict]:
@@ -59,8 +65,9 @@ def runs(root: Path, sid: str) -> list[dict]:
     out = []
     for f in sorted(d.glob("*.json")) if d.is_dir() else []:
         try:
-            out.append(json.loads(f.read_text(encoding="utf-8")))
-        except (OSError, ValueError):
+            run = json.loads(f.read_text(encoding="utf-8"))
+            out.append({**run, "steps": [_step(s) for s in run.get("steps") or []]})
+        except (OSError, ValueError, AttributeError):
             continue
     return sorted(out, key=lambda r: r.get("created", ""))
 
@@ -69,7 +76,8 @@ def get(root: Path, sid: str, run_id: str) -> dict:
     f = _dir(root, sid) / f"{_sid_ok(run_id)}.json"
     if not f.is_file():
         raise SessionError("not_found", f"no existe la corrida {run_id}")
-    return json.loads(f.read_text(encoding="utf-8"))
+    run = json.loads(f.read_text(encoding="utf-8"))
+    return {**run, "steps": [_step(s) for s in run.get("steps") or []]}   # el archivo se puede editar a mano
 
 
 def save(root: Path, sid: str, run: dict) -> dict:
@@ -131,8 +139,9 @@ def markdown(root: Path, sid: str, run_id: str, *, images: bool = True) -> tuple
         if s["detail"]:
             lines += [f"   {d}" for d in s["detail"].splitlines()]
         for k, shot in enumerate(s["shots"], 1):
-            f = att / shot
-            if f.is_file():
+            f = (att / shot).resolve()
+            # el JSON se puede editar a mano: solo archivos reales dentro de attachments/
+            if _bare(shot) and f.is_relative_to(att.resolve()) and f.is_file():
                 files.append(f)
                 alt = f"Paso {n}{f' ({k})' if len(s['shots']) > 1 else ''}"
                 lines += ["", f"   ![{alt}]({f})" if images else f"   _[captura: {shot}]_"]
