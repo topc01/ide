@@ -115,6 +115,14 @@ mencione un archivo, una captura, un link o "te adjunté", míralos ahí (`ls -t
 links que comparte son archivos `.url` (la línea `URL=…`). Si
 generas un archivo para él (un CSV, un informe), déjalo también ahí: lo ve en el módulo Adjuntos.
 
+## Navegador (Claude in Chrome)
+
+Trabaja **siempre en una ventana propia**, nunca en las del usuario: empieza con
+`tabs_context_mcp` con `createIfEmpty: true`, que te crea tu propia ventana con tu grupo de tabs, y
+abre ahí lo que necesites (`tabs_create_mcp`). No uses ni navegues las tabs que ya tenía abiertas el
+usuario. Si necesitas otro tamaño de pantalla (`resize_window`), cámbialo **solo en tu ventana**,
+nunca en una donde él esté trabajando. Al terminar, cierra tus tabs (`tabs_close_mcp`).
+
 ## Feedback (para mejorar con el uso)
 
 Cuando el usuario te corrija (algo que hiciste mal, una preferencia suya, una decisión que no te
