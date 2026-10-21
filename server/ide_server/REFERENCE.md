@@ -175,6 +175,11 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
   `.ide/archive/sessions/<id>`; libera `[ports]` y anota `[archived] at` + `branches` (rama de cada
   repo antes del detach) en `.session.toml`. La conversación de `claude` no se puede retomar ahí
   (Claude Code la guarda por path). Un id archivado no se puede reusar (`session_archived`).
+- `ide session review-stack <url> [<url>…]`: lo mismo que "Revisar stack" de la UI (ver Revisiones):
+  una sesión `stack-<repo>-<n>` que revisa esas PRs de un stack (tienen que estar pendientes de tu
+  review); con **una sola URL** toma todas las pendientes de su stack. Archiva las sesiones de
+  revisión individuales de esas PRs y lanza la nueva. Desde una sesión, solo la principal puede.
+  Imprime `<id>\t<creada|existe>\t<proceso>`. HTTP `POST /api/reviews/stack {urls, caller?}`.
 - `ide session rm <id> [--force]`: si hay cambios sin commitear en algún repo, **se niega antes de tocar nada** (`--force` lo fuerza); si no: para el proceso, corre `archive` de cada repo, quita los worktrees y borra la carpeta. Las branches quedan.
 
 ### Repos y scripts
@@ -419,7 +424,7 @@ cada una contra su base, deja por PR en SESSION.md `## <repo>#<n>` con `### Vere
 y `### Review para GitHub`, y al final pide OK para publicar todas. Las sesiones individuales de esas
 PRs se archivan. Cada PR del stack sigue en su card, apuntando a la sesión del stack; Aprobar / Pedir
 cambios usan el review de su sección. `.session.toml` guarda `stack_prs` (la sesión trae `stackPrs`);
-canal `reviews.startStack {urls}`. Errores de `gh` se ven como `⚠ github`.
+canal `reviews.startStack {urls}` (también `ide session review-stack`). Errores de `gh` se ven como `⚠ github`.
 
 **Mis PRs** (sidebar principal, bajo Revisiones): tus PRs abiertas de la org (del mismo poll),
 agrupadas como el inbox de Graphite: **Devueltas** (`reviewDecision` = `CHANGES_REQUESTED` y sin reviews pedidas pendientes),

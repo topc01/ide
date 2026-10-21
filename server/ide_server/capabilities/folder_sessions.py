@@ -859,10 +859,20 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def review_start_stack(p: dict) -> dict:
         """"Revisar stack": una sola sesión para las PRs de un stack que te pidieron revisar (de abajo
         hacia arriba). Archiva las sesiones de revisión individuales de esas PRs."""
+        if p.get("caller"):                     # desde una sesión (`ide session review-stack`): solo la principal
+            try:
+                kind = read_toml(session_path(root, normalize_id(p["caller"])) / ".session.toml").get("kind")
+            except (SessionError, OSError, ValueError):
+                kind = None
+            if kind != "main":
+                raise SessionError("forbidden", "solo la sesión principal puede crear sesiones")
         st = gh_reviews.state if gh_reviews else {}
         pending = {c["url"]: c for c in st.get("pending") or []}
-        urls = p.get("urls") or []
-        if len(urls) < 2 or not all(isinstance(u, str) and u in pending for u in urls):
+        urls = [u.strip() for u in p.get("urls") or [] if isinstance(u, str)]
+        if len(urls) == 1 and urls[0] in pending and pending[urls[0]].get("stack"):   # una: todo su stack pendiente
+            sid_ = pending[urls[0]]["stack"]["id"]
+            urls = [u for u, c in pending.items() if (c.get("stack") or {}).get("id") == sid_]
+        if len(urls) < 2 or not all(u in pending for u in urls):
             raise SessionError("bad_request", "Revisar stack: al menos 2 PRs que te pidieron revisar")
         stacks = {(pending[u].get("stack") or {}).get("id") for u in urls}
         if len(stacks) != 1 or None in stacks:

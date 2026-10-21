@@ -64,6 +64,8 @@ def _parser() -> argparse.ArgumentParser:
     rm = s.add_parser("rm"); rm.add_argument("id"); rm.add_argument("--force", action="store_true")
     sd = s.add_parser("send", help="encola un prompt a la sesión de un desarrollo (id o #número)")
     sd.add_argument("id"); sd.add_argument("--prompt"); sd.add_argument("--prompt-file", help="'-' = stdin")
+    rs = s.add_parser("review-stack", help="una sesión que revisa un stack de PRs que te pidieron revisar (de abajo hacia arriba)")
+    rs.add_argument("urls", nargs="+", help="URLs de las PRs; con una sola, todas las pendientes de su stack")
     sp = s.add_parser("propose", help="propone por Telegram mandarle un prompt a una sesión (se manda con tu Sí)")
     sp.add_argument("id"); sp.add_argument("--prompt"); sp.add_argument("--prompt-file", help="'-' = stdin")
     r = sub.add_parser("repo").add_subparsers(dest="cmd", required=True)
@@ -396,6 +398,13 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
         out.write(f"{sid}\t{state}\t{data['session'].get('path', '')}\n")
         if data.get("log"):
             out.write(data["log"])
+        return 0
+    if a.cmd == "review-stack":
+        body: dict = {"urls": a.urls}
+        if env.get("IDE_SESSION_ID"):            # lo pide una sesión: solo la principal puede
+            body["caller"] = env["IDE_SESSION_ID"]
+        data = _post(http, url, "/api/reviews/stack", body, timeout=600)   # gh + fetch + setup
+        out.write(f"{data['id']}\t{'creada' if data['created'] else 'existe'}\t{data['process']}\n")
         return 0
     if a.cmd in ("send", "propose"):
         try:
