@@ -42,8 +42,24 @@ class PtyManager:
         except OSError:
             return b""                          # EOF / fd cerrado
 
-    def write(self, tid: str, data: bytes) -> None:
-        os.write(self._terms[tid]["fd"], data)
+    def write(self, tid: str, data: bytes, timeout: float = 10.0) -> None:
+        """Escribe TODO `data`. El buffer de entrada de una terminal en macOS es de ~1 KB y el fd puede
+        quedar no bloqueante (el loop lo vigila): `os.write` escribe una parte y el resto se perdía
+        (un paste largo llegaba cortado). Se sigue escribiendo a medida que el programa lee."""
+        fd = self._terms[tid]["fd"]
+        view, deadline = memoryview(data), None
+        while view:
+            try:
+                n = os.write(fd, view)
+            except BlockingIOError:
+                n = 0
+            view = view[n:]
+            if view:
+                import time
+                deadline = deadline or time.monotonic() + timeout
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"la terminal no acepta más entrada ({len(view)} bytes sin escribir)")
+                select.select([], [fd], [], 0.05)
 
     def resize(self, tid: str, cols: int, rows: int) -> None:
         fd = self._terms[tid]["fd"]
