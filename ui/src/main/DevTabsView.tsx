@@ -1,6 +1,6 @@
 // ui/src/main/DevTabsView.tsx
 import { useEffect, useRef, useState } from "react";
-import { Paperclip, Plus, X } from "lucide-react";
+import { Bot, Paperclip, Plus, X } from "lucide-react";
 import { useFolders } from "../state/folders";
 import { claudeTab, docTab, scriptTab, summaryTab, useDevTabs, type DevTab } from "../state/devTabs";
 import type { FolderSession, GhPr } from "../transport/folderSessions";
@@ -18,6 +18,7 @@ import { FileTab } from "./FileTab";
 import { PrDiffTab } from "./PrDiffTab";
 import { AttachmentTab } from "./AttachmentTab";
 import { PinOverlay } from "./PinOverlay";
+import { ACTIVITY, activityOf } from "../modules/sessions/activity";
 import type { Terminal } from "@xterm/xterm";
 import { useRuns } from "../transport/runs";
 import { RunState } from "../modules/servers/ServersPanel";
@@ -157,18 +158,28 @@ export function DevTabsView() {
   return (
     <div className="flex h-full flex-col">
       <div role="tablist" className="flex items-stretch border-b border-border bg-title-bg">
-        {state.tabs.map((t) => (
+        {/* la tab claude va primera y destacada (con la actividad de la sesión) */}
+        {[...state.tabs].sort((a, b) => Number(b.kind === "claude") - Number(a.kind === "claude")).map((t) => {
+          const isClaude = t.kind === "claude";
+          const act = isClaude && s ? ACTIVITY[activityOf(s)] : null;
+          return (
           <span key={t.id} className={cn("group/tab flex items-center gap-1 border-b-2 pl-3 pr-1 text-xs",
-            t.id === state.active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
-            <button role="tab" aria-selected={t.id === state.active} title={t.label} className="py-1.5"
-              onClick={() => select(t, "focus")}>
+            isClaude && "mr-1 rounded-t-md bg-primary/10 pl-2.5 font-semibold",
+            t.id === state.active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+            isClaude && t.id !== state.active && "text-primary/80")}>
+            <button role="tab" aria-selected={t.id === state.active}
+              title={isClaude && act ? `claude — ${act[2]}${s?.activity?.note && s.activity.state === "waiting" ? `: ${s.activity.note}` : ""}` : t.label}
+              className="flex items-center gap-1.5 py-1.5" onClick={() => select(t, "focus")}>
+              {isClaude && <Bot size={13} className="text-primary" />}
               {t.kind === "run" && <span className="mr-1"><RunState compact
                 run={runs.state?.runs.find((r) => r.place === t.place && r.repo === t.repo && r.name === t.name)} /></span>}
-              {t.label}</button>
+              {t.label}
+              {act && <span aria-hidden className={cn("text-[10px]", act[1])}>{act[0]}</span>}</button>
             <button aria-label={`Cerrar ${t.label}`} title={`Cerrar ${t.label} (no para nada: claude sigue)`}
               onClick={() => close(dev.key, t.id)}
               className="rounded p-0.5 opacity-0 hover:bg-accent group-hover/tab:opacity-100"><X size={11} /></button>
-          </span>))}
+          </span>);
+        })}
         <div className="relative flex items-center px-1">
           <button aria-label="Nueva tab" title="Nueva tab: terminal, sesión de revisión o reabrir una cerrada"
             onClick={() => setMenu((m) => !m)}

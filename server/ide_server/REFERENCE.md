@@ -566,6 +566,14 @@ PR tuya sin sesión, una **sesión en su rama** (ver abajo); en una PR de otro s
 **sesión de revisión** (se abre su `claude`); y **reabre** lo cerrado
 (doc, resúmenes de las otras PRs del desarrollo). × cierra la tab sin parar nada. Sin límite de tabs.
 
+**Tab `claude`**: va siempre primera y destacada (ícono, fondo de acento y el punto de actividad de
+la sesión: trabajando / te espera, con la nota en el tooltip). **Terminales en memoria**: cada
+terminal (claude o script) se crea una vez y queda viva aunque cambies de desarrollo (sigue
+recibiendo la salida de fondo): volver a ella es instantáneo. Solo la primera apertura carga lo que
+ya imprimió el proceso (replay, hasta 2 MB). Se guardan hasta 10; se liberan las que llevan más
+tiempo sin abrirse, y al reconectar con el server se descartan las que no están a la vista (la
+próxima apertura recarga).
+
 **Adjuntar archivos a la conversación** (tab `claude`): arrastrar archivos encima, pegarlos con ⌘V
 (p.ej. una captura) o el botón 📎. Se guardan en `attachments/` de la carpeta de la sesión (su
 `claude` los lee sin pedir permiso; máx. 10 MB c/u) y, si `claude` corre, su ruta se pega en el input
