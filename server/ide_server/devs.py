@@ -238,7 +238,8 @@ def _pr_summary(c: dict) -> dict:
     return {k: c.get(k) for k in ("url", "repo", "number", "title", "author", "review", "ci", "draft",
                                   "head", "base", "stack", "depsPending")} | {
         "reviewers": c.get("reviewers") or [], "deps": [
-            {"repo": d.get("repo"), "number": d.get("number"), "state": d.get("state"), "together": d.get("together")}
+            {"url": d.get("url"), "repo": d.get("repo"), "number": d.get("number"), "state": d.get("state"),
+             "together": d.get("together"), "via": d.get("via")}
             for d in (c.get("deps") or [])]}
 
 

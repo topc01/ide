@@ -365,8 +365,12 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         for p in d["prs"]:
             out.write(_pr_line(p) + "\n")
             for x in p.get("deps") or []:
-                if x.get("state") != "MERGED" and not x.get("together"):
-                    out.write(f"      ⏸ espera a {x['repo']}#{x['number']} ({x['state']})\n")
+                if x.get("state") == "MERGED":
+                    continue
+                via = re.search(r"/([^/]+)/pull/(\d+)$", x.get("via") or "")
+                via = f", vía {via.group(1)}#{via.group(2)}" if via else ""
+                what = "va junto con" if x.get("together") else "⏸ espera a"
+                out.write(f"      {what} {x['repo']}#{x['number']} ({x['state']}{via})\n")
     out.write("historial:\n")
     for e in d.get("events") or []:
         extra = " ".join(f"{k}={v}" for k, v in (e.get("data") or {}).items())

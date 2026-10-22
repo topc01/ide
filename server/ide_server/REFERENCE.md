@@ -495,7 +495,10 @@ queda en error para reintentar). Errores: `not_bottom`, `not_approved`, `ci_fail
 **Dependencias entre PRs** (solo lectura): se leen de la sección `## Dependencias` de la
 descripción de cada PR abierta (las casillas `[ ]`/`[x]` se ignoran). Referencias `owner/repo#N`,
 `repo#N`, `#N` (hereda el último repo explícito de la línea; si no, el de la PR) o URLs de PR; en
-"merge en orden: A → B → este PR → C" solo cuenta lo de antes de "este/esta PR". Se siguen las
+"merge en orden: A → B → este PR → C" solo cuenta lo de antes de "este/esta PR"; una línea que dice
+que otras "dependen de esta" (p.ej. "las PRs X e Y dependen de esta") no declara dependencias (son al
+revés). `ide dev show` lista cada una como "⏸ espera a" (con ", vía X" si es indirecta) o "va junto
+con" (dependencia mutua). Se siguen las
 dependencias de las dependencias (entre repos), y el estado de las ya mergeadas/cerradas se
 consulta a GitHub. Si dos PRs se piden mutuamente, **van juntas** (⇄): se muestran pero no
 cuentan como pendientes. Las cards (y el selector) muestran `⛓ N` ámbar si faltan N por mergear

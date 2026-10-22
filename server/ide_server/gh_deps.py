@@ -8,6 +8,8 @@ Reglas de parseo (las casillas `[ ]`/`[x]` se ignoran: hay líneas sin marcar co
   hay, es del repo de la PR.
 - En una línea con "este/esta PR" (p.ej. "merge en orden: A → B → este PR → C") solo cuenta lo
   que va antes: lo de después depende de esta, no al revés.
+- En una línea que dice que otras "dependen de esta/este" (o "depends on this"), las referencias son
+  de las que dependen de esta: no son dependencias suyas, se ignoran.
 - Si A depende de B y B (directa o indirectamente) de A, "van juntas": se muestran, no frenan.
 - Fuera de la sección también se leen frases sueltas ("Depende de finnecto-api#4624"): solo las
   referencias después del verbo, y "no depende de …" se descarta."""
@@ -20,6 +22,8 @@ GhRunner = Callable[[list[str]], Awaitable[tuple[int, str, str]]]
 _SECTION_RE = re.compile(r"^#{1,6}\s*dependencias\b.*$", re.I | re.M)
 _HEADING_RE = re.compile(r"^#{1,6}\s", re.M)
 _SELF_RE = re.compile(r"\b(?:este|esta)\b(?:\s+(?:PR|pull request))?", re.I)
+# "las PRs X e Y dependen de esta": X e Y dependen de esta PR, no al revés
+_REVERSE_RE = re.compile(r"\b(?:depende(?:n)?\s+de\s+(?:est[ae]|este\s+PR|esta\s+PR)|depends?\s+on\s+this)\b", re.I)
 _REF_RE = re.compile(
     r"github\.com/(?P<uo>[\w.-]+)/(?P<ur>[\w.-]+)/pull/(?P<un>\d+)"
     r"|(?:(?P<o>[\w.-]+)/)?(?P<r>[A-Za-z][\w.-]*)?#(?P<n>\d+)")
@@ -54,6 +58,8 @@ def parse_deps(body: str | None, owner: str, repo: str, number: int) -> list[tup
     """[(owner/repo, número)] de las dependencias directas declaradas, sin la propia PR."""
     out: list[tuple[str, int]] = []
     for line in [*deps_section(body).splitlines(), *_loose_lines(body)]:
+        if _REVERSE_RE.search(line):
+            continue
         if (m := _SELF_RE.search(line)) and _REF_RE.search(line[m.end():]):
             line = line[: m.start()]            # lo que va después de "este PR" depende de esta
         last = f"{owner}/{repo}"
