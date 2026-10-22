@@ -351,8 +351,10 @@ arrastran desde Adjuntos). **Subir a
 GitHub** (elige la PR del desarrollo, con confirmación) publica un comentario con los pasos y las
 capturas (`gh pr comment --body-file - --attach <cada captura>`: gh sube cada imagen y reemplaza su
 ruta en el texto; máx. 50). `ide evidencias ls [--json]` muestra las corridas con las rutas de las
-capturas. Archivo: `.ide/sessions/<id>/evidence/<corrida>.json`; canales `evidence.list|new|save|
-duplicate|delete|shot|markdown|github`; HTTP `GET/POST /api/sessions/{id}/evidence`.
+capturas; la sesión adjunta capturas con `ide evidencias shot <n> <archivo…> [--label L]` (al paso n
+de la última corrida o la de ese nombre; lo marca hecho) y marca un paso con `ide evidencias done <n>
+[--undo]`. Archivo: `.ide/sessions/<id>/evidence/<corrida>.json`; canales `evidence.list|new|save|
+duplicate|delete|shot|markdown|github`; HTTP `GET/POST /api/sessions/{id}/evidence`, `POST …/evidence/shot`, `POST …/evidence/save`.
 
 **Para después** (módulo, id `later`): pendientes de los desarrollos que el usuario no puede resolver
 ahora (p.ej. una pregunta que tiene que conversar con el equipo), para que no se pierdan. Los deja la

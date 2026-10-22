@@ -206,6 +206,14 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_evidence_new(sid: str, body: dict):
         return await _http("evidence.new", {"label": body.get("label"), "markdown": body.get("markdown") or "", "id": sid})
 
+    @app.post("/api/sessions/{sid}/evidence/shot")
+    async def api_evidence_shot(sid: str, body: dict):
+        return await _http("evidence.shot", {**body, "id": sid})
+
+    @app.post("/api/sessions/{sid}/evidence/save")
+    async def api_evidence_save(sid: str, body: dict):
+        return await _http("evidence.save", {**body, "id": sid})
+
     @app.get("/api/later")
     async def api_later(all: bool = False):
         return await _http("later.list", {"all": all})

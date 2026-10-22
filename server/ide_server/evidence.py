@@ -113,9 +113,9 @@ def add_shot(root: Path, sid: str, run_id: str, step_id: str, name: str, raw: by
     i = next((i for i, s in enumerate(run["steps"]) if s["id"] == step_id), None)
     if i is None:
         raise SessionError("not_found", "no existe ese paso")
-    ext = (Path(name).suffix.lower() or ".png")[:6]
-    if not re.fullmatch(r"\.[a-z0-9]{1,5}", ext):
-        ext = ".png"
+    ext = _media_ext(raw)
+    if ext is None:                             # se sube a GitHub: solo imágenes y videos de verdad
+        raise SessionError("bad_request", "la captura tiene que ser una imagen (png, jpg, gif, webp) o un video (mp4, mov)")
     label = re.sub(r"[^a-z0-9]+", "-", run["label"].lower()).strip("-")[:20] or "evidencia"
     step = run["steps"][i]
     att = session_path(root, sid) / "attachments"
@@ -125,6 +125,21 @@ def add_shot(root: Path, sid: str, run_id: str, step_id: str, name: str, raw: by
     step["shots"].append(f.name)
     step["done"] = True
     return save(root, sid, run)
+
+
+def _media_ext(raw: bytes) -> str | None:
+    """Extensión según el contenido (no el nombre)."""
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if raw.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if raw[:6] in (b"GIF87a", b"GIF89a"):
+        return ".gif"
+    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return ".webp"
+    if raw[4:8] == b"ftyp":
+        return ".mov" if raw[8:10] == b"qt" else ".mp4"
+    return None
 
 
 def markdown(root: Path, sid: str, run_id: str, *, images: bool = True) -> tuple[str, list[Path]]:

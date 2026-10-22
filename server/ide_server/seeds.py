@@ -62,6 +62,9 @@ usuario: qué hacer en la plataforma, paso a paso, y dónde sacar captura. Va po
 ítem de lista por paso (las líneas de abajo son su detalle; `📸` = lleva captura):
 `ide evidencias set --label PR <<'EOF'` … `EOF`. El usuario la sigue en el módulo Evidencias y
 adjunta las capturas a cada paso (quedan en `attachments/`; `ide evidencias ls` muestra las rutas).
+Si las capturas las sacas tú (p.ej. con el navegador), adjúntalas tú al paso:
+`ide evidencias shot <n> <archivo> [<archivo>…]` (lo marca hecho; `--label` para otra corrida que la
+última); un paso sin captura, `ide evidencias done <n>`.
 
 **Para después:** si el usuario no puede responder ahora (p.ej. "esto lo veo con el equipo", "déjalo
 para después"), o tú ves una pregunta que puede esperar, déjala como pendiente para que no se pierda:

@@ -79,6 +79,12 @@ def _parser() -> argparse.ArgumentParser:
     es.add_argument("--session")
     el = ev.add_parser("ls", help="las corridas con sus pasos y capturas"); el.add_argument("--json", action="store_true")
     el.add_argument("--session")
+    eh = ev.add_parser("shot", help="adjunta captura(s) a un paso (lo marca hecho)")
+    eh.add_argument("step", type=int, help="número del paso (1, 2, …)"); eh.add_argument("files", nargs="+")
+    ed = ev.add_parser("done", help="marca un paso como hecho (sin captura)")
+    ed.add_argument("step", type=int); ed.add_argument("--undo", action="store_true", help="desmarcarlo")
+    for x in (eh, ed):
+        x.add_argument("--label", help="corrida por su nombre (default: la última)"); x.add_argument("--session")
     sub.add_parser("hook", help="(lo llaman los hooks de claude) le avisa al IDE si la sesión trabaja o te espera")
     lt = sub.add_parser("later", help="pendientes para después (preguntas/temas que el usuario verá otro día)").add_subparsers(dest="cmd", required=True)
     la = lt.add_parser("add", help="deja un pendiente en el desarrollo de la sesión")
@@ -219,6 +225,29 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
             out.write("aviso: no encontré pasos (un ítem de lista por paso: '1. …' o '- …')\n")
         return 0
     runs = _get(http, url, path)["runs"]
+    if a.cmd in ("shot", "done"):
+        pick = [r for r in runs if not a.label or r["label"].lower() == a.label.lower()]
+        if not pick:
+            raise SessionError("not_found", f"no hay corrida {a.label!r}" if a.label else "no hay evidencias: ide evidencias set")
+        run = pick[-1]
+        if not 1 <= a.step <= len(run["steps"]):
+            raise SessionError("bad_request", f"la corrida {run['label']} tiene {len(run['steps'])} pasos")
+        step = run["steps"][a.step - 1]
+        if a.cmd == "done":
+            step["done"] = not a.undo
+            _post(http, url, path + "/save", {"run": run})
+            out.write(f"{run['label']}\tpaso {a.step}\t{'hecho' if step['done'] else 'pendiente'}\n")
+            return 0
+        import base64
+        for f in a.files:
+            try:
+                raw = Path(f).read_bytes()
+            except OSError as exc:
+                raise SessionError("bad_file", f"no se pudo leer {f}: {exc}")
+            _post(http, url, path + "/shot", {"run": run["id"], "step": step["id"], "name": Path(f).name,
+                                              "data": base64.b64encode(raw).decode()}, timeout=120)
+            out.write(f"{run['label']}\tpaso {a.step}\t{Path(f).name}\n")
+        return 0
     if a.json:
         out.write(json.dumps(runs, ensure_ascii=False, indent=2) + "\n")
         return 0
