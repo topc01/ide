@@ -498,7 +498,13 @@ descripción de cada PR abierta (las casillas `[ ]`/`[x]` se ignoran). Referenci
 "merge en orden: A → B → este PR → C" solo cuenta lo de antes de "este/esta PR"; una línea que dice
 que otras "dependen de esta" (p.ej. "las PRs X e Y dependen de esta") no declara dependencias (son al
 revés). `ide dev show` lista cada una como "⏸ espera a" (con ", vía X" si es indirecta) o "va junto
-con" (dependencia mutua). Se siguen las
+con" (dependencia mutua). **Declaradas en el IDE** (además de la descripción; las dos valen): `ide dep add <pr> <dep…>`
+(PR como `repo#n` o URL), `ide dep rm <pr> <dep…> [--ignore]` (saca las agregadas en el IDE; con
+`--ignore` el IDE ignora también una que está en la descripción, que sigue escrita en GitHub) e `ide
+dep ls <pr> [--json]` (las directas con su origen: descripción / ide / ignorada). Las usan las
+sesiones, la manager y el usuario. Se recalculan al momento (poll). Base: `kv` `deps:<url>` =
+`{add, ignore}`; canales `dep.list {pr}`, `dep.add {pr, deps}`, `dep.rm {pr, deps, ignore}`; HTTP
+`GET /api/deps?pr=…`, `POST /api/deps/add|rm`; quedan en el historial (`dep-add`, `dep-rm`). Se siguen las
 dependencias de las dependencias (entre repos), y el estado de las ya mergeadas/cerradas se
 consulta a GitHub. Si dos PRs se piden mutuamente, **van juntas** (⇄): se muestran pero no
 cuentan como pendientes. Las cards (y el selector) muestran `⛓ N` ámbar si faltan N por mergear
@@ -764,6 +770,7 @@ por cada cambio (la primera vez no, para no inundar). Los estados de Notion no s
 | `ide dev ls [--json]` | todos los desarrollos (con su nombre del IDE si tiene): los de sesión (estado de la base, claude corriendo/parado, repos y ramas) y los que son solo PRs (tuyas o pendientes de revisar); por cada PR: review, CI, revisores, draft, stack, dependencias pendientes |
 | `ide dev show <id> [--json]` | lo mismo para uno (id de sesión, `#n` o `repo#n`) + dependencias pendientes + historial |
 | `ide dev link <#n\|id> <pr…>` | asigna PRs (URL o `repo#n`) a ese desarrollo: pisa la asignación que tuvieran y quedan pegajosas ahí; una línea por PR `<pr>\t<anterior> → <nuevo>` (y `aviso:` si su rama no está en ningún worktree del destino). La manager lo corre con su token; desde la terminal del usuario va sin token (mover PRs solo cambia datos locales del IDE, no es una barrera de seguridad) |
+| `ide dep add\|rm\|ls <pr> [<dep…>]` | dependencias entre PRs declaradas en el IDE, además de la descripción (`rm --ignore` ignora también una de la descripción); ver "Dependencias" |
 | `ide dev unlink <#n\|id> <pr…>` | saca PRs del desarrollo: quedan aparte y no vuelven por rama hasta un `link` |
 | `ide status <estado> [-m nota] [--session id]` | cambia el estado (dentro de una sesión usa la suya) |
 

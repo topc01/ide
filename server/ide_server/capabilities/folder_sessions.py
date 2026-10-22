@@ -706,6 +706,47 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"ok": True, "moved": out}
 
+    # -- dependencias entre PRs declaradas en el IDE (`ide dep`) -----------------------------------
+    def _deps_view(src: dict) -> dict:
+        still = [u for u in src["description"] if u not in src["ignored"]]
+        return {**src, "effective": still + [u for u in src["added"] if u not in still]}
+
+    def _after_deps() -> None:
+        notify()
+        if gh_reviews is not None:              # recalcular ⏸ y cadenas ya (no esperar el próximo poll)
+            asyncio.get_running_loop().create_task(gh_reviews.poll_once())
+
+    async def dep_list(p: dict) -> dict:
+        if gh_reviews is None:
+            raise SessionError("no_github", "sin datos de GitHub")
+        return _deps_view(gh_reviews.dep_sources(_pr_url(p.get("pr"))))
+
+    async def dep_add(p: dict) -> dict:
+        """`ide dep add <pr> <dep…>`: además de lo que diga la descripción."""
+        if gh_reviews is None:
+            raise SessionError("no_github", "sin datos de GitHub")
+        url, deps = _pr_url(p.get("pr")), [_pr_url(d) for d in p.get("deps") or []]
+        if not deps:
+            raise SessionError("bad_request", "faltan las dependencias")
+        src = gh_reviews.set_deps(url, add=deps)
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), p.get("actor") or "ide", "dep-add", pr_url=url, data={"deps": deps})
+        _after_deps()
+        return _deps_view(src)
+
+    async def dep_rm(p: dict) -> dict:
+        """`ide dep rm <pr> <dep…> [--ignore]`: saca las agregadas en el IDE; con `ignore`, el IDE ignora
+        también las que declara la descripción."""
+        if gh_reviews is None:
+            raise SessionError("no_github", "sin datos de GitHub")
+        url, deps = _pr_url(p.get("pr")), [_pr_url(d) for d in p.get("deps") or []]
+        src = gh_reviews.set_deps(url, remove=deps, ignore=bool(p.get("ignore")))
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), p.get("actor") or "ide", "dep-rm", pr_url=url,
+                     data={"deps": deps, "ignore": bool(p.get("ignore"))})
+        _after_deps()
+        return _deps_view(src)
+
     async def dev_link_pr(p: dict) -> dict:
         """Asigna PRs a un desarrollo (`ide dev link`, "mover a otro desarrollo…"): pisa la asignación
         que tuvieran (explícita > pegajosa > por rama > stack) y quedan pegajosas en el nuevo. Avisa si
@@ -1122,7 +1163,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "evidence.markdown": evidence_markdown, "evidence.github": evidence_github,
         "sessions.activity": session_activity,
         "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss, "later.resolve": later_resolve,
-        "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "dev.list": dev_list, "dev.show": dev_show,
+        "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,

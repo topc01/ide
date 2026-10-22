@@ -80,6 +80,12 @@ def parse_deps(body: str | None, owner: str, repo: str, number: int) -> list[tup
     return out
 
 
+def ref_of(url: str) -> tuple[str, int] | None:
+    """URL de PR → ("owner/repo" en minúsculas, número)."""
+    m = re.match(r"https://github\.com/([\w.-]+/[\w.-]+)/pull/(\d+)", url or "")
+    return (m.group(1).lower(), int(m.group(2))) if m else None
+
+
 async def resolve(gh: GhRunner, refs: list[tuple[str, int]]) -> dict[tuple[str, int], dict]:
     """Estado de PRs que no están entre las abiertas (mergeadas/cerradas), en lotes de 40."""
     found: dict[tuple[str, int], dict] = {}

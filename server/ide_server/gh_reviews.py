@@ -370,8 +370,8 @@ class GithubReviews:
         by_key = {(n["repository"]["nameWithOwner"].lower(), n["number"]): n["url"] for n in nodes}
         for u in list(rel):
             n = by_url[u]
-            for full, num in gh_deps.parse_deps(n.get("body"), *n["repository"]["nameWithOwner"].split("/", 1),
-                                                n["number"]):
+            for full, num in self._with_overrides(u, gh_deps.parse_deps(
+                    n.get("body"), *n["repository"]["nameWithOwner"].split("/", 1), n["number"])):
                 if (k := (full.lower(), num)) in by_key:
                     rel.add(by_key[k])
         return [by_url[u]["id"] for u in rel if by_url[u].get("id")]
@@ -385,6 +385,47 @@ class GithubReviews:
         return {"data": {"viewer": {"login": me}, "reviewed": {"nodes": reviewed},
                          "open": {"nodes": nodes, "issueCount": total}}}
 
+    # -- dependencias declaradas en el IDE (`ide dep`), además de las de la descripción ------------
+    def _with_overrides(self, url: str, parsed: list[tuple[str, int]]) -> list[tuple[str, int]]:
+        """Las de la descripción, menos las ignoradas, más las agregadas en el IDE (`kv deps:<url>`)."""
+        ov = self._db.get(f"deps:{url}") or {}
+        ign = {r for u in ov.get("ignore") or [] if (r := gh_deps.ref_of(u))}
+        out = [(f, n) for f, n in parsed if (f.lower(), n) not in ign]
+        for u in ov.get("add") or []:
+            r = gh_deps.ref_of(u)
+            if r and r not in {(f.lower(), n) for f, n in out}:
+                out.append(r)
+        return out
+
+    def dep_sources(self, url: str) -> dict:
+        """De dónde sale cada dependencia directa de `url`: la descripción, el IDE, o ignorada."""
+        node = next((n for n in self._db.open_prs() if n["url"] == url), None)
+        parsed = gh_deps.parse_deps(node.get("body"), *node["repository"]["nameWithOwner"].split("/", 1),
+                                    node["number"]) if node else []
+        ov = self._db.get(f"deps:{url}") or {}
+        return {"pr": url, "known": node is not None,
+                "description": [f"https://github.com/{f}/pull/{n}" for f, n in parsed],
+                "added": list(ov.get("add") or []), "ignored": list(ov.get("ignore") or [])}
+
+    def set_deps(self, url: str, *, add: list[str] = (), remove: list[str] = (), ignore: bool = False) -> dict:
+        ov = self._db.get(f"deps:{url}") or {}
+        added, ignored = list(ov.get("add") or []), list(ov.get("ignore") or [])
+        for u in add:
+            if u != url and u not in added:
+                added.append(u)
+            if u in ignored:
+                ignored.remove(u)
+        for u in remove:
+            if u in added:
+                added.remove(u)
+            if ignore and u not in ignored:
+                ignored.append(u)
+        if added or ignored:
+            self._db.set(f"deps:{url}", {"add": added, "ignore": ignored})
+        else:
+            self._db.delete(f"deps:{url}")
+        return self.dep_sources(url)
+
     async def _annotate_deps(self, res: dict, data: dict) -> None:
         """Agrega a cada card `deps` (cadena de dependencias declaradas) y `depsPending`."""
         prs = [n for n in data["data"]["open"]["nodes"] if n]
@@ -393,6 +434,7 @@ class GithubReviews:
                            "state": "OPEN"} for n in prs}
         refs = {n["url"]: gh_deps.parse_deps(n.get("body"), *n["repository"]["nameWithOwner"].split("/", 1),
                                              n["number"]) for n in prs}
+        refs = {u: self._with_overrides(u, lst) for u, lst in refs.items()}
         unknown = sorted({(full.lower(), num) for lst in refs.values() for full, num in lst
                           if (full.lower(), num) not in by_key})
         cached = self._db.get_refs(f"{f}#{n}" for f, n in unknown)

@@ -95,6 +95,13 @@ def _parser() -> argparse.ArgumentParser:
     ll.add_argument("--mine", action="store_true", help="solo los del desarrollo de esta sesión")
     ld = lt.add_parser("done", help="marca un pendiente como resuelto (p.ej. se resolvió en el chat)")
     ld.add_argument("id"); ld.add_argument("-m", "--note", help="cómo se resolvió")
+    dp = sub.add_parser("dep", help="dependencias entre PRs (además de la sección ## Dependencias)").add_subparsers(dest="cmd", required=True)
+    da = dp.add_parser("add", help="la PR depende de estas"); da.add_argument("pr"); da.add_argument("deps", nargs="+")
+    dr = dp.add_parser("rm", help="saca dependencias agregadas en el IDE")
+    dr.add_argument("pr"); dr.add_argument("deps", nargs="+")
+    dr.add_argument("--ignore", action="store_true", help="también ignorar las que declara la descripción")
+    dl = dp.add_parser("ls", help="dependencias directas de la PR y de dónde salen"); dl.add_argument("pr")
+    dl.add_argument("--json", action="store_true")
     dv = sub.add_parser("dev").add_subparsers(dest="cmd", required=True)
     dls = dv.add_parser("ls"); dls.add_argument("--json", action="store_true")
     dsh = dv.add_parser("show"); dsh.add_argument("id"); dsh.add_argument("--json", action="store_true")
@@ -265,6 +272,46 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
     if not runs:
         out.write("(sin evidencias)\n")
     return 0
+
+
+def _dep_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
+    from urllib.parse import quote
+    actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
+    if a.cmd == "ls":
+        d = _get(http, url, f"/api/deps?pr={quote(a.pr, safe='')}")
+    else:
+        d = _post(http, url, f"/api/deps/{a.cmd}", {"pr": a.pr, "deps": a.deps, "actor": actor,
+                                                    "ignore": bool(getattr(a, "ignore", False))})
+    if getattr(a, "json", False):
+        out.write(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
+        return 0
+    short = lambda u: re.sub(r"^https://github\.com/[^/]+/([^/]+)/pull/(\d+)$", r"\1#\2", u)  # noqa: E731
+    out.write(f"{short(d['pr'])} depende de:\n")
+    for u in d["effective"]:
+        src = "descripción" if u in d["description"] else "ide"
+        out.write(f"  {short(u)}\t({src})\n")
+    for u in d["ignored"]:
+        out.write(f"  {short(u)}\t(ignorada: está en la descripción)\n" if u in d["description"] else f"  {short(u)}\t(ignorada)\n")
+    if not d["effective"] and not d["ignored"]:
+        out.write("  (ninguna)\n")
+    if a.cmd == "rm" and not a.ignore:
+        left = [u for u in a_urls(d, a.deps) if u in d["description"] and u not in d["ignored"]]
+        if left:
+            out.write("aviso: " + ", ".join(short(u) for u in left) + " sigue en la descripción de la PR: "
+                      "para que el IDE la ignore, `ide dep rm … --ignore`\n")
+    if not d.get("known"):
+        out.write("aviso: no conozco esa PR abierta (no leí su descripción)\n")
+    return 0
+
+
+def a_urls(d: dict, raw: list[str]) -> list[str]:
+    """Las URLs de `raw` (URL o repo#n) que aparecen en las listas de `d`."""
+    every = [*d["description"], *d["added"], *d["ignored"]]
+    out = []
+    for r in raw:
+        m = re.fullmatch(r"([\w.-]+)#(\d+)", r.strip())
+        out += [u for u in every if (m and u.endswith(f"/{m.group(1)}/pull/{m.group(2)}")) or u == r.strip()]
+    return out
 
 
 def _hook(url: str | None, http, env: dict) -> int:
@@ -452,6 +499,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _session(a, root, url, http, out, err, env)
         if a.group in ("status", "dev"):
             return _dev_cmd(a, url, http, out, env)
+        if a.group == "dep":
+            return _dep_cmd(a, url, http, out, env)
         if a.group == "hook":
             return _hook(url, http, env)
         if a.group == "later":

@@ -102,6 +102,11 @@ La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide 
     ("no depende de …" no cuenta). Las casillas `[ ]`/`[x]` se ignoran.
   - El IDE las muestra (⏸ N pendientes) y avisa al mergear, pero no lo bloquea.
   - Para escribirlas: `gh pr edit <url> --body-file <archivo>` (edita la sección; no borres el resto).
+  - En una línea que dice que otras PRs "dependen de esta", esas referencias no cuentan (van al revés).
+  - **También por CLI**, sin tocar la descripción: `ide dep add <pr> <dep…>` (PR como `repo#n` o URL),
+    `ide dep rm <pr> <dep…>` (saca las agregadas así; con `--ignore`, el IDE ignora también una que
+    está en la descripción) e `ide dep ls <pr>` (cada una con de dónde sale). Valen las dos: lo de la
+    descripción más lo del IDE.
   - En el SESSION.md, en **Plan**, deja el orden de merge entre repos.
 - **Servidores para probar:** los scripts por repo están en `.ide/scripts/<repo>/` (api: `build`,
   `run`; embed: `install`, `run`, `point-api`). Los servidores que quedan corriendo (`run`) los

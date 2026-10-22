@@ -286,6 +286,16 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_dev(dev_id: str):
         return await _http("dev.show", {"id": dev_id})
 
+    @app.get("/api/deps")
+    async def api_deps(pr: str):
+        return await _http("dep.list", {"pr": pr})
+
+    @app.post("/api/deps/{action}")
+    async def api_deps_change(action: str, body: dict):
+        if action not in ("add", "rm"):
+            return JSONResponse({"code": "bad_request", "message": "add | rm"}, status_code=400)
+        return await _http(f"dep.{action}", body)
+
     @app.post("/api/devs/{sid}/link")
     async def api_dev_link(sid: str, body: dict):
         return await _http("dev.linkPr", {**body, "id": sid, "_http": True})
