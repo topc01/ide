@@ -343,11 +343,24 @@ class GithubReviews:
             # más páginas): solo se borran las que faltan si el resultado cuadra; si no, se guarda lo
             # que llegó y se reintenta en el próximo ciclo (no se marca last_full)
             complete = total == len(nodes) or (total > len(nodes) >= MAX_PAGES * 50)
+            cached = self._db.open_prs()
+            fresh = {n["url"] for n in nodes}
+            gone = [n["url"] for n in cached if n["url"] not in fresh]
+            # degenerada: vacía con caché (nunca se acepta), o se llevaría de golpe más del 30% (y más de
+            # 10): esa se acepta solo si la resincronización siguiente trae lo mismo (un cierre masivo
+            # real no se traba)
+            drastic = bool(cached) and len(gone) > max(10, 0.3 * len(cached))
+            if cached and not nodes:
+                complete = False
+            elif complete and drastic and self._db.get("full_suspect") != len(nodes):
+                self._db.set("full_suspect", len(nodes))
+                complete = False
             if complete:
-                fresh = {n["url"] for n in nodes}
-                self._db.delete_prs(n["url"] for n in self._db.open_prs() if n["url"] not in fresh)
+                self._db.delete("full_suspect")
+                self._db.delete_prs(gone)
             else:
-                log.warning("búsqueda de PRs incompleta (%d de %d): no se borra nada, reintento", len(nodes), total)
+                log.warning("resincronización de PRs sospechosa (%d nodos, issueCount %d, %d en caché, sacaría %d): "
+                            "no se borra nada, reintento", len(nodes), total, len(cached), len(gone))
             self._store(nodes, now)
             if complete:
                 self._db.set("truncated", total > len(nodes))
