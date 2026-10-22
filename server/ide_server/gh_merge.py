@@ -4,7 +4,9 @@
 1. `merge`: si hace falta (GitHub exige la rama al día, hay conflicto o arrastra commits de una madre
    squasheada), en un worktree propio por repo (`.ide/worktrees/_merge/<repo>`, detached) rebasea la
    rama de la PR sobre su base y la empuja (`--force-with-lease`); si no, la deja como está (sin
-   volver a correr el CI). Con el CI en verde pide el merge (squash) a GitHub.
+   volver a correr el CI). Después arma el auto-merge de GitHub (`gh pr merge --auto --squash`):
+   GitHub mergea al pasar el CI y la aprobación (se puede armar antes de aprobar). En stacks nativos
+   (GitHub solo acepta `merge-async`) el IDE espera el CI y la aprobación y lo pide él.
 2. El vigilante (`run`) consulta las PRs con merge pendiente; cuando GitHub la mergea, restackea
    las de arriba: cada una se rebasea (`--onto`) sobre su nueva madre — las hijas directas sobre
    la base, con la base de la PR cambiada a esa — y al final se borra la rama mergeada.
@@ -159,8 +161,6 @@ class Merger:
             raise SessionError("fork_pr", "PRs desde forks no se mergean ni restackean desde el IDE")
         if pr.get("stack") and pr["stack"]["position"] != 1:
             raise SessionError("not_bottom", "solo se mergea la PR de abajo del stack")
-        if pr.get("review") != "approved":
-            raise SessionError("not_approved", f"{pr['repo']}#{pr['number']} no está aprobada")
         if pr.get("ci") == "failure":
             raise SessionError("ci_failed", "el CI falló (o hay conflicto): no se arma el merge")
         if self.jobs.get(url, {}).get("state") in ACTIVE:
@@ -194,19 +194,61 @@ class Merger:
                 if cut is None and st.get("mergeStateStatus") not in ("BEHIND", "DIRTY") \
                         and st.get("mergeable") != "CONFLICTING":
                     head = st.get("headRefOid") or _check(_run(["git", "rev-parse", f"origin/{j['head']}"], wt), "git rev-parse")
-                    self._update(url, old_sha=head, head_sha=head, rebased=False, state="waiting_ci")
-                    self._on_change()
-                    return
-                old, new = self._rebase(wt, j["head"], f"origin/{j['base']}", upstream=cut)
-                self._update(url, rebased=new != old)
-            # sin `gh pr merge --auto`: justo después del push GitHub todavía calcula si es mergeable
-            # y lo rechaza. El IDE espera el CI y recién ahí pide el merge (igual para todas).
-            self._update(url, old_sha=old, head_sha=new, state="waiting_ci")
+                    old, new = head, head
+                    self._update(url, rebased=False)
+                else:
+                    old, new = self._rebase(wt, j["head"], f"origin/{j['base']}", upstream=cut)
+                    self._update(url, rebased=new != old)
+            self._update(url, old_sha=old, head_sha=new)
+            if j.get("native"):
+                # stack nativo: GitHub solo acepta `merge-async`: el IDE espera CI y aprobación
+                self._update(url, state="waiting_ci")
+            else:
+                self._enable_auto(url, j, pushed=new != old)
         except SessionError as exc:
             self._update(url, state="error", error=str(exc))
         except Exception as exc:  # noqa: BLE001 — queda en la card, nunca silencioso
             log.exception("merge de %s", url)
             self._update(url, state="error", error=str(exc) or type(exc).__name__)
+        self._on_change()
+
+    def _enable_auto(self, url: str, j: dict, *, pushed: bool) -> None:
+        """Auto-merge de GitHub (squash): mergea solo cuando pasan el CI y la aprobación, aunque el IDE
+        esté apagado. Justo después de un push GitHub todavía calcula si es mergeable: se reintenta.
+        Si ya está lista para mergear (`clean status`), se mergea directo."""
+        import time
+        last = ""
+        for attempt in range(6 if pushed else 2):
+            out = _run(["gh", "pr", "merge", url, "--auto", "--squash"])
+            if out.returncode == 0:
+                self._update(url, state="waiting", auto=True)
+                return
+            last = (out.stderr or out.stdout).strip()
+            if "auto merge is not allowed" in last.lower() or "auto-merge is not allowed" in last.lower():
+                # el repo no tiene habilitado el auto-merge: lo hace el IDE (espera CI y aprobación)
+                self._update(url, state="waiting_ci", auto=False)
+                return
+            if "clean status" in last.lower():
+                now = _run(["gh", "pr", "merge", url, "--squash"])
+                if now.returncode == 0:
+                    self._merged(url)
+                    return
+                last = (now.stderr or now.stdout).strip()
+            time.sleep(5 * (attempt + 1))
+        self._update(url, state="error", error=f"no pude armar el auto-merge en GitHub: {last}")
+
+    def cancel(self, url: str) -> None:
+        """Desarmar: quita el auto-merge en GitHub (o deja de esperar, en stacks nativos) y sale de la lista."""
+        j = self.jobs.get(url)
+        if not j or j.get("state") not in ("waiting", "waiting_ci"):
+            raise SessionError("no_merge", "no hay un auto-merge armado para desarmar")
+        if j.get("state") == "waiting":
+            out = _run(["gh", "pr", "merge", url, "--disable-auto"])
+            if out.returncode != 0 and "not enabled" not in (out.stderr or "").lower():
+                raise SessionError("gh_failed", f"gh pr merge --disable-auto: {(out.stderr or out.stdout).strip()}")
+        with self._jobs_lock:
+            self.jobs.pop(url, None)
+            self._db.delete_merge(url)
         self._on_change()
 
     def _merge_state(self, url: str) -> dict:
@@ -222,7 +264,7 @@ class Merger:
         return data
 
     def _pr_status(self, url: str) -> dict:
-        out = _run(["gh", "pr", "view", url, "--json", "state,mergeable,headRefOid,statusCheckRollup"])
+        out = _run(["gh", "pr", "view", url, "--json", "state,mergeable,headRefOid,statusCheckRollup,reviewDecision"])
         data = json.loads(_check(out, "gh pr view"))
         bad = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
         ci = "success"
@@ -376,7 +418,7 @@ class Merger:
             elif data["state"] == "OPEN" and not data.get("autoMergeRequest"):
                 self._update(url, state="error", error="se desarmó el auto-merge en GitHub")
             elif data["state"] == "MERGED":
-                self._restack(url)
+                self._merged(url)
             else:
                 return False
             return True
@@ -390,7 +432,7 @@ class Merger:
                 self._update(url, state="error", error=f"conflicto con {j['base']}: resuélvelo y reintenta")
             elif st["ci"] == "failure":
                 self._update(url, state="error", error="el CI falló: arréglalo y reintenta")
-            elif st["ci"] == "success" and st.get("mergeable") == "MERGEABLE":
+            elif st["ci"] == "success" and st.get("mergeable") == "MERGEABLE" and st.get("reviewDecision") in ("APPROVED", None, ""):
                 self._merge_async(url, j, st["headRefOid"])
             else:
                 return False

@@ -189,6 +189,8 @@ export interface MergeJob {
 }
 export const mergePr = (ws: WsClient, url: string): Promise<MergeJob> => ws.request("reviews.merge", { url });
 export const dismissMerge = (ws: WsClient, url: string) => ws.request("reviews.mergeDismiss", { url });
+/** Desarmar el auto-merge armado desde el IDE (lo quita en GitHub). */
+export const cancelMerge = (ws: WsClient, url: string): Promise<{ ok: boolean }> => ws.request("reviews.mergeCancel", { url });
 export const retryMerge = (ws: WsClient, url: string) => ws.request("reviews.mergeRetry", { url });
 export interface Discussion {
   url: string; title: string; number: number; state: "OPEN" | "MERGED" | "CLOSED"; draft: boolean;

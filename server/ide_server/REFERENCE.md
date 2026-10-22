@@ -461,8 +461,13 @@ colapsan. Cada card muestra quién la revisa (chips: azul review pedida, verde a
 pidió cambios; una review re-pedida cuenta como pedida). Si la PR es parte de un stack, la card
 muestra su posición (`2/4`, 1 = la de abajo).
 
-**Mergear** (hover en Mis PRs; solo PRs tuyas, aprobadas, que son la de abajo de su stack o no
-están en uno; nunca PRs desde forks; el `origin` local del repo tiene que ser el mismo repo de
+**Mergear** (hover en Mis PRs; solo PRs tuyas, fuera de draft, que son la de abajo de su stack o no
+están en uno; **se puede armar antes de que la aprueben**: arma el **auto-merge de GitHub**
+(`gh pr merge --auto --squash`), que mergea al pasar el CI y la aprobación aunque el IDE esté
+apagado; si ya está lista, mergea directo. Si el repo no tiene habilitado el auto-merge en GitHub
+(p.ej. finnecto-admin), lo hace el IDE: espera el CI y la aprobación y la mergea él. En stacks nativos el IDE espera CI y aprobación y la
+mergea él (`merge-async`). La card dice "auto-merge armado" y su ✕ lo **desarma** (`gh pr merge
+--disable-auto`, canal `reviews.mergeCancel {url}`); nunca PRs desde forks; el `origin` local del repo tiene que ser el mismo repo de
 GitHub; deshabilitado si el CI falló; pide confirmación; canal `reviews.merge {url}`). No
 bloquea: valida, cierra el diálogo y sigue en segundo plano; la card muestra el paso y se pinta
 **ámbar** mergeando, **roja** con error (reintentar: `reviews.mergeRetry {url}`) y **morada**
@@ -478,10 +483,11 @@ mergeada (24 h, en el grupo **Merges** de Mis desarrollos cuando ya no está abi
    GitHub la re-apuntó a la base), busca el último commit que fue head de otra PR mergeada
    (`GET /repos/{o}/{r}/commits/{sha}/pulls`) y rebasea con `--onto` desde ahí: solo viajan los
    commits propios de la PR.
-2. El IDE espera (cada 30 s) a que el CI pase y la PR sea mergeable, y recién ahí pide
-   `PUT /repos/{o}/{r}/pulls/{n}/merge-async` (squash). Es el único endpoint que GitHub acepta para
-   PRs de stacks nativos, y evita `gh pr merge --auto` (que justo después del push falla con "not
-   mergeable" porque GitHub todavía está calculando). Si el CI falla o hay conflicto, error.
+2. Fuera de stacks nativos: arma el auto-merge de GitHub (justo después de un push GitHub todavía
+   calcula si es mergeable: reintenta unas veces) y el IDE vigila (cada 30 s) hasta que GitHub la
+   mergea. En stacks nativos: el IDE espera a que el CI pase, la PR sea mergeable y esté aprobada, y
+   pide `PUT /repos/{o}/{r}/pulls/{n}/merge-async` (squash), el único endpoint que GitHub acepta ahí.
+   Si el CI falla o hay conflicto, error.
 3. Ya mergeada: si la PR está en un **stack nativo** (trae `stack`), GitHub rebasea y re-apunta
    solo las de arriba. Si no, el IDE restackea las de arriba en orden: cada una `git rebase --onto
    <nueva madre> <sha viejo de la madre>` + push `--force-with-lease`; la de encima pasa a apuntar

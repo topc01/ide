@@ -565,6 +565,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def discussion(p: dict) -> dict:
         return await asyncio.to_thread(fetch_discussion, p["url"])
 
+    async def merge_cancel(p: dict) -> dict:
+        """Desarmar un auto-merge armado desde el IDE (quita el auto-merge en GitHub)."""
+        if merger is None:
+            raise SessionError("no_merger", "merge no disponible")
+        await asyncio.to_thread(merger.cancel, p["url"])
+        return {"ok": True}
+
     async def merge(p: dict) -> dict:
         if merger is None:
             raise SessionError("github_off", "merge desactivado")
@@ -1164,7 +1171,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "sessions.activity": session_activity,
         "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss, "later.resolve": later_resolve,
         "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
-        "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
+        "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
