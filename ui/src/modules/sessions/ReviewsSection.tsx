@@ -56,6 +56,18 @@ function StackReviewButton({ prs }: { prs: GhPr[] }) {
   </>);
 }
 
+/** ⚠ sync: la última resincronización completa de PRs no se aceptó (GitHub respondió vacío o a
+ *  medias): no se borró nada y se reintenta; los números en el tooltip. */
+export function SyncWarning({ gh }: { gh: GithubReviews | null }) {
+  const s = gh?.sync;
+  if (!s || s.ok) return null;
+  const when = new Date(s.at).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+  return <span role="alert" className="truncate text-[10px] text-amber-300"
+    title={`La resincronización de PRs de las ${when} vino rara: GitHub devolvió ${s.nodes} PRs (dice que hay ${s.issueCount}) `
+      + `y había ${s.cached} guardadas; habría sacado ${s.gone}. No se borró nada y se reintenta en el próximo ciclo. `
+      + `Si se repite, puede faltar o sobrar alguna PR en las cards.`}>⚠ sync</span>;
+}
+
 /** Botón de revisión: envía `.ide/prompts/review-pr.md` a la sesión del PR (la crea si falta). */
 function ReviewButton({ pr }: { pr: GhPr }) {
   const setActive = useFolders((s) => s.setActive);
@@ -372,6 +384,7 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
       status={<>
         {ghError && <span role="alert" className="truncate text-[10px] text-destructive"
           title={`${ghError} (último OK: ${gh?.lastOk ?? "nunca"})`}>⚠ github</span>}
+        <SyncWarning gh={gh} />
         {!gh && !ghError && <span className="text-[10px] text-muted-foreground">cargando…</span>}
       </>}
       headerExtra={<>

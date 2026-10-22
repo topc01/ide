@@ -639,7 +639,14 @@ acá** (siguen en disco). Todo lo de GitHub es reconstruible: si la base se corr
 **Poll de GitHub** (cada `github_interval`): incremental (`updated:>=` último poll − 1 min, abiertas
 y recién cerradas) + refresco por ID de lo dinámico (CI, conflicto, review: no cambian
 `updatedAt`) de las PRs relevantes (tuyas, las que revisás, sus stacks y dependencias) +
-resincronización completa cada 30 min y al arrancar. Miembros de la org: una vez por día.
+resincronización completa cada 30 min y al arrancar. La resincronización saca de la base las PRs
+que ya no vienen, **salvo que la respuesta de GitHub sea sospechosa**: vacía (con PRs guardadas:
+nunca se acepta), a medias (el total no cuadra con lo que llegó) o que sacaría más del 30% de golpe
+(y más de 10; se acepta si la siguiente trae lo mismo). En ese caso guarda lo que llegó, no borra
+nada y reintenta en el próximo ciclo. Cada resincronización queda en el log del server con sus
+números (nodos, issueCount, en caché, sacadas); las sospechosas además en el historial
+(`resync-suspect`) y en la UI: **⚠ sync** junto al título de Mis desarrollos y Revisiones, con los
+números en el tooltip, hasta que una salga bien (`kv` `last_sync`; `reviews.github` trae `sync`). Miembros de la org: una vez por día.
 
 **Cards de la sidebar** (sesiones y PRs, mismo cascarón): arriba **repo y número** (`API #4581`,
 en negrita; en Revisiones el autor como chip; ● ○ = `claude` corriendo/parado), después el título

@@ -10,7 +10,7 @@ import type { FolderSession, GhPr, MergeJob } from "../../transport/folderSessio
 import { QueueItem, QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
 import { CardActions, CardCorner, DevIndex, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { worstPr } from "./desarrollos";
-import { CiMark, PrCard, useGithubReviews } from "./ReviewsSection";
+import { CiMark, PrCard, SyncWarning, useGithubReviews } from "./ReviewsSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
 import { SessionItem } from "./SessionItem";
 import { waitingFirst } from "./activity";
@@ -160,6 +160,7 @@ export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
       status={<>
         {ghError && <span role="alert" className="truncate text-[10px] text-destructive"
           title={`${ghError} (último OK: ${gh?.lastOk ?? "nunca"})`}>⚠ github</span>}
+        <SyncWarning gh={gh} />
         {!gh && !ghError && <span className="text-[10px] text-muted-foreground">cargando…</span>}
       </>} />
   );

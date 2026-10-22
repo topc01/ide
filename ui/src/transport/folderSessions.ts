@@ -172,6 +172,8 @@ export interface GithubReviews {
   stacks?: Record<string, GhPr[]>;      // id del stack -> PRs de abajo hacia arriba
   merges?: Record<string, MergeJob>;    // url -> merge armado desde el IDE
   closed?: GhPr[];                      // PRs de desarrollos con sesión que ya se cerraron/mergearon
+  // última resincronización completa de PRs (ok = se aceptó; si no, GitHub respondió raro y no se borró nada)
+  sync?: { at: string; nodes: number; issueCount: number; cached: number; gone: number; ok: boolean } | null;
 }
 export const fetchGithubReviews = (ws: WsClient): Promise<GithubReviews> => ws.request("reviews.github", {});
 /** "Revisar stack": una sesión para varias PRs pendientes de un stack (archiva las individuales). */

@@ -355,12 +355,18 @@ class GithubReviews:
             elif complete and drastic and self._db.get("full_suspect") != len(nodes):
                 self._db.set("full_suspect", len(nodes))
                 complete = False
+            info = {"at": _iso(now), "nodes": len(nodes), "issueCount": total, "cached": len(cached),
+                    "gone": len(gone), "ok": complete}
             if complete:
                 self._db.delete("full_suspect")
                 self._db.delete_prs(gone)
+                log.info("resincronización de PRs: %d de GitHub (issueCount %d), %d en caché, saqué %d",
+                         len(nodes), total, len(cached), len(gone))
             else:
                 log.warning("resincronización de PRs sospechosa (%d nodos, issueCount %d, %d en caché, sacaría %d): "
                             "no se borra nada, reintento", len(nodes), total, len(cached), len(gone))
+                self._db.event(_iso(now), "github", "resync-suspect", data=info)
+            self._db.set("last_sync", info)         # la UI lo muestra (⚠ sync) si no salió bien
             self._store(nodes, now)
             if complete:
                 self._db.set("truncated", total > len(nodes))
@@ -526,7 +532,8 @@ class GithubReviews:
                     log.exception("PRs cerradas de los desarrollos")
                 res["closed"] = self._closed()
                 self.state = {**res, "members": members, "selected": self._db.get("reviewers"),
-                              "error": None, "lastOk": _iso(self._clock()), "orgs": orgs}
+                              "error": None, "lastOk": _iso(self._clock()), "orgs": orgs,
+                              "sync": self._db.get("last_sync")}
             except RuntimeError as exc:
                 self.state = {**prev, "error": str(exc)}
             except Exception as exc:  # noqa: BLE001 — queda marcado, nunca silencioso
