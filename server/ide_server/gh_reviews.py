@@ -339,11 +339,19 @@ class GithubReviews:
         last_full, last_inc = self._db.get("last_full") or 0, self._db.get("last_inc") or 0
         if now - last_full >= FULL_EVERY:
             me, nodes, total = await search_all(self._gh, f"is:pr is:open archived:false {scope}")
-            fresh = {n["url"] for n in nodes}
-            self._db.delete_prs(n["url"] for n in self._db.open_prs() if n["url"] not in fresh)
+            # la búsqueda de GitHub a veces responde a medias (p.ej. 50 nodos, issueCount 0 y sin
+            # más páginas): solo se borran las que faltan si el resultado cuadra; si no, se guarda lo
+            # que llegó y se reintenta en el próximo ciclo (no se marca last_full)
+            complete = total == len(nodes) or (total > len(nodes) >= MAX_PAGES * 50)
+            if complete:
+                fresh = {n["url"] for n in nodes}
+                self._db.delete_prs(n["url"] for n in self._db.open_prs() if n["url"] not in fresh)
+            else:
+                log.warning("búsqueda de PRs incompleta (%d de %d): no se borra nada, reintento", len(nodes), total)
             self._store(nodes, now)
-            self._db.set("truncated", total > len(nodes))
-            self._db.set("last_full", now)
+            if complete:
+                self._db.set("truncated", total > len(nodes))
+                self._db.set("last_full", now)
         else:
             since = _iso(last_inc - 60)             # 1 min de solape: relojes y latencia
             me, nodes, _ = await search_all(self._gh, f"is:pr archived:false {scope} updated:>={since}")
