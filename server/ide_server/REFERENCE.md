@@ -468,8 +468,12 @@ bloquea: valida, cierra el diálogo y sigue en segundo plano; la card muestra el
 **ámbar** mergeando, **roja** con error (reintentar: `reviews.mergeRetry {url}`) y **morada**
 mergeada (24 h, en el grupo **Merges** de Mis desarrollos cuando ya no está abierta; ahí se puede
 **archivar**: sale de la lista, canal `reviews.mergeDismiss {url}`, no toca GitHub).
-1. En un worktree propio por repo (`.ide/worktrees/_merge/<repo>`, detached) rebasea la rama
-   sobre `origin/<base>` y la empuja con `--force-with-lease` (si hay conflicto aborta: `conflict`).
+1. **Rebasea solo si hace falta**: si GitHub exige la rama al día con la base (`mergeStateStatus`
+   `BEHIND`), hay conflicto (`DIRTY` / `CONFLICTING`) o la rama arrastra commits de una madre
+   squasheada (abajo). Si no, se mergea tal cual: un rebase innecesario cambia los commits y vuelve a
+   correr todo el CI. Cuando hace falta, en un worktree propio por repo
+   (`.ide/worktrees/_merge/<repo>`, detached) rebasea la rama sobre `origin/<base>` y la empuja con
+   `--force-with-lease` (si hay conflicto aborta: `conflict`). El trabajo guarda `rebased`.
    Si la rama arrastra commits de una PR madre que ya se mergeó con squash (estaba apilada y
    GitHub la re-apuntó a la base), busca el último commit que fue head de otra PR mergeada
    (`GET /repos/{o}/{r}/commits/{sha}/pulls`) y rebasea con `--onto` desde ahí: solo viajan los

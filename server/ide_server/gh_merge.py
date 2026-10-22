@@ -1,9 +1,10 @@
 # server/ide_server/gh_merge.py
 """Merge de PRs (solo la de abajo de un stack) con restack de las de arriba, sin Graphite.
 
-1. `merge`: en un worktree propio por repo (`.ide/worktrees/_merge/<repo>`, detached) rebasea la
-   rama de la PR sobre su base, la empuja (`--force-with-lease`) y arma `gh pr merge --squash
-   --auto`: GitHub mergea cuando pasa el CI (nunca se mergea directo).
+1. `merge`: si hace falta (GitHub exige la rama al día, hay conflicto o arrastra commits de una madre
+   squasheada), en un worktree propio por repo (`.ide/worktrees/_merge/<repo>`, detached) rebasea la
+   rama de la PR sobre su base y la empuja (`--force-with-lease`); si no, la deja como está (sin
+   volver a correr el CI). Con el CI en verde pide el merge (squash) a GitHub.
 2. El vigilante (`run`) consulta las PRs con merge pendiente; cuando GitHub la mergea, restackea
    las de arriba: cada una se rebasea (`--onto`) sobre su nueva madre — las hijas directas sobre
    la base, con la base de la PR cambiada a esa — y al final se borra la rama mergeada.
@@ -186,7 +187,18 @@ class Merger:
                 wt = self._wt(j["repo"], j.get("full_repo"))
                 _check(_run(["git", "fetch", "origin", "--prune"], wt), "git fetch")
                 cut = self._squashed_parent(wt, j["head"], j["base"], j.get("full_repo"), j.get("number"))
+                st = self._merge_state(url)
+                # rebasear solo si hace falta: GitHub exige la rama al día (BEHIND), hay conflicto
+                # (DIRTY) o arrastra commits de una madre squasheada. Si no, se mergea tal cual: un
+                # rebase innecesario cambia los commits y vuelve a correr todo el CI.
+                if cut is None and st.get("mergeStateStatus") not in ("BEHIND", "DIRTY") \
+                        and st.get("mergeable") != "CONFLICTING":
+                    head = st.get("headRefOid") or _check(_run(["git", "rev-parse", f"origin/{j['head']}"], wt), "git rev-parse")
+                    self._update(url, old_sha=head, head_sha=head, rebased=False, state="waiting_ci")
+                    self._on_change()
+                    return
                 old, new = self._rebase(wt, j["head"], f"origin/{j['base']}", upstream=cut)
+                self._update(url, rebased=new != old)
             # sin `gh pr merge --auto`: justo después del push GitHub todavía calcula si es mergeable
             # y lo rechaza. El IDE espera el CI y recién ahí pide el merge (igual para todas).
             self._update(url, old_sha=old, head_sha=new, state="waiting_ci")
@@ -196,6 +208,18 @@ class Merger:
             log.exception("merge de %s", url)
             self._update(url, state="error", error=str(exc) or type(exc).__name__)
         self._on_change()
+
+    def _merge_state(self, url: str) -> dict:
+        """mergeStateStatus / mergeable de GitHub (UNKNOWN mientras lo calcula: se reintenta unos segundos)."""
+        import time
+        data: dict = {}
+        for _ in range(5):
+            out = _run(["gh", "pr", "view", url, "--json", "mergeStateStatus,mergeable,headRefOid"])
+            data = json.loads(_check(out, "gh pr view"))
+            if data.get("mergeStateStatus") != "UNKNOWN" and data.get("mergeable") != "UNKNOWN":
+                break
+            time.sleep(2)
+        return data
 
     def _pr_status(self, url: str) -> dict:
         out = _run(["gh", "pr", "view", url, "--json", "state,mergeable,headRefOid,statusCheckRollup"])
