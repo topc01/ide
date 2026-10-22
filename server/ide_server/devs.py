@@ -306,8 +306,11 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
         else:
             prs = [c for c in cards.values() if _belongs(c, s, links)]
             stacks = {c["stack"]["id"] for c in prs if c.get("stack")}
+            # el stack trae a sus compañeras, salvo las asignadas a otro desarrollo o sacadas (el stack
+            # es lo último en la precedencia: explícita > pegajosa > por rama > stack)
             prs += [c for c in cards.values() if c.get("stack") and c["stack"]["id"] in stacks
-                    and c.get("author") == f"@{me}" and c not in prs]
+                    and c.get("author") == f"@{me}" and c not in prs
+                    and not (links.get(c["url"]) and (links[c["url"]]["sid"] != row["id"] or links[c["url"]].get("out")))]
         taken |= {c["url"] for c in prs}
         out.append({"id": row["id"], "kind": row["kind"], "name": _name(names, f"s:{row['id']}", prs),
                     "title": row["title"], "status": row["status"],

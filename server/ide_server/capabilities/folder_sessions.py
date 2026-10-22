@@ -647,18 +647,102 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"ok": True}
 
+    def _pr_url(raw: str) -> str:
+        """Una PR como URL (`https://github.com/o/r/pull/n`) o `repo#n` (por las conocidas, si no la org)."""
+        raw = str(raw or "").strip()
+        m = re.match(r"^https://github\.com/([\w.-]+)/([\w.-]+)/pull/(\d+)", raw)
+        if m:
+            return f"https://github.com/{m.group(1)}/{m.group(2)}/pull/{m.group(3)}"
+        m = re.fullmatch(r"([\w.-]+)#(\d+)", raw)
+        if not m:
+            raise SessionError("bad_request", f"PR inválida: {raw!r} (URL o repo#n)")
+        repo, n = m.group(1), int(m.group(2))
+        st = gh_reviews.state if gh_reviews else {}
+        known = [c for lst in [*(st.get("mine") or {}).values(), *(st.get("stacks") or {}).values(),
+                               st.get("pending") or [], st.get("changesRequested") or [], st.get("closed") or []]
+                 for c in lst if c.get("repo") == repo and c.get("number") == n]
+        if known:
+            return known[0]["url"]
+        if not st.get("orgs"):
+            raise SessionError("unknown_pr", f"no conozco {raw}: pásala como URL")
+        return f"https://github.com/{st['orgs'][0]}/{repo}/pull/{n}"
+
+    def _owner(url: str, sessions: list[dict]) -> str | None:
+        """El desarrollo (sesión) donde está hoy la PR, o None."""
+        devs = list_devs(root, db, sessions, gh_reviews.state if gh_reviews else {})
+        hit = next((d for d in devs if d["kind"] not in ("pr", "review-pending") and any(x["url"] == url for x in d["prs"])), None)
+        if hit:
+            return hit["id"]
+        link = db.dev_prs().get(url)
+        return link["sid"] if link and not link.get("out") else None
+
+    def _dev_label(sid: str | None) -> str:
+        if not sid:
+            return "(ninguno)"
+        n = db.with_prefix("devidx:").get(f"s:{sid}") if db else None
+        return f"#{n} {sid}" if n else sid
+
+    def _move_guard(p: dict) -> None:
+        """Por CLI: la manager con su token; un comando que dice venir de otra sesión, no. (Mover una
+        PR solo cambia datos locales del IDE; desde la terminal del usuario va sin token.)"""
+        if p.get("_http") and p.get("from_session") and \
+                not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+            raise SessionError("forbidden", "solo la sesión manager (o el usuario desde su terminal) mueve PRs")
+
     async def dev_unlink_pr(p: dict) -> dict:
-        """Saca una PR del desarrollo de la sesión (no vuelve aunque el worktree esté en su rama)."""
+        """Saca PRs del desarrollo de la sesión (no vuelven aunque el worktree esté en su rama, hasta
+        un `link` explícito). `url` (una) o `prs` (varias, URL o repo#n)."""
         if db is None:
             raise SessionError("no_db", "sin base")
-        sid = require_plain_name(p.get("id"), "sesión")
-        url = p.get("url")
-        if not isinstance(url, str) or not url.startswith("https://github.com/"):
-            raise SessionError("bad_request", f"url inválida: {url!r}")
-        db.link_pr(url, sid, out=True)
-        db.event(datetime.now().isoformat(timespec="seconds"), "ide", "pr-unlinked", dev=sid, pr_url=url)
+        _move_guard(p)
+        sid = _resolve(p.get("id"))
+        urls = [_pr_url(x) for x in (p.get("prs") or [p.get("url")])]
+        now = datetime.now().isoformat(timespec="seconds")
+        out = []
+        for url in urls:
+            db.link_pr(url, sid, out=True)
+            db.event(now, p.get("actor") or "ide", "pr-unlinked", dev=sid, pr_url=url, data={"from": sid, "to": None})
+            out.append({"pr": url, "from": _dev_label(sid), "to": "(ninguno)"})
         notify()
-        return {"ok": True}
+        return {"ok": True, "moved": out}
+
+    async def dev_link_pr(p: dict) -> dict:
+        """Asigna PRs a un desarrollo (`ide dev link`, "mover a otro desarrollo…"): pisa la asignación
+        que tuvieran (explícita > pegajosa > por rama > stack) y quedan pegajosas en el nuevo. Avisa si
+        la rama de la PR no está en ningún worktree del destino."""
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        _move_guard(p)
+        sid = _resolve(p.get("id"))
+        urls = [_pr_url(x) for x in p.get("prs") or []]
+        if not urls:
+            raise SessionError("bad_request", "faltan las PRs")
+        sessions = await _sessions_now()
+        target = next((s for s in sessions if s["id"] == sid), None)
+        if not target or target.get("kind") != "ticket":
+            raise SessionError("bad_request", f"{sid} no es un desarrollo (sesión de ticket)")
+        branches = {(r["name"], r.get("branch")) for r in target.get("repos") or []}
+        st = gh_reviews.state if gh_reviews else {}
+        cards = {c["url"]: c for lst in [*(st.get("mine") or {}).values(), *(st.get("stacks") or {}).values(),
+                                         st.get("pending") or [], st.get("changesRequested") or [], st.get("closed") or []]
+                 for c in lst}
+        now = datetime.now().isoformat(timespec="seconds")
+        out = []
+        for url in urls:
+            prev = await asyncio.to_thread(_owner, url, sessions)
+            db.link_pr(url, sid)
+            if prev != sid:
+                for dev in {prev, sid} - {None}:   # en el historial del origen y del destino
+                    db.event(now, p.get("actor") or "ide", "pr-moved", dev=dev, pr_url=url, data={"from": prev, "to": sid})
+            c = cards.get(url)
+            warn = None
+            if c is None:
+                warn = "no conozco su rama (¿cerrada o de otra org?)"
+            elif (c.get("repo"), c.get("head")) not in branches:
+                warn = f"su rama {c.get('head')} ({c.get('repo')}) no está en ningún worktree de {sid}"
+            out.append({"pr": url, "from": _dev_label(prev), "to": _dev_label(sid), "warning": warn})
+        notify()
+        return {"ok": True, "moved": out}
 
     async def dev_state(p: dict) -> dict:
         """Estado del desarrollo desde la UI (cualquier desarrollo; `status` null = sin estado)."""
@@ -935,6 +1019,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if db is None:
             raise SessionError("no_db", "sin base")
         sessions = await _sessions_now()
+        if re.fullmatch(r"#?\d+", str(p["id"]).strip()):   # también por número (#42)
+            p = {**p, "id": _resolve(p["id"])}
         return {"dev": await asyncio.to_thread(show_dev, root, db, p["id"], sessions,
                                                gh_reviews.state if gh_reviews else {})}
 
@@ -1036,7 +1122,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "evidence.markdown": evidence_markdown, "evidence.github": evidence_github,
         "sessions.activity": session_activity,
         "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss, "later.resolve": later_resolve,
-        "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.list": dev_list, "dev.show": dev_show,
+        "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,

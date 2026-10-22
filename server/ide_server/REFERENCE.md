@@ -644,9 +644,15 @@ qué PRs abiertas las declaran como dependencia.
 desarrollo. Regla (spec 2026-10-16-desarrollos, P1), cada PR en un solo desarrollo: (1) la sesión de
 ticket cuyos worktrees están en esa rama, más el resto de su stack — **pegajoso**: el IDE recuerda
 la PR en ese desarrollo (base, `kv` `devpr:<url>`) y sigue ahí aunque el worktree cambie de rama,
-hasta que se mergea/cierra; "sacar de este desarrollo" (hover de su fila) la deja aparte y no vuelve
-por rama (canal `dev.unlinkPr {id, url}`; `sessions.tree` trae `devPrs`); (2) un stack tuyo sin sesión;
-(3) una PR suelta. Las sesiones sin PR también son desarrollos (grupo "Sin PR"). La card es compacta:
+hasta que se mergea/cierra; "sacar de este desarrollo" (hover de su fila, o `ide dev unlink`) la deja
+aparte y no vuelve por rama; "mover a otro desarrollo…" (hover de su fila, o `ide dev link`) la
+asigna a otro: pisa lo que tuviera y queda pegajosa ahí (avisa si su rama no está en ningún worktree
+del destino); (2) un stack tuyo sin sesión; (3) una PR suelta. **Precedencia**: asignación explícita
+(`link`) > pegajosa > por rama > stack (el stack trae a sus compañeras, salvo las asignadas a otro
+desarrollo o sacadas). Los movimientos quedan en el historial (`ide dev show`) del origen y del
+destino (`pr-moved {from, to}`, `pr-unlinked`). Canales `dev.unlinkPr {id, url | prs}` y `dev.linkPr
+{id, prs}` (PR como URL o `repo#n`); HTTP `POST /api/devs/{id}/link|unlink {prs, token}`;
+`sessions.tree` trae `devPrs`. Las sesiones sin PR también son desarrollos (grupo "Sin PR"). La card es compacta:
 título y una chip `REPO #n` por PR (punto = review; click = elegir esa PR). El detalle va en el
 módulo **Desarrollo** (id `dev`): las PRs por repo y stack (punto de review, número, título, CI, ⏸,
 y en hover Mergear en la de abajo de cada stack, abrir en GitHub y sacar del desarrollo) y los
@@ -753,7 +759,9 @@ por cada cambio (la primera vez no, para no inundar). Los estados de Notion no s
 | Comando | Qué muestra |
 |---|---|
 | `ide dev ls [--json]` | todos los desarrollos (con su nombre del IDE si tiene): los de sesión (estado de la base, claude corriendo/parado, repos y ramas) y los que son solo PRs (tuyas o pendientes de revisar); por cada PR: review, CI, revisores, draft, stack, dependencias pendientes |
-| `ide dev show <id> [--json]` | lo mismo para uno (id de sesión o `repo#n`) + dependencias pendientes + historial |
+| `ide dev show <id> [--json]` | lo mismo para uno (id de sesión, `#n` o `repo#n`) + dependencias pendientes + historial |
+| `ide dev link <#n\|id> <pr…>` | asigna PRs (URL o `repo#n`) a ese desarrollo: pisa la asignación que tuvieran y quedan pegajosas ahí; una línea por PR `<pr>\t<anterior> → <nuevo>` (y `aviso:` si su rama no está en ningún worktree del destino). La manager lo corre con su token; desde la terminal del usuario va sin token (mover PRs solo cambia datos locales del IDE, no es una barrera de seguridad) |
+| `ide dev unlink <#n\|id> <pr…>` | saca PRs del desarrollo: quedan aparte y no vuelven por rama hasta un `link` |
 | `ide status <estado> [-m nota] [--session id]` | cambia el estado (dentro de una sesión usa la suya) |
 
 API: `GET /api/devs`, `GET /api/devs/{id}`, `POST /api/devs/{id}/status` (`{status, note, actor}`);

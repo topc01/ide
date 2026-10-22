@@ -96,6 +96,9 @@ export const attachmentUrl = (sid: string, name: string, download = false) =>
   `/api/sessions/${encodeURIComponent(sid)}/attachments/${encodeURIComponent(name)}${download ? "?download=1" : ""}`;
 export type PrLinks = Record<string, { sid: string; out?: boolean }>;
 /** Saca una PR del desarrollo de una sesión (no vuelve aunque el worktree esté en su rama). */
+/** Asigna PRs a un desarrollo (sesión): pisa la asignación que tuvieran. */
+export const linkPr = (ws: WsClient, id: string, prs: string[]): Promise<{ ok: boolean; moved: { pr: string; from: string; to: string; warning: string | null }[] }> =>
+  ws.request("dev.linkPr", { id, prs });
 export const unlinkPr = (ws: WsClient, id: string, url: string): Promise<{ ok: boolean }> =>
   ws.request("dev.unlinkPr", { id, url });
 /** Ocultar / volver a mostrar un desarrollo en Mis desarrollos (solo el IDE). */

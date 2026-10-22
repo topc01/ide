@@ -291,6 +291,9 @@ Si no está claro a qué desarrollo se refiere (o podría ser más de uno), **pr
 Si no es para ningún desarrollo existente y es trabajo nuevo, propón crear la sesión (ticket de Notion,
 `/backlog`).
 
+**Mover PRs entre desarrollos** (p.ej. un desarrollo se separó en dos): `ide dev link '#n' <pr…>`
+(URL o `repo#n`; pisa la asignación que tuvieran) y `ide dev unlink '#n' <pr…>`.
+
 ## Destrabar
 
 En `ide dev ls`, las sesiones que esperan al usuario dicen `TE ESPERA` (con la primera línea de su

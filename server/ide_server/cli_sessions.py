@@ -98,6 +98,10 @@ def _parser() -> argparse.ArgumentParser:
     dv = sub.add_parser("dev").add_subparsers(dest="cmd", required=True)
     dls = dv.add_parser("ls"); dls.add_argument("--json", action="store_true")
     dsh = dv.add_parser("show"); dsh.add_argument("id"); dsh.add_argument("--json", action="store_true")
+    for name, what in (("link", "asigna PRs a un desarrollo (pisa la asignación que tuvieran)"),
+                       ("unlink", "saca PRs de un desarrollo (no vuelven por rama hasta un link)")):
+        x = dv.add_parser(name, help=what)
+        x.add_argument("id", help="desarrollo: #n o id de sesión"); x.add_argument("prs", nargs="+", help="URL o repo#n")
     rr = r.add_parser("rm"); rr.add_argument("repo"); rr.add_argument("--force", action="store_true")
     rr.add_argument("--session")
     ho = sub.add_parser("handoff", help="traspasa un worktree de otra herramienta (Conductor) a una sesión del IDE")
@@ -321,6 +325,15 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         data = _post(http, url, f"/api/devs/{quote(sid, safe='')}/status",
                      {"status": a.status, "note": a.note, "actor": actor})
         out.write(f"{sid}\t{data['dev']['status']}\n" + (f"{data['message']}\n" if data.get("message") else ""))
+        return 0
+    if a.cmd in ("link", "unlink"):
+        body = {"prs": a.prs, "token": env.get("IDE_MANAGER_TOKEN", ""), "from_session": bool(env.get("IDE_SESSION_ID")),
+                "actor": f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"}
+        data = _post(http, url, f"/api/devs/{quote(a.id, safe='')}/{a.cmd}", body)
+        for m in data["moved"]:
+            out.write(f"{m['pr']}\t{m['from']} → {m['to']}\n")
+            if m.get("warning"):
+                out.write(f"  aviso: {m['warning']}\n")
         return 0
     if a.cmd == "ls":
         devs = _get(http, url, "/api/devs")["devs"]

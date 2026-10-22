@@ -286,6 +286,14 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_dev(dev_id: str):
         return await _http("dev.show", {"id": dev_id})
 
+    @app.post("/api/devs/{sid}/link")
+    async def api_dev_link(sid: str, body: dict):
+        return await _http("dev.linkPr", {**body, "id": sid, "_http": True})
+
+    @app.post("/api/devs/{sid}/unlink")
+    async def api_dev_unlink(sid: str, body: dict):
+        return await _http("dev.unlinkPr", {**body, "id": sid, "_http": True})
+
     @app.post("/api/devs/{sid}/status")
     async def api_dev_status(sid: str, body: dict):
         return await _http("dev.status", {**body, "id": sid})

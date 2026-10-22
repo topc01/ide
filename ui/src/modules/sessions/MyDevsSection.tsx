@@ -1,6 +1,8 @@
 // ui/src/modules/sessions/MyDevsSection.tsx
-import { ExternalLink, Unlink } from "lucide-react";
-import { unlinkPr } from "../../transport/folderSessions";
+import { useState } from "react";
+import { ArrowRightLeft, ExternalLink, Unlink } from "lucide-react";
+import { linkPr, unlinkPr } from "../../transport/folderSessions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { useDevTabs } from "../../state/devTabs";
@@ -46,6 +48,7 @@ export function PrRow({ pr, job, bottom, sessionId }: { pr: GhPr; job?: MergeJob
         <QueueItemAction aria-label={`Abrir ${pr.repo}#${pr.number} en GitHub`} title="Abrir en GitHub" asChild>
           <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /></a>
         </QueueItemAction>
+        {sessionId && <MovePrAction pr={pr} from={sessionId} />}
         {sessionId && (
           <QueueItemAction aria-label={`Sacar ${pr.repo}#${pr.number} de este desarrollo`}
             title="Sacar esta PR de este desarrollo (pasa a ser un desarrollo aparte; no toca GitHub)"
@@ -55,6 +58,44 @@ export function PrRow({ pr, job, bottom, sessionId }: { pr: GhPr; job?: MergeJob
       </span>
     </div>
   );
+}
+
+/** "Mover a otro desarrollo…": elegir la sesión destino (lo mismo que `ide dev link`). */
+function MovePrAction({ pr, from }: { pr: GhPr; from: string }) {
+  const [open, setOpen] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const tree = useFolders((s) => s.tree);
+  const targets = tree.sessions.filter((s) => s.kind === "ticket" && s.id !== from);
+  const label = (id: string) => {
+    const n = tree.devIndex?.[`s:${id}`];
+    return `${n !== undefined ? `#${n} ` : ""}${tree.devNames?.[`s:${id}`] ?? tree.sessions.find((x) => x.id === id)?.title ?? id}`;
+  };
+  const move = (to: string) => {
+    setErr(null);
+    linkPr(getWs(), to, [pr.url]).then((r) => {
+      const w = r.moved[0]?.warning;
+      if (w) setNote(`Movida. Aviso: ${w}`); else setOpen(false);
+    }).catch((e: any) => setErr(e?.message ?? String(e)));
+  };
+  return (<>
+    <QueueItemAction aria-label={`Mover ${pr.repo}#${pr.number} a otro desarrollo`}
+      title="Mover esta PR a otro desarrollo (queda asignada ahí; no toca GitHub)"
+      onClick={(e) => { e.stopPropagation(); setNote(null); setOpen(true); }}><ArrowRightLeft size={11} /></QueueItemAction>
+    {open && (
+      <Dialog open onOpenChange={(o) => { if (!o) setOpen(false); }}>
+        <DialogContent onClick={(e) => e.stopPropagation()} className="max-w-md">
+          <DialogHeader><DialogTitle className="text-sm">Mover {repoShort(pr.repo)} #{pr.number} a…</DialogTitle></DialogHeader>
+          <div className="max-h-80 space-y-0.5 overflow-auto">
+            {targets.map((s) => (
+              <button key={s.id} onClick={() => move(s.id)} title={`Asignarla a ${label(s.id)}`}
+                className="block w-full truncate rounded px-2 py-1 text-left text-xs hover:bg-accent">{label(s.id)}</button>))}
+          </div>
+          {note && <p className="text-xs text-amber-300">{note}</p>}
+          {err && <p role="alert" className="text-xs text-destructive">⚠ {err}</p>}
+        </DialogContent>
+      </Dialog>)}
+  </>);
 }
 
 /** Stack tuyo sin sesión: una card con una fila por PR (de abajo hacia arriba). */

@@ -98,7 +98,10 @@ export function deriveMine(tickets: FolderSession[], gh: GithubReviews | null, l
       if (link) return link.sid === s.id && !link.out;
       return s.repos.some((r) => r.branch && r.name === p.repo && r.branch === p.head);
     });
-    const prs = byRepoStack([...new Set(own.flatMap(stackOf))].filter((p) => !taken.has(p.url)))
+    // el stack trae a sus compañeras, salvo las asignadas a otro desarrollo o sacadas
+    // (precedencia: explícita > pegajosa > por rama > stack)
+    const mate = (p: GhPr) => !links[p.url] || (links[p.url].sid === s.id && !links[p.url].out);
+    const prs = byRepoStack([...new Set(own.flatMap(stackOf))].filter((p) => !taken.has(p.url) && mate(p)))
       .flatMap((g) => g.stacks.flat());
     prs.forEach((p) => taken.add(p.url));
     const merged = closed.filter((p) => links[p.url]?.sid === s.id);
