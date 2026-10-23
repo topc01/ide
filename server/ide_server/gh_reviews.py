@@ -507,6 +507,35 @@ class GithubReviews:
                 self._db.event(at, "github", "ready-for-review", pr_url=url)
         self._db.put_pr_snaps(snaps)
 
+    def optimistic(self, url: str, *, requested: list[str] = (), verdict: tuple[str, str] | None = None) -> None:
+        """Lo que el IDE acaba de hacer, sin esperar el próximo poll (que lo corrige si GitHub dice
+        otra cosa): `requested` = a quiénes se les pidió (re)review → esperando; `verdict` = (login,
+        approved|changes) de un review publicado."""
+        st = self.state or {}
+        cards = [c for lst in [st.get("pending") or [], st.get("changesRequested") or [],
+                               *(st.get("mine") or {}).values(), *(st.get("stacks") or {}).values()]
+                 for c in lst if c.get("url") == url]
+        for c in cards:
+            revs = {r["login"]: r["state"] for r in c.get("reviewers") or []}
+            for login in requested:
+                revs[login] = "requested"
+            if verdict:
+                revs[verdict[0]] = verdict[1]
+            c["reviewers"] = [{"login": k, "state": v} for k, v in revs.items()]
+            states = set(revs.values())
+            c["review"] = "changes" if "changes" in states else "review" if "requested" in states \
+                else "approved" if "approved" in states else c.get("review")
+        mine = st.get("mine") or {}
+        group = {"changes": "returned", "review": "waiting", "approved": "approved"}
+        for g, lst in list(mine.items()):                # Mis PRs: que la card cambie de grupo también
+            for c in [c for c in lst if c.get("url") == url and not c.get("draft")]:
+                to = group.get(c.get("review") or "")
+                if to and to != g:
+                    lst.remove(c)
+                    mine.setdefault(to, []).append(c)
+        if cards:
+            self._on_change()
+
     async def set_selection(self, logins: list[str]) -> None:
         self._db.set("reviewers", sorted({str(x) for x in logins}, key=str.lower))
         self.state = {**self.state, "selected": self._db.get("reviewers")}

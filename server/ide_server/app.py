@@ -341,12 +341,30 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             await ws.close(code=1008)
             return
         await manager.connect(ws)
+        pending: set[asyncio.Task] = set()
+
+        async def answer(raw: str) -> None:
+            try:
+                await ws.send_text(await handle_message(raw, registry))
+            except (WebSocketDisconnect, RuntimeError):
+                pass                            # se cerró mientras respondía
+
         try:
             while True:
                 raw = await ws.receive_text()
-                await ws.send_text(await handle_message(raw, registry))
+                # La terminal (teclas, resize) se atiende en el acto y en orden; el resto (git, gh: el
+                # módulo Stack tarda segundos) corre aparte: antes un pedido lento dejaba en fila las
+                # teclas y claude parecía colgado.
+                if '"channel": "terminal.' in raw or '"channel":"terminal.' in raw:
+                    await answer(raw)
+                else:
+                    t = asyncio.create_task(answer(raw))
+                    pending.add(t)
+                    t.add_done_callback(pending.discard)
         except WebSocketDisconnect:
             manager.disconnect(ws)
+            for t in pending:
+                t.cancel()
 
     if web_dir is not None and (web_dir / "index.html").is_file():
         from starlette.staticfiles import StaticFiles

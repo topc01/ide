@@ -397,6 +397,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if db is not None:
             db.event(datetime.now().isoformat(timespec="seconds"), "ide", f"review-{event}", dev=sid, pr_url=url)
         if gh_reviews is not None:
+            me = (gh_reviews.state or {}).get("me")
+            if me:                              # el punto cambia ya (el poll lo confirma o corrige)
+                gh_reviews.optimistic(url, verdict=(me, "approved" if event == "approve" else "changes"))
             asyncio.get_running_loop().create_task(gh_reviews.poll_once())
         notify()
         return {"ok": True}
@@ -871,6 +874,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             db.event(datetime.now().isoformat(timespec="seconds"), "ide", "reviewers", pr_url=p["url"],
                      data={"add": p.get("add") or [], "remove": p.get("remove") or []})
         if gh_reviews is not None:
+            gh_reviews.optimistic(p["url"], requested=p.get("add") or [])   # el punto cambia ya
             asyncio.get_running_loop().create_task(gh_reviews.poll_once())
         return {"ok": True}
 

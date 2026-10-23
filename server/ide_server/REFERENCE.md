@@ -645,7 +645,10 @@ acá** (siguen en disco). Todo lo de GitHub es reconstruible: si la base se corr
 **Poll de GitHub** (cada `github_interval`): incremental (`updated:>=` último poll − 1 min, abiertas
 y recién cerradas) + refresco por ID de lo dinámico (CI, conflicto, review: no cambian
 `updatedAt`) de las PRs relevantes (tuyas, las que revisás, sus stacks y dependencias) +
-resincronización completa cada 30 min y al arrancar. La resincronización saca de la base las PRs
+resincronización completa cada 30 min y al arrancar. **Optimista**: lo que hace el IDE se refleja al
+instante, sin esperar el poll: pedir (re)review deja la PR "esperando revisor" (punto azul; en Mis PRs
+pasa al grupo correspondiente) y publicar Aprobar / Pedir cambios cambia tu review en la card; el
+poll siguiente lo confirma o corrige. La resincronización saca de la base las PRs
 que ya no vienen, **salvo que la respuesta de GitHub sea sospechosa**: vacía (con PRs guardadas:
 nunca se acepta), a medias (el total no cuadra con lo que llegó) o que sacaría más del 30% de golpe
 (y más de 10; se acepta si la siguiente trae lo mismo). En ese caso guarda lo que llegó, no borra
