@@ -74,7 +74,7 @@ def sync_from_disk(root: Path, db: Db, sessions: list[dict] | None = None) -> No
                 "prUrl": s.get("prUrl"), "status": s.get("status")}
         if row is None:
             db.put_dev({"id": sid, **disk, "created": s.get("created") or now(), "updated": now()})
-            if disk["kind"] != "main":
+            if disk["kind"] not in ("main", "ide"):
                 db.dev_index(f"s:{sid}")
             db.event(now(), "ide", "created", dev=sid, pr_url=disk["prUrl"],
                      data={"kind": disk["kind"], "title": disk["title"], "status": disk["status"]})
@@ -388,7 +388,7 @@ def assign_indices(db: Db, devs: list[dict]) -> dict[str, int]:
                                         (rows.get(d["id"]) or {}).get("created") or "",
                                         [p.get("number") or 0 for p in d["prs"]]))
     for d in order:
-        if d["kind"] == "main":
+        if d["kind"] in ("main", "ide"):
             continue
         key = _ui_key(d)
         if key in idx:
@@ -407,7 +407,7 @@ def dev_env(root: Path, sid: str) -> dict[str, str]:
     / IDE_BRANCH_PREFIX (`<login de GitHub>/`) de la sesión, si ya tiene número."""
     try:
         info = read_session(root, sid)
-        if info.get("kind") in (None, "main"):
+        if info.get("kind") in (None, "main", "ide"):
             return {}
         db = Db(root)
         n = db.dev_index(f"s:{sid}")

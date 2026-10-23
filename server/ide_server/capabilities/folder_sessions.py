@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 from ide_server.claude_usage import LimitsPoller, session_context
-from ide_server.config import manager_config, sessions_config, ui_modules
+from ide_server.config import ide_config, manager_config, sessions_config, ui_modules
 from ide_server.feedback import as_markdown, collect, pending_plans
 from ide_server.telegram import TelegramBridge, get_token
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
@@ -48,6 +48,12 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
              poller: PrPoller, gh_reviews: GithubReviews | None = None,
              limits: LimitsPoller | None = None, merger: Merger | None = None,
              db: Db | None = None, runner=None) -> Callable[[], None]:
+    try:                                        # la sesión "IDE" (si `[ide] repo` está configurado)
+        from ide_server.sessions_fs import ensure_ide_session
+        icfg = ide_config(root)
+        ensure_ide_session(root, icfg["repo"], icfg["resume"])
+    except Exception:  # noqa: BLE001 — sin ella el resto anda igual
+        log.exception("no pude preparar la sesión IDE")
 
     def build_tree(snap: dict, derived: dict) -> dict:
         """Lectura de disco + git: corre en un thread (no bloquea el loop)."""

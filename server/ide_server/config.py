@@ -46,3 +46,10 @@ def manager_config(root: Path) -> dict:
 
 def ui_modules(root: Path) -> list[str]:
     return list(load_workspace_config(root).get("ui", {}).get("modules", ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "pins", "later", "evidence", "attachments", "explorer", "config"]))
+
+
+def ide_config(root: Path) -> dict:
+    """`[ide]`: la sesión "IDE" (pestaña junto a la manager). `repo` = el repo del IDE (su claude corre
+    ahí); `resume` = la conversación de claude que retoma la primera vez (opcional)."""
+    cfg = load_workspace_config(root).get("ide", {})
+    return {"repo": cfg.get("repo"), "resume": cfg.get("resume")}

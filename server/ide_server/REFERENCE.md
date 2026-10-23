@@ -95,6 +95,9 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 
 [ui]
 modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "pins", "later", "evidence", "attachments", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
+[ide]                     # opcional: la sesión "IDE", pestaña junto a la Manager
+repo = "/Users/topc/ide"  # su claude corre en ese repo (permisos default, hooks por --settings)
+resume = "<uuid>"         # la conversación de claude que retoma la primera vez (opcional)
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -571,6 +574,13 @@ resumen. El `+` **crea**: una **terminal nueva** (shell en la carpeta de la sesi
 PR tuya sin sesión, una **sesión en su rama** (ver abajo); en una PR de otro sin sesión su
 **sesión de revisión** (se abre su `claude`); y **reabre** lo cerrado
 (doc, resúmenes de las otras PRs del desarrollo). × cierra la tab sin parar nada. Sin límite de tabs.
+
+**Pestañas Manager | IDE** (arriba de la sidebar principal): las dos sesiones fijas, la elegida
+destacada y con el punto de actividad (trabajando / te espera); a la derecha solo el **+** (nueva
+sesión). La sesión **IDE** (kind `ide`, id `ide`) existe si `[ide] repo` está en config.toml: se crea
+sola al arrancar el server (`.ide/sessions/ide/.session.toml` con `cwd`), su claude corre en ese repo
+con los permisos de siempre (`default`), retoma la conversación de `[ide] resume` la primera vez, y
+no cuenta como desarrollo (sin número, fuera de Mis desarrollos y de "te esperan").
 
 **Tab `claude`**: va siempre primera y destacada (ícono, fondo de acento y el punto de actividad de
 la sesión: trabajando / te espera, con la nota en el tooltip). **Terminales en memoria**: cada

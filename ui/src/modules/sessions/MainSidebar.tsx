@@ -1,10 +1,11 @@
 // ui/src/modules/sessions/MainSidebar.tsx
 import { useEffect, useRef, useState } from "react";
-import { Plus, Star } from "lucide-react";
+import { Plus } from "lucide-react";
+import type { FolderSession } from "../../transport/folderSessions";
+import { ACTIVITY, activityOf } from "./activity";
 import { useFolders } from "../../state/folders";
 import { fetchSessions, newSession, onSessionsChanged } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
-import { ConfigButton } from "./GroupedSection";
 import { OffscreenMarker, useOffscreenSelected } from "./OffscreenMarker";
 import { ReviewsSection } from "./ReviewsSection";
 import { MyDevsSection } from "./MyDevsSection";
@@ -27,7 +28,8 @@ export function MainSidebar() {
   }, [setTree, setConnected]);
 
   const main = tree.sessions.find((s) => s.kind === "main");
-  const tickets = tree.sessions.filter((s) => s.kind !== "main" && s.kind !== "review");
+  const ide = tree.sessions.find((s) => s.kind === "ide");
+  const tickets = tree.sessions.filter((s) => s.kind !== "main" && s.kind !== "review" && s.kind !== "ide");
   const reviews = tree.sessions.filter((s) => s.kind === "review");
 
   return (
@@ -39,27 +41,20 @@ export function MainSidebar() {
         </div>
       )}
       <div className={connected ? "" : "opacity-50"}>
-        <div className="flex items-center gap-1.5 px-2.5 pb-1 pt-2.5">
-          {main ? (
-            <button title={`Abrir la sesión manager (${main.id})`} onClick={() => setActive(main.id)} aria-current={activeId === main.id || undefined}
-              className={cn("-my-1 -ml-1.5 flex items-center gap-1.5 rounded border-l-2 border-transparent py-1 pl-1 pr-2 text-xs hover:bg-accent/60",
-                activeId === main.id && "border-primary bg-accent")}>
-              <Star size={12} className="text-primary" /><span className="font-semibold">Manager</span>
-              <span className="text-muted-foreground">{main.process}</span>
-            </button>
-          ) : (
-            <>
-              <button title="Crear y lanzar la sesión principal" onClick={() => { setMainError(null); newSession(getWs(), { main: true })
+        {/* pestañas de las sesiones de siempre: la manager y la del IDE */}
+        <div className="flex items-end gap-1 border-b border-border px-2 pt-2">
+          {main ? <SessionTab session={main} label="Manager" title={`La sesión manager: coordina los desarrollos (${main.id})`}
+              active={activeId === main.id && !activePrUrl} onClick={() => setActive(main.id)} />
+            : (<>
+              <button title="Crear y lanzar la sesión manager" onClick={() => { setMainError(null); newSession(getWs(), { main: true })
                   .then((r: any) => setActive(r.session.id))
                   .catch((e: any) => setMainError(e?.message ?? String(e))); }}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
-                <Star size={12} /> Principal
-              </button>
-              {mainError && <span role="alert" title={mainError} className="text-xs text-destructive">⚠</span>}
-            </>
-          )}
-          <div className="ml-auto flex items-center gap-1">
-            <ConfigButton id="mine" title="Mis desarrollos" />
+                className="rounded-t-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent/60 hover:text-foreground">+ Manager</button>
+              {mainError && <span role="alert" title={mainError} className="pb-1.5 text-xs text-destructive">⚠</span>}
+            </>)}
+          {ide && <SessionTab session={ide} label="IDE" title="Claude en el repo del IDE (para trabajar en el IDE)"
+            active={activeId === ide.id && !activePrUrl} onClick={() => setActive(ide.id)} />}
+          <div className="ml-auto pb-1">
             <button aria-label="Nueva sesión" title="Nueva sesión" onClick={() => openModal("session")}
               className="grid h-5 w-5 place-items-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><Plus size={13} /></button>
           </div>
@@ -73,4 +68,20 @@ export function MainSidebar() {
       <div className="pb-2"><CustomizationsFooter /></div>
     </aside>
   );
+}
+
+/** Pestaña de una sesión fija (Manager, IDE): la elegida destacada; el punto es su actividad. */
+function SessionTab({ session, label, title, active, onClick }:
+  { session: FolderSession; label: string; title: string; active: boolean; onClick: () => void }) {
+  const act = activityOf(session);
+  const [dot, cls, what] = ACTIVITY[act];
+  const note = act === "waiting" && session.activity?.note ? `: ${session.activity.note}` : "";
+  return (
+    <button role="tab" aria-selected={active} title={`${title} — ${what}${note}`} onClick={onClick}
+      className={cn("-mb-px flex items-center gap-1.5 rounded-t-md border border-b-0 px-3 py-1.5 text-xs font-semibold transition-colors",
+        active ? "border-border bg-background text-foreground shadow-[inset_0_2px_0_var(--primary)]"
+          : "border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground")}>
+      {label}
+      <span aria-hidden className={cn("text-[9px]", cls)}>{dot}</span>
+    </button>);
 }

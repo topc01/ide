@@ -15,7 +15,7 @@ import uuid
 from pathlib import Path
 from typing import Callable
 from ide_server.config import reviews_config
-from ide_server.sessions_fs import SessionError, session_path, read_toml, update_session_toml
+from ide_server.sessions_fs import SessionError, session_cwd, session_path, read_toml, update_session_toml
 
 log = logging.getLogger(__name__)
 
@@ -179,6 +179,10 @@ def build_argv(root: Path, sid: str, *, command: str, resume: bool,
         argv += ["--settings", str(root / ".ide" / "permissions" / f"{profile}.json")]
     if perm == "full":
         argv += ["--permission-mode", "bypassPermissions"]
+    if kind == "ide":
+        # corre en el repo del IDE: los hooks de actividad van por --settings (no se escribe en el repo)
+        hook = {"type": "command", "command": "ide hook", "timeout": 5}
+        argv += ["--settings", json.dumps({"hooks": {ev: [{"hooks": [hook]}] for ev in HOOK_EVENTS}})]
     # `--add-dir` es variádico en claude: con `=` no se come el prompt posicional.
     argv.append(f"--add-dir={root / '.ide' / 'worktrees' / sid}")
     if kind == "main":
@@ -257,7 +261,7 @@ class Supervisor:
         if self.state(sid) != "stopped":
             return self.state(sid)
         if resume is None:
-            resume = has_history(path, self._home)
+            resume = has_history(session_cwd(self._root, sid), self._home)
         if self._max is not None and len(self._running) >= self._max:
             if prompt:
                 raise SessionError("queue_full", f"hay {self._max} sesiones corriendo (max_running): "
@@ -321,10 +325,12 @@ class Supervisor:
             enable_plugins(path, list(reviews_config(self._root)["plugins"]))
         if data.get("kind") == "main":
             install_skills(self._root, path)
-        install_hooks(path)
+        cwd = session_cwd(self._root, sid, data)
+        if data.get("kind") != "ide":
+            install_hooks(path)
         cs, name = data.get("claude_session"), data.get("claude_name")
         if not cs or not name:
-            cs = cs or (latest_transcript_id(path, self._home) if resume else None) or str(uuid.uuid4())
+            cs = cs or (latest_transcript_id(cwd, self._home) if resume else None) or str(uuid.uuid4())
             name = name or f"{sid} · {uuid.uuid4().hex[:8]}"
             update_session_toml(self._root, sid, lambda d: d.update(claude_session=cs, claude_name=name))
         argv = build_argv(self._root, sid, command=self._command, resume=resume,
@@ -332,7 +338,7 @@ class Supervisor:
         if resume and self._agents is not None:
             # sigue viva en segundo plano (p.ej. tras reiniciar el server): reengancharla, pero
             # SOLO si la lanzó el IDE (una lanzada a mano podría tener otros permisos)
-            mine = [a["id"] for a in self._agents.background(path)
+            mine = [a["id"] for a in self._agents.background(cwd)
                     if a.get("sessionId") == cs or a.get("name") == name]
             if mine:
                 argv = [*shlex.split(self._command), "attach", mine[0]]
@@ -348,7 +354,7 @@ class Supervisor:
                **({"IDE_MANAGER_TOKEN": self.manager_token} if data.get("kind") == "main" else {}),
                "IDE_WORKSPACE": str(self._root)}
         holder: dict[str, str] = {}
-        tid = self._spawn(session_path(self._root, sid), argv, env,
+        tid = self._spawn(cwd, argv, env,
                           lambda: self._on_exit(sid, holder.get("tid")),
                           on_output=lambda data: self._on_output(sid, holder.get("tid"), data),
                           on_input=lambda: self._on_input(sid, holder.get("tid")),

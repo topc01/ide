@@ -18,7 +18,7 @@ from ide_server import seeds
 from ide_server.sessions_store import slugify
 from ide_server.workspace import discover_repos
 
-KINDS = ("main", "ticket", "review")
+KINDS = ("main", "ticket", "review", "ide")
 PERMISSIONS = ("analyze", "full", "default")
 RESERVED = {"templates"}
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
@@ -269,6 +269,34 @@ def read_session(root: Path, sid: str) -> dict:
     return info
 
 
+def session_cwd(root: Path, sid: str, data: dict | None = None) -> Path:
+    """Dónde corre su claude: la carpeta de la sesión; la sesión `ide` corre en el repo del IDE."""
+    data = data if data is not None else read_toml(session_path(root, sid) / ".session.toml")
+    if data.get("kind") == "ide" and data.get("cwd"):
+        return Path(data["cwd"])
+    return session_path(root, sid)
+
+
+IDE_SESSION = "ide"
+
+
+def ensure_ide_session(root: Path, repo: str | None, resume: str | None) -> str | None:
+    """La sesión "IDE" (pestaña junto a la manager): un claude en el repo del IDE (`[ide] repo` de
+    config.toml). `resume` = la conversación de claude a retomar la primera vez. Idempotente."""
+    if not repo or not Path(repo).expanduser().is_dir():
+        return None
+    path = session_path(root, IDE_SESSION)
+    if (path / ".session.toml").is_file():
+        return IDE_SESSION
+    path.mkdir(parents=True, exist_ok=True)
+    data = {"kind": "ide", "permissions": "default", "created": datetime.now().isoformat(timespec="seconds"),
+            "cwd": str(Path(repo).expanduser().resolve())}
+    if resume:
+        data["claude_session"] = resume
+    write_toml(path / ".session.toml", data)
+    return IDE_SESSION
+
+
 def list_sessions(root: Path) -> list[dict]:
     d = sessions_dir(root)
     if not d.is_dir():
@@ -276,7 +304,7 @@ def list_sessions(root: Path) -> list[dict]:
     items = [read_session(root, p.name) for p in d.iterdir()
              if p.is_dir() and not p.is_symlink() and p.name not in RESERVED
              and not p.name.startswith(".")]
-    return sorted(items, key=lambda s: (s["kind"] != "main", s["created"], s["id"]))
+    return sorted(items, key=lambda s: (s["kind"] != "main", s["kind"] != "ide", s["created"], s["id"]))
 
 
 def seed_workspace(root: Path) -> list[Path]:
