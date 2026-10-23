@@ -86,8 +86,14 @@ export function LaterPanel() {
     setErr(null);
     laterAdd(getWs(), dev.key, text.trim(), null).then(() => setText("")).catch((e: any) => setErr(e?.message ?? String(e)));
   };
+  const here = items.filter((it) => mineKeys.includes(it.key)).length;
   return (
     <div className="flex h-full flex-col overflow-auto pb-3 text-xs">
+      <div className="mx-2.5 mt-2.5 flex items-baseline gap-1.5">
+        <span className="font-mono text-sm font-bold text-primary">{items.length}</span>
+        <span className="text-muted-foreground">{items.length === 1 ? "pendiente" : "pendientes"}
+          {dev && items.length > 0 ? ` · ${here} de este desarrollo` : ""}</span>
+      </div>
       {dev && (
         <div className="mx-2.5 mt-2.5">
           <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Agregar a {label(dev.key)}</div>

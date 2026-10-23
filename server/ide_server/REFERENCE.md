@@ -389,7 +389,9 @@ duplicate|delete|shot|markdown|github`; HTTP `GET/POST /api/sessions/{id}/eviden
 ahora (p.ej. una pregunta que tiene que conversar con el equipo), para que no se pierdan. Los deja la
 sesión con **`ide later add "<pregunta>" -m "<contexto>"`** (dentro de la sesión; `--session <id>`
 afuera) o el usuario desde el módulo ("Agregar a" el desarrollo actual). El módulo lista los abiertos
-de todos los desarrollos, agrupados por desarrollo (el actual primero), con de quién y hace cuánto.
+de todos los desarrollos, agrupados por desarrollo (el actual primero), con de quién y hace cuánto;
+arriba el total ("N pendientes · M de este desarrollo") y el ícono del módulo en el menú de acciones
+lleva el número de pendientes abiertos (los módulos pueden mostrar un conteo así: `useBadge`).
 **Responder** le manda la respuesta a la sesión (encolada o la lanza; encabezado `[Respuesta del
 usuario a un pendiente que quedó para después]`) y lo cierra; en desarrollos sin sesión solo queda
 anotada. **Resuelto** (✓) lo cierra sin mandarle nada a la sesión (se resolvió en el chat). ✕ lo
