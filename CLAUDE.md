@@ -75,6 +75,20 @@ una explicación corta de qué hace. `HoverTips` (`ui/src/layout/`) la muestra c
 dibujado en la página (sale en las capturas; el nativo del navegador no). En `QueueItemAction`
 el `title` sale del `aria-label` si no se pasa.
 
+## Probar en vivo (servidor de prueba)
+
+Un IDE aparte en otro puerto, **contra una copia de la base** (si no, escribe en la real del usuario y
+dos versiones distintas del IDE se pisan los estados):
+
+```bash
+cp /Users/topc/finnecto/.ide/ide.db /tmp/ide-copia.db
+cd server && IDE_DB_PATH=/tmp/ide-copia.db uv run ide run --cwd /Users/topc/finnecto --port 8799 --no-browser --no-supervise
+```
+
+Ojo: igual comparte los worktrees, los servidores y las sesiones reales. Antes de elegir una sesión en
+la UI de prueba, deja sus tabs sin la de `claude` (`ide.devTabs` en localStorage): abrirla lanza un
+`claude` duplicado de esa sesión. No toques acciones que publican en GitHub.
+
 ## Cómo correr los tests
 
 ```bash

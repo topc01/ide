@@ -162,7 +162,9 @@ class Merger:
         if pr.get("stack") and pr["stack"]["position"] != 1:
             raise SessionError("not_bottom", "solo se mergea la PR de abajo del stack")
         if pr.get("ci") == "failure":
-            raise SessionError("ci_failed", "el CI falló (o hay conflicto): no se arma el merge")
+            raise SessionError("ci_failed", "el CI falló: no se arma el merge")
+        if pr.get("conflict"):
+            raise SessionError("conflict", "tiene conflicto con su base: resuélvelo antes de mergear")
         if self.jobs.get(url, {}).get("state") in ACTIVE:
             raise SessionError("merge_pending", "ya hay un merge en curso para esta PR")
         native = bool(pr.get("stack") and pr["stack"].get("native"))

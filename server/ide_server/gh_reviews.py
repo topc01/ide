@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 _FIELDS = """... on PullRequest { id state url title number isDraft updatedAt reviewDecision headRefName baseRefName body
   isCrossRepository repository { nameWithOwner }
   stack { id size } stackEntry { position }
-  mergeable commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+  mergeable mergeStateStatus commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
   repository { name } author { login }
   latestOpinionatedReviews(first: 10) { nodes { state author { login } } }
   reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } } } } }"""
@@ -34,7 +34,11 @@ SEARCH = """query($q: String!, $after: String) {
   s: search(type: ISSUE, first: 50, query: $q, after: $after) {
     issueCount pageInfo { hasNextPage endCursor } nodes { %s } }
 }""" % _FIELDS
-NODES = """query($ids: [ID!]!) { nodes(ids: $ids) { %s } }""" % _FIELDS
+# Las relevantes (tuyas, las que revisas) se refrescan por ID con el estado de cada check: así se sabe
+# si un CI que ya falló sigue corriendo (la búsqueda de toda la org no lo trae: sería muy pesada).
+_FIELDS_FULL = _FIELDS.replace("statusCheckRollup { state }", "statusCheckRollup { state contexts(first: 100) { "
+                               "nodes { __typename ... on CheckRun { status } ... on StatusContext { state } } } }")
+NODES = """query($ids: [ID!]!) { nodes(ids: $ids) { %s } }""" % _FIELDS_FULL
 MEMBERS = """query($org: String!) { organization(login: $org) {
   membersWithRole(first: 100) { nodes { login name } } } }"""
 MAX_PAGES = 20          # páginas de 50: la búsqueda de GitHub no da más de 1000 resultados
@@ -125,14 +129,24 @@ def pr_reviewers(n: dict) -> list[dict]:
     return [{"login": k, "state": v} for k, v in out.items()]
 
 
-def ci_state(n: dict) -> str | None:
-    """success | failure | pending | None (sin checks). Un conflicto con la base es failure."""
-    if n.get("mergeable") == "CONFLICTING":
-        return "failure"
+def _rollup(n: dict) -> dict:
     commits = (n.get("commits") or {}).get("nodes") or [{}]
-    rollup = ((commits[-1] or {}).get("commit") or {}).get("statusCheckRollup") or {}
+    return ((commits[-1] or {}).get("commit") or {}).get("statusCheckRollup") or {}
+
+
+def ci_state(n: dict) -> str | None:
+    """success | failure | pending | None (sin checks). Solo los checks: un conflicto va aparte
+    (`conflict` en la card)."""
     return {"SUCCESS": "success", "FAILURE": "failure", "ERROR": "failure",
-            "PENDING": "pending", "EXPECTED": "pending"}.get(rollup.get("state", ""))
+            "PENDING": "pending", "EXPECTED": "pending"}.get(_rollup(n).get("state", ""))
+
+
+def ci_running(n: dict) -> bool:
+    """Quedan checks corriendo (GitHub marca FAILURE apenas falla uno, aunque otros sigan). Solo se
+    sabe en las PRs refrescadas por ID (las que traen `contexts`)."""
+    nodes = ((_rollup(n).get("contexts") or {}).get("nodes")) or []
+    return any((c.get("__typename") == "CheckRun" and c.get("status") not in (None, "COMPLETED"))
+               or c.get("state") in ("PENDING", "EXPECTED") for c in nodes if c)
 
 
 def _card(n: dict, stacks: dict[str, dict] | None = None) -> dict:
@@ -144,7 +158,9 @@ def _card(n: dict, stacks: dict[str, dict] | None = None) -> dict:
             "head": n.get("headRefName"), "base": n.get("baseRefName"), "review": review_state(n),
             "fullRepo": n["repository"].get("nameWithOwner"), "fork": bool(n.get("isCrossRepository")),
             "stack": (stacks or {}).get(n["url"]), "reviewers": pr_reviewers(n),
-            "ci": ci_state(n), "conflict": n.get("mergeable") == "CONFLICTING"}
+            "ci": ci_state(n), "ciRunning": ci_running(n), "conflict": n.get("mergeable") == "CONFLICTING",
+            # atrasada respecto de su base (develop avanzó): aviso, no bloquea
+            "behind": n.get("mergeStateStatus") == "BEHIND"}
 
 
 def _requested(n: dict) -> list[str]:

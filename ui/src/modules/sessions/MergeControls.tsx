@@ -19,7 +19,7 @@ export function MergeButton({ pr, above }: { pr: GhPr; above: number }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const blocked = pr.ci === "failure";
+  const blocked = pr.ci === "failure" || !!pr.conflict;
   const run = () => {
     setBusy(true); setError(null);
     // solo valida y arranca: el progreso sigue en la card (no bloquea)
@@ -28,7 +28,7 @@ export function MergeButton({ pr, above }: { pr: GhPr; above: number }) {
   };
   return (<>
     <QueueItemAction aria-label={`Mergear ${pr.repo}#${pr.number}`} disabled={blocked}
-      title={blocked ? "El CI falló (o hay conflicto): no se puede mergear"
+      title={blocked ? (pr.conflict ? "Tiene conflicto con su base: no se puede mergear" : "El CI falló: no se puede mergear")
         : pr.review === "approved" && pr.ci === "success" ? "Mergear (squash)" : "Armar auto-merge: GitHub la mergea al pasar el CI y la aprobación"}
       onClick={(e) => { e.stopPropagation(); setError(null); setOpen(true); }}>
       <GitMerge size={11} />

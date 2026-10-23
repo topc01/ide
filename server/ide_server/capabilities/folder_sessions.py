@@ -65,6 +65,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             if gh_reviews is not None:
                 link_prs(db, sessions, gh_reviews.state)
                 assign_indices(db, list_devs(root, db, sessions, gh_reviews.state))
+                _review_verdicts(sessions, status)
             for s in sessions:
                 if status.get(s["id"]):
                     s["status"] = status[s["id"]]
@@ -84,6 +85,28 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "later": later_mod.items(db) if db else [],
                 "feedbackPending": pending_plans(root),
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
+
+    def _review_verdicts(sessions: list[dict], status: dict) -> None:
+        """El estado de una sesión de revisión sale de GitHub (tu última review en esa PR), no de la
+        sesión: approved / changes-requested; si te volvieron a pedir review, reviewing."""
+        st = gh_reviews.state or {}
+        me = st.get("me")
+        if not me:
+            return
+        cards = {c["url"]: c for lst in [st.get("pending") or [], st.get("changesRequested") or [],
+                                         *(st.get("mine") or {}).values(), *(st.get("stacks") or {}).values()]
+                 for c in lst}
+        for s_ in sessions:
+            if s_.get("kind") != "review" or s_.get("stackPrs") or s_.get("prUrl") not in cards:
+                continue
+            mine = next((r["state"] for r in cards[s_["prUrl"]].get("reviewers") or [] if r.get("login") == me), None)
+            want = {"approved": "approved", "changes": "changes-requested", "requested": "reviewing"}.get(mine or "")
+            if want and status.get(s_["id"]) != want:
+                try:
+                    set_status(root, db, s_["id"], want, actor="github")
+                    status[s_["id"]] = want
+                except SessionError:
+                    log.exception("estado de la revisión %s", s_["id"])
 
     async def tree_payload() -> dict:
         # el estado en memoria se copia en el loop; el disco se lee en un thread

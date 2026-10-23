@@ -156,6 +156,8 @@ export interface GhPr {
   stack: { id: string; position: number; size: number; native?: boolean } | null;
   reviewers?: { login: string; state: "requested" | "approved" | "changes" }[];
   ci?: "success" | "failure" | "pending" | null; conflict?: boolean;
+  ciRunning?: boolean;                      // el CI falló pero quedan checks corriendo
+  behind?: boolean;                         // atrasada respecto de su base
   deps?: PrDep[]; depsPending?: number;     // dependencias declaradas en "## Dependencias"
   merged?: boolean;                         // solo en `closed`: ya no está abierta (true = mergeada)
 }

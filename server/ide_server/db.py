@@ -6,6 +6,7 @@ reconstruible: ante una base corrupta se renombra a `.bak` y se arma de nuevo. L
 (`merges`, `kv`) se migra desde los JSON viejos (`merges.json`, `reviews.json`) la primera vez."""
 from __future__ import annotations
 import json
+import os
 import logging
 import sqlite3
 import threading
@@ -42,6 +43,9 @@ CREATE TABLE IF NOT EXISTS pr_snaps (     -- última foto de cada PR relevante (
 
 
 def db_path(root: Path) -> Path:
+    """`.ide/ide.db`; `IDE_DB_PATH` la cambia (para probar el IDE contra una copia sin tocar la real)."""
+    if os.environ.get("IDE_DB_PATH"):
+        return Path(os.environ["IDE_DB_PATH"])
     return root / ".ide" / "ide.db"
 
 

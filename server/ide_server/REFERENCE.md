@@ -312,6 +312,12 @@ uv sync
 Un script que **no** debe correr solo al agregar el repo (p.ej. un build pesado de docker) va con
 otro nombre (`build`) y se corre a mano desde Servidores.
 
+**Base alternativa** (`IDE_DB_PATH=<archivo>`): el IDE usa esa base en vez de `.ide/ide.db`. Sirve
+para probar un cambio (sobre todo de reglas de estado) contra una copia sin tocar la real:
+`cp .ide/ide.db /tmp/ide-copia.db && IDE_DB_PATH=/tmp/ide-copia.db ide run --port 8799 --no-browser
+--no-supervise`. Dos IDEs con reglas distintas sobre la **misma** base se pisan (p.ej. una migración
+de estados que va y vuelve).
+
 ## 8b. Servidores y Archivos (UI)
 
 **Servidores** (menú de acciones, id `servers`): un **bloque por stack de cada repo** del desarrollo
@@ -479,8 +485,8 @@ agrupadas como el inbox de Graphite: **Devueltas** (`reviewDecision` = `CHANGES_
 **Aprobadas** (`APPROVED`). Prioridad: draft > aprobada > esperando > devuelta > sin revisores (como Graphite).
 Son cards sin sesión: click la selecciona como desarrollo (el módulo Stack muestra su stack);
 se abre en GitHub solo con el botón de hover, igual que en Revisiones. Todas las cards
-de PR (y las de sesión con PR) marcan el CI: ✓ pasó, ✗ falló (checks o conflicto con la base),
-◌ corriendo; el título muestra el total y los grupos se
+de PR (y las de sesión con PR) marcan el CI: ✓ pasó, ✗ falló, ◌ corriendo (y aparte ⚠ conflicto,
+⇣ atrasada; ver "esquina superior derecha"); el título muestra el total y los grupos se
 colapsan. Cada card muestra quién la revisa (chips: azul review pedida, verde aprobó, amarillo
 pidió cambios; una review re-pedida cuenta como pedida). Si la PR es parte de un stack, la card
 muestra su posición (`2/4`, 1 = la de abajo).
@@ -696,8 +702,13 @@ nuevos desde tu revisión", estado del merge; en Mis PRs, los revisores como chi
 en los chips de conteo de Revisiones). **Fondo** tenue = review: verde aprobada, amarillo cambios
 pedidos, azul esperando revisor, morado mergeada (también mientras se mergea). En la **esquina
 superior derecha**: **⏸ N** = N dependencias sin mergear (al pasar el mouse, cuáles) y la marca de
-**CI**: ✓ verde pasó, ✗ roja falló o hay conflicto, ⟳ amarilla girando corriendo (la misma marca en
-filas de stack, selector, módulo Stack y resumen). El borde es siempre el normal. La seleccionada
+**CI**: ✓ verde pasó, ✗ roja falló (**con pulso** = falló un check pero otros siguen corriendo:
+GitHub ya la da por fallida; solo en tus PRs y las que revisas, que se refrescan con el detalle de
+cada check), ⟳ amarilla girando corriendo. Aparte del CI: **⚠** conflicto con la base (no se puede
+mergear) y **⇣** atrasada respecto de su base (develop avanzó: aviso, no bloquea salvo que GitHub
+exija la rama al día). La misma marca en filas de stack, selector, módulo Stack y resumen. El punto
+de review de una PR aprobada con revisores pendientes dice en el tooltip "falta X". Las cards traen
+`ci`, `ciRunning`, `conflict` y `behind`. El borde es siempre el normal. La seleccionada
 lleva un contorno claro. Al pasar el mouse, el estado en palabras.
 
 **Módulo Dependencias** (menú de acciones, id `deps`): para las PRs del desarrollo actual, de qué
@@ -762,7 +773,9 @@ una **pausa** opcional. Fases: `investigating` (investigando), `developing` (des
 PRs fuera de draft la fase la da GitHub (la peor de sus PRs; mergeado si todas lo están). Cualquier
 fase se puede poner a mano desde la UI: guarda la fase de GitHub de ese momento (`gh`) y gana hasta
 que GitHub cambie (una review, un merge); "↺ usar la de GitHub" la suelta. Las que pone una sesión
-con `ide status` no se fijan (manda GitHub). Sin nada puesto se deduce (draft = desarrollando).
+con `ide status` no se fijan (manda GitHub). Sin nada puesto se deduce (draft = desarrollando); un
+`investigating` puesto por la sesión queda viejo apenas hay una PR abierta (pasa a desarrollando,
+salvo que el usuario lo haya fijado a mano).
 Pausas (tapan la fase sin borrarla, con nota y desde cuándo): `blocked` (la nota dice por qué o de
 quién), `paused`; `unblock` vuelve a la fase. ("esperando tu input" ya no es un estado del desarrollo:
 es la **actividad** de la sesión, ver abajo; los `waiting-input` que quedaron puestos se ven hasta que
@@ -795,7 +808,9 @@ vez) y `reviews.github` las trae en `closed`. Los estados de antes se migran sol
 ready / ready-to-develop → investigating, in-progress → developing, done → ready-for-review,
 questions → waiting-input, blocked-definitions / blocked-client / blocked-dev → blocked con el motivo
 en la nota, needs-reviewers → testing) y se aceptan en `ide status`. Las sesiones de revisión siguen
-con los suyos. Base: `kv` `devstate:<clave>` = `{phase, block, note, since, gh?}`; canales
+con los suyos, pero su veredicto **sale de GitHub**: tu última review publicada en esa PR la deja
+`approved` / `changes-requested`, y si te vuelven a pedir review pasa a `reviewing` (actor `github`
+en el historial; no aplica a las de stack). Base: `kv` `devstate:<clave>` = `{phase, block, note, since, gh?}`; canales
 `dev.state {key, status, note, gh?}` (fase, pausa, `unblock` o null; `gh` = fase de GitHub al
 ponerla a mano) y `prs.ready {urls}`; `sessions.tree` trae `devStates`.
 

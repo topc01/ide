@@ -40,7 +40,8 @@ export function devTone(pr?: GhPr, job?: MergeJob, opts: { merged?: boolean; sta
   if (blocked) words.push(pending ? `bloqueada por ${pending} dependencia${pending > 1 ? "s" : ""}` : "bloqueada por su stack");
   let border: Tone["border"] = null;
   if (merging) border = "merging";
-  else if (pr?.ci === "failure") { border = "ci-failed"; words.push(pr.conflict ? "conflicto con la base" : "CI falló"); }
+  else if (pr?.conflict) { border = "ci-failed"; words.push("conflicto con la base"); }
+  else if (pr?.ci === "failure") { border = "ci-failed"; words.push(pr.ciRunning ? "CI falló (sigue corriendo)" : "CI falló"); }
   else if (pr?.ci === "pending") { border = "ci-running"; words.push("CI corriendo"); }
   else if (pr?.ci === "success") words.push("CI ✓");
   if (job?.state === "error") words.push(`error al mergear: ${job.error ?? ""}`);
@@ -149,7 +150,8 @@ export function RefChip({ repo, number, title, pr }: { repo: string; number?: nu
       className="inline-flex shrink-0 items-center gap-0.5 rounded border border-purple-400/50 px-1 font-mono text-[10px] font-bold tracking-wide text-purple-300 hover:border-purple-300">
       ✓ {repoShort(repo)}{number ? ` #${number}` : ""}</a>;
   }
-  return <span title={title ?? (pr ? `${pr.repo}#${pr.number}: ${pr.title}` : number ? `${repo}#${number}` : repo)}
+  const waiting = pr?.review === "approved" ? (pr.reviewers ?? []).filter((r) => r.state === "requested").map((r) => r.login) : [];
+  return <span title={title ?? (pr ? `${pr.repo}#${pr.number}: ${pr.title}${waiting.length ? `\naprobada · falta ${waiting.join(", ")}` : ""}` : number ? `${repo}#${number}` : repo)}
     onClick={pr ? (e) => { e.stopPropagation(); setActivePr(pr.url); } : undefined}
     className={cn("inline-flex shrink-0 items-center gap-1 rounded border px-1 font-mono text-[10px] font-bold tracking-wide text-foreground/90",
       active ? "border-primary" : "border-border", pr && "cursor-pointer hover:border-primary/60")}>

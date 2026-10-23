@@ -174,16 +174,26 @@ export function DepsList({ pr, onlyPending = false }: { pr: GhPr; onlyPending?: 
 
 /** CI de la PR: ✓ pasó, ✗ falló (tests, conflicto con la base, …), ◌ corriendo. */
 export function CiMark({ pr }: { pr: GhPr }) {
-  if (!pr.ci) return null;
-  // marca de esquina (como el ⏸): ✓ verde pasó · ✗ roja falló/conflicto · ⟳ amarilla corriendo
-  const [Icon, cls, label] = pr.ci === "success" ? [Check, "bg-emerald-500/15 text-emerald-400", "CI pasó"]
-    : pr.ci === "pending" ? [Loader2, "bg-amber-400/15 text-amber-300", "CI corriendo"]
-    : [X, "bg-red-500/20 text-red-500", pr.conflict ? "conflicto con la base" : "CI falló"];
-  return (
-    <span aria-label={label} title={label} className={cn("grid h-[18px] w-[18px] shrink-0 place-items-center rounded", cls)}>
-      <Icon size={12} strokeWidth={3} className={pr.ci === "pending" ? "animate-spin" : undefined} />
-    </span>
-  );
+  // marcas de esquina (como el ⏸): CI ✓ verde · ✗ roja falló (con pulso: falló pero quedan checks
+  // corriendo) · ⟳ amarilla corriendo; aparte, ⚠ conflicto con la base y ⇣ atrasada (develop avanzó)
+  const marks = [];
+  if (pr.ci) {
+    const [Icon, cls, label] = pr.ci === "success" ? [Check, "bg-emerald-500/15 text-emerald-400", "CI pasó"]
+      : pr.ci === "pending" ? [Loader2, "bg-amber-400/15 text-amber-300", "CI corriendo"]
+      : [X, "bg-red-500/20 text-red-500", pr.ciRunning ? "CI falló (un check falló; otros siguen corriendo)" : "CI falló"];
+    marks.push(
+      <span key="ci" aria-label={label} title={label} className={cn("grid h-[18px] w-[18px] shrink-0 place-items-center rounded", cls,
+        pr.ci === "failure" && pr.ciRunning && "animate-pulse")}>
+        <Icon size={12} strokeWidth={3} className={pr.ci === "pending" ? "animate-spin" : undefined} />
+      </span>);
+  }
+  if (pr.conflict) marks.push(
+    <span key="conflict" aria-label="conflicto con la base" title={`Conflicto con ${pr.base ?? "su base"}: hay que resolverlo (no se puede mergear)`}
+      className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded bg-red-500/20 text-[11px] font-bold text-red-400">⚠</span>);
+  else if (pr.behind) marks.push(
+    <span key="behind" aria-label="atrasada" title={`Atrasada respecto de ${pr.base ?? "su base"} (avanzó desde que se abrió): no bloquea, salvo que GitHub exija la rama al día`}
+      className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded bg-amber-400/15 text-[11px] font-bold text-amber-300">⇣</span>);
+  return marks.length ? <>{marks}</> : null;
 }
 
 /** Quién revisa la PR, con el color de su estado. */
