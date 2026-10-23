@@ -109,12 +109,23 @@ La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide 
     descripción más lo del IDE.
   - En el SESSION.md, en **Plan**, deja el orden de merge entre repos.
 - **Servidores para probar:** los scripts por repo están en `.ide/scripts/<repo>/` (api: `build`,
-  `run`; embed y admin: `install`, `run`, `point-api`, `build`, `preview`; admin llama a la api directo con
-  `VITE_API_URL`, así que `point-api <puerto>` la cambia en su `.env.local`). Los servidores que quedan corriendo (`run`) los
-  levanta el usuario desde el módulo **Servidores** del IDE (corren aparte y sobreviven a un
-  reinicio): pídeselo en vez de correrlos tú con `ide script` (que espera a que terminen).
-  Para que el embed hable con la api de tu sesión: en el `.env.local` del embed,
-  `VITE_API_PROXY_TARGET=http://localhost:<API_PORT>` (el `API_PORT` está en el `.env` de la api).
+  `run`; embed y admin: `install`, `run`, `point-api`, `build`, `preview`). Los servidores que quedan
+  corriendo (`run`) los levanta el usuario desde el módulo **Servidores** del IDE (corren aparte y
+  sobreviven a un reinicio): pídeselo en vez de correrlos tú con `ide script` (que espera a que
+  terminen). Cómo está armado el módulo, para que le digas exactamente qué levantar:
+  - Hay **un bloque por stack de cada repo** de tu desarrollo (más uno por repo tuyo cuya rama no
+    tiene PR). Cada bloque dice sus PRs, la **rama** y dónde corre.
+  - **Tu worktree se levanta solo en su rama.** Si el usuario tiene que probar una PR de otra rama
+    (otro stack, p.ej. una PR que asignaste con `ide dev link`), esa PR tiene su propio bloque y se
+    levanta en un **worktree aparte** (`wt-<repo>-<n>`) que el IDE crea al darle ▶: no cambies la
+    rama de tu worktree para eso.
+  - Dile el bloque por sus PRs, p.ej.: "en Servidores, en el bloque API #4897, ▶ build y ▶ run; en
+    el bloque ADMIN #98, ▶ run (api: #4897)".
+  - **Fronts** (embed, admin): su bloque tiene un selector **api**; por defecto, la api de la PR de
+    la que dependen (por eso declara bien las dependencias: `## Dependencias` o `ide dep add`). Al
+    darle ▶ run, el front apunta solo a esa api (no hace falta `point-api` a mano).
+  - Admin llama a la api directo con `VITE_API_URL`; embed por el proxy de Vite
+    (`VITE_API_PROXY_TARGET`). Ambos en su `.env.local`, que es lo que escribe `point-api <puerto>`.
 
 ## Adjuntos del usuario
 

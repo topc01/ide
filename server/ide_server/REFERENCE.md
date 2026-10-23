@@ -314,12 +314,25 @@ otro nombre (`build`) y se corre a mano desde Servidores.
 
 ## 8b. Servidores y Archivos (UI)
 
-**Servidores** (menú de acciones, id `servers`): los scripts de cada repo del desarrollo actual
+**Servidores** (menú de acciones, id `servers`): un **bloque por stack de cada repo** del desarrollo
+actual, más uno por repo de la sesión cuya rama no tiene PR. Un stack se levanta desde la rama de su
+PR de más arriba (contiene a las de abajo), así que dos stacks del mismo repo pueden correr a la vez.
+Cada bloque dice el repo, sus PRs (`#4890 → #4892`), la **rama** (`⎇`) y **dónde** se levanta:
+**sesión** = el worktree de la sesión, si está en la rama de alguna PR del stack (donde trabaja
+claude; nunca se le cambia la rama); **aparte** = un worktree propio `.ide/worktrees/wt-<repo>-<n>/
+<repo>` en el head de la PR de más arriba; **se prepara al ▶** = todavía no existe: el primer ▶ lo
+crea (como "Preparar", con su `setup`) y corre el script. Los worktrees aparte tienen "actualizar al
+head" y "quitar worktree". Los **fronts** (repos con `point-api`: embed, admin) tienen un selector
+**api**: por defecto la api del bloque de la PR de la que dependen (p.ej. admin#98 → api#4897), si no
+la única api corriendo del desarrollo, o "la de su .env.local"; su ▶ run le pasa ese puerto
+(`IDE_API_PORT`, el `run` llama a `point-api`). Cada bloque muestra sus scripts
 (menos `archive`) con ▶/■, estado en palabras (● corriendo · ◌ parando · ✓ terminó · ✗ falló (exit N) ·
 ■ parado · ⚠ murió; en el tooltip cuándo empezó/terminó; también en la tab del log) y los
 link `localhost:<puerto>` del propio servicio: lo que el script declara con `[ide] url: <url>`, si no la línea `Local:` de Vite, si no la primera URL local del log (no las que solo menciona, como la api a la que apunta un front). Click en uno abre su **log** en una
 tab del panel principal (solo lectura; se reinicia en cada corrida; ▶/■ también desde ahí). Abajo,
-lo que corre en **otros** desarrollos (con ■).
+lo que corre en **otros** desarrollos (con ■), cada uno con la **rama** que levantó. Cada corrida guarda
+en `meta.json` la rama de su worktree al arrancar (`@<sha>` si estaba en detach); `runs.list` la trae
+en `branch`, y `runs.start {place, repo, name, apiPort?}`.
 
 Los servidores son **procesos aparte del IDE**: siguen corriendo si el server se reinicia o se
 cierra la UI. Cada corrida vive en `.ide/runs/<lugar>/<repo>/<nombre>/` (`log`, `meta.json` con
@@ -385,7 +398,8 @@ selección). El módulo lista solo los pineados, con Copiar, ver todo y desfijar
 Canales `session.messages {id, limit}`, `pins.list`, `pins.add {key, text, source}`,
 `pins.remove {key, id}`; evento `pins.changed`.
 
-**PR sin sesión:** Servidores ofrece **Preparar**: crea `.ide/worktrees/wt-<repo>-<n>/<repo>` en
+**PR sin sesión** (y stacks del desarrollo que no están en el worktree de la sesión): el primer ▶ de
+su bloque hace lo que antes era **Preparar**: crea `.ide/worktrees/wt-<repo>-<n>/<repo>` en
 el head de la PR (`refs/pull/<n>/head`, en detach: no ocupa la rama, no choca con otro checkout ni
 con una sesión que se cree después) y corre su `setup`. Después: **Actualizar al head** (si no
 tiene cambios sin commitear) y **Quitar worktree** (para sus servidores, corre `archive` y lo

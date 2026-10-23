@@ -8,6 +8,7 @@ from ide_server import artifacts, pr_worktrees, wt_files
 from ide_server.plugins import Registry
 from ide_server.runs import Runner
 from ide_server.scripts import has_script
+from ide_server.sessions_fs import SessionError
 
 log = logging.getLogger(__name__)
 POLL = 2.0
@@ -53,7 +54,13 @@ def register(registry: Registry, root: Path, manager, runner: Runner, viewer=Non
         return await asyncio.to_thread(payload)
 
     async def start(p: dict) -> dict:
-        r = await asyncio.to_thread(runner.start, *_args(p))
+        # `apiPort`: un front (embed/admin) que tiene que apuntar a esa api (su `run` llama a point-api)
+        extra = {}
+        if p.get("apiPort") is not None:
+            if not str(p["apiPort"]).isdigit():
+                raise SessionError("bad_request", f"apiPort inválido: {p['apiPort']!r}")
+            extra["IDE_API_PORT"] = str(p["apiPort"])
+        r = await asyncio.to_thread(runner.start, *_args(p), extra)
         await broadcast()
         return r
 

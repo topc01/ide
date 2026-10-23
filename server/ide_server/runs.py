@@ -34,6 +34,20 @@ def runs_dir(root: Path) -> Path:
     return root / ".ide" / "runs"
 
 
+def _branch(cwd: Path) -> str | None:
+    """La rama que se levantó (o `@<sha>` si el worktree está en detach, p.ej. el de una PR)."""
+    try:
+        b = subprocess.run(["git", "-C", str(cwd), "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True,
+                           text=True, timeout=10).stdout.strip()
+        if b and b != "HEAD":
+            return b
+        sha = subprocess.run(["git", "-C", str(cwd), "rev-parse", "--short", "HEAD"], capture_output=True,
+                             text=True, timeout=10).stdout.strip()
+        return f"@{sha}" if sha else None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
 class Runner:
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -92,7 +106,7 @@ class Runner:
             state = "stopped" if meta.get("stopping") else "lost"   # lost: murió sin anotar (kill -9, reboot)
         return {"place": place, "repo": repo, "name": name, "state": state, "exitCode": code,
                 "pid": meta.get("pid"), "started": meta.get("started"), "ended": meta.get("ended"),
-                "urls": self._urls(d)}
+                "branch": meta.get("branch"), "urls": self._urls(d)}
 
     @staticmethod
     def _urls(d: Path) -> list[str]:
@@ -128,7 +142,7 @@ class Runner:
         return out
 
     # -- acciones -----------------------------------------------------------------------------------
-    def start(self, place: str, repo: str, name: str) -> dict:
+    def start(self, place: str, repo: str, name: str, extra_env: dict[str, str] | None = None) -> dict:
         d = self._dir(place, repo, name)
         cwd = worktree_path(self.root, place, repo)
         if not cwd.is_dir():
@@ -141,7 +155,7 @@ class Runner:
             d.mkdir(parents=True, exist_ok=True)
             (d / "exit").unlink(missing_ok=True)
             env = script_env(self.root, place, repo)
-            env.update(IDE_RUN_EXIT=str(d / "exit"), FORCE_COLOR="1", CLICOLOR_FORCE="1")
+            env.update(IDE_RUN_EXIT=str(d / "exit"), FORCE_COLOR="1", CLICOLOR_FORCE="1", **(extra_env or {}))
             with open(d / "log", "wb") as log:
                 log.write(f"$ {repo}/{name}  ({cwd})\n".encode())
                 log.flush()
@@ -150,7 +164,7 @@ class Runner:
                                         start_new_session=True)
             self._children[self._key(place, repo, name)] = proc
             (d / "meta.json").write_text(json.dumps({
-                "pid": proc.pid, "argv": argv, "cwd": str(cwd),
+                "pid": proc.pid, "argv": argv, "cwd": str(cwd), "branch": _branch(cwd),
                 "started": datetime.now().isoformat(timespec="seconds")}), encoding="utf-8")
         return self._status(d, place, repo, name)
 

@@ -32,7 +32,9 @@ def list_places(root: Path) -> list[dict]:
     base = root / ".ide" / "worktrees"
     if not base.is_dir():
         return []
-    return [{"id": p.name, "repos": sorted(r.name for r in p.iterdir() if r.is_dir())}
+    from ide_server.runs import _branch
+    return [{"id": p.name, "repos": sorted(r.name for r in p.iterdir() if r.is_dir()),
+             "heads": {r.name: _branch(r) for r in p.iterdir() if r.is_dir()}}
             for p in sorted(base.iterdir()) if p.is_dir() and p.name.startswith(PREFIX)]
 
 

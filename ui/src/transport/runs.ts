@@ -8,14 +8,16 @@ export interface Run {
   place: string; repo: string; name: string;
   state: "running" | "stopping" | "stopped" | "exited" | "lost";
   exitCode: number | null; pid: number | null; started: string | null; ended: string | null; urls: string[];
+  branch?: string | null;       // la rama que se levantó (o @sha si el worktree estaba en detach)
 }
 /** Worktree de una PR sin sesión. */
-export interface PrPlace { id: string; repos: string[] }
+export interface PrPlace { id: string; repos: string[]; heads?: Record<string, string | null> }
 export interface RunsState { runs: Run[]; places: PrPlace[] }
 type Target = { place: string; repo: string; name: string };
 
 export const fetchRuns = (ws: WsClient): Promise<RunsState> => ws.request("runs.list", {});
-export const startRun = (ws: WsClient, t: Target): Promise<Run> => ws.request("runs.start", t);
+/** `apiPort`: un front (embed/admin) apunta a esa api antes de levantar (su `run` llama a point-api). */
+export const startRun = (ws: WsClient, t: Target & { apiPort?: number | null }): Promise<Run> => ws.request("runs.start", t);
 export const stopRun = (ws: WsClient, t: Target): Promise<Run> => ws.request("runs.stop", t);
 export const runLog = (ws: WsClient, t: Target, offset: number): Promise<{ data: string; end: number; reset: boolean }> =>
   ws.request("runs.log", { ...t, offset });
