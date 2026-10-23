@@ -24,6 +24,7 @@ from ide_server import pins as pins_mod
 from ide_server import later as later_mod
 from ide_server import evidence as evidence_mod
 from ide_server import activity as activity_mod
+from ide_server import server_blocks
 from ide_server.gh_reviews import GithubReviews
 from ide_server.plugins import Registry
 from ide_server.pr_poller import PrPoller
@@ -1073,6 +1074,72 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         sessions = await _sessions_now()
         return {"devs": await asyncio.to_thread(list_devs, root, db, sessions, gh_reviews.state if gh_reviews else {})}
 
+    # -- servidores por bloque (`ide server`): la misma regla que el módulo Servidores ----------------
+    async def _blocks_of(p: dict) -> tuple[list[dict], callable]:
+        if db is None or runner is None:
+            raise SessionError("no_runner", "servidores no disponibles")
+        sid = _resolve(p.get("id"))
+        sessions = await _sessions_now()
+        devs = await asyncio.to_thread(list_devs, root, db, sessions, gh_reviews.state if gh_reviews else {})
+        dev = next((d for d in devs if d["id"] == sid), None)
+        if dev is None:
+            raise SessionError("unknown_dev", f"{sid} no es un desarrollo")
+        session = next((s for s in sessions if s["id"] == sid), None)
+        bl = await asyncio.to_thread(server_blocks.blocks, root, dev, session)
+        runs = await asyncio.to_thread(runner.list)
+        run_of = lambda b, name: next((r for r in runs if r["place"] == b["place"] and r["repo"] == b["repo"]  # noqa: E731
+                                       and r["name"] == name), None)
+        return bl, run_of
+
+    async def servers_blocks(p: dict) -> dict:
+        bl, run_of = await _blocks_of(p)
+        out = []
+        for b in bl:
+            api = server_blocks.default_api(bl, b, run_of) if b["front"] else None
+            out.append({"name": b["name"], "repo": b["repo"], "prs": [f"{server_blocks.short(x['repo'])}#{x['number']}" for x in b["prs"]],
+                        "branch": b["branch"], "where": b["where"], "exists": b["exists"], "place": b["place"],
+                        "front": b["front"], "api": api["name"] if api else None,
+                        "scripts": [{"name": n, **{k: (run_of(b, n) or {}).get(k) for k in ("state", "exitCode", "urls", "branch")}}
+                                    for n in b["scripts"]]})
+        return {"blocks": out}
+
+    async def servers_start(p: dict) -> dict:
+        """Corre un script de un bloque (crea el worktree aparte si hace falta). Un `run` de un front
+        apunta a la api de `api` (un bloque), o a la de su dependencia si no se dice; `noApi` = su .env."""
+        bl, run_of = await _blocks_of(p)
+        b = server_blocks.find(bl, str(p.get("block") or ""))
+        name = str(p.get("name") or "")
+        if name not in b["scripts"]:
+            raise SessionError("unknown_script", f"{b['name']} no tiene el script {name!r} ({', '.join(b['scripts'])})")
+        extra, api_name = {}, None
+        if b["front"] and name == "run" and not p.get("noApi"):
+            api = server_blocks.find(bl, p["api"]) if p.get("api") else server_blocks.default_api(bl, b, run_of)
+            if api is not None:
+                port = server_blocks.port_of(run_of(api, "run")) if (run_of(api, "run") or {}).get("state") == "running" else None
+                if port is None:
+                    raise SessionError("api_not_running", f"la api {api['name']} no está corriendo: levántala primero "
+                                       f"(`ide server start {api['name']} run`) o usa --no-api")
+                extra["IDE_API_PORT"], api_name = str(port), api["name"]
+        await asyncio.to_thread(server_blocks.ensure_worktree, root, b)
+        r = await asyncio.to_thread(runner.start, b["place"], b["repo"], name, extra)
+        return {"block": b["name"], "place": b["place"], "branch": b["branch"], "api": api_name, "run": r}
+
+    async def servers_stop(p: dict) -> dict:
+        bl, _ = await _blocks_of(p)
+        b = server_blocks.find(bl, str(p.get("block") or ""))
+        r = await asyncio.to_thread(runner.stop, b["place"], b["repo"], str(p.get("name") or ""))
+        return {"block": b["name"], "run": r}
+
+    async def servers_log(p: dict) -> dict:
+        bl, run_of = await _blocks_of(p)
+        b = server_blocks.find(bl, str(p.get("block") or ""))
+        name = str(p.get("name") or "")
+        log = await asyncio.to_thread(runner.log, b["place"], b["repo"], name, -1)
+        text = base64.b64decode(log["data"] or "").decode("utf-8", errors="replace")
+        text = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", text)    # sin colores
+        lines = text.splitlines()[-int(p.get("lines") or 60):]
+        return {"block": b["name"], "run": run_of(b, name), "log": "\n".join(lines)}
+
     async def dev_show(p: dict) -> dict:
         if db is None:
             raise SessionError("no_db", "sin base")
@@ -1180,7 +1247,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "evidence.markdown": evidence_markdown, "evidence.github": evidence_github,
         "sessions.activity": session_activity,
         "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss, "later.resolve": later_resolve,
-        "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
+        "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "servers.blocks": servers_blocks, "servers.start": servers_start,
+        "servers.stop": servers_stop, "servers.log": servers_log, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,

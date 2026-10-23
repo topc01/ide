@@ -95,6 +95,17 @@ def _parser() -> argparse.ArgumentParser:
     ll.add_argument("--mine", action="store_true", help="solo los del desarrollo de esta sesión")
     ld = lt.add_parser("done", help="marca un pendiente como resuelto (p.ej. se resolvió en el chat)")
     ld.add_argument("id"); ld.add_argument("-m", "--note", help="cómo se resolvió")
+    sv = sub.add_parser("server", help="servidores de tu desarrollo por bloque (stack de un repo), como el módulo Servidores").add_subparsers(dest="cmd", required=True)
+    sl = sv.add_parser("ls", help="bloques: PRs, rama, dónde corre, scripts y su estado"); sl.add_argument("--json", action="store_true")
+    ss = sv.add_parser("start", help="corre un script de un bloque (crea el worktree aparte si hace falta)")
+    ss.add_argument("block", help="una PR del bloque (api#4897) o el repo (admin) si tiene un solo bloque"); ss.add_argument("script")
+    ss.add_argument("--api", help="front: el bloque de la api a la que apunta (default: la de su dependencia)")
+    ss.add_argument("--no-api", action="store_true", help="front: la api de su .env.local")
+    st_ = sv.add_parser("stop", help="para un script de un bloque"); st_.add_argument("block"); st_.add_argument("script")
+    sg = sv.add_parser("log", help="lo último del log de un script"); sg.add_argument("block"); sg.add_argument("script")
+    sg.add_argument("-n", "--lines", type=int, default=60)
+    for x in (sl, ss, st_, sg):
+        x.add_argument("--dev", help="otro desarrollo (#n o id); default: el de tu sesión")
     dp = sub.add_parser("dep", help="dependencias entre PRs (además de la sección ## Dependencias)").add_subparsers(dest="cmd", required=True)
     da = dp.add_parser("add", help="la PR depende de estas"); da.add_argument("pr"); da.add_argument("deps", nargs="+")
     dr = dp.add_parser("rm", help="saca dependencias agregadas en el IDE")
@@ -271,6 +282,47 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
                 out.write(f"     {att / shot}\n")
     if not runs:
         out.write("(sin evidencias)\n")
+    return 0
+
+
+def _server_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
+    from urllib.parse import quote
+    dev = a.dev or env.get("IDE_SESSION_ID")
+    if not dev:
+        raise SessionError("no_session", "no estoy dentro de una sesión: usa --dev <#n|id>")
+    base = f"/api/devs/{quote(dev, safe='')}/servers"
+    if a.cmd == "ls":
+        bl = _get(http, url, base)["blocks"]
+        if a.json:
+            out.write(json.dumps(bl, ensure_ascii=False, indent=2) + "\n")
+            return 0
+        for b in bl:
+            where = {"session": "worktree de la sesión", "pr": "worktree aparte" if b["exists"] else "worktree aparte (se crea al correr)"}[b["where"]]
+            out.write(f"{b['name']}\t{' → '.join(b['prs']) or 'sin PR'}\trama {b['branch'] or '?'}\t{where}"
+                      + (f"\tapi: {b['api'] or 'su .env.local'}" if b["front"] else "") + "\n")
+            for sc in b["scripts"]:
+                st = sc.get("state") or "sin correr"
+                if st == "exited":
+                    st = "terminó" if sc.get("exitCode") == 0 else f"falló (exit {sc.get('exitCode')})"
+                out.write(f"    {sc['name']:<10} {st}" + (f"  {' '.join(sc['urls'])}" if sc.get("urls") and sc.get("state") == "running" else "") + "\n")
+        if not bl:
+            out.write("(sin bloques: el desarrollo no tiene repos ni PRs)\n")
+        return 0
+    body = {"block": a.block, "name": a.script}
+    if a.cmd == "start":
+        body.update(api=a.api, noApi=a.no_api)
+    if a.cmd == "log":
+        body["lines"] = a.lines
+    d = _post(http, url, f"{base}/{a.cmd}", body, timeout=600)
+    if a.cmd == "log":
+        r = d.get("run") or {}
+        out.write(f"# {d['block']} {a.script}: {r.get('state') or 'sin correr'}\n{d['log']}\n")
+    elif a.cmd == "start":
+        out.write(f"{d['block']}\t{a.script}\tcorriendo en {d['place']} (rama {d['branch'] or '?'})"
+                  + (f"\tapi: {d['api']}" if d.get("api") else "") + "\n"
+                  + f"log: ide server log {d['block']} {a.script}\n")
+    else:
+        out.write(f"{d['block']}\t{a.script}\t{(d.get('run') or {}).get('state')}\n")
     return 0
 
 
@@ -499,6 +551,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _session(a, root, url, http, out, err, env)
         if a.group in ("status", "dev"):
             return _dev_cmd(a, url, http, out, env)
+        if a.group == "server":
+            return _server_cmd(a, url, http, out, env)
         if a.group == "dep":
             return _dep_cmd(a, url, http, out, env)
         if a.group == "hook":

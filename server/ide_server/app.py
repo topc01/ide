@@ -286,6 +286,16 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_dev(dev_id: str):
         return await _http("dev.show", {"id": dev_id})
 
+    @app.get("/api/devs/{sid}/servers")
+    async def api_servers(sid: str):
+        return await _http("servers.blocks", {"id": sid})
+
+    @app.post("/api/devs/{sid}/servers/{action}")
+    async def api_servers_action(sid: str, action: str, body: dict):
+        if action not in ("start", "stop", "log"):
+            return JSONResponse({"code": "bad_request", "message": "start | stop | log"}, status_code=400)
+        return await _http(f"servers.{action}", {**body, "id": sid})
+
     @app.get("/api/deps")
     async def api_deps(pr: str):
         return await _http("dep.list", {"pr": pr})

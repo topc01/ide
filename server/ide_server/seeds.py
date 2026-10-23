@@ -109,18 +109,27 @@ La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide 
     descripción más lo del IDE.
   - En el SESSION.md, en **Plan**, deja el orden de merge entre repos.
 - **Servidores para probar:** los scripts por repo están en `.ide/scripts/<repo>/` (api: `build`,
-  `run`; embed y admin: `install`, `run`, `point-api`, `build`, `preview`). Los servidores que quedan
-  corriendo (`run`) los levanta el usuario desde el módulo **Servidores** del IDE (corren aparte y
-  sobreviven a un reinicio): pídeselo en vez de correrlos tú con `ide script` (que espera a que
-  terminen). Cómo está armado el módulo, para que le digas exactamente qué levantar:
+  `run`; embed y admin: `install`, `run`, `point-api`, `build`, `preview`). Los servidores corren aparte del IDE
+  (sobreviven a un reinicio) y se manejan **por bloque**, igual desde el módulo **Servidores** que
+  desde la CLI con **`ide server`** (no uses `ide script` para un `run`: espera a que termine):
+  - `ide server ls`: los bloques de tu desarrollo, con sus PRs, rama, dónde corren, la api de cada
+    front y el estado de cada script (y su URL si corre).
+  - `ide server start <bloque> <script> [--api <bloque> | --no-api]`: corre el script (crea el
+    worktree aparte si hace falta). El bloque se nombra por una de sus PRs (`api#4897`) o por el repo
+    si tiene un solo bloque (`admin`).
+  - `ide server stop <bloque> <script>` y `ide server log <bloque> <script> [-n 60]`.
+  - Ejemplo, probar admin#98 contra api#4897: `ide server start api#4897 build`, `ide server start
+    api#4897 run`, esperar a que esté arriba (`ide server log api#4897 run`), y `ide server start
+    admin#98 run` (apunta solo a api#4897 porque admin#98 depende de ella).
+  Cómo está armado (igual en el módulo y en la CLI):
   - Hay **un bloque por stack de cada repo** de tu desarrollo (más uno por repo tuyo cuya rama no
     tiene PR). Cada bloque dice sus PRs, la **rama** y dónde corre.
   - **Tu worktree se levanta solo en su rama.** Si el usuario tiene que probar una PR de otra rama
     (otro stack, p.ej. una PR que asignaste con `ide dev link`), esa PR tiene su propio bloque y se
     levanta en un **worktree aparte** (`wt-<repo>-<n>`) que el IDE crea al darle ▶: no cambies la
     rama de tu worktree para eso.
-  - Dile el bloque por sus PRs, p.ej.: "en Servidores, en el bloque API #4897, ▶ build y ▶ run; en
-    el bloque ADMIN #98, ▶ run (api: #4897)".
+  - Si se lo pides al usuario, nómbrale el bloque por sus PRs: "en Servidores, en el bloque API
+    #4897, ▶ build y ▶ run; en el bloque ADMIN #98, ▶ run (api: #4897)".
   - **Fronts** (embed, admin): su bloque tiene un selector **api**; por defecto, la api de la PR de
     la que dependen (por eso declara bien las dependencias: `## Dependencias` o `ide dep add`). Al
     darle ▶ run, el front apunta solo a esa api (no hace falta `point-api` a mano).

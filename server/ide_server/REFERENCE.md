@@ -325,7 +325,14 @@ crea (como "Preparar", con su `setup`) y corre el script. Los worktrees aparte t
 head" y "quitar worktree". Los **fronts** (repos con `point-api`: embed, admin) tienen un selector
 **api**: por defecto la api del bloque de la PR de la que dependen (p.ej. admin#98 → api#4897), si no
 la única api corriendo del desarrollo, o "la de su .env.local"; su ▶ run le pasa ese puerto
-(`IDE_API_PORT`, el `run` llama a `point-api`). Cada bloque muestra sus scripts
+(`IDE_API_PORT`, el `run` llama a `point-api`). **Lo mismo por CLI** (`ide server`, para las
+sesiones): `ls [--json]`, `start <bloque> <script> [--api <bloque> | --no-api]` (crea el worktree
+aparte si hace falta; un front sin su api corriendo da error: levantarla primero o `--no-api`),
+`stop <bloque> <script>`, `log <bloque> <script> [-n N]`; `--dev <#n|id>` para otro desarrollo (default:
+el de la sesión). El bloque se nombra por una de sus PRs (`api#4897`) o por el repo si tiene uno solo.
+La regla vive en `server_blocks.py` (la UI la replica en `servers/place.ts`). Canales
+`servers.blocks|start|stop|log`; HTTP `GET /api/devs/{id}/servers`, `POST /api/devs/{id}/servers/start|stop|log`.
+Cada bloque muestra sus scripts
 (menos `archive`) con ▶/■, estado en palabras (● corriendo · ◌ parando · ✓ terminó · ✗ falló (exit N) ·
 ■ parado · ⚠ murió; en el tooltip cuándo empezó/terminó; también en la tab del log) y los
 link `localhost:<puerto>` del propio servicio: lo que el script declara con `[ide] url: <url>`, si no la línea `Local:` de Vite, si no la primera URL local del log (no las que solo menciona, como la api a la que apunta un front). Click en uno abre su **log** en una
@@ -818,6 +825,7 @@ por cada cambio (la primera vez no, para no inundar). Los estados de Notion no s
 | `ide dev ls [--json]` | todos los desarrollos (con su nombre del IDE si tiene): los de sesión (estado de la base, claude corriendo/parado, repos y ramas) y los que son solo PRs (tuyas o pendientes de revisar); por cada PR: review, CI, revisores, draft, stack, dependencias pendientes |
 | `ide dev show <id> [--json]` | lo mismo para uno (id de sesión, `#n` o `repo#n`) + dependencias pendientes + historial |
 | `ide dev link <#n\|id> <pr…>` | asigna PRs (URL o `repo#n`) a ese desarrollo: pisa la asignación que tuvieran y quedan pegajosas ahí; una línea por PR `<pr>\t<anterior> → <nuevo>` (y `aviso:` si su rama no está en ningún worktree del destino). La manager lo corre con su token; desde la terminal del usuario va sin token (mover PRs solo cambia datos locales del IDE, no es una barrera de seguridad) |
+| `ide server ls\|start\|stop\|log [<bloque> <script>]` | servidores del desarrollo por bloque (stack de un repo), como el módulo Servidores; ver §8b |
 | `ide dep add\|rm\|ls <pr> [<dep…>]` | dependencias entre PRs declaradas en el IDE, además de la descripción (`rm --ignore` ignora también una de la descripción); ver "Dependencias" |
 | `ide dev unlink <#n\|id> <pr…>` | saca PRs del desarrollo: quedan aparte y no vuelven por rama hasta un `link` |
 | `ide status <estado> [-m nota] [--session id]` | cambia el estado (dentro de una sesión usa la suya) |
