@@ -109,7 +109,8 @@ La sesión principal ve todo con `ide dev ls` y el detalle e historial con `ide 
     descripción más lo del IDE.
   - En el SESSION.md, en **Plan**, deja el orden de merge entre repos.
 - **Servidores para probar:** los scripts por repo están en `.ide/scripts/<repo>/` (api: `build`,
-  `run`; embed: `install`, `run`, `point-api`). Los servidores que quedan corriendo (`run`) los
+  `run`; embed y admin: `install`, `run`, `point-api`, `build`, `preview`; admin llama a la api directo con
+  `VITE_API_URL`, así que `point-api <puerto>` la cambia en su `.env.local`). Los servidores que quedan corriendo (`run`) los
   levanta el usuario desde el módulo **Servidores** del IDE (corren aparte y sobreviven a un
   reinicio): pídeselo en vez de correrlos tú con `ide script` (que espera a que terminen).
   Para que el embed hable con la api de tu sesión: en el `.env.local` del embed,
