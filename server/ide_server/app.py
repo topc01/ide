@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import os
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -136,7 +137,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             asyncio.create_task(save_history_loop(stop_bg)),
             asyncio.create_task(runs_watch(stop_bg)),
             asyncio.create_task(notify_box["fn"].nightly_loop(stop_bg)),
-            *([asyncio.create_task(notify_box["fn"].telegram.run(stop_bg))] if notify_box["fn"].telegram else []),
+            # con IDE_DB_PATH (un IDE de prueba contra una copia) no se conecta a Telegram: le robaría los
+            # mensajes al IDE real (Telegram entrega cada mensaje a un solo getUpdates)
+            *([asyncio.create_task(notify_box["fn"].telegram.run(stop_bg))]
+              if notify_box["fn"].telegram and not os.environ.get("IDE_DB_PATH") else []),
         ]
         for t in tasks:
             t.add_done_callback(_log_done)

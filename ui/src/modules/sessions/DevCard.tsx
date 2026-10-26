@@ -183,31 +183,52 @@ export function CardCorner({ children }: { children: ReactNode }) {
   return <div className="absolute right-1.5 top-1.5 flex items-center gap-1">{children}</div>;
 }
 
-/** Acciones de hover: aparecen en una columna **a la derecha de la card** (fuera de ella, en un portal)
- *  para no tapar el título. Se quedan mientras el mouse esté en la card o en la columna. La columna
- *  siempre existe (solo se oculta): así una ventana que abrió una acción no se cierra al salir. */
+/** Acciones de hover: una columna **a la derecha de la card** (fuera de ella, en un portal) con el
+ *  ícono y el nombre de cada acción, para no tapar el título. Pegada a la card (sin hueco) y con
+ *  margen para cruzar: se queda mientras el mouse esté en la card o en la columna. Siempre existe
+ *  (solo se oculta): así una ventana que abrió una acción no se cierra al salir. */
 export function CardActions({ children }: { children: ReactNode }) {
   const anchor = useRef<HTMLSpanElement>(null);
+  const col = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [shown, setShown] = useState(false);
   const hide = useRef<number | null>(null);
   const keep = () => { if (hide.current) clearTimeout(hide.current); };
-  const leave = () => { keep(); hide.current = window.setTimeout(() => setShown(false), 180); };
+  const leave = () => { keep(); hide.current = window.setTimeout(() => setShown(false), 400); };
   useEffect(() => {
     const card = anchor.current?.closest("[data-card]") as HTMLElement | null;
     if (!card) return;
-    const show = () => { keep(); setRect(card.getBoundingClientRect()); setShown(true); };
+    const measure = () => setRect(card.getBoundingClientRect());
+    const show = () => { keep(); measure(); setShown(true); window.setTimeout(measure, 170); };  // la card se ensancha al hover
     card.addEventListener("mouseenter", show);
     card.addEventListener("mouseleave", leave);
-    setRect(card.getBoundingClientRect());
+    measure();
     return () => { card.removeEventListener("mouseenter", show); card.removeEventListener("mouseleave", leave); keep(); };
   }, []);
+  // la columna: eventos nativos (el onMouseEnter de React no llega a un portal si se entra desde la card)
+  useEffect(() => {
+    const el = col.current;
+    if (!el) return;
+    el.addEventListener("mouseenter", keep);
+    el.addEventListener("mouseleave", leave);
+    return () => { el.removeEventListener("mouseenter", keep); el.removeEventListener("mouseleave", leave); };
+  }, [rect !== null]);
+  // el nombre de cada acción: lo corto de su etiqueta (hasta el primer paréntesis)
+  useEffect(() => {
+    if (!shown) return;
+    col.current?.querySelectorAll<HTMLElement>(":scope > button, :scope > a").forEach((el) => {
+      const t = el.getAttribute("aria-label") || el.getAttribute("title") || "";
+      el.dataset.label = t.split(" (")[0].split(":")[0];
+    });
+  }, [shown, children]);
   return (<>
     <span ref={anchor} className="hidden" />
     {rect && createPortal(
-      <div onClick={(e) => e.stopPropagation()} onMouseEnter={keep} onMouseLeave={leave}
-        style={{ top: rect.top, left: rect.right + 4 }}
-        className={cn("fixed z-40 flex flex-col items-center gap-0.5 rounded-md bg-card p-0.5 shadow-md ring-1 ring-border transition-opacity",
+      <div ref={col} onClick={(e) => e.stopPropagation()}
+        style={{ top: rect.top, left: rect.right - 1 }}
+        className={cn("fixed z-40 flex min-w-[150px] flex-col gap-0.5 rounded-r-md rounded-bl-md bg-card p-1 shadow-lg ring-1 ring-border transition-opacity",
+          "[&>a]:!h-7 [&>a]:!w-full [&>a]:!justify-start [&>a]:gap-2 [&>a]:!px-2 [&>button]:!h-7 [&>button]:!w-full [&>button]:!justify-start [&>button]:gap-2 [&>button]:!px-2",
+          "[&>a]:after:text-[11px] [&>a]:after:content-[attr(data-label)] [&>button]:after:text-[11px] [&>button]:after:content-[attr(data-label)]",
           shown ? "opacity-100" : "pointer-events-none opacity-0")}>
         {children}
       </div>, document.body)}

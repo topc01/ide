@@ -318,7 +318,8 @@ otro nombre (`build`) y se corre a mano desde Servidores.
 para probar un cambio (sobre todo de reglas de estado) contra una copia sin tocar la real:
 `cp .ide/ide.db /tmp/ide-copia.db && IDE_DB_PATH=/tmp/ide-copia.db ide run --port 8799 --no-browser
 --no-supervise`. Dos IDEs con reglas distintas sobre la **misma** base se pisan (p.ej. una migración
-de estados que va y vuelve).
+de estados que va y vuelve). Con `IDE_DB_PATH` el IDE no se conecta a Telegram (si no, le roba los
+mensajes al IDE real).
 
 ## 8b. Servidores y Archivos (UI)
 
@@ -759,8 +760,9 @@ un desarrollo vuelven a su lugar. Los módulos Stack, Revisión y Dependencias m
 se haya elegido una fila), con una cabecera por repo si es fullstack.
 
 **Card:** el título usa todo el ancho; las marcas (⏸, CI) van en la esquina superior derecha y las
-acciones aparecen en hover en una **columna a la derecha de la card**, fuera de ella (no tapan el
-título; se quedan mientras el mouse esté en la card o en la columna). Las
+acciones aparecen en hover en una **columna a la derecha de la card**, pegada a ella, con el ícono y
+el **nombre** de cada acción (no tapan el título; se quedan mientras el mouse esté en la card o en la
+columna, con un margen para cruzar). Las
 cards no tienen "parar claude" (se para desde la terminal). En Mis desarrollos, si un revisor pidió
 cambios, **Pedir re-review** (↺, con confirmación) se lo vuelve a pedir a quienes pidieron cambios en
 cada PR del desarrollo (`gh pr edit --add-reviewer`, canal `pr.reviewers`).
