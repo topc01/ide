@@ -8,6 +8,7 @@ export interface Run {
   place: string; repo: string; name: string;
   state: "running" | "stopping" | "stopped" | "exited" | "lost";
   exitCode: number | null; pid: number | null; started: string | null; ended: string | null; urls: string[];
+  error?: string | null;        // `[ide] error: <motivo>` del script (p.ej. puerto tomado en el host)
   branch?: string | null;       // la rama que se levantó (o @sha si el worktree estaba en detach)
 }
 /** Worktree de una PR sin sesión. */

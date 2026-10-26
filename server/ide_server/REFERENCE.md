@@ -344,7 +344,7 @@ La regla vive en `server_blocks.py` (la UI la replica en `servers/place.ts`). Ca
 Cada bloque muestra sus scripts
 (menos `archive`) con ▶/■, estado en palabras (● corriendo · ◌ parando · ✓ terminó · ✗ falló (exit N) ·
 ■ parado · ⚠ murió; en el tooltip cuándo empezó/terminó; también en la tab del log) y los
-link `localhost:<puerto>` del propio servicio: lo que el script declara con `[ide] url: <url>`, si no la línea `Local:` de Vite, si no la primera URL local del log (no las que solo menciona, como la api a la que apunta un front). Click en uno abre su **log** en una
+link `localhost:<puerto>` del propio servicio: lo que el script declara con `[ide] url: <url>`, si no la línea `Local:` de Vite, si no la primera URL local del log (no las que solo menciona, como la api a la que apunta un front). Si el script escribe `[ide] error: <motivo>` (p.ej. el `run` de la api cuando el host no llega a su puerto porque lo tiene otro proceso), el script se ve **error** con ese motivo en vez de sus links, en Servidores y en `ide server ls`. Click en uno abre su **log** en una
 tab del panel principal (solo lectura; se reinicia en cada corrida; ▶/■ también desde ahí). Abajo,
 lo que corre en **otros** desarrollos (con ■), cada uno con la **rama** que levantó. Cada corrida guarda
 en `meta.json` la rama de su worktree al arrancar (`@<sha>` si estaba en detach); `runs.list` la trae

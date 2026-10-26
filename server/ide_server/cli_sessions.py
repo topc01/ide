@@ -304,7 +304,9 @@ def _server_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
                 st = sc.get("state") or "sin correr"
                 if st == "exited":
                     st = "terminó" if sc.get("exitCode") == 0 else f"falló (exit {sc.get('exitCode')})"
-                out.write(f"    {sc['name']:<10} {st}" + (f"  {' '.join(sc['urls'])}" if sc.get("urls") and sc.get("state") == "running" else "") + "\n")
+                if sc.get("error"):
+                    st = f"error: {sc['error']}"
+                out.write(f"    {sc['name']:<10} {st}" + (f"  {' '.join(sc['urls'])}" if sc.get("urls") and sc.get("state") == "running" and not sc.get("error") else "") + "\n")
         if not bl:
             out.write("(sin bloques: el desarrollo no tiene repos ni PRs)\n")
         return 0

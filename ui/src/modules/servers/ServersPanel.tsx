@@ -26,6 +26,7 @@ const ago = (iso: string | null) => {
 export function runState(run?: Run): { text: string; icon: string; cls: string; tip: string } {
   if (!run) return { text: "sin correr", icon: "○", cls: "text-muted-foreground", tip: "todavía no se corrió" };
   const when = `empezó ${ago(run.started)}${run.ended ? ` · terminó ${ago(run.ended)}` : ""}`;
+  if (run.error) return { text: "error", icon: "✗", cls: "text-destructive", tip: `${run.error} · ${when}` };
   switch (run.state) {
     case "running": return { text: "corriendo", icon: "●", cls: "text-emerald-400", tip: `sigue corriendo · ${when}` };
     case "stopping": return { text: "parando…", icon: "◌", cls: "text-amber-300", tip: "se le pidió parar (SIGKILL a los 15 s)" };
@@ -158,7 +159,8 @@ export function ServersPanel() {
                   <span className="w-20 shrink-0 truncate font-mono" title={s.name}>{s.name}</span>
                   <RunState run={run} />
                   {!s.executable && <span className="text-destructive" title={`chmod +x .ide/scripts/${b.repo}/${s.name}`}>⚠ no ejecutable</span>}
-                  <span className="flex min-w-0 flex-1 flex-wrap gap-1.5"><RunUrls run={run} /></span>
+                  <span className="flex min-w-0 flex-1 flex-wrap gap-1.5">{run?.error
+                    ? <span className="truncate text-destructive" title={run.error}>{run.error}</span> : <RunUrls run={run} />}</span>
                   {alive(run) ? (
                     <button aria-label={`Parar ${s.name}`} title={`Parar ${s.name} (SIGTERM al grupo; SIGKILL a los 15 s)`}
                       disabled={run!.state === "stopping" || busy === key}

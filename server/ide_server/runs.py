@@ -106,7 +106,22 @@ class Runner:
             state = "stopped" if meta.get("stopping") else "lost"   # lost: murió sin anotar (kill -9, reboot)
         return {"place": place, "repo": repo, "name": name, "state": state, "exitCode": code,
                 "pid": meta.get("pid"), "started": meta.get("started"), "ended": meta.get("ended"),
-                "branch": meta.get("branch"), "urls": self._urls(d)}
+                "branch": meta.get("branch"), "urls": self._urls(d), "error": self._error(d)}
+
+    @staticmethod
+    def _error(d: Path) -> str | None:
+        """Lo que el script declaró como error con `[ide] error: <motivo>` (la última vez; p.ej. el
+        puerto de la api tomado por otro proceso del host): el bloque lo muestra en vez de "corriendo"."""
+        try:
+            with open(d / "log", "rb") as f:
+                f.seek(0, 2)
+                f.seek(max(0, f.tell() - 64 * 1024))
+                tail = f.read().decode("utf-8", "replace")
+        except OSError:
+            return None
+        found = [line.split("[ide] error:", 1)[1].strip() for line in _ANSI_RE.sub("", tail).splitlines()
+                 if "[ide] error:" in line]
+        return found[-1] if found else None
 
     @staticmethod
     def _urls(d: Path) -> list[str]:
