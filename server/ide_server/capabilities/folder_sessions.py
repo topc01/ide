@@ -17,7 +17,7 @@ from ide_server.feedback import as_markdown, collect, pending_plans
 from ide_server.telegram import TelegramBridge, get_token
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
-from ide_server.devs import PHASES, assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
+from ide_server.devs import PHASES, split_parallel, assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
 from ide_server import pr_changes
 from ide_server import pins as pins_mod
@@ -65,6 +65,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             if gh_reviews is not None:
                 link_prs(db, sessions, gh_reviews.state)
                 assign_indices(db, list_devs(root, db, sessions, gh_reviews.state))
+                try:                            # una línea paralela abierta por una sesión → desarrollo nuevo
+                    if split_parallel(root, db, sessions, gh_reviews.state):
+                        sessions = list_sessions(root)
+                except Exception:  # noqa: BLE001
+                    log.exception("separar líneas paralelas")
                 _review_verdicts(sessions, status)
             for s in sessions:
                 if status.get(s["id"]):

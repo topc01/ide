@@ -249,6 +249,77 @@ def _cards(gh: dict) -> dict[str, dict]:
     return {c["url"]: c for lst in lists for c in lst}
 
 
+def split_parallel(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[str]:
+    """Un desarrollo tiene **una línea por repo** (la rama de su worktree y lo apilado sobre ella). Si
+    una sesión abre una PR tuya con su prefijo (`<login>/d<n>-…`) en otra rama de un repo que ya tiene
+    (una línea paralela), esa línea pasa a un **desarrollo nuevo**: sesión con el worktree en la PR de
+    más arriba de esa línea, las PRs asignadas ahí y un SESSION.md que dice de dónde salió. Si una PR
+    de otro repo del desarrollo original depende de esa línea, queda un pendiente para decidir si va
+    con ella. Devuelve las sesiones creadas. Las PRs ya asignadas a mano (`link`) no se tocan."""
+    import io
+    from ide_server import later as later_mod
+    from ide_server.repos_fs import add_repo
+    from ide_server.session_ops import create_session
+    from ide_server.worktrees import BranchOccupied
+    me = gh.get("me")
+    if not me:
+        return []
+    mine = [c for lst in (gh.get("mine") or {}).values() for c in lst]
+    links = db.dev_prs()
+    idx = db.with_prefix("devidx:")
+    created = []
+    for s in sessions:
+        n = idx.get(f"s:{s['id']}")
+        if s.get("kind") != "ticket" or n is None:
+            continue
+        prefix = f"{me}/d{n}-"
+        repos = {r["name"]: r.get("branch") for r in s.get("repos") or [] if r.get("branch")}
+        # la línea de cada repo: la rama del worktree y todo su stack
+        line: dict[str, set] = {}
+        for repo, branch in repos.items():
+            sid_stack = next(((c.get("stack") or {}).get("id") for c in mine if c["repo"] == repo and c.get("head") == branch), None)
+            line[repo] = {branch} | {c.get("head") for c in mine if sid_stack and (c.get("stack") or {}).get("id") == sid_stack}
+        parallel = [c for c in mine if c["repo"] in repos and (c.get("head") or "").startswith(prefix)
+                    and c.get("head") not in line[c["repo"]] and c["url"] not in links]
+        stacks: dict[str, list[dict]] = {}
+        for c in parallel:
+            stacks.setdefault((c.get("stack") or {}).get("id") or c["url"], []).append(c)
+        for prs in stacks.values():
+            prs.sort(key=lambda c: (c.get("stack") or {}).get("position", 0))
+            top = prs[-1]
+            new = re.sub(r"[^a-z0-9-]+", "-", f"d{n}-{top['head'][len(prefix):]}".lower()).strip("-")[:60]
+            if session_path(root, new).exists():
+                continue
+            try:
+                create_session(root, {"id": new, "title": f"{top['title']} (sale del #{n})"})
+                add_repo(root, new, top["repo"], branch=top["head"], out=io.StringIO())
+            except BranchOccupied:
+                continue                                    # la rama está en otro worktree: se intenta después
+            now_ = now()
+            for c in prs:
+                db.link_pr(c["url"], new)
+                for dev in (s["id"], new):
+                    db.event(now_, "ide", "pr-moved", dev=dev, pr_url=c["url"],
+                             data={"from": s["id"], "to": new, "note": "línea paralela: desarrollo nuevo"})
+            urls = {c["url"] for c in prs}
+            nums = " → ".join(f"{c['repo']}#{c['number']}" for c in prs)
+            (session_path(root, new) / "SESSION.md").write_text(
+                f"---\nstatus: developing\ntitle: {top['title']} (sale del #{n})\n---\n## Origen\n\n"
+                f"Línea paralela de {top['repo']} ({nums}) que se separó sola del desarrollo **#{n}** (sesión "
+                f"`{s['id']}`): un desarrollo tiene una sola línea por repo. El contexto está en "
+                f"`../{s['id']}/SESSION.md`.\n", encoding="utf-8")
+            # PRs de otros repos del desarrollo original que dependen de esta línea: decidir juntos
+            for c in mine:
+                if c["url"] in urls or c["repo"] == top["repo"]:
+                    continue
+                if any(d.get("url") in urls for d in c.get("deps") or []):
+                    later_mod.add(db, f"s:{s['id']}", f"¿{c['repo']}#{c['number']} se va al desarrollo nuevo `{new}`?",
+                                  f"Depende de {nums}, que se separó a `{new}` (línea paralela). Si van juntas, "
+                                  f"muévela con `ide dev link <#n de {new}> {c['repo']}#{c['number']}`.", "ide")
+            created.append(new)
+    return created
+
+
 def link_prs(db: Db, sessions: list[dict], gh: dict) -> bool:
     """Recuerda qué PRs tuyas están en la rama de un worktree de cada sesión de ticket: quedan en
     ese desarrollo aunque después el worktree cambie de rama. Devuelve si agregó alguna."""

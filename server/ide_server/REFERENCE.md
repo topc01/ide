@@ -132,7 +132,8 @@ Todas las sesiones reciben `--add-dir=.ide/worktrees/<id>` (sus repos); la princ
 `--add-dir=.ide/sessions` (para leer los `SESSION.md` de todas).
 
 **Restricción de seguridad (server):** cuando el pedido viene de una sesión (`IDE_SESSION_ID`
-seteada), solo la **principal** puede crear sesiones y **nunca con `full`** (si el default es
+seteada), **cualquier sesión** puede crear sesiones (p.ej. para separar una línea paralela), pero
+**nunca con `full`** (si el default es
 `full`, se baja a `analyze`). `full` solo se lanza desde la UI o desde una terminal tuya.
 
 Edita los `.json` para ajustar (formato de settings de Claude Code: `permissions.allow/deny`).
@@ -720,7 +721,14 @@ dependen (cadena completa: ✓ mergeada, ◌ abierta, ✗ cerrada, ⇄ van junta
 qué PRs abiertas las declaran como dependencia.
 
 **Mis desarrollos** (reemplaza a la lista de sesiones de ticket y a "Mis PRs"): una card por
-desarrollo. Regla (spec 2026-10-16-desarrollos, P1), cada PR en un solo desarrollo: (1) la sesión de
+desarrollo. **Un desarrollo con sesión tiene una sola línea por repo**: la rama de su worktree y lo
+apilado sobre ella. Si una sesión abre una PR tuya con su prefijo (`<login>/d<n>-…`) en **otra** rama
+de un repo que ya tiene (una línea paralela), el IDE la separa sola en un **desarrollo nuevo**: crea la
+sesión (`d<n>-<rama>`, sin lanzar su claude), su worktree en la PR de más arriba de esa línea, le
+asigna esas PRs (pegajosas; queda en el historial de los dos) y le deja un SESSION.md con el origen. Si
+una PR de otro repo del desarrollo original depende de esa línea, queda un **pendiente** (Para
+después) en el original para decidir si se va con ella ("si van juntas, que queden en el mismo
+desarrollo"). Las PRs asignadas a mano con `ide dev link` no se tocan. Regla (spec 2026-10-16-desarrollos, P1), cada PR en un solo desarrollo: (1) la sesión de
 ticket cuyos worktrees están en esa rama, más el resto de su stack — **pegajoso**: el IDE recuerda
 la PR en ese desarrollo (base, `kv` `devpr:<url>`) y sigue ahí aunque el worktree cambie de rama,
 hasta que se mergea/cierra; "sacar de este desarrollo" (hover de su fila, o `ide dev unlink`) la deja

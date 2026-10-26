@@ -83,6 +83,12 @@ en el chat, ciérralo: `ide later ls --mine` y `ide later done <id> -m "<cómo>"
   las asocia solo, por repo y rama). Si el ticket toca varios repos (p.ej. api + embed), agrega
   cada uno con `ide repo add <repo>`: el desarrollo queda **fullstack** (una card, PRs por repo).
   Usa el mismo nombre de rama en todos los repos del desarrollo.
+- **Una sola línea por repo:** la rama de tu worktree y, si hace falta, PRs **apiladas** sobre ella.
+  No abras otra rama desde develop en un repo que ya tienes: eso es otro desarrollo. Si igual lo
+  haces (una PR con tu prefijo en otra rama), el IDE la separa sola en un desarrollo nuevo con su
+  propia sesión. Si sabes de antemano que es trabajo aparte, créalo tú: `ide session new --title
+  "<qué>"` (cualquier sesión puede) y cuéntaselo al usuario. Si una PR de otro repo depende de esa
+  línea, van juntas: que queden en el mismo desarrollo (lo deciden con el usuario).
 - **Número del desarrollo:** cada desarrollo tiene un índice (`#12`, en `$IDE_DEV_INDEX`). Las
   ramas nuevas van con él: `ide repo add` ya usa `$IDE_DEV_BRANCH` (`<login>/d12-<nombre>`); si creas
   otra rama a mano, nómbrala `<login>/d12-<tema>`. Los recursos locales nuevos (base y proyecto docker

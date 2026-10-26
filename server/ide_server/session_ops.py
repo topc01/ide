@@ -61,18 +61,15 @@ def _fetch_pr(root: Path, repo: str, number: int, runner: Runner) -> None:
 
 
 def _resolve_permissions(root: Path, req: dict) -> str:
-    """Permisos de la sesión nueva. Si la pide otra sesión (`caller`, vía `ide session new`
-    desde adentro de claude), sólo la principal puede, y nunca con `full` (sin escalada)."""
+    """Permisos de la sesión nueva. Si la pide otra sesión (`caller`, vía `ide session new` desde
+    adentro de claude: cualquiera puede, p.ej. para separar una línea paralela en otro desarrollo),
+    nunca con `full` (sin escalada)."""
     caller = req.get("caller")
     requested = req.get("permissions")
     if not caller:
         return requested or sessions_config(root)["default_permissions"]
-    try:
-        kind = read_toml(session_path(root, normalize_id(caller)) / ".session.toml").get("kind")
-    except (SessionError, OSError, ValueError):
-        kind = None
-    if kind != "main":
-        raise SessionError("forbidden", "solo la sesión principal puede crear sesiones")
+    if not (session_path(root, normalize_id(caller)) / ".session.toml").is_file():
+        raise SessionError("forbidden", f"la sesión {caller} no existe")
     if requested == "full":
         raise SessionError("forbidden", "una sesión no puede lanzar otra con permisos full; "
                                         "hazlo desde la UI o la terminal")
