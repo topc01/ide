@@ -132,8 +132,9 @@ Todas las sesiones reciben `--add-dir=.ide/worktrees/<id>` (sus repos); la princ
 `--add-dir=.ide/sessions` (para leer los `SESSION.md` de todas).
 
 **Restricción de seguridad (server):** cuando el pedido viene de una sesión (`IDE_SESSION_ID`
-seteada), **cualquier sesión** puede crear sesiones (p.ej. para separar una línea paralela), pero
-**nunca con `full`** (si el default es
+seteada), **cualquier sesión** puede crear sesiones (p.ej. para separar una línea paralela): la nueva
+**hereda los permisos de la que la crea** (solo puede pedir esos mismos o `analyze`) y **nunca `full`**
+(si el default es
 `full`, se baja a `analyze`). `full` solo se lanza desde la UI o desde una terminal tuya.
 
 Edita los `.json` para ajustar (formato de settings de Claude Code: `permissions.allow/deny`).

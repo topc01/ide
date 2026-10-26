@@ -68,12 +68,17 @@ def _resolve_permissions(root: Path, req: dict) -> str:
     requested = req.get("permissions")
     if not caller:
         return requested or sessions_config(root)["default_permissions"]
-    if not (session_path(root, normalize_id(caller)) / ".session.toml").is_file():
-        raise SessionError("forbidden", f"la sesión {caller} no existe")
+    try:                                        # los permisos de la que la pide (si no se pueden leer, no)
+        mine = read_toml(session_path(root, normalize_id(caller)) / ".session.toml").get("permissions") or "default"
+    except (SessionError, OSError, ValueError):
+        raise SessionError("forbidden", f"no pude leer los permisos de la sesión {caller}")
     if requested == "full":
         raise SessionError("forbidden", "una sesión no puede lanzar otra con permisos full; "
                                         "hazlo desde la UI o la terminal")
-    permissions = requested or sessions_config(root)["default_permissions"]
+    # sin escalada: hereda los de la que la crea; solo puede pedir esos mismos o `analyze`
+    if requested and requested not in (mine, "analyze"):
+        raise SessionError("forbidden", f"una sesión con permisos {mine} no puede crear una con {requested}")
+    permissions = requested or mine
     return "analyze" if permissions == "full" else permissions
 
 
