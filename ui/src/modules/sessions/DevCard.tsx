@@ -183,13 +183,35 @@ export function CardCorner({ children }: { children: ReactNode }) {
   return <div className="absolute right-1.5 top-1.5 flex items-center gap-1">{children}</div>;
 }
 
-/** Acciones de hover: flotan sobre la esquina (tapan el título y las marcas) y no le quitan ancho al
- *  título cuando no se ven. */
+/** Acciones de hover: aparecen en una columna **a la derecha de la card** (fuera de ella, en un portal)
+ *  para no tapar el título. Se quedan mientras el mouse esté en la card o en la columna. La columna
+ *  siempre existe (solo se oculta): así una ventana que abrió una acción no se cierra al salir. */
 export function CardActions({ children }: { children: ReactNode }) {
-  return (
-    <QueueItemActions className="pointer-events-none absolute right-1 top-1 z-10 ml-0 rounded-md bg-card px-0.5 shadow-md ring-1 ring-border group-hover/item:pointer-events-auto">
-      {children}
-    </QueueItemActions>);
+  const anchor = useRef<HTMLSpanElement>(null);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const [shown, setShown] = useState(false);
+  const hide = useRef<number | null>(null);
+  const keep = () => { if (hide.current) clearTimeout(hide.current); };
+  const leave = () => { keep(); hide.current = window.setTimeout(() => setShown(false), 180); };
+  useEffect(() => {
+    const card = anchor.current?.closest("[data-card]") as HTMLElement | null;
+    if (!card) return;
+    const show = () => { keep(); setRect(card.getBoundingClientRect()); setShown(true); };
+    card.addEventListener("mouseenter", show);
+    card.addEventListener("mouseleave", leave);
+    setRect(card.getBoundingClientRect());
+    return () => { card.removeEventListener("mouseenter", show); card.removeEventListener("mouseleave", leave); keep(); };
+  }, []);
+  return (<>
+    <span ref={anchor} className="hidden" />
+    {rect && createPortal(
+      <div onClick={(e) => e.stopPropagation()} onMouseEnter={keep} onMouseLeave={leave}
+        style={{ top: rect.top, left: rect.right + 4 }}
+        className={cn("fixed z-40 flex flex-col items-center gap-0.5 rounded-md bg-card p-0.5 shadow-md ring-1 ring-border transition-opacity",
+          shown ? "opacity-100" : "pointer-events-none opacity-0")}>
+        {children}
+      </div>, document.body)}
+  </>);
 }
 
 /** Espacio a la derecha del título para no quedar bajo las marcas de la esquina. */

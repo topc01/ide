@@ -77,9 +77,13 @@ export function ConfigButton({ id, title }: { id: string; title: string }) {
 /** Sección de la sidebar (Revisiones, Mis PRs): título colapsable con total, "agrupar por",
  *  grupos colapsables (recordados) y la misma card para todo. */
 /** `hidden`: entradas ocultas; van aparte, en un grupo "Ocultos" al final (cerrado de entrada). */
-export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, beforeGroups, status, hidden = [] }:
+/** `count` / `countTitle`: el número junto al título (default: el total). `groupActions`: un botón al
+ *  lado del título de un grupo (por id de grupo), p.ej. "archivar todas" en Cerradas. */
+export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, beforeGroups, status, hidden = [],
+  count, countTitle, groupActions }:
   { id: string; title: string; entries: Entry[]; statuses: [string, string][];
-    gh: GithubReviews | null; headerExtra?: ReactNode; beforeGroups?: ReactNode; status?: ReactNode; hidden?: Entry[] }) {
+    gh: GithubReviews | null; headerExtra?: ReactNode; beforeGroups?: ReactNode; status?: ReactNode; hidden?: Entry[];
+    count?: number; countTitle?: string; groupActions?: Record<string, ReactNode> }) {
   const [open, setOpen] = usePersistentOpen(id);
   const by = useSidebarConfig((s) => s.groupBy[id] ?? "status");
   const groups = groupsOf(entries, by, statuses, gh);
@@ -91,7 +95,7 @@ export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, 
           <ChevronRight size={13} className="transition-transform group-data-[state=open]/sec:rotate-90" />
           {title}
         </Collapsible.Trigger>
-        <span className="font-mono text-[11px] text-primary" title="total">{entries.length}</span>
+        <span className="font-mono text-[11px] text-primary" title={countTitle ?? "total"}>{count ?? entries.length}</span>
         {status}
         <div className="ml-auto flex items-center gap-1">
           {headerExtra}
@@ -102,9 +106,12 @@ export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, 
         {beforeGroups}
         {groups.filter(([, g]) => g.items.length).map(([key, g]) => (
           <QueueSection key={`${by}-${key}`} defaultOpen persistKey={`${id}.${by}.${key}`} className="mt-1">
-            <QueueSectionTrigger title={g.label}>
-              <QueueSectionLabel label={g.label} count={g.items.length} className="min-w-0 [&>span:first-child]:truncate" />
-            </QueueSectionTrigger>
+            <div className="flex items-center">
+              <QueueSectionTrigger title={g.label}>
+                <QueueSectionLabel label={g.label} count={g.items.length} className="min-w-0 [&>span:first-child]:truncate" />
+              </QueueSectionTrigger>
+              {groupActions?.[key]}
+            </div>
             <QueueSectionContent><QueueList>{g.items.map((e) => <div key={e.key}>{e.render()}</div>)}</QueueList></QueueSectionContent>
           </QueueSection>))}
         {/* los grupos vacíos, juntos en uno (cerrado): apenas tienen algo vuelven a su lugar */}

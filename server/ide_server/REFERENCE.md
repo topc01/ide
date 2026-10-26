@@ -464,7 +464,9 @@ afuera no cuentan; pagina hasta 1000 PRs, el tope de la búsqueda de GitHub; si 
 con `+`); el tuyo resaltado. El módulo Configuración (⚙ de Revisiones) elige qué miembros se ven (checkbox); se
 guarda en la base (`.ide/ide.db`); sin selección se ven todos los que
 tienen pendientes. La sección se colapsa desde su título; Pendientes / Pedí cambios / Otras son
-grupos fijos. En las pendientes, el botón de revisión (hover) envía
+grupos fijos; el número junto al título es el de **pendientes de tu review**, y el grupo **Cerradas**
+tiene **archivar todas** (con confirmación: archiva las sesiones de revisión de PRs ya mergeadas o
+cerradas). En las pendientes, el botón de revisión (hover) envía
 `.ide/prompts/review-pr.md` (pega + Enter) a la sesión del PR: si no existe la crea (como
 `--review <url>`, con ese prompt en vez de la plantilla `review`); si está parada la retoma con el
 prompt; si está en cola falla con `queued`. En las pendientes y en "Pedí cambios", **Aprobar** (✓) y
@@ -748,7 +750,8 @@ un desarrollo vuelven a su lugar. Los módulos Stack, Revisión y Dependencias m
 se haya elegido una fila), con una cabecera por repo si es fullstack.
 
 **Card:** el título usa todo el ancho; las marcas (⏸, CI) van en la esquina superior derecha y las
-acciones aparecen en hover flotando sobre esa esquina (tapan el título, no le quitan ancho). Las
+acciones aparecen en hover en una **columna a la derecha de la card**, fuera de ella (no tapan el
+título; se quedan mientras el mouse esté en la card o en la columna). Las
 cards no tienen "parar claude" (se para desde la terminal). En Mis desarrollos, si un revisor pidió
 cambios, **Pedir re-review** (↺, con confirmación) se lo vuelve a pedir a quienes pidieron cambios en
 cada PR del desarrollo (`gh pr edit --add-reviewer`, canal `pr.reviewers`).

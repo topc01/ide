@@ -4,7 +4,7 @@ import { Archive, Check, ChevronRight, ExternalLink, Layers, Layers2, Link2, Loa
 import { Collapsible } from "radix-ui";
 import { useFolders } from "../../state/folders";
 import {
-  dismissMerge, fetchGithubReviews, onGithubReviews, setReviewers, startReview, startStackReview, type MergeJob, type FolderSession, type GhPr, type GithubReviews,
+  archiveSession, dismissMerge, fetchGithubReviews, onGithubReviews, setReviewers, startReview, startStackReview, type MergeJob, type FolderSession, type GhPr, type GithubReviews,
 } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { QueueList, QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
@@ -21,6 +21,46 @@ import { cn } from "../../lib/utils";
 import type { DevStateInfo } from "./devStates";
 import { PersonChip } from "../../lib/people";
 import { usePersistentOpen } from "../../lib/persist";
+
+/** "Archivar todas" en el grupo Cerradas de Revisiones: archiva las sesiones de revisión de PRs ya
+ *  mergeadas o cerradas (para su claude y deja su carpeta en .ide/archive). Pide confirmar. */
+function ArchiveClosed({ sessions }: { sessions: FolderSession[] }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (!sessions.length) return null;
+  const go = async () => {
+    setBusy(true); setErr(null);
+    const failed: string[] = [];
+    for (const s of sessions) {
+      try { await archiveSession(getWs(), s.id, true); } catch (e: any) { failed.push(`${s.id}: ${e?.message ?? e}`); }
+    }
+    setBusy(false);
+    if (failed.length) setErr(failed.join("\n")); else setOpen(false);
+  };
+  return (<>
+    <button aria-label="Archivar todas las cerradas" title={`Archivar las ${sessions.length} revisiones de PRs ya cerradas o mergeadas`}
+      onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+      className="mr-1 grid h-5 w-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground">
+      <Archive size={12} /></button>
+    {open && (
+      <Dialog open onOpenChange={(o) => { if (!o) setOpen(false); }}>
+        <DialogContent onClick={(e) => e.stopPropagation()} className="max-w-md">
+          <DialogHeader><DialogTitle className="text-sm">¿Archivar {sessions.length} revisiones cerradas?</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">Son de PRs ya mergeadas o cerradas. Se para su claude y su carpeta pasa a
+            .ide/archive (no toca GitHub).</p>
+          <ul className="max-h-48 space-y-0.5 overflow-auto text-xs">
+            {sessions.map((s) => <li key={s.id} className="truncate"><span className="font-mono">{s.id}</span> <span className="text-muted-foreground">{s.title}</span></li>)}
+          </ul>
+          {err && <p role="alert" className="whitespace-pre-wrap text-xs text-destructive">⚠ {err}</p>}
+          <DialogFooter className="gap-2">
+            <Button size="sm" variant="ghost" title="No archivar" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button size="sm" disabled={busy} title="Archivar todas" onClick={go}>{busy ? "Archivando…" : `Archivar ${sessions.length}`}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>)}
+  </>);
+}
 
 /** "Revisar stack": una sola sesión que revisa, de abajo hacia arriba, las PRs de este stack que te
  *  pidieron revisar (las sesiones individuales de esas PRs se archivan). Pide confirmar. */
@@ -389,6 +429,8 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
 
   return (
     <GroupedSection id="reviews" title="Revisiones" entries={waitingFirst(entries)} gh={gh}
+      count={entries.filter((e) => e.status === "pending").length} countTitle="pendientes de tu review"
+      groupActions={{ closed: <ArchiveClosed sessions={entries.filter((e) => e.status === "closed" && e.session).map((e) => e.session!)} /> }}
       statuses={[["pending", "Pendientes"], ["changes", "Pedí cambios"], ["approved", "Aprobé"],
                  ["closed", "Cerradas"], ["others", "Otras"]]}
       status={<>
