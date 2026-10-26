@@ -45,11 +45,12 @@ export interface DevStateInfo {
   github: boolean;              // la fase sale de sus PRs (fuera de draft, mergeando o mergeadas)
   gh: Phase | null;             // la fase según GitHub (se manda al ponerla a mano)
   note: string | null; since: string | null;
+  actor: string | null;         // quién lo puso: "ide" (tú, desde la UI), "claude:<sesión>", "github"…
   inferred: boolean;            // no hay nada puesto: fase deducida
   outOfDraft: boolean;          // puesta a mano como activa, pero alguna PR ya salió de draft
 }
 export type DevStates = Record<string, { phase?: string | null; block?: string | null; note?: string | null;
-  since?: string | null; gh?: string | null }>;
+  since?: string | null; gh?: string | null; actor?: string | null }>;
 const MERGE_ACTIVE = ["rebasing", "waiting", "waiting_ci", "merging", "restacking"];
 
 /** Fase según GitHub (la peor de las PRs abiertas fuera de draft; mergeado si todas lo están), o null. */
@@ -78,7 +79,7 @@ export function devStateOf(states: DevStates | undefined, key: string, prs: GhPr
   const stale = manual === "investigating" && prs.length > 0 && !pinned;
   const phase: Phase = (pinned ? manual : gh ?? (stale ? null : manual)) ?? (prs.length ? "developing" : "investigating");
   return {
-    state: block ?? phase, phase, block, manual, github: !!gh && !pinned, gh, note: s?.note ?? null, since: s?.since ?? null,
+    state: block ?? phase, phase, block, manual, github: !!gh && !pinned, gh, note: s?.note ?? null, since: s?.since ?? null, actor: s?.actor ?? null,
     inferred: !gh && !manual, outOfDraft: !!gh && !pinned && !!manual && PRE_GITHUB.includes(manual) && manual !== "ready-for-review"
       && gh !== "merging" && gh !== "merged",
   };

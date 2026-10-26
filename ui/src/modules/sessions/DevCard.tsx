@@ -9,7 +9,7 @@ import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
 import { devIndexOf, devKeys, devName, isHidden } from "./desarrollos";
 import { useStore } from "../../state/store";
-import { ago, PICK_BLOCKS, PHASES, STATE, type DevStateInfo, type State } from "./devStates";
+import { ago, STATE, type DevStateInfo, type Phase } from "./devStates";
 import { useSidebarConfig } from "../../state/sidebarConfig";
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
@@ -59,7 +59,7 @@ export function CardShell({ tone, selected, dashed, onClick, children, dev }:
   { tone: Tone; selected: boolean; dashed?: boolean; onClick?: () => void; children: ReactNode; dev?: DevStateInfo | null }) {
   const bg = dev ? STATE[dev.state][1] : tone.bg && BG[tone.bg];
   return (
-    <div onClick={onClick} title={tone.label} aria-current={selected || undefined}
+    <div data-card onClick={onClick} title={tone.label} aria-current={selected || undefined}
       className={cn("cursor-pointer rounded-md p-[2px] transition-[margin,filter] duration-150 ease-out",
         // inactivas más angostas (se ensanchan en hover); la activa ocupa todo el ancho
         selected ? "mx-0" : "mx-2 hover:mx-0 hover:brightness-110",
@@ -246,20 +246,43 @@ export function StateAction({ dev, devKey }: { dev: DevStateInfo | null | undefi
   return (
     <>
       <QueueItemAction aria-label="Cambiar el estado" title={`Cambiar el estado (ahora: ${STATE[dev.state][0]})`}
-        onClick={(e) => { e.stopPropagation(); setAt(at ? null : (e.currentTarget as HTMLElement).getBoundingClientRect()); }}>
+        onClick={(e) => {
+          e.stopPropagation();
+          const el = e.currentTarget as HTMLElement;
+          setAt(at ? null : (el.closest("[data-card]") ?? el).getBoundingClientRect());   // se abre al lado de la card
+        }}>
         <Flag size={11} />
       </QueueItemAction>
       {at && createPortal(<StateMenu dev={dev} devKey={devKey} at={at} onClose={() => setAt(null)} />, document.body)}
     </>);
 }
 
-/** Menú para cambiar el estado: las fases (cualquiera; la puesta gana hasta que GitHub cambie) y las
- *  pausas (con nota). Flota sobre todo (portal), con fondo sólido. */
+/** Menú para cambiar el estado, a la derecha de la card: arriba lo que hay ahora y de dónde sale; las
+ *  tres fases que se ponen a mano; frenarlo (bloqueado pide el motivo) o quitar la pausa; y, plegado,
+ *  corregir lo que dice GitHub (la fase puesta gana hasta que GitHub cambie). */
+const MANUAL: Phase[] = ["investigating", "developing", "ready-for-review"];
+const GITHUB: Phase[] = ["testing", "in-review", "changes-requested", "approved", "merged"];
+
+function sourceOf(dev: DevStateInfo): string {
+  if (dev.block) return dev.actor?.startsWith("claude:") ? "lo frenó la sesión" : "lo frenaste tú";
+  if (dev.github) return "lo dice GitHub";
+  if (dev.inferred) return "deducido de sus PRs";
+  if (dev.actor?.startsWith("claude:")) return "lo puso la sesión";
+  if (dev.actor === "github") return "lo dice GitHub";
+  return "lo pusiste tú";
+}
+
 function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: string; at: DOMRect; onClose: () => void }) {
-  const [note, setNote] = useState(dev.note ?? "");
+  const [blocking, setBlocking] = useState(false);
+  const [note, setNote] = useState(dev.block === "blocked" ? dev.note ?? "" : "");
+  const [more, setMore] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: at.bottom + 4, left: Math.max(8, at.right - 288) });
+  const W = 260;
+  const [pos, setPos] = useState(() => {
+    const right = at.right + 8;
+    return { top: at.top, left: right + W > window.innerWidth - 8 ? Math.max(8, at.left - W - 8) : right };
+  });
   useEffect(() => {
     const out = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -268,43 +291,67 @@ function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: st
   }, [onClose]);
   useEffect(() => {                             // que no se salga de la pantalla por abajo
     const h = ref.current?.offsetHeight ?? 0;
-    if (pos.top + h > window.innerHeight - 8) setPos((p) => ({ ...p, top: Math.max(8, at.top - h - 4) }));
-  }, [at, pos.top]);
+    if (pos.top + h > window.innerHeight - 8) setPos((p) => ({ ...p, top: Math.max(8, window.innerHeight - h - 8) }));
+  }, [pos.top, more, blocking]);
   const set = (st: string | null, n: string | null = null, gh?: string | null) =>
     setDevState(getWs(), devKey, st, n, gh).then(onClose).catch((e: any) => setErr(e?.message ?? String(e)));
-  const row = (st: State, on: boolean, onClick: () => void, extra?: string) => {
-    const [l, bg, t, what] = STATE[st];
-    return (
-      <button key={st} onClick={onClick} title={on ? `Está así: ${l}` : `Pasar a "${l}"`}
-        className={cn("flex w-full items-start gap-2 rounded px-1.5 py-1 text-left hover:bg-accent", on && "bg-accent/70")}>
-        <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full border border-current", bg, t)} />
-        <span className="min-w-0 flex-1">
-          <span className={cn("block font-semibold", t)}>{l}{extra && <span className="ml-1 font-normal text-muted-foreground">{extra}</span>}</span>
-          <span className="block text-[10px] leading-tight text-muted-foreground">{what}</span>
-        </span>
-        {on && <span className="text-primary">✓</span>}
-      </button>);
-  };
+  const [label, , text] = STATE[dev.state];
+  const option = (st: Phase, on: boolean) => (
+    <button key={st} onClick={() => set(st, null, dev.gh)} title={STATE[st][3]}
+      className={cn("flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-accent", on && "bg-accent/70 font-semibold")}>
+      <span className={cn("grid h-3 w-3 place-items-center rounded-full border", on ? "border-primary" : "border-muted-foreground")}>
+        {on && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}</span>
+      <span className={cn(on && STATE[st][2])}>{STATE[st][0]}</span>
+    </button>);
+  const title = (t: string) => <div className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t}</div>;
   return (
-    <div ref={ref} onClick={(e) => e.stopPropagation()} style={{ top: pos.top, left: pos.left }}
-      className="fixed z-50 max-h-[80vh] w-72 overflow-y-auto rounded-md border border-border bg-popover p-1.5 text-xs text-popover-foreground shadow-xl">
-      <div className="px-1.5 pb-0.5 pt-1 text-[10px] uppercase tracking-wide text-muted-foreground">Fase</div>
-      {PHASES.map((st) => row(st, dev.phase === st, () => set(st, null, dev.gh),
-        dev.gh === st ? "(GitHub)" : undefined))}
-      {dev.manual && dev.gh && !dev.github && dev.manual !== dev.gh && (
-        <button onClick={() => set(dev.manual, null)} title="Dejar que la fase la dé GitHub otra vez"
-          className="w-full rounded px-1.5 py-1 text-left text-muted-foreground hover:bg-accent hover:text-foreground">
-          ↺ usar la de GitHub ({STATE[dev.gh][0]})</button>)}
-      <div className="px-1.5 pb-0.5 pt-2 text-[10px] uppercase tracking-wide text-muted-foreground">Pausa (tapa la fase)</div>
-      <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} aria-label="Nota"
-        placeholder="nota: qué falta y de quién"
-        onKeyDown={(e) => { if (e.key === "Enter" && dev.block) set(dev.block, note.trim() || null); }}
-        className="mx-1.5 mb-1 w-[calc(100%-12px)] rounded border border-border bg-background px-1.5 py-0.5 text-[11px] outline-none focus:border-primary" />
-      {PICK_BLOCKS.map((st) => row(st, dev.block === st, () => set(st, note.trim() || null)))}
-      {dev.block && (
-        <button onClick={() => set("unblock")} title={`Quitar la pausa (vuelve a "${STATE[dev.phase][0]}")`}
-          className="w-full rounded px-1.5 py-1 text-left hover:bg-accent">✕ quitar {STATE[dev.block][0]} (vuelve a {STATE[dev.phase][0]})</button>)}
-      {err && <p role="alert" className="px-1.5 py-1 text-[11px] text-destructive">{err}</p>}
+    <div ref={ref} onClick={(e) => e.stopPropagation()} style={{ top: pos.top, left: pos.left, width: W }}
+      className="fixed z-50 max-h-[85vh] overflow-y-auto rounded-md border border-border bg-popover pb-1.5 text-xs text-popover-foreground shadow-xl">
+      <div className="border-b border-border px-2 py-2">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Ahora</div>
+        <div className={cn("text-sm font-semibold uppercase tracking-wide", text)}>{label}</div>
+        <div className="text-[11px] text-muted-foreground">{sourceOf(dev)}{dev.since && !dev.inferred ? ` · hace ${ago(dev.since)}` : ""}</div>
+        {dev.note && <div className="mt-0.5 line-clamp-3 text-[11px] italic text-muted-foreground">{dev.note}</div>}
+      </div>
+      {title("¿En qué está el trabajo?")}
+      {MANUAL.map((st) => option(st, !dev.block && dev.phase === st))}
+      {title("¿Está frenado?")}
+      {dev.block ? (
+        <div className="px-2">
+          <button onClick={() => set("unblock")} title={`Vuelve a "${STATE[dev.phase][0]}"`}
+            className="w-full rounded border border-border px-2 py-1 text-left hover:bg-accent">✕ Quitar pausa
+            <span className="text-muted-foreground"> (vuelve a {STATE[dev.phase][0]})</span></button>
+        </div>
+      ) : blocking ? (
+        <div className="px-2">
+          <input autoFocus value={note} onChange={(e) => setNote(e.target.value)} maxLength={300}
+            placeholder="¿por qué, o de quién depende?" aria-label="Motivo del bloqueo"
+            onKeyDown={(e) => { if (e.key === "Enter" && note.trim()) set("blocked", note.trim()); if (e.key === "Escape") setBlocking(false); }}
+            className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary" />
+          <div className="mt-1 flex gap-1">
+            <button disabled={!note.trim()} onClick={() => set("blocked", note.trim())} title="Marcar como bloqueado con este motivo"
+              className="rounded bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground disabled:opacity-40">Bloquear</button>
+            <button onClick={() => setBlocking(false)} title="No bloquear" className="rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground">Cancelar</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-1 px-2">
+          <button onClick={() => setBlocking(true)} title="No se puede avanzar: te pide el motivo"
+            className="flex-1 rounded border border-border px-2 py-1 text-red-400 hover:bg-accent">Bloqueado…</button>
+          <button onClick={() => set("paused")} title="En espera, sin apuro"
+            className="flex-1 rounded border border-border px-2 py-1 text-muted-foreground hover:bg-accent">Pausado</button>
+        </div>)}
+      <button onClick={() => setMore(!more)} title="Para cuando lo que dice GitHub está mal"
+        className="mt-2 flex w-full items-center gap-1 px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground">
+        <span className={cn("transition-transform", more && "rotate-90")}>▸</span> Corregir lo que dice GitHub</button>
+      {more && (<>
+        {GITHUB.map((st) => option(st, !dev.block && dev.phase === st))}
+        {dev.manual && dev.gh && !dev.github && dev.manual !== dev.gh && (
+          <button onClick={() => set(dev.manual, null)} title="Dejar que la fase la dé GitHub otra vez"
+            className="w-full px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground">
+            ↺ volver a lo de GitHub ({STATE[dev.gh][0]})</button>)}
+      </>)}
+      {err && <p role="alert" className="px-2 py-1 text-[11px] text-destructive">{err}</p>}
     </div>);
 }
 

@@ -784,7 +784,10 @@ es la **actividad** de la sesión, ver abajo; los `waiting-input` que quedaron p
 los cambies, y `ide status waiting-input` ya no hace nada: responde que no hace falta.) Las sesiones también pueden
 cambiarlo encima de lo puesto a mano. Mientras el desarrollo está activo sus PRs van en draft (si la
 fase puesta es activa y una PR salió de draft, la card dice "PR fuera de draft"). Se cambia con la
-acción de hover 🚩 de la card (menú flotante con cada estado y qué significa, nota, quitar la pausa),
+acción de hover 🚩 de la card (menú flotante **a la derecha de la card**: arriba el estado actual y de
+dónde sale —lo dice GitHub, lo puso la sesión, lo pusiste tú, deducido— y desde cuándo; "¿En qué está
+el trabajo?" con las tres fases a mano; "¿Está frenado?" con Bloqueado…, que pide el motivo, y
+Pausado, o "Quitar pausa"; y plegado "Corregir lo que dice GitHub" con las fases de GitHub),
 en el módulo Desarrollo (en PRs sin sesión, también "borrar estado") o con `ide status
 <fase|pausa|unblock> -m nota` desde la sesión. Con `ready-for-review`, **Mandar a revisión** saca de
 draft sus PRs (`gh pr ready`; solo las tuyas).
@@ -812,7 +815,7 @@ questions → waiting-input, blocked-definitions / blocked-client / blocked-dev 
 en la nota, needs-reviewers → testing) y se aceptan en `ide status`. Las sesiones de revisión siguen
 con los suyos, pero su veredicto **sale de GitHub**: tu última review publicada en esa PR la deja
 `approved` / `changes-requested`, y si te vuelven a pedir review pasa a `reviewing` (actor `github`
-en el historial; no aplica a las de stack). Base: `kv` `devstate:<clave>` = `{phase, block, note, since, gh?}`; canales
+en el historial; no aplica a las de stack). Base: `kv` `devstate:<clave>` = `{phase, block, note, since, actor, gh?}`; canales
 `dev.state {key, status, note, gh?}` (fase, pausa, `unblock` o null; `gh` = fase de GitHub al
 ponerla a mano) y `prs.ready {urls}`; `sessions.tree` trae `devStates`.
 

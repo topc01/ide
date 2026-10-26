@@ -228,7 +228,7 @@ def dev_states(db: Db) -> dict[str, dict]:
             out[f"s:{r['id']}"] = _state(db, f"s:{r['id']}", r["status"])
         elif r.get("kind") == "review" and (cur := db.get(f"devstate:s:{r['id']}")) and cur.get("block"):
             out[f"s:{r['id']}"] = _state(db, f"s:{r['id']}")   # revisión pausada (p.ej. esperando tu OK)
-    return {k: {**{x: v.get(x) for x in ("phase", "block", "note", "since")}, **({"gh": v["gh"]} if "gh" in v else {})}
+    return {k: {**{x: v.get(x) for x in ("phase", "block", "note", "since", "actor")}, **({"gh": v["gh"]} if "gh" in v else {})}
             for k, v in out.items()}
 
 
