@@ -6,6 +6,7 @@ import select
 import signal
 import struct
 import termios
+import threading
 import uuid
 from pathlib import Path
 
@@ -100,10 +101,20 @@ class PtyManager:
         if not t.get("reaped"):
             try:
                 os.kill(t["pid"], signal.SIGKILL)
-                os.waitpid(t["pid"], 0)         # reap: evita zombie
+                if os.waitpid(t["pid"], os.WNOHANG)[0] == 0:
+                    # Todavía no murió (p. ej. trabado saliendo en el kernel): cosecharlo en un hilo.
+                    # Un waitpid bloqueante acá congela el event loop y con él todo el server.
+                    threading.Thread(target=self._reap_blocking, args=(t["pid"],), daemon=True).start()
             except OSError:
                 pass
         self._close_fd(t)
+
+    @staticmethod
+    def _reap_blocking(pid: int) -> None:
+        try:
+            os.waitpid(pid, 0)                  # reap: evita zombie
+        except OSError:
+            pass
 
     @staticmethod
     def _close_fd(t: dict) -> None:
