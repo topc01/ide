@@ -318,6 +318,7 @@ def seed_workspace(root: Path) -> list[Path]:
         sessions_dir(root) / "templates" / "review.md": seeds.TEMPLATE_REVIEW,
         ide / "prompts" / "tickets-y-prs.md": seeds.PROMPT_TICKETS_PRS,
         ide / "prompts" / "review-pr.md": seeds.PROMPT_REVIEW_PR,
+        ide / "prompts" / "rereview-pr.md": seeds.PROMPT_REREVIEW_PR,
         ide / "prompts" / "review-stack.md": seeds.PROMPT_REVIEW_STACK,
         ide / "skills" / "backlog" / "SKILL.md": seeds.SKILL_BACKLOG,
         ide / "manager.md": seeds.MANAGER_MD,

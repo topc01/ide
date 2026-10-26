@@ -19,7 +19,7 @@ from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
 from ide_server.devs import PHASES, split_parallel, assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
-from ide_server import pr_changes
+from ide_server import pr_changes, seeds
 from ide_server import pins as pins_mod
 from ide_server import later as later_mod
 from ide_server import evidence as evidence_mod
@@ -1206,8 +1206,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             notify()
             return {"id": sid, "created": True, "process": process}
         s = await asyncio.to_thread(read_session, root, sid)
-        text = render_template(await asyncio.to_thread(load_prompt, root, "review-pr"), {
-            "id": sid, "pr_url": url, "repo": repo, "title": s.get("title") or "",
+        # ya existe: re-review (prompt corto: las reglas ya están en su conversación)
+        def rereview() -> str:
+            try:
+                return load_prompt(root, "rereview-pr")
+            except SessionError:
+                return seeds.PROMPT_REREVIEW_PR       # workspace sembrado antes de que existiera
+        text = render_template(await asyncio.to_thread(rereview), {
+            "id": sid, "pr_url": url, "repo": repo, "number": str(number), "title": s.get("title") or "",
             "author": s["meta"].get("author", "")})
         state = supervisor.state(sid)
         if state == "queued":

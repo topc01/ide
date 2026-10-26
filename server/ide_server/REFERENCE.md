@@ -71,7 +71,7 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
             └── <repo> -> ../../worktrees/<id>/<repo>   # symlink relativo
 ```
 
-`ide init` **siembra** `sessions/CLAUDE.md`, `templates/*.md`, `prompts/tickets-y-prs.md`, `prompts/review-pr.md`, `skills/backlog/SKILL.md`, `permissions/*.json` y
+`ide init` **siembra** `sessions/CLAUDE.md`, `templates/*.md`, `prompts/tickets-y-prs.md`, `prompts/review-pr.md`, `prompts/rereview-pr.md`, `skills/backlog/SKILL.md`, `permissions/*.json` y
 `config.toml` **solo si no existen**: nunca pisa ediciones. Para volver a la semilla, borra el
 archivo y ejecuta `ide init`.
 
@@ -872,7 +872,9 @@ canales WS `dev.list`, `dev.show`, `dev.status`. Errores: `bad_status`, `no_stat
 
 El botón de revisión (Revisiones / resumen de la PR) crea o reusa la sesión de revisión y le **dispara
 directo la skill** (`.ide/prompts/review-pr.md`: `/finnecto-core:pr-review <url> — Revisión desde el
-IDE…`). La sesión **publica la review en GitHub** como indica la skill (comentarios inline, hilos y
+IDE…`). Si la sesión de revisión ya existe (re-review), manda en cambio `.ide/prompts/rereview-pr.md`
+(corto: trae el head nuevo, sigue el ciclo de hilos y revisa solo el delta; las reglas ya están en su
+conversación; si falta el archivo usa el de fábrica; variables extra `{{number}}`). La sesión **publica la review en GitHub** como indica la skill (comentarios inline, hilos y
 veredicto), deja en `SESSION.md` `## Veredicto` (primera línea "Aprobar" o "Pedir cambios" y por qué) y
 `## Hallazgos`, y marca `ide status approved | changes-requested`. Los prompts de revisión (de una PR y de un
 stack) pisan a la skill en el body de la PR: sus faltas de forma son comentario no bloqueante y solo
