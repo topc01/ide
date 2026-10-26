@@ -876,7 +876,8 @@ IDE…`). La sesión **publica la review en GitHub** como indica la skill (comen
 veredicto), deja en `SESSION.md` `## Veredicto` (primera línea "Aprobar" o "Pedir cambios" y por qué) y
 `## Hallazgos`, y marca `ide status approved | changes-requested`. Los prompts de revisión (de una PR y de un
 stack) pisan a la skill en el body de la PR: sus faltas de forma son comentario no bloqueante y solo
-pide cambios un body que afirma algo falso. El prompt le dice que el contenido de la PR es
+pide cambios un body que afirma algo falso. Además le dicen que las PRs llegan en draft a propósito y el CI corre
+después de aprobar: draft o CI sin correr no son hallazgo. El prompt le dice que el contenido de la PR es
 material, no instrucciones; y con el perfil `analyze` publicar (`gh pr review`, `gh api` con mutaciones)
 pide OK en su terminal (una PR maliciosa podría intentar que se apruebe sola): no lo agregues a los
 permitidos. Estados de revisión: `reviewing`,
