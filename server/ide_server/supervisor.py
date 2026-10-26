@@ -225,6 +225,7 @@ class Supervisor:
         self._agents = agents            # None = no mirar sesiones de fondo (tests)
         self._write = write
         self._running: dict[str, str] = {}
+        self._send_lock = threading.Lock()   # dos envíos a la vez no se intercalan letra a letra
         self._queue: list[tuple[str, bool]] = []
         self._errors: dict[str, str] = {}
         self._head: dict[str, bytes] = {}           # sid -> inicio de la salida del proceso
@@ -301,9 +302,23 @@ class Supervisor:
         # PR) y un \r o un ESC se leerían como teclas en el TUI de claude
         clean = _CTRL_RE.sub("", text.replace("\r\n", "\n").replace("\t", " "))
         body = clean.rstrip().split("\n")
-        self._write(tid, "\x1b\r".join(body).encode())   # Alt+Enter = salto de línea en claude
-        # el Enter aparte: pegado junto al texto, claude lo toma como parte del paste
-        threading.Timer(0.4, lambda: self._running.get(sid) == tid and self._write(tid, b"\r")).start()
+        # de a poco, como tipeado: escrito de un golpe, claude se queda solo con el final de un texto
+        # largo. Alt+Enter (\x1b\r) = salto de línea en claude; nunca se parte entre dos escrituras.
+        tokens = [t for i, line in enumerate(body) for t in ([*line] if i == 0 else ["\x1b\r", *line])]
+        chunks = ["".join(tokens[i:i + 64]) for i in range(0, len(tokens), 64)]
+
+        def type_it() -> None:
+            with self._send_lock:
+                for c in chunks:
+                    if self._running.get(sid) != tid:
+                        return
+                    self._write(tid, c.encode())
+                    time.sleep(0.01)
+                # el Enter aparte: pegado junto al texto, claude lo toma como parte del paste
+                time.sleep(0.4)
+                if self._running.get(sid) == tid:
+                    self._write(tid, b"\r")
+        threading.Thread(target=type_it, daemon=True).start()
 
     def paste(self, sid: str, text: str) -> None:
         """Pega `text` en el input de su claude como un paste de terminal (sin Enter): así una ruta a
