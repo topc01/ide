@@ -581,18 +581,18 @@ con veredicto o texto + comentarios generales, por fecha). Se pide a GitHub a de
 `reviews.discussion {url}`) al abrirlo y cada 60 s mientras está abierto (o con ↻). El texto se
 muestra limpio (sin HTML ni imágenes), los largos recortados con "ver más".
 
-**Módulo Stack** (id `stack`): los stacks de las PRs del desarrollo actual (abajo = la base), por repo. Si un stack se bifurca (dos PRs con la misma base), la rama más larga sigue en línea y la más corta va con sangría (`└`), justo arriba de la PR de la que sale.
+**Módulo Stack** (id `stack`): los stacks de las PRs del desarrollo actual (abajo = la base), por repo. El stack es un árbol por la base real de cada PR: su **madre** es la PR cuya rama es su base, y las que comparten base son **hermanas** (no una cadena). Si se bifurca, la rama más larga sigue en línea y las más cortas van con sangría (`└`), justo arriba de la PR de la que salen; si empatan, todas las hermanas van con sangría al mismo nivel. "Quedó atrás" compara cada PR con su madre, y "Re-apilar" rebasea cada una sobre su madre (nunca sobre una hermana). `ide server ls` lo escribe igual: `api#4950 → {api#4971, api#4976}`.
 Click en una PR despliega bajo su rama sus **archivos cambiados** contra su base (en un stack, la rama
 de abajo: solo lo de esa PR; si la rama está en un worktree del IDE, incluye lo no commiteado y lo no
 trackeado): letra del cambio, nombre, carpeta debajo y +/−. Click en un archivo abre su **diff** en una
 tab (lado a lado o unificado, sin cambios colapsados) y queda destacado en la lista. Doble click en una
 PR la abre en el panel principal (resumen + descripción). Cada stack es una card; los avisos aparecen
-solo cuando hace falta: "#n quedó atrás de la de abajo → **Re-apilar**" (una rama no contiene el head
+solo cuando hace falta: "#n quedó atrás de su madre → **Re-apilar**" (una rama no contiene el head
 actual de su madre) y "develop avanzó N commits → **Poner al día con develop**" (canal
 `stack.status {url}` → `{behindParent, baseAhead, base}`). El server guarda
 los cambios 30 s y el módulo los precarga al abrirse (el fetch a GitHub es lo lento). Sale de git local: las refs se traen a `refs/ide/pr/<n>` y `refs/ide/base/<rama>`
 del repo principal (no tocan sus ramas). Acciones: **Mergear** en la de abajo (tuya y aprobada; el
-flujo de merge de siempre), **Restack** (cada PR sobre la de abajo) y **Actualizar desde <base>**
+flujo de merge de siempre), **Restack** (cada PR sobre su madre) y **Actualizar desde <base>**
 (también la de abajo sobre su base), solo en stacks enteros tuyos y con confirmación: rebase
 `--onto` desde el primer commit propio de cada PR (no arrastra commits viejos de la madre) y push
 `--force-with-lease`. Se niega si una de esas ramas está en un worktree con cambios sin commitear o

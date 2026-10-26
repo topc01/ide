@@ -45,9 +45,10 @@ function devStacks(prs: GhPr[], gh: GithubReviews): { own: Set<string>; stacks: 
   return { own: new Set(prs.map((p) => p.url)), stacks };
 }
 
-/** El stack como árbol (padre = la PR cuya rama es la base): de abajo hacia arriba, y en cada bifurcación
- *  la rama más larga sigue en la misma columna y las más cortas van con sangría (justo arriba de donde
- *  se separan). */
+/** El stack como árbol (madre = la PR cuya rama es su base; las que comparten base son hermanas): de
+ *  abajo hacia arriba. En una bifurcación, si una rama es más larga que las otras sigue en la misma
+ *  columna y las más cortas van con sangría (justo arriba de donde se separan); si empatan, todas las
+ *  hermanas van con sangría, al mismo nivel. */
 export function stackRows(stack: GhPr[]): { pr: GhPr; depth: number }[] {
   const byHead = new Map(stack.map((p) => [p.head, p]));
   const kids = new Map<string, GhPr[]>();
@@ -69,8 +70,9 @@ export function stackRows(stack: GhPr[]): { pr: GhPr; depth: number }[] {
     seen.add(p.url);
     out.push({ pr: p, depth });
     const ks = [...(kids.get(p.url) ?? [])].sort((a, b) => height(b) - height(a) || a.number - b.number);
-    for (const k of ks.slice(1)) walk(k, depth + 1);   // las cortas, con sangría
-    if (ks[0]) walk(ks[0], depth);                     // la más larga sigue en línea
+    const inline = ks.length === 1 || (ks.length > 1 && height(ks[0]) > height(ks[1])) ? ks[0] : null;
+    for (const k of ks) if (k !== inline) walk(k, depth + 1);   // las cortas (o todas si empatan), con sangría
+    if (inline) walk(inline, depth);                            // la más larga sigue en línea
   };
   for (const r of roots) walk(r, 0);
   for (const p of stack) if (!seen.has(p.url)) out.push({ pr: p, depth: 0 });
@@ -189,14 +191,14 @@ function StackActions({ stack }: { stack: GhPr[] }) {
     <div className="mx-2 mb-1 space-y-1 text-[10px]">
       {behind.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-amber-300">
-          <span title="Cambió una PR de más abajo y las de arriba no la incluyen todavía">
-            {behind.map((u) => `#${num(u)}`).join(", ")} quedó atrás de la de abajo</span>
+          <span title="Cambió la PR sobre la que están (su madre: la de su rama base) y no la incluyen todavía">
+            {behind.map((u) => `#${num(u)}`).join(", ")} quedó atrás de su madre</span>
           {confirm === "restack" ? (<>
             <span>¿rebasear y empujar (--force-with-lease)?</span>
             <button className={cn(btn, "border-amber-400/60")} disabled={busy} title="Sí" onClick={() => run(false)}>Sí</button>
             <button className={cn(btn, "border-border text-muted-foreground")} title="No" onClick={() => setConfirm(null)}>No</button>
           </>) : <button className={cn(btn, "border-amber-400/60 hover:bg-amber-400/10")} disabled={busy}
-            title="Rebasear cada PR sobre la de abajo (re-apilar)" onClick={() => setConfirm("restack")}>Re-apilar</button>}
+            title="Rebasear cada PR sobre su madre (la PR de su rama base; las hermanas no se apilan entre sí)" onClick={() => setConfirm("restack")}>Re-apilar</button>}
         </div>)}
       {!!st?.baseAhead && (
         <div className="flex flex-wrap items-center gap-1.5 text-sky-300">

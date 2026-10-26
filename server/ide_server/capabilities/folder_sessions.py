@@ -1125,6 +1125,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         for b in bl:
             api = server_blocks.default_api(bl, b, run_of) if b["front"] else None
             out.append({"name": b["name"], "repo": b["repo"], "prs": [f"{server_blocks.short(x['repo'])}#{x['number']}" for x in b["prs"]],
+                        "chain": server_blocks.chain(b["prs"]),
                         "branch": b["branch"], "where": b["where"], "exists": b["exists"], "place": b["place"],
                         "front": b["front"], "api": api["name"] if api else None,
                         "scripts": [{"name": n, **{k: (run_of(b, n) or {}).get(k) for k in ("state", "exitCode", "urls", "branch", "error")}}

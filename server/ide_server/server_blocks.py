@@ -56,6 +56,28 @@ def blocks(root: Path, dev: dict, session: dict | None) -> list[dict]:
     return out
 
 
+def chain(prs: list[dict]) -> str:
+    """Las PRs de un bloque como árbol por su base real: `api#4950 → {api#4971, api#4976}` (hermanas
+    entre llaves); una cadena lineal queda `api#1 → api#2 → api#3`."""
+    from ide_server.pr_changes import stack_parent
+    name = lambda p: f"{short(p['repo'])}#{p['number']}"   # noqa: E731
+    kids: dict[str, list[dict]] = {}
+    roots = []
+    for p in prs:
+        parent = stack_parent(prs, p)
+        (kids.setdefault(parent["url"], []) if parent else roots).append(p)
+    seen: set[str] = set()
+
+    def render(p: dict) -> str:
+        seen.add(p["url"])
+        ks = [k for k in kids.get(p["url"], []) if k["url"] not in seen]
+        if not ks:
+            return name(p)
+        rest = render(ks[0]) if len(ks) == 1 else "{" + ", ".join(render(k) for k in ks) + "}"
+        return f"{name(p)} → {rest}"
+    return ", ".join(render(r) for r in roots) or " → ".join(name(p) for p in prs)
+
+
 def find(bl: list[dict], ref: str) -> dict:
     """Un bloque por una de sus PRs (`api#4897`, `finnecto-api#4897`, URL) o por su repo (`admin`) si es
     el único bloque de ese repo."""

@@ -298,7 +298,7 @@ def _server_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
             return 0
         for b in bl:
             where = {"session": "worktree de la sesión", "pr": "worktree aparte" if b["exists"] else "worktree aparte (se crea al correr)"}[b["where"]]
-            out.write(f"{b['name']}\t{' → '.join(b['prs']) or 'sin PR'}\trama {b['branch'] or '?'}\t{where}"
+            out.write(f"{b['name']}\t{b.get('chain') or ' → '.join(b['prs']) or 'sin PR'}\trama {b['branch'] or '?'}\t{where}"
                       + (f"\tapi: {b['api'] or 'su .env.local'}" if b["front"] else "") + "\n")
             for sc in b["scripts"]:
                 st = sc.get("state") or "sin correr"

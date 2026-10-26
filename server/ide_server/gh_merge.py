@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 from ide_server.db import Db
+from ide_server.pr_changes import stack_parent
 from ide_server.sessions_fs import SessionError
 from ide_server.workspace import discover_repos
 
@@ -344,8 +345,10 @@ class Merger:
             wt = self._wt(pr["repo"], pr.get("fullRepo"))
             guarded = self._local_guard(repo, [p["head"] for p in prs])
             _check(_run(["git", "fetch", "origin", "--prune"], wt), "git fetch")
-            for i, p in enumerate(prs):
-                if i == 0 and not update_base:
+            # cada una sobre SU base (la rama de su madre; hermanas sobre la misma madre, nunca una
+            # sobre otra), madres antes que hijas (el orden del stack es en profundidad)
+            for p in prs:
+                if not update_base and stack_parent(prs, p) is None:
                     continue
                 onto = f"origin/{p['base']}"
                 upstream = self._own_commits_base(pr["fullRepo"], p["number"], p["head"], wt)
