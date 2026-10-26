@@ -581,7 +581,7 @@ con veredicto o texto + comentarios generales, por fecha). Se pide a GitHub a de
 `reviews.discussion {url}`) al abrirlo y cada 60 s mientras está abierto (o con ↻). El texto se
 muestra limpio (sin HTML ni imágenes), los largos recortados con "ver más".
 
-**Módulo Stack** (id `stack`): los stacks de las PRs del desarrollo actual (abajo = la base), por repo.
+**Módulo Stack** (id `stack`): los stacks de las PRs del desarrollo actual (abajo = la base), por repo. Si un stack se bifurca (dos PRs con la misma base), la rama más larga sigue en línea y la más corta va con sangría (`└`), justo arriba de la PR de la que sale.
 Click en una PR despliega bajo su rama sus **archivos cambiados** contra su base (en un stack, la rama
 de abajo: solo lo de esa PR; si la rama está en un worktree del IDE, incluye lo no commiteado y lo no
 trackeado): letra del cambio, nombre, carpeta debajo y +/−. Click en un archivo abre su **diff** en una

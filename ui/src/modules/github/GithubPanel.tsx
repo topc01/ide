@@ -45,6 +45,38 @@ function devStacks(prs: GhPr[], gh: GithubReviews): { own: Set<string>; stacks: 
   return { own: new Set(prs.map((p) => p.url)), stacks };
 }
 
+/** El stack como árbol (padre = la PR cuya rama es la base): de abajo hacia arriba, y en cada bifurcación
+ *  la rama más larga sigue en la misma columna y las más cortas van con sangría (justo arriba de donde
+ *  se separan). */
+export function stackRows(stack: GhPr[]): { pr: GhPr; depth: number }[] {
+  const byHead = new Map(stack.map((p) => [p.head, p]));
+  const kids = new Map<string, GhPr[]>();
+  const roots: GhPr[] = [];
+  for (const p of stack) {
+    const parent = byHead.get(p.base);
+    if (parent && parent !== p) kids.set(parent.url, [...(kids.get(parent.url) ?? []), p]);
+    else roots.push(p);
+  }
+  const height = (p: GhPr, seen = new Set<string>()): number => {
+    if (seen.has(p.url)) return 0;
+    seen.add(p.url);
+    return 1 + Math.max(0, ...(kids.get(p.url) ?? []).map((k) => height(k, seen)));
+  };
+  const out: { pr: GhPr; depth: number }[] = [];
+  const seen = new Set<string>();
+  const walk = (p: GhPr, depth: number) => {
+    if (seen.has(p.url)) return;                 // ciclo de bases: se corta
+    seen.add(p.url);
+    out.push({ pr: p, depth });
+    const ks = [...(kids.get(p.url) ?? [])].sort((a, b) => height(b) - height(a) || a.number - b.number);
+    for (const k of ks.slice(1)) walk(k, depth + 1);   // las cortas, con sangría
+    if (ks[0]) walk(ks[0], depth);                     // la más larga sigue en línea
+  };
+  for (const r of roots) walk(r, 0);
+  for (const p of stack) if (!seen.has(p.url)) out.push({ pr: p, depth: 0 });
+  return out;
+}
+
 const STATUS: Record<string, [string, string, string]> = {
   A: ["A", "text-emerald-400", "nuevo"], M: ["M", "text-amber-300", "modificado"], D: ["D", "text-red-400", "borrado"],
   R: ["R", "text-sky-300", "renombrado"], "?": ["?", "text-emerald-300", "sin trackear (worktree local)"],
@@ -94,19 +126,21 @@ function PrChanges({ pr }: { pr: GhPr }) {
  *  abierta. destacada la que estás viendo.
  *  `assigned`: tuya o figuras como revisor (si no, va tachada y atenuada). Mergear en la de abajo si es
  *  tuya y está aprobada. */
-function StackItem({ pr, own, assigned, onGoto, viewing, onOpen, onShow, mine, job, above }:
+function StackItem({ pr, own, assigned, onGoto, viewing, onOpen, onShow, mine, job, above, depth = 0 }:
   { pr: GhPr; own: boolean; assigned: boolean; onGoto?: () => void; viewing: boolean; onOpen: () => void; onShow: () => void;
-    mine: boolean; job?: MergeJob; above: number }) {
+    mine: boolean; job?: MergeJob; above: number; depth?: number }) {
   const [color, label] = pr.review ? REVIEW[pr.review] : [null, "sin review"];
   const merging = !!job && MERGE_ACTIVE.includes(job.state);
   return (
-    <QueueItem className="min-w-0 px-1.5">
+    <QueueItem className="min-w-0 px-1.5" style={depth ? { paddingLeft: `${0.375 + depth * 0.875}rem` } : undefined}>
       <div onClick={onOpen} onDoubleClick={onShow}
         title={`${viewing ? "Ocultar" : "Ver"} los archivos cambiados · doble click: abrir la PR (descripción) en el panel principal`}
         className={cn("flex min-w-0 cursor-pointer items-start gap-1.5 rounded border-l-2 border-transparent px-1.5 py-1 text-xs hover:bg-accent/60",
           viewing && "border-primary bg-accent", !assigned && "opacity-50")}>
         <span aria-label={label} title={label}
           className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", color ?? "border border-muted-foreground")} />
+        {depth > 0 && <span className="mt-px font-mono text-[10px] text-muted-foreground"
+          title={`rama paralela: sale de la PR con rama ${pr.base}`}>└</span>}
         <span className="mt-px font-mono text-[10px] text-muted-foreground">{pr.stack?.position ?? 1}</span>
         <div className="min-w-0 flex-1">
           <div className={cn("truncate", !assigned && "line-through")}
@@ -219,7 +253,7 @@ export function GithubPanel() {
           </div>
           {stack.every((p) => gh?.me && p.author === `@${gh.me}`) && <StackActions stack={stack} />}
           <QueueList className="flex-col-reverse">
-            {stack.map((pr) => <StackItem key={pr.url} pr={pr} own={data.own.has(pr.url)}
+            {stackRows(stack).map(({ pr, depth }) => <StackItem key={pr.url} pr={pr} depth={depth} own={data.own.has(pr.url)}
               onGoto={openDev(pr)} viewing={expanded === pr.url}
               onOpen={() => setExpanded(expanded === pr.url ? null : pr.url)}
               onShow={() => { if (dev) openTab(dev.key, summaryTab(pr.url, `${pr.repo.replace(/^finnecto-/, "").toUpperCase()} #${pr.number}`)); }}
