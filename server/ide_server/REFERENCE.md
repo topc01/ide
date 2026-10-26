@@ -155,7 +155,7 @@ Crea la carpeta y lanza `claude` en ella (o la encola si se llegó a `max_runnin
 | Flag | Efecto |
 |---|---|
 | `--id X` | id explícito (se normaliza). Sin id: `--notion` lo deriva; si no, al azar `s-xxxxx` |
-| `--notion <url>` | id = `n-<últimos 10 hex del page id>` y `notion_url` = la URL. Si el id ya es de otro ticket → `id_collision` |
+| `--notion <url>` | id = `n-<últimos 10 hex del page id>` y `notion_url` = la URL. Si el id ya es de otro ticket → `id_collision`. Deja el link del ticket en sus Adjuntos (`attachments/ticket-notion.url`) |
 | `--main` | sesión principal (una sola por workspace; `main_exists` si ya hay) |
 | `--template <nombre>` | renderiza `templates/<nombre>.md` como prompt (§7) |
 | `--var k=v` (repetible) / `--vars-file f.json` / `--vars-file -` (stdin) | variables de la plantilla; JSON = objeto `{"k": "v"}`; `--var` pisa al archivo. Prefiere JSON para textos con comillas, `\|` o saltos de línea |

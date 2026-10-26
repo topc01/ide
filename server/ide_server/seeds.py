@@ -315,7 +315,9 @@ Si la sesión está trabajando, el prompt queda en su cola (lo toma al terminar 
 parada, se lanza con él. Después dile al usuario a qué sesión lo mandaste y qué le mandaste.
 Si no está claro a qué desarrollo se refiere (o podría ser más de uno), **pregúntale** antes de mandar.
 Si no es para ningún desarrollo existente y es trabajo nuevo, propón crear la sesión (ticket de Notion,
-`/backlog`).
+`/backlog`). Al crearla, pasa **siempre** el ticket con `--notion <url>` (`ide session new --notion <url> …`): así
+queda su link en los Adjuntos de la sesión (`attachments/ticket-notion.url`). Si no hay ticket, díselo
+al usuario al crearla.
 
 **Mover PRs entre desarrollos** (p.ej. un desarrollo se separó en dos): `ide dev link '#n' <pr…>`
 (URL o `repo#n`; pisa la asignación que tuvieran) y `ide dev unlink '#n' <pr…>`.

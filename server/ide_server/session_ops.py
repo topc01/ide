@@ -145,6 +145,11 @@ def create_session(root: Path, req: dict, *, runner: Runner = _run) -> dict:
                 "prompt": prompt, "log": "", "dryRun": True,
                 "existed": session_path(root, sid).exists()}
     create_session_dir(root, sid=sid, kind=kind, permissions=permissions, prompt=prompt, meta=meta)
+    if (meta or {}).get("notion_url"):
+        # el ticket queda en sus Adjuntos (link `.url`, el mismo formato que el botón "link")
+        att = session_path(root, sid) / "attachments"
+        att.mkdir(exist_ok=True)
+        (att / "ticket-notion.url").write_text(f"[InternetShortcut]\nURL={meta['notion_url']}\n", encoding="utf-8")
     return {"session": read_session(root, sid), "log": ""}
 
 
