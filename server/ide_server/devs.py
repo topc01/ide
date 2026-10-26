@@ -291,7 +291,8 @@ def split_parallel(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[s
             if session_path(root, new).exists():
                 continue
             try:
-                create_session(root, {"id": new, "title": f"{top['title']} (sale del #{n})"})
+                # la de origen como `caller`: hereda sus permisos (nunca más, nunca full)
+                create_session(root, {"id": new, "title": f"{top['title']} (sale del #{n})", "caller": s["id"]})
                 add_repo(root, new, top["repo"], branch=top["head"], out=io.StringIO())
             except BranchOccupied:
                 continue                                    # la rama está en otro worktree: se intenta después
