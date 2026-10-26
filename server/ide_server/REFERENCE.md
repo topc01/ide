@@ -762,7 +762,8 @@ se haya elegido una fila), con una cabecera por repo si es fullstack.
 **Card:** el título usa todo el ancho; las marcas (⏸, CI) van en la esquina superior derecha y las
 acciones aparecen en hover en una **columna a la derecha de la card**, pegada a ella, con el ícono y
 el **nombre** de cada acción (no tapan el título; se quedan mientras el mouse esté en la card o en la
-columna, con un margen para cruzar). Las
+columna, con un margen mínimo para cruzar; al entrar a otra card, la columna de la anterior se
+esconde al instante: solo hay una a la vez). Las
 cards no tienen "parar claude" (se para desde la terminal). En Mis desarrollos, si un revisor pidió
 cambios, **Pedir re-review** (↺, con confirmación) se lo vuelve a pedir a quienes pidieron cambios en
 cada PR del desarrollo (`gh pr edit --add-reviewer`, canal `pr.reviewers`).

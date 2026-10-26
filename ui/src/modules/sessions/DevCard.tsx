@@ -184,9 +184,12 @@ export function CardCorner({ children }: { children: ReactNode }) {
 }
 
 /** Acciones de hover: una columna **a la derecha de la card** (fuera de ella, en un portal) con el
- *  ícono y el nombre de cada acción, para no tapar el título. Pegada a la card (sin hueco) y con
- *  margen para cruzar: se queda mientras el mouse esté en la card o en la columna. Siempre existe
+ *  ícono y el nombre de cada acción, para no tapar el título. Pegada a la card (sin hueco), con un
+ *  margen mínimo para cruzar; al entrar a otra card, la de la anterior se esconde al instante. Siempre existe
  *  (solo se oculta): así una ventana que abrió una acción no se cierra al salir. */
+// solo una columna a la vez: al entrar a otra card, la anterior se esconde al instante
+let hideCurrent: (() => void) | null = null;
+
 export function CardActions({ children }: { children: ReactNode }) {
   const anchor = useRef<HTMLSpanElement>(null);
   const col = useRef<HTMLDivElement>(null);
@@ -194,12 +197,17 @@ export function CardActions({ children }: { children: ReactNode }) {
   const [shown, setShown] = useState(false);
   const hide = useRef<number | null>(null);
   const keep = () => { if (hide.current) clearTimeout(hide.current); };
-  const leave = () => { keep(); hide.current = window.setTimeout(() => setShown(false), 400); };
+  const leave = () => { keep(); hide.current = window.setTimeout(() => setShown(false), 80); };   // solo para cruzar
   useEffect(() => {
     const card = anchor.current?.closest("[data-card]") as HTMLElement | null;
     if (!card) return;
     const measure = () => setRect(card.getBoundingClientRect());
-    const show = () => { keep(); measure(); setShown(true); window.setTimeout(measure, 170); };  // la card se ensancha al hover
+    const off = () => { keep(); setShown(false); };
+    const show = () => {
+      if (hideCurrent && hideCurrent !== off) hideCurrent();
+      hideCurrent = off;
+      keep(); measure(); setShown(true); window.setTimeout(measure, 170);   // la card se ensancha al hover
+    };
     card.addEventListener("mouseenter", show);
     card.addEventListener("mouseleave", leave);
     measure();
