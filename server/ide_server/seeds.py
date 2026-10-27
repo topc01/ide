@@ -399,6 +399,9 @@ PERM_ANALYZE = {"permissions": {
     "allow": [
         "Read", "Grep", "Glob", *_READ_ONLY_BASH,
         "Bash(ide repo add:*)", "Bash(ide script:*)", "Bash(ide session ls:*)", "Bash(ide status:*)",
+        "Bash(ide push:*)",
+        # consultas de solo lectura a las bases (skills db-prod / db-staging; usuario read-only)
+        "Bash(/Users/topc/.claude/skills/db-connect.sh prod:*)", "Bash(/Users/topc/.claude/skills/db-connect.sh staging:*)",
         "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh search prs:*)",
         "Edit(**/SESSION.md)", "Edit(**/TICKET.md)", "Edit(**/REVIEW.md)",
         "mcp__claude_ai_Notion__notion-fetch", "mcp__claude_ai_Notion__notion-search",
