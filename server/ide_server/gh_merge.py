@@ -169,12 +169,16 @@ class Merger:
         if self.jobs.get(url, {}).get("state") in ACTIVE:
             raise SessionError("merge_pending", "ya hay un merge en curso para esta PR")
         native = bool(pr.get("stack") and pr["stack"].get("native"))
-        # stack nativo: GitHub rebasea y re-apunta las de arriba solo; si no, las restackea el IDE
-        above = [] if native else [
+        # stack nativo: GitHub rebasea y re-apunta sus miembros solo; el IDE restackea el resto (las
+        # que se le apilaron por base, fuera del stack nativo) y todo el stack si no es nativo
+        in_native = lambda p: native and (p["stack"].get("inNative") is not False)   # noqa: E731
+        above = [
             {"url": p["url"], "head": p["head"], "base": p["base"], "number": p["number"],
              "author": p.get("author"), "fork": bool(p.get("fork"))}
-            for p in stack if p["stack"]["position"] > 1]
-        self._update(url, state="rebasing", error=None, merged=False, native=native,
+            for p in stack if p["stack"]["position"] > 1 and not in_native(p)]
+        native_heads = [p["head"] for p in stack if p["stack"]["position"] > 1 and in_native(p)]
+        self._update(url, state="rebasing", error=None, merged=False, native=native, native_heads=native_heads,
+                     native_old=None, restack_since=None,
                      repo=pr["repo"], full_repo=pr.get("fullRepo"), head=pr["head"], base=pr["base"],
                      number=pr["number"], title=pr["title"], above=above, restacked=[], moved=None,
                      uuid=None, me=me, at=datetime.now().isoformat(timespec="seconds"))
@@ -203,6 +207,10 @@ class Merger:
                     old, new = self._rebase(wt, j["head"], f"origin/{j['base']}", upstream=cut)
                     self._update(url, rebased=new != old)
             self._update(url, old_sha=old, head_sha=new)
+            if j.get("native") and j.get("above"):
+                # dónde están hoy las ramas que GitHub va a mover: desde ahí se re-aplican las de encima
+                self._update(url, native_old={h: _check(_run(["git", "rev-parse", f"origin/{h}"], wt), f"origin/{h}")
+                                              for h in j.get("native_heads") or []})
             if j.get("native"):
                 # stack nativo: GitHub solo acepta `merge-async`: el IDE espera CI y aprobación
                 self._update(url, state="waiting_ci")
@@ -372,6 +380,25 @@ class Merger:
             # rama -> [sha viejo, a dónde va ahora, nueva base]; la mergeada "se convierte" en su
             # base. Se persiste: si falla a la mitad, el reintento sigue desde ahí.
             moved = j.get("moved") or {j["head"]: [j["old_sha"], f"origin/{j['base']}", j["base"]]}
+            if j.get("native") and not j.get("moved"):
+                # stack nativo: GitHub mueve sus miembros por su cuenta; las de encima se re-aplican
+                # cuando ya los movió (si no, se espera al próximo ciclo, hasta 10 min)
+                _check(_run(["git", "fetch", "origin", "--prune"], wt), "git fetch")
+                waiting = []
+                for h, old in (j.get("native_old") or {}).items():
+                    now = _run(["git", "rev-parse", f"origin/{h}"], wt).stdout.strip()
+                    if now == old:
+                        waiting.append(h)
+                    moved[h] = [old, f"origin/{h}", h]
+                if waiting:
+                    since = j.get("restack_since") or datetime.now().isoformat(timespec="seconds")
+                    if (datetime.now() - datetime.fromisoformat(since)).total_seconds() < 600:
+                        self._update(url, restack_since=since)
+                        return
+                    self._update(url, state="error", error="mergeada, pero GitHub no movió " + ", ".join(waiting)
+                                 + " en 10 min: no restackeé las de encima (reintenta o muévelas a mano)")
+                    return
+                self._update(url, moved=moved)
             skipped = []
             for p in j["above"]:
                 if p["url"] in j.get("restacked", []):
@@ -393,7 +420,8 @@ class Merger:
                 self._update(url, moved=moved,
                              restacked=[*self.jobs[url].get("restacked", []), p["url"]])
             # si quedó una PR sin mover apuntando a la rama mergeada, borrarla la cerraría en GitHub
-            if not skipped:
+            # (en un stack nativo la rama la maneja GitHub)
+            if not skipped and not j.get("native"):
                 out = _run(["git", "push", "origin", "--delete", j["head"]], wt)   # ya pudo borrarla GitHub
                 if out.returncode != 0 and "remote ref does not exist" not in out.stderr:
                     log.warning("no se pudo borrar la rama %s: %s", j["head"], out.stderr.strip())
@@ -405,8 +433,9 @@ class Merger:
         self._update(url, state="done", merged_at=datetime.now().isoformat(timespec="seconds"))
 
     def _merged(self, url: str) -> None:
-        """GitHub ya la mergeó: si el stack es nativo GitHub mueve las de arriba; si no, el IDE."""
-        if self.jobs[url].get("native") or not self.jobs[url].get("above"):
+        """GitHub ya la mergeó: las de arriba que no mueve GitHub (todas si no es nativo; en uno nativo,
+        las que se le apilaron por base) las restackea el IDE."""
+        if not self.jobs[url].get("above"):
             self._update(url, state="done", merged=True,
                          merged_at=datetime.now().isoformat(timespec="seconds"))
         else:
@@ -495,7 +524,7 @@ class Merger:
         if not j or j.get("state") != "error":
             raise SessionError("no_merge", "no hay un merge con error para reintentar")
         if j.get("merged"):
-            self._update(url, state="restacking", error=None)
+            self._update(url, state="restacking", error=None, restack_since=None)
         else:
             self._update(url, state="rebasing", error=None)
             threading.Thread(target=self._start, args=(url,), daemon=True).start()

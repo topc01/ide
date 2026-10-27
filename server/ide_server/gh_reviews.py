@@ -72,7 +72,10 @@ def review_state(n: dict) -> str | None:
 def compute_stacks(prs: list[dict]) -> dict[str, dict]:
     """Stacks de GitHub: una PR está en un stack si su base es la rama (head) de otra PR abierta
     del mismo repo. Devuelve url -> {id (url de la base del stack), position (1 = la de abajo),
-    size}; solo PRs en stacks de 2 o más. Si el stack se ramifica, el orden es en profundidad."""
+    size, native, inNative}; solo PRs en stacks de 2 o más. Si el stack se ramifica, el orden es en
+    profundidad. Una PR cuya base es la rama de una PR de un stack nativo de GitHub (p.ej. abierta con
+    `gh pr create --base`) se suma a ese stack arriba de su madre (`inNative` false): posición y tamaño
+    son del conjunto."""
     # las PRs desde forks no apilan: su rama no está en el repo base (mismo nombre ≠ misma rama)
     prs = [n for n in prs if not n.get("isCrossRepository")]
     by_head = {(n["repository"]["name"], n["headRefName"]): n for n in prs if n.get("headRefName")}
@@ -93,17 +96,32 @@ def compute_stacks(prs: list[dict]) -> dict[str, dict]:
         st, entry = n.get("stack"), n.get("stackEntry")
         if st and entry:
             native.setdefault(st["id"], []).append(n)
+    native = {sid: sorted(m, key=lambda m: m["stackEntry"]["position"]) for sid, m in native.items() if len(m) >= 2}
+    in_native = {n["url"]: sid for sid, members in native.items() for n in members}
     for sid, members in native.items():
-        if len(members) < 2:
-            continue
-        members.sort(key=lambda m: m["stackEntry"]["position"])
-        for i, n in enumerate(members):
-            out[n["url"]] = {"id": f"native:{sid}", "position": i + 1, "size": len(members), "native": True}
+        # en profundidad desde la de abajo: primero sus hijas nativas (en el orden de GitHub), después
+        # las que se le apilaron por base; no se cruza a otro stack nativo
+        pos = {n["url"]: i for i, n in enumerate(members)}
+        order, todo, seen = [], [members[0]], set()
+        while todo:
+            n = todo.pop()
+            if n["url"] in seen or in_native.get(n["url"], sid) != sid:
+                continue
+            seen.add(n["url"])
+            order.append(n)
+            kids = children.get(n["url"], [])
+            todo.extend(sorted(kids, key=lambda c: (c["url"] not in pos, pos.get(c["url"], 0), c["number"]), reverse=True))
+        order += [n for n in members if n["url"] not in seen]
+        for i, n in enumerate(order):
+            out[n["url"]] = {"id": f"native:{sid}", "position": i + 1, "size": len(order), "native": True,
+                             "inNative": n["url"] in pos}
     for root in roots:
+        if root["url"] in out:                  # ya está en un stack nativo (con lo que se le apila)
+            continue
         order, todo, seen = [], [root], set()
         while todo:
             n = todo.pop()
-            if n["url"] in seen:                # ciclo de bases: se corta
+            if n["url"] in seen or n["url"] in out:   # ciclo de bases, o ya es de un stack nativo
                 continue
             seen.add(n["url"])
             order.append(n)
@@ -111,7 +129,7 @@ def compute_stacks(prs: list[dict]) -> dict[str, dict]:
         if len(order) > 1:
             for i, n in enumerate(order):
                 out.setdefault(n["url"], {"id": root["url"], "position": i + 1, "size": len(order),
-                                          "native": False})
+                                          "native": False, "inNative": False})
     return out
 
 

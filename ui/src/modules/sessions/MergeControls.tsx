@@ -41,7 +41,7 @@ export function MergeButton({ pr, above }: { pr: GhPr; above: number }) {
               mergeada), rebasea <code>{pr.head}</code> sobre <code>{pr.base}</code> y la empuja. Si no, no la toca
               (no vuelve a correr el CI).</li>
           <li>{pr.stack?.native
-            ? "Stack nativo de GitHub: el IDE espera el CI y la aprobación y la mergea (squash); GitHub re-apunta las de arriba."
+            ? "Stack nativo de GitHub: el IDE espera el CI y la aprobación y la mergea (squash); GitHub re-apunta las de arriba del stack nativo, y las que se le apilaron por base (fuera de él) las restackea el IDE cuando GitHub ya movió a su madre."
             : "Arma el auto-merge de GitHub (squash): GitHub la mergea al pasar el CI y la aprobación, aunque el IDE esté apagado."}
             {pr.review !== "approved" && " Todavía no está aprobada: queda esperando la aprobación."}</li>
           {pr.stack?.native ? null : above > 0

@@ -153,7 +153,7 @@ export interface GhPr {
   draft: boolean; updatedAt: string | null; sessionId: string;
   head: string | null; base: string | null;
   review: "approved" | "changes" | "review" | null;
-  stack: { id: string; position: number; size: number; native?: boolean } | null;
+  stack: { id: string; position: number; size: number; native?: boolean; inNative?: boolean } | null;
   reviewers?: { login: string; state: "requested" | "approved" | "changes" }[];
   ci?: "success" | "failure" | "pending" | null; conflict?: boolean;
   ciRunning?: boolean;                      // el CI falló pero quedan checks corriendo
