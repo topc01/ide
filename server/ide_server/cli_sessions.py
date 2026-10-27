@@ -584,6 +584,9 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _telegram(a, root, url, http, out)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
         if a.group == "push":
+            # una sesión solo sube lo suyo (el permiso `ide push` no le da las ramas de otras)
+            if env.get("IDE_SESSION_ID") and sid != env["IDE_SESSION_ID"]:
+                raise SessionError("forbidden", f"desde la sesión {env['IDE_SESSION_ID']} no se suben ramas de {sid}")
             return push(root, sid, a.repo, branches=a.branch, force=a.force, out=out)
         if a.group == "repo" and a.cmd == "add":
             info = add_repo(root, sid, a.repo, branch=a.branch, out=out)
