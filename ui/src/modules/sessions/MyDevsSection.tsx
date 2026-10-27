@@ -60,13 +60,16 @@ export function PrRow({ pr, job, bottom, sessionId }: { pr: GhPr; job?: MergeJob
   );
 }
 
-/** "Mover a otro desarrollo…": elegir la sesión destino (lo mismo que `ide dev link`). */
-function MovePrAction({ pr, from }: { pr: GhPr; from: string }) {
+/** "Mover a otro desarrollo…" (o a otra revisión, con `to="review"`): elegir la sesión destino (lo mismo
+ *  que `ide dev link`). */
+export function MovePrAction({ pr, from, to: kind = "ticket" }: { pr: GhPr; from?: string; to?: "ticket" | "review" }) {
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const tree = useFolders((s) => s.tree);
-  const targets = tree.sessions.filter((s) => s.kind === "ticket" && s.id !== from);
+  const targets = tree.sessions.filter((s) => s.kind === kind && s.id !== from
+    && !(kind === "review" && (s.stackPrs ?? [s.prUrl]).includes(pr.url)));
+  const what = kind === "review" ? "revisión" : "desarrollo";
   const label = (id: string) => {
     const n = tree.devIndex?.[`s:${id}`];
     return `${n !== undefined ? `#${n} ` : ""}${tree.devNames?.[`s:${id}`] ?? tree.sessions.find((x) => x.id === id)?.title ?? id}`;
@@ -79,8 +82,9 @@ function MovePrAction({ pr, from }: { pr: GhPr; from: string }) {
     }).catch((e: any) => setErr(e?.message ?? String(e)));
   };
   return (<>
-    <QueueItemAction aria-label={`Mover ${pr.repo}#${pr.number} a otro desarrollo`}
-      title="Mover esta PR a otro desarrollo (queda asignada ahí; no toca GitHub)"
+    <QueueItemAction aria-label={`Mover ${pr.repo}#${pr.number} a otr${kind === "review" ? "a" : "o"} ${what}`}
+      title={kind === "review" ? "Mover esta PR a otra revisión (va con sus PRs; la sesión recibe un aviso; no toca GitHub)"
+        : "Mover esta PR a otro desarrollo (queda asignada ahí; no toca GitHub)"}
       onClick={(e) => { e.stopPropagation(); setNote(null); setOpen(true); }}><ArrowRightLeft size={11} /></QueueItemAction>
     {open && (
       <Dialog open onOpenChange={(o) => { if (!o) setOpen(false); }}>

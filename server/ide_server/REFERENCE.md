@@ -489,7 +489,10 @@ stack con 2 o más PRs que te pidieron revisar; con confirmación): una sola ses
 `stack-<repo>-<n de la de abajo>` para esas PRs, con el worktree en el head de la de arriba y el prompt
 `.ide/prompts/review-stack.md` (`{{prs}}` = la lista de abajo hacia arriba): las revisa una por una,
 cada una contra su base, deja por PR en SESSION.md `## <repo>#<n>` con `### Veredicto`, `### Hallazgos`
-y `### Review para GitHub`, y al final pide OK para publicar todas. Las sesiones individuales de esas
+y `### Review para GitHub`, y al final pide OK para publicar todas. **Mover PRs entre revisiones:** en una PR suelta de
+Revisiones, ⇄ (hover) "Mover a otra revisión…" la suma a una sesión de revisión (lo mismo que `ide dev link`);
+en la card de una revisión de varias PRs, ⇄ lista sus PRs para sacar una (queda aparte) o moverla a otra
+revisión. Las que vienen de otro repo van al final de la card. Las sesiones individuales de esas
 PRs se archivan. Con la sesión creada, sus PRs se ven en **una sola card** (la de la sesión, con una
 chip por PR de abajo hacia arriba; click en una chip abre esa PR); Aprobar / Pedir cambios de cada PR
 usan el review de su sección. `.session.toml` guarda `stack_prs` (la sesión trae `stackPrs`);
@@ -870,12 +873,12 @@ por cada cambio (la primera vez no, para no inundar). Los estados de Notion no s
 
 | Comando | Qué muestra |
 |---|---|
-| `ide dev ls [--json]` | todos los desarrollos (con su nombre del IDE si tiene): los de sesión (estado de la base, claude corriendo/parado, repos y ramas) y los que son solo PRs (tuyas o pendientes de revisar); por cada PR: review, CI, revisores, draft, stack, dependencias pendientes |
-| `ide dev show <id> [--json]` | lo mismo para uno (id de sesión, `#n` o `repo#n`) + dependencias pendientes + historial |
-| `ide dev link <#n\|id> <pr…>` | asigna PRs (URL o `repo#n`) a ese desarrollo: pisa la asignación que tuvieran y quedan pegajosas ahí; una línea por PR `<pr>\t<anterior> → <nuevo>` (y `aviso:` si su rama no está en ningún worktree del destino). La manager lo corre con su token; desde la terminal del usuario va sin token (mover PRs solo cambia datos locales del IDE, no es una barrera de seguridad) |
+| `ide dev ls [--json]` | todos los desarrollos (con su nombre del IDE si tiene): los de sesión (estado de la base, claude corriendo/parado, repos y ramas) y los que son solo PRs (tuyas, pendientes de revisar —`review-pending`— o a las que les pediste cambios —`review-changes`—); una revisión de varias PRs lista todas; por cada PR: autor, review, CI, revisores, draft, stack, dependencias pendientes |
+| `ide dev show <id> [--json]` | lo mismo para uno (id de sesión, `#n` —también de una revisión o PR sin sesión— o `repo#n`) + dependencias pendientes + historial |
+| `ide dev link <#n\|id> <pr…>` | asigna PRs (URL o `repo#n`) a ese desarrollo: pisa la asignación que tuvieran y quedan pegajosas ahí; una línea por PR `<pr>\t<anterior> → <nuevo>` (y `aviso:` si su rama no está en ningún worktree del destino). La manager lo corre con su token; desde la terminal del usuario va sin token (mover PRs solo cambia datos locales del IDE, no es una barrera de seguridad). Con una **revisión** de destino (sesión `review`): la PR se suma a su lista de PRs (como una revisión de stack; si estaba en otra revisión, sale de esa), queda en su card en Revisiones, y la sesión recibe un aviso con las nuevas (si está corriendo, en su cola; si no, como pendiente); avisa si el repo de la PR no está en la sesión |
 | `ide server ls\|start\|stop\|log [<bloque> <script>]` | servidores del desarrollo por bloque (stack de un repo), como el módulo Servidores; ver §8b |
 | `ide dep add\|rm\|ls <pr> [<dep…>]` | dependencias entre PRs declaradas en el IDE, además de la descripción (`rm --ignore` ignora también una de la descripción); ver "Dependencias" |
-| `ide dev unlink <#n\|id> <pr…>` | saca PRs del desarrollo: quedan aparte y no vuelven por rama hasta un `link` |
+| `ide dev unlink <#n\|id> <pr…>` | saca PRs del desarrollo: quedan aparte y no vuelven por rama hasta un `link`. De una revisión: sale de su lista y queda como revisión aparte (no se puede dejar una revisión sin PRs) |
 | `ide status <estado> [-m nota] [--session id]` | cambia el estado (dentro de una sesión usa la suya) |
 | `ide db <prod\|staging> "<SQL>"` | una consulta de solo lectura a la base de prod o staging por `~/.claude/skills/db-connect.sh` (túnel SSM + psql en Docker, usuario read-only). Solo el SQL llega a psql: rechaza cualquier `\` (comandos de psql como `\!`, `\o`, `\copy`) y otros argumentos. Los perfiles `analyze`/`main` lo permiten sin preguntar |
 | `ide push [<repo>] [--force] [--branch b]… [--session id]` | sube a `origin` la rama actual de cada worktree de la sesión (o solo de `<repo>`; con `--branch`, esas ramas locales en vez de la actual), con `-u`. Se niega con la principal del repo (la de `origin/HEAD`) y con main/master/develop/staging/production, con una rama detached o inexistente. `--force` = `--force-with-lease` (nunca `--force` a secas). Una línea por rama (`subida` / `FALLÓ (…)`); exit 1 si alguna falló. Desde una sesión (por `IDE_SESSION_ID` o por la carpeta) solo sube las suyas: `--session` de otra se rechaza, y `--branch` no acepta una rama que esté en el worktree de otra sesión. Existe para que las sesiones no tengan que hacer `cd … && git push` |

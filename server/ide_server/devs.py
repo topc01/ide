@@ -374,7 +374,9 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
     out = []
     for row in db.devs():
         s = by_sid.get(row["id"], {})
-        if row.get("prUrl"):
+        if s.get("stackPrs"):                   # revisión de varias PRs (stack o movidas ahí)
+            prs = [cards[u] for u in s["stackPrs"] if u in cards]
+        elif row.get("prUrl"):
             prs = [cards[row["prUrl"]]] if row["prUrl"] in cards else []
         else:
             prs = [c for c in cards.values() if _belongs(c, s, links)]
@@ -400,7 +402,8 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
             continue
         mine = c.get("author") == f"@{me}"
         pending = any(p["url"] == c["url"] for p in gh.get("pending") or [])
-        if not (mine or pending):
+        changes = any(p["url"] == c["url"] for p in gh.get("changesRequested") or [])
+        if not (mine or pending or changes):
             continue
         key = f"stack:{c['stack']['id']}" if c.get("stack") and mine else c["url"]
         groups.setdefault(key, []).append(c)
@@ -408,7 +411,8 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
         prs.sort(key=lambda c: (c.get("stack") or {}).get("position", 0))
         first = prs[0]
         out.append({"id": f"{first['repo']}#{first['number']}", "kind": "pr" if first.get("author") == f"@{me}"
-                    else "review-pending", "name": _name(names, f"st:{first['stack']['id']}" if key.startswith("stack:")
+                    else "review-pending" if any(p["url"] == first["url"] for p in gh.get("pending") or [])
+                    else "review-changes", "name": _name(names, f"st:{first['stack']['id']}" if key.startswith("stack:")
                                                          else f"p:{first['url']}", prs), "title": first["title"], "status": None, "notionUrl": None,
                     "process": None, "repos": [], "prs": [_pr_summary(c) for c in prs]})
     return with_index(db, out)
@@ -440,7 +444,7 @@ def show_dev(root: Path, db: Db, dev_id: str, sessions: list[dict], gh: dict) ->
 
 def _ui_key(d: dict) -> str:
     """La clave con que la UI nombra el desarrollo (misma regla que `deriveMine`)."""
-    if d["kind"] not in ("pr", "review-pending"):
+    if d["kind"] not in ("pr", "review-pending", "review-changes"):
         return f"s:{d['id']}"
     prs = d["prs"]
     if len(prs) > 1 and prs[0].get("stack"):
@@ -456,7 +460,7 @@ def assign_indices(db: Db, devs: list[dict]) -> dict[str, int]:
     """Da número a los desarrollos que no tienen (sesiones por fecha de creación, después PRs)."""
     idx: dict[str, int] = db.with_prefix("devidx:")
     rows = {r["id"]: r for r in db.devs(include_archived=True)}
-    order = sorted(devs, key=lambda d: (d["kind"] in ("pr", "review-pending"),
+    order = sorted(devs, key=lambda d: (d["kind"] in ("pr", "review-pending", "review-changes"),
                                         (rows.get(d["id"]) or {}).get("created") or "",
                                         [p.get("number") or 0 for p in d["prs"]]))
     for d in order:

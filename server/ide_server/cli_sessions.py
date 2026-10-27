@@ -235,7 +235,8 @@ def _pr_line(p: dict) -> str:
     who = ", ".join(f"{r['login']}:{r['state']}" for r in p.get("reviewers") or [])
     deps = f" ⏸{p['depsPending']}" if p.get("depsPending") else ""
     return (f"    {p['repo']}#{p['number']}{stack} review={p.get('review') or '-'} ci={p.get('ci') or '-'}"
-            f"{' draft' if p.get('draft') else ''}{deps}  {p['title']}" + (f"  [{who}]" if who else ""))
+            f"{' draft' if p.get('draft') else ''}{deps}  {p['title']}" + (f"  de {p['author']}" if p.get("author") else "")
+            + (f"  [{who}]" if who else ""))
 
 
 def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) -> int:

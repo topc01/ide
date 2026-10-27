@@ -715,7 +715,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     def _owner(url: str, sessions: list[dict]) -> str | None:
         """El desarrollo (sesión) donde está hoy la PR, o None."""
         devs = list_devs(root, db, sessions, gh_reviews.state if gh_reviews else {})
-        hit = next((d for d in devs if d["kind"] not in ("pr", "review-pending") and any(x["url"] == url for x in d["prs"])), None)
+        hit = next((d for d in devs if d["kind"] not in ("pr", "review-pending", "review-changes") and any(x["url"] == url for x in d["prs"])), None)
         if hit:
             return hit["id"]
         link = db.dev_prs().get(url)
@@ -734,6 +734,58 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
             raise SessionError("forbidden", "solo la sesión manager (o el usuario desde su terminal) mueve PRs")
 
+    def _review_prs(s: dict) -> list[str]:
+        """Las PRs de una sesión de revisión: las del stack, o la suya."""
+        return list(s.get("stackPrs") or ([s["prUrl"]] if s.get("prUrl") else []))
+
+    def _set_review_prs(sid: str, urls: list[str]) -> None:
+        update_session_toml(root, sid, lambda d: d.update(stack_prs=urls))
+
+    async def _link_review(target: dict, urls: list[str], sessions: list[dict], actor: str) -> dict:
+        """Mueve PRs a una sesión de revisión: entran a su lista (como en una revisión de stack), salen
+        de la revisión donde estaban, y la sesión recibe un aviso con las nuevas."""
+        sid = target["id"]
+        st = gh_reviews.state if gh_reviews else {}
+        cards = {c["url"]: c for lst in [*(st.get("mine") or {}).values(), *(st.get("stacks") or {}).values(),
+                                         st.get("pending") or [], st.get("changesRequested") or [], st.get("closed") or []]
+                 for c in lst}
+        mine = _review_prs(target)
+        repos = {r["name"] for r in target.get("repos") or []}
+        now = datetime.now().isoformat(timespec="seconds")
+        out, new = [], []
+        for url in urls:
+            prev = next((x for x in sessions if x.get("kind") == "review" and x["id"] != sid and url in _review_prs(x)), None)
+            if prev is not None:
+                if url == prev.get("prUrl") and len(_review_prs(prev)) == 1:
+                    raise SessionError("bad_request", f"{url} es la PR de la revisión {prev['id']}: archívala en vez de moverla")
+                rest = [u for u in _review_prs(prev) if u != url]
+                await asyncio.to_thread(_set_review_prs, prev["id"], rest)
+                if url == prev.get("prUrl"):
+                    await asyncio.to_thread(update_session_toml, root, prev["id"], lambda d, u=rest[-1]: d.update(pr_url=u))
+            if url not in mine:
+                mine.append(url)
+                new.append(url)
+            from_ = prev["id"] if prev else None
+            for dev in {from_, sid} - {None}:
+                db.event(now, actor, "pr-moved", dev=dev, pr_url=url, data={"from": from_, "to": sid})
+            c = cards.get(url)
+            repo = c.get("repo") if c else parse_pr_url(url)[0]
+            warn = None if repo in repos else f"{repo} no está en la sesión: para leer su código, `ide repo add {repo}` en ella"
+            out.append({"pr": url, "from": _dev_label(from_) if from_ else "(revisión aparte)", "to": _dev_label(sid), "warning": warn})
+        await asyncio.to_thread(_set_review_prs, sid, mine)
+        if new:
+            lines = "\n".join(f"- {(cards.get(u) or {}).get('repo') or parse_pr_url(u)[0]}#{parse_pr_url(u)[1]}"
+                              f"{': ' + cards[u]['title'] if u in cards else ''} ({u})" for u in new)
+            missing = sorted({o["warning"] for o in out if o["warning"]})
+            text = ("[Aviso del IDE] Se sumaron PRs a esta revisión (van con las demás; deja su sección "
+                    "`## <repo>#<n>` en SESSION.md):\n" + lines + ("\n" + "\n".join(missing) if missing else ""))
+            if supervisor.state(sid) == "running":
+                supervisor.send(sid, text)
+            else:                               # parada: queda como pendiente de la revisión
+                later_mod.add(db, f"s:{sid}", text.removeprefix("[Aviso del IDE] "), None, actor)
+        notify()
+        return {"ok": True, "moved": out}
+
     async def dev_unlink_pr(p: dict) -> dict:
         """Saca PRs del desarrollo de la sesión (no vuelven aunque el worktree esté en su rama, hasta
         un `link` explícito). `url` (una) o `prs` (varias, URL o repo#n)."""
@@ -743,6 +795,22 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         sid = _resolve(p.get("id"))
         urls = [_pr_url(x) for x in (p.get("prs") or [p.get("url")])]
         now = datetime.now().isoformat(timespec="seconds")
+        target = next((x for x in await _sessions_now() if x["id"] == sid), None)
+        if target and target.get("kind") == "review":
+            # de una revisión: sale de su lista y queda como revisión aparte
+            have = _review_prs(target)
+            if any(u not in have for u in urls):
+                raise SessionError("bad_request", f"no está en la revisión {sid}: " + ", ".join(u for u in urls if u not in have))
+            rest = [u for u in have if u not in urls]
+            if not rest:
+                raise SessionError("bad_request", f"la revisión {sid} quedaría sin PRs: archívala en vez de sacarlas")
+            await asyncio.to_thread(_set_review_prs, sid, rest)
+            if target.get("prUrl") in urls:
+                await asyncio.to_thread(update_session_toml, root, sid, lambda d: d.update(pr_url=rest[-1]))
+            for url in urls:
+                db.event(now, p.get("actor") or "ide", "pr-unlinked", dev=sid, pr_url=url, data={"from": sid, "to": None})
+            notify()
+            return {"ok": True, "moved": [{"pr": u, "from": _dev_label(sid), "to": "(revisión aparte)"} for u in urls]}
         out = []
         for url in urls:
             db.link_pr(url, sid, out=True)
@@ -805,8 +873,10 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             raise SessionError("bad_request", "faltan las PRs")
         sessions = await _sessions_now()
         target = next((s for s in sessions if s["id"] == sid), None)
+        if target and target.get("kind") == "review":
+            return await _link_review(target, urls, sessions, p.get("actor") or "ide")
         if not target or target.get("kind") != "ticket":
-            raise SessionError("bad_request", f"{sid} no es un desarrollo (sesión de ticket)")
+            raise SessionError("bad_request", f"{sid} no es un desarrollo ni una revisión")
         branches = {(r["name"], r.get("branch")) for r in target.get("repos") or []}
         st = gh_reviews.state if gh_reviews else {}
         cards = {c["url"]: c for lst in [*(st.get("mine") or {}).values(), *(st.get("stacks") or {}).values(),
@@ -1173,8 +1243,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if db is None:
             raise SessionError("no_db", "sin base")
         sessions = await _sessions_now()
-        if re.fullmatch(r"#?\d+", str(p["id"]).strip()):   # también por número (#42)
-            p = {**p, "id": _resolve(p["id"])}
+        if re.fullmatch(r"#?\d+", str(p["id"]).strip()):   # también por número (#42), con o sin sesión
+            n = int(str(p["id"]).strip().lstrip("#"))
+            devs = await asyncio.to_thread(list_devs, root, db, sessions, gh_reviews.state if gh_reviews else {})
+            hit = next((d for d in devs if d.get("index") == n), None)
+            if hit is None:
+                raise SessionError("unknown_dev", f"no hay un desarrollo #{n} abierto (mira `ide dev ls`)")
+            p = {**p, "id": hit["id"]}
         return {"dev": await asyncio.to_thread(show_dev, root, db, p["id"], sessions,
                                                gh_reviews.state if gh_reviews else {})}
 

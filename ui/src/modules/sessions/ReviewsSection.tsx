@@ -1,10 +1,10 @@
 // ui/src/modules/sessions/ReviewsSection.tsx
 import { useEffect, useState } from "react";
-import { Archive, Check, ChevronRight, ExternalLink, Layers, Layers2, Link2, Loader2, MoreHorizontal, Plus, ScanEye, X } from "lucide-react";
+import { Archive, ArrowRightLeft, Check, ChevronRight, ExternalLink, Layers, Layers2, Link2, Loader2, MoreHorizontal, Plus, ScanEye, Unlink, X } from "lucide-react";
 import { Collapsible } from "radix-ui";
 import { useFolders } from "../../state/folders";
 import {
-  archiveSession, dismissMerge, fetchGithubReviews, onGithubReviews, setReviewers, startReview, startStackReview, type MergeJob, type FolderSession, type GhPr, type GithubReviews,
+  archiveSession, dismissMerge, fetchGithubReviews, onGithubReviews, setReviewers, startReview, startStackReview, unlinkPr, type MergeJob, type FolderSession, type GhPr, type GithubReviews,
 } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { QueueList, QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
@@ -12,6 +12,7 @@ import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { SessionItem } from "./SessionItem";
+import { MovePrAction } from "./MyDevsSection";
 import { waitingFirst } from "./activity";
 import { ReviewVerdictActions } from "./ReviewVerdict";
 import { GroupedSection, type Entry } from "./GroupedSection";
@@ -375,6 +376,38 @@ export function ReviewersPicker({ gh }: { gh: GithubReviews | null }) {
   );
 }
 
+/** Las PRs de una revisión de varias: sacar una (queda como revisión aparte) o moverla a otra revisión. */
+function ReviewPrsAction({ session, prs }: { session: FolderSession; prs: GhPr[] }) {
+  const [open, setOpen] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const out = (pr: GhPr) => {
+    setErr(null);
+    unlinkPr(getWs(), session.id, pr.url).then(() => setOpen(false)).catch((e: any) => setErr(e?.message ?? String(e)));
+  };
+  return (<>
+    <QueueItemAction aria-label="PRs de esta revisión" title="Ver las PRs de esta revisión: sacar una o moverla a otra revisión (no toca GitHub)"
+      onClick={(e) => { e.stopPropagation(); setOpen(true); }}><ArrowRightLeft size={11} /></QueueItemAction>
+    {open && (
+      <Dialog open onOpenChange={(o) => { if (!o) setOpen(false); }}>
+        <DialogContent onClick={(e) => e.stopPropagation()} className="max-w-md">
+          <DialogHeader><DialogTitle className="text-sm">PRs de esta revisión</DialogTitle></DialogHeader>
+          <div className="space-y-0.5">
+            {prs.map((p) => (
+              <div key={p.url} className="flex items-center gap-1.5 rounded px-2 py-1 text-xs hover:bg-accent/50">
+                <span className="shrink-0 font-mono font-bold">{p.repo}#{p.number}</span>
+                <span className="min-w-0 flex-1 truncate">{p.title}</span>
+                <MovePrAction pr={p} from={session.id} to="review" />
+                <QueueItemAction aria-label={`Sacar ${p.repo}#${p.number} de esta revisión`} disabled={prs.length < 2}
+                  title={prs.length < 2 ? "Es la única PR de la revisión" : "Sacarla de esta revisión: queda como revisión aparte"}
+                  onClick={(e) => { e.stopPropagation(); out(p); }}><Unlink size={11} /></QueueItemAction>
+              </div>))}
+          </div>
+          {err && <p role="alert" className="text-xs text-destructive">⚠ {err}</p>}
+        </DialogContent>
+      </Dialog>)}
+  </>);
+}
+
 export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
   const openModal = useFolders((s) => s.openModal);
   const { gh, error } = useGithubReviews();
@@ -406,7 +439,8 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
           actions={reviewable ? <>{!s.stackPrs && <ReviewButton pr={pr} />}{stack && <StackReviewButton prs={stack} />}<ReviewVerdictActions pr={pr} /><OpenPrButton pr={pr} /></>
             : <ReviewVerdictActions pr={pr} />} />
       : <PrCard pr={pr} reviewable={reviewable} showAuthor devKey={`p:${pr.url}`}
-          extraActions={reviewable ? (stack ? <StackReviewButton prs={stack} /> : undefined) : <ReviewVerdictActions pr={pr} />} /> };
+          extraActions={<>{reviewable ? (stack ? <StackReviewButton prs={stack} /> : undefined) : <ReviewVerdictActions pr={pr} />}
+            <MovePrAction pr={pr} to="review" /></>} /> };
   };
   // las PRs de una revisión de stack van juntas en UNA card (la de la sesión), de abajo hacia arriba
   const listed = [...(gh?.pending ?? []).map((pr) => [pr, "pending"] as const),
@@ -415,10 +449,12 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
   for (const [pr, status] of listed) {
     const s = stackSession.get(pr.url);
     if (!s || stackEntries.has(s.id)) continue;
+    // de abajo hacia arriba; las que se movieron ahí de otro repo, al final
+    const home = s.repos[0]?.name;
     const prs = listed.map(([p]) => p).filter((p) => s.stackPrs!.includes(p.url))
-      .sort((a, b) => (a.stack?.position ?? 0) - (b.stack?.position ?? 0));
+      .sort((a, b) => Number(a.repo !== home) - Number(b.repo !== home) || (a.stack?.position ?? 0) - (b.stack?.position ?? 0));
     stackEntries.set(s.id, { key: s.id, pr: prs[0], session: s, status,
-      render: () => <SessionItem session={s} prs={prs} onlyActions /> });
+      render: () => <SessionItem session={s} prs={prs} onlyActions actions={<ReviewPrsAction session={s} prs={prs} />} /> });
   }
   const entries: Entry[] = [
     ...listed.filter(([pr]) => !stackSession.has(pr.url)).map(([pr, status]) => prEntry(pr, status, status === "pending")),
