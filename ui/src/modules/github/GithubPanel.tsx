@@ -46,9 +46,8 @@ function devStacks(prs: GhPr[], gh: GithubReviews): { own: Set<string>; stacks: 
 }
 
 /** El stack como árbol (madre = la PR cuya rama es su base; las que comparten base son hermanas): de
- *  abajo hacia arriba. En una bifurcación, si una rama es más larga que las otras sigue en la misma
- *  columna y las más cortas van con sangría (justo arriba de donde se separan); si empatan, todas las
- *  hermanas van con sangría, al mismo nivel. */
+ *  abajo hacia arriba. En una bifurcación la rama más larga (si empatan, la de número menor) sigue en la
+ *  columna de su madre y cada hermana siguiente va un nivel más adentro, en escalera. */
 export function stackRows(stack: GhPr[]): { pr: GhPr; depth: number }[] {
   const byHead = new Map(stack.map((p) => [p.head, p]));
   const kids = new Map<string, GhPr[]>();
@@ -70,9 +69,7 @@ export function stackRows(stack: GhPr[]): { pr: GhPr; depth: number }[] {
     seen.add(p.url);
     out.push({ pr: p, depth });
     const ks = [...(kids.get(p.url) ?? [])].sort((a, b) => height(b) - height(a) || a.number - b.number);
-    const inline = ks.length === 1 || (ks.length > 1 && height(ks[0]) > height(ks[1])) ? ks[0] : null;
-    for (const k of ks) if (k !== inline) walk(k, depth + 1);   // las cortas (o todas si empatan), con sangría
-    if (inline) walk(inline, depth);                            // la más larga sigue en línea
+    ks.forEach((k, i) => walk(k, depth + i));   // la más larga en línea; cada hermana siguiente, un nivel más
   };
   for (const r of roots) walk(r, 0);
   for (const p of stack) if (!seen.has(p.url)) out.push({ pr: p, depth: 0 });
@@ -147,8 +144,8 @@ function StackItem({ pr, own, assigned, onGoto, viewing, onOpen, onShow, mine, j
         <div className="min-w-0 flex-1">
           <div className={cn("truncate", !assigned && "line-through")}
             title={assigned ? pr.title : `${pr.title} (no asignada a ti)`}>{pr.title}</div>
-          <div className="truncate font-mono text-[10px] text-muted-foreground" title={`${pr.repo}#${pr.number} · ${pr.author} · ${pr.head} → ${pr.base}`}>
-            {pr.repo}#{pr.number} · {pr.head}</div>
+          <div className="truncate font-mono text-[11px] font-semibold text-primary/90" title={`${pr.repo}#${pr.number} · ${pr.author} · ${pr.head} → ${pr.base}`}>
+            #{pr.number}</div>
           {job && <MergeStatus url={pr.url} job={job} />}
         </div>
         <CiMark pr={pr} />
