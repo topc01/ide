@@ -7,12 +7,12 @@ export function MessageBubble({ msg }: { msg: Msg }) {
   return (
     <div className={cn("flex flex-col gap-1", isUser ? "items-end" : "items-start")}>
       {msg.relay && (
-        <span className="text-[11px] font-medium" style={{ color: "#e0863f" }}>
+        <span className="text-[11px] font-medium" style={{ color: "var(--primary)" }}>
           {msg.relay.direction === "out" ? "→" : "←"} {msg.relay.peer}
         </span>
       )}
       {msg.role === "agent" && msg.source && (
-        <span className="text-[11px] font-medium" style={{ color: msg.source === "local" ? "#7fb069" : "#e0863f" }}>
+        <span className="text-[11px] font-medium" style={{ color: msg.source === "local" ? "var(--status-running)" : "var(--primary)" }}>
           {msg.source}
         </span>
       )}
@@ -25,17 +25,17 @@ export function MessageBubble({ msg }: { msg: Msg }) {
           {msg.chips.map((chip, i) =>
             chip.kind === "tool" ? (
               <div key={i} className="flex items-center gap-1.5 text-[11px]">
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "#a5703c" }} />
-                <span style={{ color: "#bd925f" }}>{chip.name}</span>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--primary)" }} />
+                <span style={{ color: "var(--primary)" }}>{chip.name}</span>
                 <span className="font-mono text-muted-foreground">{chip.detail}</span>
               </div>
             ) : (
               <div key={i} className="flex items-center gap-1.5 text-[11px]">
-                <Pencil size={11} style={{ color: "#a5703c" }} />
-                <span style={{ color: "#bd925f" }}>Edit</span>
+                <Pencil size={11} style={{ color: "var(--primary)" }} />
+                <span style={{ color: "var(--primary)" }}>Edit</span>
                 <span className="font-mono text-muted-foreground">{chip.path}</span>
-                <span style={{ color: "#9fcf87" }}>+{chip.added}</span>
-                <span style={{ color: "#d89a89" }}>-{chip.removed}</span>
+                <span style={{ color: "var(--diff-add)" }}>+{chip.added}</span>
+                <span style={{ color: "var(--diff-del)" }}>-{chip.removed}</span>
               </div>
             ))}
         </div>

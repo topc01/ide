@@ -36,31 +36,31 @@ export function GraphitePanel() {
           <RefreshCw size={13} />
         </button>
       </div>
-      {error && <div className="px-1 py-2 text-xs text-destructive">desconectado — {error}</div>}
+      {error && <div className="px-1 py-2 text-xs text-[var(--destructive)]">desconectado — {error}</div>}
       {!error && stack.map((b) => (
         <div key={b.name} className="mb-0.5">
           <div className="flex items-center gap-2 rounded px-1.5 py-1.5 hover:bg-accent">
             <span className="h-3 w-3 shrink-0 rounded-full border-2"
-              style={{ borderColor: b.current ? "#e0863f" : b.needsRestack ? "#bd925f" : "#4a463d",
-                       background: "#161513" }} />
+              style={{ borderColor: b.current ? "var(--primary)" : b.needsRestack ? "var(--primary)" : "var(--border)",
+                       background: "var(--background)" }} />
             <button title="Ver los commits de esta rama" onClick={() => toggleBranch(activeSessionId, b.name)}
               className="min-w-0 flex-1 truncate text-left font-mono text-[11.5px]"
-              style={{ color: b.current ? "#f0ece4" : "#cfc9bd" }}>
+              style={{ color: b.current ? "var(--foreground)" : "var(--muted-foreground)" }}>
               {b.name}
             </button>
             {b.current && (
-              <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-[#e0863f]">actual</span>
+              <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-primary">actual</span>
             )}
             {b.needsRestack && confirming !== b.name && (
               <button aria-label={`restack ${b.name}`} title={`restack ${b.name}`} onClick={() => setConfirming(b.name)}
-                className="shrink-0 text-[#bd925f] hover:text-[#e0863f]">
+                className="shrink-0 text-amber-300 hover:text-primary">
                 <CornerRightDown size={13} />
               </button>
             )}
             {confirming === b.name && (
               <span className="flex shrink-0 items-center gap-1.5 text-[10px]">
                 <span className="text-muted-foreground">restackear?</span>
-                <button title="Confirmar el restack" className="text-[#7fb069]"
+                <button title="Confirmar el restack" className="text-status-running"
                   onClick={() => { setConfirming(null); restack(activeSessionId, b.name); }}>sí</button>
                 <button title="Cancelar" className="text-muted-foreground" onClick={() => setConfirming(null)}>no</button>
               </span>
@@ -68,13 +68,13 @@ export function GraphitePanel() {
           </div>
           {expandedBranches.includes(b.name) && (
             <div className="ml-[9px] pl-3.5"
-              style={{ borderLeft: b.needsRestack ? "1px dashed #4a463d" : "1px solid #332f28" }}>
+              style={{ borderLeft: b.needsRestack ? "1px dashed var(--border)" : "1px solid var(--border)" }}>
               {(commitsByBranch[b.name] ?? []).map((c) => (
                 <div key={c.hash} className="my-0.5">
                   <button title="Ver los archivos de este commit" onClick={() => toggleCommit(c.hash)}
                     className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left hover:bg-accent">
-                    <span className="shrink-0 font-mono text-[10.5px] text-[#e0863f]">{c.hash}</span>
-                    <span className="min-w-0 flex-1 truncate text-[11px] text-[#cfc9bd]">{c.message}</span>
+                    <span className="shrink-0 font-mono text-[10.5px] text-primary">{c.hash}</span>
+                    <span className="min-w-0 flex-1 truncate text-[11px] text-foreground/80">{c.message}</span>
                   </button>
                   {expandedCommits.includes(c.hash) && (
                     <div className="pb-1 pl-4">
@@ -85,9 +85,9 @@ export function GraphitePanel() {
                             type: "file", label: basename(f.path),
                           })}
                           className="flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-accent">
-                          <span className="min-w-0 flex-1 truncate text-left font-mono text-[10.5px] text-[#9c9488]">{f.path}</span>
-                          <span className="font-mono text-[9.5px] text-[#7fb069]">+{f.added ?? 0}</span>
-                          <span className="font-mono text-[9.5px] text-[#c96a4e]">-{f.removed ?? 0}</span>
+                          <span className="min-w-0 flex-1 truncate text-left font-mono text-[10.5px] text-muted-foreground">{f.path}</span>
+                          <span className="font-mono text-[9.5px] text-status-running">+{f.added ?? 0}</span>
+                          <span className="font-mono text-[9.5px] text-[var(--destructive)]">-{f.removed ?? 0}</span>
                         </button>
                       ))}
                     </div>

@@ -3,10 +3,10 @@ import { fetchDiff, type DiffLine, type DiffLineType } from "../transport/change
 import { getWs } from "../transport/wsClient";
 
 const STYLE: Record<DiffLineType, { bg: string; color: string }> = {
-  add: { bg: "rgba(127,176,105,0.14)", color: "#cfe8bf" },
-  del: { bg: "rgba(201,106,78,0.14)", color: "#e8c3b8" },
-  hunk: { bg: "transparent", color: "#e0863f" },
-  ctx: { bg: "transparent", color: "#cfc9bd" },
+  add: { bg: "rgba(127,176,105,0.14)", color: "var(--diff-add)" },
+  del: { bg: "rgba(201,106,78,0.14)", color: "var(--diff-del)" },
+  hunk: { bg: "transparent", color: "var(--primary)" },
+  ctx: { bg: "transparent", color: "var(--diff-ctx)" },
 };
 
 // id = "diff:<sessionId>:<status>:<path>"; path puede contener ":".

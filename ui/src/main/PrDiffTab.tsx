@@ -11,6 +11,7 @@ import { yaml } from "@codemirror/lang-yaml";
 import { getWs } from "../transport/wsClient";
 import { prFileDiff } from "../transport/folderSessions";
 import { cn } from "../lib/utils";
+import { useTheme } from "../state/theme";
 
 function language(path: string): Extension[] {
   const ext = path.split(".").pop()?.toLowerCase() ?? "";
@@ -22,7 +23,7 @@ function language(path: string): Extension[] {
   return [];
 }
 
-const theme = EditorView.theme({
+const theme = (dark: boolean) => EditorView.theme({
   "&": { backgroundColor: "var(--background)", color: "var(--foreground)", fontSize: "12px" },
   ".cm-content": { fontFamily: '"JetBrains Mono", ui-monospace, monospace' },
   ".cm-gutters": { backgroundColor: "var(--background)", color: "var(--muted-foreground)", border: "none" },
@@ -31,12 +32,13 @@ const theme = EditorView.theme({
   ".cm-changedText": { background: "rgba(34,197,94,0.25) !important" },
   ".cm-deletedText": { background: "rgba(239,68,68,0.28) !important" },
   ".cm-mergeView": { height: "100%" },
-}, { dark: true });
+}, { dark });
 
 /** Diff de un archivo de una PR (contra su base): lado a lado o unificado, solo lectura. */
 export const PrDiffTab = PrDiffView;
 export function PrDiffView({ url, path, oldPath }: { url: string; path: string; oldPath: string | null }) {
   const ref = useRef<HTMLDivElement>(null);
+  const uiTheme = useTheme((s) => s.theme);
   const [mode, setMode] = useState<"split" | "unified">(() => {
     try { return (localStorage.getItem("ide.diffMode") as "split" | "unified") || "split"; } catch { return "split"; }
   });
@@ -48,7 +50,7 @@ export function PrDiffView({ url, path, oldPath }: { url: string; path: string; 
   }, [url, path, oldPath]);
   useEffect(() => {
     if (!data || !ref.current) return;
-    const ext = [theme, EditorView.editable.of(false), EditorState.readOnly.of(true), lineNumbers(), ...language(path)];
+    const ext = [theme(uiTheme === "dark"), EditorView.editable.of(false), EditorState.readOnly.of(true), lineNumbers(), ...language(path)];
     const a = data.old ?? "", b = data.new ?? "";
     let destroy: () => void;
     if (mode === "split") {
@@ -61,7 +63,7 @@ export function PrDiffView({ url, path, oldPath }: { url: string; path: string; 
       destroy = () => v.destroy();
     }
     return () => destroy();
-  }, [data, mode, path]);
+  }, [data, mode, path, uiTheme]);
   const pick = (m: "split" | "unified") => { setMode(m); try { localStorage.setItem("ide.diffMode", m); } catch { /* */ } };
   const tab = (m: "split" | "unified", label: string) => (
     <button title={m === "split" ? "Ver lado a lado" : "Ver unificado"} onClick={() => pick(m)}

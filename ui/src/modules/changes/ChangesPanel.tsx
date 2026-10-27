@@ -34,13 +34,13 @@ export function ChangesPanel() {
       )}
       {activeSessionId !== null && status && !error && (
         <div className="mb-2 flex items-center gap-2 px-1 font-mono text-[10.5px] text-muted-foreground">
-          <span className="text-[#e0863f]">{status.branch}</span>
-          <span className="text-[#7fb069]">+{status.totalAdded}</span>
-          <span className="text-[#c96a4e]">-{status.totalRemoved}</span>
+          <span className="text-primary">{status.branch}</span>
+          <span className="text-status-running">+{status.totalAdded}</span>
+          <span className="text-[var(--destructive)]">-{status.totalRemoved}</span>
         </div>
       )}
       {activeSessionId !== null && error && (
-        <div className="px-1 py-2 text-xs text-destructive">desconectado — {error}</div>
+        <div className="px-1 py-2 text-xs text-[var(--destructive)]">desconectado — {error}</div>
       )}
       {activeSessionId !== null && !error && status && status.files.length === 0 && (
         <div className="px-1 py-2 text-xs text-muted-foreground">sin cambios</div>
@@ -55,8 +55,8 @@ export function ChangesPanel() {
           <span className="min-w-0 flex-1 truncate text-left font-mono text-[11.5px] text-foreground">
             {f.path}
           </span>
-          <span className="font-mono text-[10.5px] text-[#7fb069]">+{f.added ?? 0}</span>
-          <span className="font-mono text-[10.5px] text-[#c96a4e]">-{f.removed ?? 0}</span>
+          <span className="font-mono text-[10.5px] text-status-running">+{f.added ?? 0}</span>
+          <span className="font-mono text-[10.5px] text-[var(--destructive)]">-{f.removed ?? 0}</span>
         </button>
       ))}
     </div>

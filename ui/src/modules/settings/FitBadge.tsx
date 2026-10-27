@@ -5,8 +5,8 @@ const LABEL: Record<string, string> = { ok: "entra", tight: "justo", no: "no ent
 
 function levelProps(level: string): { className: string; style?: React.CSSProperties } {
   if (level === "no") return { className: "font-medium text-destructive" };
-  if (level === "tight") return { className: "font-medium", style: { color: "#e0863f" } };
-  return { className: "font-medium", style: { color: "#7fb069" } };
+  if (level === "tight") return { className: "font-medium", style: { color: "var(--primary)" } };
+  return { className: "font-medium", style: { color: "var(--status-running)" } };
 }
 
 export function FitBadge({ fit }: { fit?: FitInfo | null }) {

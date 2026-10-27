@@ -25,7 +25,7 @@ export function TasksPanel() {
     <div className="p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tareas</span>
-        <button title="Crear una tarea" onClick={() => setAdding(true)} className="flex items-center gap-1 text-[11px] font-semibold text-[#e0863f]"><Plus size={12} />Nueva</button>
+        <button title="Crear una tarea" onClick={() => setAdding(true)} className="flex items-center gap-1 text-[11px] font-semibold text-primary"><Plus size={12} />Nueva</button>
       </div>
       {adding && (
         <input autoFocus placeholder="Nombre de la tarea" value={name}
@@ -43,7 +43,7 @@ export function TasksPanel() {
             <span className="block truncate text-[12px] font-semibold text-foreground">{t.title}</span>
             <span className="flex items-center gap-2">
               <span className="font-mono text-[10px] text-muted-foreground">{t.id}.md</span>
-              {t.status && <span className="text-[10px] text-[#e0863f]">{t.status}</span>}
+              {t.status && <span className="text-[10px] text-primary">{t.status}</span>}
             </span>
           </span>
         </button>

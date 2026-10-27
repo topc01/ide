@@ -9,6 +9,7 @@ import { yaml } from "@codemirror/lang-yaml";
 import { getWs } from "../transport/wsClient";
 import { readWtFile, statWtFile, writeWtFile } from "../transport/runs";
 import { Button } from "../components/ui/button";
+import { useTheme } from "../state/theme";
 
 function language(path: string): Extension[] {
   const ext = path.split(".").pop()?.toLowerCase() ?? "";
@@ -20,7 +21,7 @@ function language(path: string): Extension[] {
   return [];
 }
 
-// tema 1a (ámbar/terminal) sobre el oscuro de CodeMirror
+// tema 1a (ámbar/terminal) sobre el de CodeMirror (oscuro o claro según el tema del IDE)
 const theme = EditorView.theme({
   "&": { backgroundColor: "var(--background)", color: "var(--foreground)", height: "100%", fontSize: "12px" },
   ".cm-content": { fontFamily: '"JetBrains Mono", ui-monospace, monospace', caretColor: "var(--primary)" },
@@ -28,10 +29,11 @@ const theme = EditorView.theme({
   ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "color-mix(in srgb, var(--muted) 70%, transparent)" },
   "&.cm-focused .cm-cursor": { borderLeftColor: "var(--primary)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": { backgroundColor: "color-mix(in srgb, var(--primary) 30%, transparent) !important" },
-}, { dark: true });
+});
 
 /** Un archivo del worktree, editable. Guardar: botón o ⌘S; si cambió en disco, avisa en vez de pisar. */
 export function FileTab({ place, repo, path }: { place: string; repo: string; path: string }) {
+  const uiTheme = useTheme((s) => s.theme);
   const [saved, setSaved] = useState<string | null>(null);   // lo que hay en disco
   const [text, setText] = useState<string>("");
   const [mtime, setMtime] = useState<string | null>(null);
@@ -113,7 +115,7 @@ export function FileTab({ place, repo, path }: { place: string; repo: string; pa
         </div>)}
       <div className="min-h-0 flex-1 overflow-hidden">
         {saved === null && !error ? <p className="p-4 text-xs text-muted-foreground">cargando…</p> : (
-          <CodeMirror value={text} onChange={setText} theme="dark" extensions={extensions} height="100%"
+          <CodeMirror value={text} onChange={setText} theme={uiTheme} extensions={extensions} height="100%"
             basicSetup={{ foldGutter: false, highlightActiveLine: true }} className="h-full" />)}
       </div>
     </div>

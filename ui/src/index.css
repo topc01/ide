@@ -17,6 +17,32 @@
   --title-bg: #131210; --terminal-bg: #0f0e0c;
   --status-running: #7fb069; --status-idle: #7d7568; --status-done: #6b8fbf;
   --role-pill-bg: #2e2820;
+  /* tonos de texto/acento de Tailwind que en claro no se leen: van como canales RGB (tailwind.config) */
+  --amber-300: 252 211 77; --emerald-300: 110 231 183; --emerald-400: 52 211 153; --orange-300: 253 186 116;
+  --purple-300: 216 180 254; --purple-400: 192 132 252; --red-400: 248 113 113; --sky-300: 125 211 252;
+  --sky-400: 56 189 248; --yellow-300: 253 224 71; --zinc-300: 212 212 216;
+  --diff-add: #cfe8bf; --diff-del: #e8c3b8; --diff-ctx: #cfc9bd;
+  color-scheme: dark;
+}
+/* Modo claro: misma identidad ámbar sobre papel; las terminales quedan oscuras (--terminal-bg). */
+:root.light {
+  --background: #f6f3ed; --foreground: #26231e;
+  --card: #fdfbf7; --card-foreground: #26231e;
+  --popover: #fdfbf7; --popover-foreground: #26231e;
+  --primary: #b9611f; --primary-foreground: #ffffff;
+  --secondary: #ece6db; --secondary-foreground: #26231e;
+  --muted: #ece6db; --muted-foreground: #756d5f;
+  --accent: #e7dccb; --accent-foreground: #26231e;
+  --destructive: #b4472b; --destructive-foreground: #ffffff;
+  --border: #dcd3c4; --input: #dcd3c4; --ring: #b9611f;
+  --title-bg: #ede8df;
+  --status-running: #4c8a36; --status-idle: #8a8274; --status-done: #46699e;
+  --role-pill-bg: #e7dccb;
+  --amber-300: 180 83 9; --emerald-300: 4 120 87; --emerald-400: 5 150 105; --orange-300: 194 65 12;
+  --purple-300: 126 34 206; --purple-400: 126 34 206; --red-400: 220 38 38; --sky-300: 3 105 161;
+  --sky-400: 2 132 199; --yellow-300: 161 98 7; --zinc-300: 82 82 91;
+  --diff-add: #2f5f1e; --diff-del: #8e3420; --diff-ctx: #4a453c;
+  color-scheme: light;
 }
 * { border-color: var(--border); }
 html, body, #root { height: 100%; margin: 0; }

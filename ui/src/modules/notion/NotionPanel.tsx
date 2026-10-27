@@ -21,13 +21,13 @@ export function NotionPanel() {
           onKeyDown={(e) => { if (e.key === "Enter" && token) { connect(token); setToken(""); } }}
           className="mb-2 w-full rounded border border-border bg-background px-2 py-1 font-mono text-[11.5px]" />
         <button title="Conectar Notion con este token" onClick={() => { if (token) { connect(token); setToken(""); } }} disabled={!token}
-          className="mb-2 rounded bg-[#e0863f] px-3 py-1 text-[11.5px] font-semibold text-black disabled:opacity-50">
+          className="mb-2 rounded bg-primary px-3 py-1 text-[11.5px] font-semibold text-primary-foreground disabled:opacity-50">
           Conectar
         </button>
         {error && <div className="mb-2 text-xs text-destructive">{error}</div>}
         <div className="text-[11px] leading-relaxed text-muted-foreground">
           Crea una integración interna en{" "}
-          <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer" className="text-[#e0863f]">notion.so/my-integrations</a>,
+          <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer" className="text-primary">notion.so/my-integrations</a>,
           pega su secret aquí, y comparte tus páginas con la integración.
         </div>
       </div>
@@ -41,7 +41,7 @@ export function NotionPanel() {
         <div className="flex items-center gap-1">
           <button aria-label="desconectar" title="desconectar" onClick={() => disconnect()} className="text-muted-foreground hover:text-foreground"><LogOut size={13} /></button>
           <button aria-label="refrescar" title="refrescar" onClick={() => load()} className="text-muted-foreground hover:text-foreground"><RefreshCw size={13} /></button>
-          <button title="Agregar una página de Notion" onClick={() => setAdding(true)} className="flex items-center gap-1 text-[11px] font-semibold text-[#e0863f]"><Plus size={12} />Nueva</button>
+          <button title="Agregar una página de Notion" onClick={() => setAdding(true)} className="flex items-center gap-1 text-[11px] font-semibold text-primary"><Plus size={12} />Nueva</button>
         </div>
       </div>
       {adding && (

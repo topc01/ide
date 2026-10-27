@@ -1,9 +1,10 @@
 import type { ComponentType } from "react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { useStore } from "../state/store";
 import { getModules, type ActivityModule } from "../modules/registry";
 import { useFolders } from "../state/folders";
 import { cn } from "../lib/utils";
+import { useTheme } from "../state/theme";
 
 export function ActionButton({ label, icon: Icon, active, onClick, disabled, badge }: {
   label: string; icon: ComponentType<{ size?: number; strokeWidth?: number }>;
@@ -31,6 +32,7 @@ function ModuleButton({ m, active, onClick }: { m: ActivityModule; active: boole
 export function ActionMenu() {
   const { activePanel, setActivePanel, innerSidebarOpen, toggleInnerSidebar } = useStore();
   const uiModules = useFolders((s) => s.uiModules);
+  const { theme, toggle } = useTheme();
   const visibleModules = () => getModules().filter((m) => !uiModules || uiModules.includes(m.id));
   return (
       <nav className="flex w-11 flex-col items-center gap-1 border-r border-border bg-title-bg pt-2">
@@ -40,6 +42,10 @@ export function ActionMenu() {
           <ModuleButton key={m.id} m={m} active={activePanel === m.id}
             onClick={() => { setActivePanel(m.id); if (!innerSidebarOpen) toggleInnerSidebar(); }} />
         ))}
+        <div className="mt-auto pb-2">
+          <ActionButton label={theme === "light" ? "Pasar a modo oscuro" : "Pasar a modo claro"}
+            icon={theme === "light" ? Moon : Sun} onClick={toggle} />
+        </div>
       </nav>
   );
 }

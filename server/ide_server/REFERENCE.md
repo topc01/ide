@@ -112,6 +112,10 @@ La **sidebar interna** (el panel del módulo activo) se ensancha arrastrando su 
 ancho queda guardado en el navegador (`ide.innerSidebarWidth` en localStorage) y doble click en el borde
 vuelve al de siempre (256 px).
 
+**Modo claro:** el botón sol/luna al pie del menú de acciones alterna entre oscuro (el de siempre) y claro;
+queda guardado en el navegador (`ide.theme` en localStorage). Las terminales y los logs de servidores
+siguen oscuros en los dos modos.
+
 ## 5. Permisos
 
 Cada sesión tiene un perfil (`.session.toml` → `permissions`), elegido con `--permissions` o
