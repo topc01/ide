@@ -128,22 +128,22 @@ function PrChanges({ pr }: { pr: GhPr }) {
  *  abierta. destacada la que estás viendo.
  *  `assigned`: tuya o figuras como revisor (si no, va tachada y atenuada). Mergear en la de abajo si es
  *  tuya y está aprobada. */
-function StackItem({ pr, own, assigned, onGoto, viewing, onOpen, onShow, mine, job, above, depth = 0 }:
+function StackItem({ pr, own, assigned, onGoto, viewing, onOpen, onShow, mine, job, above, depth = 0, showPos = true }:
   { pr: GhPr; own: boolean; assigned: boolean; onGoto?: () => void; viewing: boolean; onOpen: () => void; onShow: () => void;
-    mine: boolean; job?: MergeJob; above: number; depth?: number }) {
+    mine: boolean; job?: MergeJob; above: number; depth?: number; showPos?: boolean }) {
   const [color, label] = pr.review ? REVIEW[pr.review] : [null, "sin review"];
   const merging = !!job && MERGE_ACTIVE.includes(job.state);
   return (
-    <QueueItem className="min-w-0 px-1.5" style={depth ? { paddingLeft: `${0.375 + depth * 0.875}rem` } : undefined}>
+    <QueueItem className={cn("min-w-0 px-1.5", depth > 0 && "border-l border-border")}
+      style={depth ? { marginLeft: `${0.5 + (depth - 1) * 0.5}rem` } : undefined}
+      title={depth ? `rama paralela: sale de la PR con rama ${pr.base}` : undefined}>
       <div onClick={onOpen} onDoubleClick={onShow}
         title={`${viewing ? "Ocultar" : "Ver"} los archivos cambiados · doble click: abrir la PR (descripción) en el panel principal`}
         className={cn("flex min-w-0 cursor-pointer items-start gap-1.5 rounded border-l-2 border-transparent px-1.5 py-1 text-xs hover:bg-accent/60",
           viewing && "border-primary bg-accent", !assigned && "opacity-50")}>
         <span aria-label={label} title={label}
           className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", color ?? "border border-muted-foreground")} />
-        {depth > 0 && <span className="mt-px font-mono text-[10px] text-muted-foreground"
-          title={`rama paralela: sale de la PR con rama ${pr.base}`}>└</span>}
-        <span className="mt-px font-mono text-[10px] text-muted-foreground">{pr.stack?.position ?? 1}</span>
+        {showPos && <span className="mt-px font-mono text-[10px] text-muted-foreground">{pr.stack?.position ?? 1}</span>}
         <div className="min-w-0 flex-1">
           <div className={cn("truncate", !assigned && "line-through")}
             title={assigned ? pr.title : `${pr.title} (no asignada a ti)`}>{pr.title}</div>
@@ -255,13 +255,13 @@ export function GithubPanel() {
           </div>
           {stack.every((p) => gh?.me && p.author === `@${gh.me}`) && <StackActions stack={stack} />}
           <QueueList className="flex-col-reverse">
-            {stackRows(stack).map(({ pr, depth }) => <StackItem key={pr.url} pr={pr} depth={depth} own={data.own.has(pr.url)}
+            {(() => { const rows = stackRows(stack); const linear = rows.every((r) => r.depth === 0); return rows.map(({ pr, depth }) => <StackItem key={pr.url} pr={pr} depth={depth} showPos={linear} own={data.own.has(pr.url)}
               onGoto={openDev(pr)} viewing={expanded === pr.url}
               onOpen={() => setExpanded(expanded === pr.url ? null : pr.url)}
               onShow={() => { if (dev) openTab(dev.key, summaryTab(pr.url, `${pr.repo.replace(/^finnecto-/, "").toUpperCase()} #${pr.number}`)); }}
               mine={!!gh?.me && pr.author === `@${gh.me}`} job={gh?.merges?.[pr.url]}
               above={pr.stack ? pr.stack.size - pr.stack.position : 0}
-              assigned={!gh?.me || pr.author === `@${gh.me}` || !!pr.reviewers?.some((r) => r.login === gh.me)} />)}
+              assigned={!gh?.me || pr.author === `@${gh.me}` || !!pr.reviewers?.some((r) => r.login === gh.me)} />); })()}
           </QueueList>
         </div>
       ))}
