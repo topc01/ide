@@ -585,8 +585,15 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
         if a.group == "push":
             # una sesión solo sube lo suyo (el permiso `ide push` no le da las ramas de otras)
-            if env.get("IDE_SESSION_ID") and sid != env["IDE_SESSION_ID"]:
-                raise SessionError("forbidden", f"desde la sesión {env['IDE_SESSION_ID']} no se suben ramas de {sid}")
+            # (barrera contra errores, no de seguridad: el permiso que importa es el de claude)
+            caller = env.get("IDE_SESSION_ID")
+            if caller is None:
+                try:
+                    caller = current_session(root, env={}, cwd=cwd)
+                except SessionError:
+                    caller = None
+            if caller and sid != caller:
+                raise SessionError("forbidden", f"desde la sesión {caller} no se suben ramas de {sid}")
             return push(root, sid, a.repo, branches=a.branch, force=a.force, out=out)
         if a.group == "repo" and a.cmd == "add":
             info = add_repo(root, sid, a.repo, branch=a.branch, out=out)

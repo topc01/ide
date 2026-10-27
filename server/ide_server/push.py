@@ -22,6 +22,17 @@ def _default_branch(wt: Path) -> str | None:
     return r.stdout.strip().removeprefix("origin/") or None if r.returncode == 0 else None
 
 
+def _checked_out_elsewhere(wt: Path, mine: Path) -> dict[str, str]:
+    """rama → worktree, de las ramas que están en un worktree que no es de esta sesión."""
+    out, path = {}, None
+    for line in _git(wt, "worktree", "list", "--porcelain").stdout.splitlines():
+        if line.startswith("worktree "):
+            path = Path(line[9:]).resolve()
+        elif line.startswith("branch refs/heads/") and path is not None and mine not in (path, *path.parents):
+            out[line[18:]] = str(path)
+    return out
+
+
 def push(root: Path, sid: str, repo: str | None, *, branches: list[str] | None = None, force: bool = False,
          out: TextIO) -> int:
     links = {p.name: p for p in repo_links(require_session(root, sid))}
@@ -39,9 +50,12 @@ def push(root: Path, sid: str, repo: str | None, *, branches: list[str] | None =
         if not todo[0]:
             out.write(f"{name}: sin rama (detached), no subo nada\n"); failed += 1; continue
         protected = PROTECTED | ({d} if (d := _default_branch(wt)) else set())
+        others = _checked_out_elsewhere(wt, (root / ".ide" / "worktrees" / sid).resolve())
         for b in todo:
             if b in protected:
                 out.write(f"{name}: {b} es una rama principal, no la subo\n"); failed += 1; continue
+            if b in others:
+                out.write(f"{name}: {b} es de otro worktree ({others[b]}), no la subo\n"); failed += 1; continue
             if _git(wt, "rev-parse", "--verify", "--quiet", f"refs/heads/{b}").returncode != 0:
                 out.write(f"{name}: no existe la rama local {b}\n"); failed += 1; continue
             r = _git(wt, "push", *(["--force-with-lease"] if force else []), "-u", "origin", f"{b}:{b}")
