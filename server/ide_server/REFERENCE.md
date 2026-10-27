@@ -112,8 +112,8 @@ La **sidebar interna** (el panel del módulo activo) se ensancha arrastrando su 
 ancho queda guardado en el navegador (`ide.innerSidebarWidth` en localStorage) y doble click en el borde
 vuelve al de siempre (256 px).
 
-**Modo claro:** el botón sol/luna al pie del menú de acciones alterna entre oscuro (el de siempre) y claro;
-queda guardado en el navegador (`ide.theme` en localStorage). Las terminales y los logs de servidores
+**Modo claro:** el botón al pie del menú de acciones rota entre oscuro (el de siempre, luna), claro (sol) y
+sistema (pantalla: sigue al modo claro/oscuro del computador, también si cambia con el IDE abierto); queda guardado en el navegador (`ide.theme` en localStorage). Las terminales y los logs de servidores
 cambian con él. `claude` pinta con sus propios colores: para que siga al fondo, en `claude` elige
 `/theme` → "Auto (match terminal)" (o "Light"); toma el fondo al arrancar, así que las sesiones ya abiertas
 se ajustan al reabrir `claude`.
