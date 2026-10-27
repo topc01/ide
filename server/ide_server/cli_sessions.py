@@ -72,6 +72,8 @@ def _parser() -> argparse.ArgumentParser:
     r = sub.add_parser("repo").add_subparsers(dest="cmd", required=True)
     ra = r.add_parser("add"); ra.add_argument("repo"); ra.add_argument("--branch")
     ra.add_argument("--session")
+    db = sub.add_parser("db", help="una consulta de solo lectura a la base de prod o staging (vía db-connect.sh)")
+    db.add_argument("env", choices=("prod", "staging")); db.add_argument("sql", help="la consulta SQL (sin comandos de psql: nada con \\\\)")
     pu = sub.add_parser("push", help="sube a origin la rama de cada worktree de la sesión (sin cd; nunca la principal)")
     pu.add_argument("repo", nargs="?", help="solo este repo (sin él: todos los de la sesión)")
     pu.add_argument("--branch", action="append", help="otra rama local del repo en vez de la actual (repetible; p.ej. las de un stack)")
@@ -546,6 +548,23 @@ def _handoff(a, root: Path, home: Path, out: TextIO) -> int:
     return 0
 
 
+def _db_query(env_name: str, sql: str, home: Path, out: TextIO, err: TextIO) -> int:
+    """Solo el SQL llega a psql: nada de otros argumentos ni comandos de psql (`\\!` corre comandos
+    del sistema, `\\o`/`\\copy` escriben archivos), que el usuario read-only de la base no frena."""
+    import subprocess
+    if "\\" in sql:
+        raise SessionError("bad_request", "la consulta no puede tener \\ (comandos de psql como \\!, \\o, \\copy)")
+    if not sql.strip():
+        raise SessionError("bad_request", "falta la consulta")
+    script = home / ".claude" / "skills" / "db-connect.sh"
+    if not script.is_file():
+        raise SessionError("no_script", f"no está {script} (lo instala la skill db-prod)")
+    r = subprocess.run([str(script), env_name, "-c", sql], stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                       timeout=600)
+    out.write(r.stdout); err.write(r.stderr)
+    return r.returncode
+
+
 def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
          out: TextIO = sys.stdout, err: TextIO = sys.stderr) -> int:
     a = _parser().parse_args(argv)
@@ -582,6 +601,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return 0
         if a.group == "telegram":
             return _telegram(a, root, url, http, out)
+        if a.group == "db":
+            return _db_query(a.env, a.sql, home, out, err)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
         if a.group == "push":
             # una sesión solo sube lo suyo (el permiso `ide push` no le da las ramas de otras)
