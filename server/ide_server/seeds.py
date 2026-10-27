@@ -46,7 +46,8 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
 El **estado del desarrollo** vive en la base del IDE y **casi todo lo deduce solo**; tú marcas solo
 lo que es criterio, con `ide status <estado> [-m "nota"]` (nunca editando el `status:` del archivo):
 - **Automático, no lo marques:** `developing` (apenas hay una PR abierta en draft), lo que da GitHub
-  (`testing` = fuera de draft sin revisores, `in-review`, `changes-requested`, `approved`, `merged`),
+  (`testing` = fuera de draft sin revisores, `in-review`, `changes-requested`, `approved`, `merged`;
+  una PR en draft con revisores pedidos o revisión ya cuenta: en revisión, cambios pedidos o aprobada),
   si estás trabajando o esperando al usuario (hooks), y en las sesiones de revisión el veredicto
   (sale de tu review publicada en GitHub).
 - **Tú:** `investigating` al empezar si todavía no hay código; `ready-for-review` cuando terminaste
@@ -54,6 +55,9 @@ lo que es criterio, con `ide status <estado> [-m "nota"]` (nunca editando el `st
   quién>"` si no puedes avanzar (p.ej. "definiciones de producto", "el cliente", "#12") y `ide status
   unblock` al destrabar; `paused` si el usuario lo pide.
 - Mientras trabajas, las PRs van en **draft** (`gh pr create --draft`).
+- **Revisores:** pídelos (`gh pr edit --add-reviewer <login>`) cuando el usuario o el manager lo pidan,
+  aunque la PR siga en draft: en el equipo se revisa en draft y el CI corre después de aprobar. Desde
+  ahí el IDE muestra el desarrollo en revisión (no hace falta `ide status`).
 - **Esperar al usuario no se marca:** el IDE ve cuándo terminaste el turno y le muestra la **primera
   línea de tu último mensaje**. Si le preguntas algo o necesitas su OK, **empieza el mensaje con eso**
   en una línea ("Necesito tu OK para publicar la review", "Duda: ¿filtro por fecha de factura o de

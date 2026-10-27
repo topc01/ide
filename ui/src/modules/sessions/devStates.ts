@@ -1,6 +1,6 @@
 // ui/src/modules/sessions/devStates.ts
-/** Estado del desarrollo, uno solo: una FASE que avanza (con PRs fuera de draft la da GitHub con la
- *  peor de sus PRs) y, encima, un BLOQUEO opcional (con nota) que la tapa sin borrarla. Cualquier fase
+/** Estado del desarrollo, uno solo: una FASE que avanza (con PRs fuera de draft, o en draft con revisores
+ *  pedidos o revisión, la da GitHub con la peor de sus PRs) y, encima, un BLOQUEO opcional (con nota) que la tapa sin borrarla. Cualquier fase
  *  se puede poner a mano: la puesta desde la UI gana hasta que la fase de GitHub cambie. Solo local
  *  (base del IDE). */
 import type { GhPr, MergeJob } from "../../transport/folderSessions";
@@ -53,12 +53,14 @@ export type DevStates = Record<string, { phase?: string | null; block?: string |
   since?: string | null; gh?: string | null; actor?: string | null }>;
 const MERGE_ACTIVE = ["rebasing", "waiting", "waiting_ci", "merging", "restacking"];
 
-/** Fase según GitHub (la peor de las PRs abiertas fuera de draft; mergeado si todas lo están), o null. */
+/** Fase según GitHub (la peor de las PRs abiertas que cuentan; mergeado si todas lo están), o null. Cuentan
+ *  las fuera de draft y las en draft que ya tienen revisores pedidos o revisión: en el equipo se revisa en
+ *  draft (CI corre después de aprobar). Un draft sin revisores todavía se está trabajando. */
 export function githubPhase(prs: GhPr[], job?: MergeJob, merged: GhPr[] = []): Phase | null {
   if (job && MERGE_ACTIVE.includes(job.state)) return "merging";
   if (job?.state === "done") return "merged";
   if (!prs.length) return merged.length ? "merged" : null;
-  const open = prs.filter((p) => !p.draft);
+  const open = prs.filter((p) => !p.draft || p.review || p.reviewers?.length);
   if (!open.length) return null;
   if (open.some((p) => p.review === "changes")) return "changes-requested";
   if (open.some((p) => !p.review && !p.reviewers?.length)) return "testing";
@@ -80,7 +82,7 @@ export function devStateOf(states: DevStates | undefined, key: string, prs: GhPr
   const phase: Phase = (pinned ? manual : gh ?? (stale ? null : manual)) ?? (prs.length ? "developing" : "investigating");
   return {
     state: block ?? phase, phase, block, manual, github: !!gh && !pinned, gh, note: s?.note ?? null, since: s?.since ?? null, actor: s?.actor ?? null,
-    inferred: !gh && !manual, outOfDraft: !!gh && !pinned && !!manual && PRE_GITHUB.includes(manual) && manual !== "ready-for-review"
+    inferred: !gh && !manual, outOfDraft: !!gh && !pinned && !!manual && prs.some((p) => !p.draft) && PRE_GITHUB.includes(manual) && manual !== "ready-for-review"
       && gh !== "merging" && gh !== "merged",
   };
 }

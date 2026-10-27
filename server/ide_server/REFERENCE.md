@@ -798,7 +798,9 @@ las cards, el selector (y se busca por `#12`), el módulo Desarrollo e `ide dev 
 una **pausa** opcional. Fases: `investigating` (investigando), `developing` (desarrollando),
 `ready-for-review` (listo para revisión), `testing` (en testeo: PRs fuera de draft sin revisores),
 `in-review`, `changes-requested`, `approved`, `merged` (y "mergeando" mientras el IDE mergea). Con
-PRs fuera de draft la fase la da GitHub (la peor de sus PRs; mergeado si todas lo están). Cualquier
+PRs fuera de draft la fase la da GitHub (la peor de sus PRs; mergeado si todas lo están). Una PR en draft
+que ya tiene revisores pedidos o una revisión también cuenta (en revisión / cambios pedidos / aprobada):
+en el equipo se revisa en draft y el CI corre después de aprobar; un draft sin revisores no. Cualquier
 fase se puede poner a mano desde la UI: guarda la fase de GitHub de ese momento (`gh`) y gana hasta
 que GitHub cambie (una review, un merge); "↺ usar la de GitHub" la suelta. Las que pone una sesión
 con `ide status` no se fijan (manda GitHub). Sin nada puesto se deduce (draft = desarrollando); un
