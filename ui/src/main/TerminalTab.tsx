@@ -5,6 +5,8 @@ import "@xterm/xterm/css/xterm.css";
 import { replayTerminal, subscribeTerminal, writeTerminal, resizeTerminal } from "../transport/terminalChannel";
 import { getWs } from "../transport/wsClient";
 import { useFolders } from "../state/folders";
+import { useTheme } from "../state/theme";
+import { termTheme } from "./termTheme";
 
 /** Terminales vivas en memoria, por id: al cambiar de desarrollo no se descartan (siguen recibiendo
  *  la salida de fondo), así volver a una es instantáneo. La primera vez cuesta el replay (todo lo que
@@ -19,7 +21,7 @@ const MAX_LIVE = 10;
 function create(id: string): Live {
   const term = new Terminal({
     fontSize: 12, fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-    theme: { background: "#0f0e0c", foreground: "#f0ece4", cursor: "#e0863f" },
+    theme: termTheme(useTheme.getState().theme),
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
@@ -61,6 +63,11 @@ useFolders.subscribe((s, prev) => {
   if (s.connected && !prev.connected) {
     for (const e of [...live.values()]) if (!e.wrap.isConnected) e.dispose();
   }
+});
+
+// al cambiar el tema del IDE, las terminales vivas cambian de colores
+useTheme.subscribe((s, prev) => {
+  if (s.theme !== prev.theme) for (const e of live.values()) e.term.options.theme = termTheme(s.theme);
 });
 
 /** Libera las menos usadas que no estén a la vista (sobre MAX_LIVE). */

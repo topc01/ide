@@ -8,6 +8,8 @@ import { getWs } from "../transport/wsClient";
 import { runLog, startRun, stopRun, useRuns } from "../transport/runs";
 import { RunState, RunUrls } from "../modules/servers/ServersPanel";
 import { Button } from "../components/ui/button";
+import { useTheme } from "../state/theme";
+import { termTheme } from "./termTheme";
 
 const POLL_MS = 1000;
 const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
@@ -24,8 +26,9 @@ export function RunLogTab({ place, repo, name }: { place: string; repo: string; 
     const term = new Terminal({
       fontSize: 12, fontFamily: '"JetBrains Mono", ui-monospace, monospace', convertEol: true,
       disableStdin: true, scrollback: 20000, cursorBlink: false,
-      theme: { background: "#0f0e0c", foreground: "#f0ece4", cursor: "#0f0e0c" },
+      theme: termTheme(useTheme.getState().theme, false),
     });
+    const unTheme = useTheme.subscribe((s) => { term.options.theme = termTheme(s.theme, false); });
     const fit = new FitAddon();
     term.loadAddon(fit);
     if (ref.current) term.open(ref.current);
@@ -55,7 +58,7 @@ export function RunLogTab({ place, repo, name }: { place: string; repo: string; 
       if (!stop) timer = setTimeout(tick, POLL_MS);
     };
     tick();
-    return () => { stop = true; if (timer) clearTimeout(timer); ro?.disconnect(); term.dispose(); };
+    return () => { stop = true; unTheme(); if (timer) clearTimeout(timer); ro?.disconnect(); term.dispose(); };
   }, [place, repo, name, started]);   // corrida nueva → empezar de cero
 
   const act = (p: Promise<unknown>) => p.catch((e: any) => setErr(e?.message ?? String(e)));

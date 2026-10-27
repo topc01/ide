@@ -24,7 +24,7 @@
   --diff-add: #cfe8bf; --diff-del: #e8c3b8; --diff-ctx: #cfc9bd;
   color-scheme: dark;
 }
-/* Modo claro: misma identidad ámbar sobre papel; las terminales quedan oscuras (--terminal-bg). */
+/* Modo claro: misma identidad ámbar sobre papel (terminales incluidas: ver main/termTheme.ts). */
 :root.light {
   --background: #f6f3ed; --foreground: #26231e;
   --card: #fdfbf7; --card-foreground: #26231e;
@@ -35,7 +35,7 @@
   --accent: #e7dccb; --accent-foreground: #26231e;
   --destructive: #b4472b; --destructive-foreground: #ffffff;
   --border: #dcd3c4; --input: #dcd3c4; --ring: #b9611f;
-  --title-bg: #ede8df;
+  --title-bg: #ede8df; --terminal-bg: #fbf9f4;
   --status-running: #4c8a36; --status-idle: #8a8274; --status-done: #46699e;
   --role-pill-bg: #e7dccb;
   --amber-300: 180 83 9; --emerald-300: 4 120 87; --emerald-400: 5 150 105; --orange-300: 194 65 12;
