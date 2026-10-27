@@ -108,6 +108,9 @@ fallar el arranque con un mensaje que nombra la clave.
 `[ui] modules`: ids disponibles `dev`, `terminal`, `prompts`, `stack`, `review`, `deps`, `servers`, `db`, `pins`, `attachments`, `explorer`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
 `notion`, y `chat`. Si `chat` **no** está, el área principal es la vista por sesión (terminal
 `claude` + doc + scripts); si está, vuelve el chat propio.
+La **sidebar interna** (el panel del módulo activo) se ensancha arrastrando su borde derecho (200–720 px); el
+ancho queda guardado en el navegador (`ide.innerSidebarWidth` en localStorage) y doble click en el borde
+vuelve al de siempre (256 px).
 
 ## 5. Permisos
 
