@@ -711,7 +711,9 @@ pedidos, azul esperando revisor, morado mergeada (también mientras se mergea). 
 superior derecha**: **⏸ N** = N dependencias sin mergear (al pasar el mouse, cuáles) y la marca de
 **CI**: ✓ verde pasó, ✗ roja falló (**con pulso** = falló un check pero otros siguen corriendo:
 GitHub ya la da por fallida; solo en tus PRs y las que revisas, que se refrescan con el detalle de
-cada check), ⟳ amarilla girando corriendo. Aparte del CI: **⚠** conflicto con la base (no se puede
+cada check), ⟳ amarilla girando corriendo. Una PR en **draft** lleva un cuadrado gris con un punto: ahí los
+tests no corren (quedan en "skipping"), solo los checks livianos (CI Gate, styleguide); el punto es rojo si
+alguno de esos falló. Aparte del CI: **⚠** conflicto con la base (no se puede
 mergear) y **⇣** atrasada respecto de su base (develop avanzó: aviso, no bloquea salvo que GitHub
 exija la rama al día). La misma marca en filas de stack, selector, módulo Stack y resumen. El punto
 de review de una PR aprobada con revisores pendientes dice en el tooltip "falta X". Las cards traen

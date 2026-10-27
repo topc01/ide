@@ -215,9 +215,19 @@ export function DepsList({ pr, onlyPending = false }: { pr: GhPr; onlyPending?: 
 /** CI de la PR: ✓ pasó, ✗ falló (tests, conflicto con la base, …), ◌ corriendo. */
 export function CiMark({ pr }: { pr: GhPr }) {
   // marcas de esquina (como el ⏸): CI ✓ verde · ✗ roja falló (con pulso: falló pero quedan checks
-  // corriendo) · ⟳ amarilla corriendo; aparte, ⚠ conflicto con la base y ⇣ atrasada (develop avanzó)
+  // corriendo) · ⟳ amarilla corriendo · ▫ gris en draft (punto rojo si falló un check liviano); aparte, ⚠ conflicto con la base y ⇣ atrasada (develop avanzó)
   const marks = [];
-  if (pr.ci) {
+  if (pr.draft) {
+    // en draft los tests no corren (quedan en "skipping"): solo los checks livianos (CI Gate, styleguide).
+    // Cuadrado gris con un punto: gris si esos pasaron (o no hay), rojo si alguno falló.
+    const failed = pr.ci === "failure";
+    const label = `Draft: el CI de verdad (tests) corre al salir de draft${failed ? " · falló un check liviano (CI Gate o styleguide): míralo en GitHub"
+      : pr.ci === "pending" ? " · corriendo los checks livianos" : ""}`;
+    marks.push(
+      <span key="ci" aria-label={label} title={label} className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded bg-zinc-500/15">
+        <span className={cn("h-1.5 w-1.5 rounded-full", failed ? "bg-red-500" : "bg-muted-foreground")} />
+      </span>);
+  } else if (pr.ci) {
     const [Icon, cls, label] = pr.ci === "success" ? [Check, "bg-emerald-500/15 text-emerald-400", "CI pasó"]
       : pr.ci === "pending" ? [Loader2, "bg-amber-400/15 text-amber-300", "CI corriendo"]
       : [X, "bg-red-500/20 text-red-500", pr.ciRunning ? "CI falló (un check falló; otros siguen corriendo)" : "CI falló"];
