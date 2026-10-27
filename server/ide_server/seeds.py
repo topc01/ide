@@ -38,6 +38,7 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
 - `ide push [<repo>] [--force] [--branch <b>]…`: sube a `origin` la rama de tus worktrees (sin `cd`; nunca
   la principal). `--force` = `--force-with-lease`, después de un rebase; `--branch` para otras ramas
   locales del repo (p.ej. las de un stack). Úsalo en vez de pedirle al usuario que corra `git push`.
+- `ide db <prod|staging> "<SQL>"`: una consulta de solo lectura a la base (sin comandos de psql: nada con `\`).
 - `ide script <nombre> [<repo>]`: corre un script del repo (`run`, `test`, …).
 - `ide session ls [--json]`: lista sesiones y su estado.
 - `ide session new --if-missing --notion <url> --template ticket --vars-file -` (JSON por stdin):
