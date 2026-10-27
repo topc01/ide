@@ -877,6 +877,7 @@ por cada cambio (la primera vez no, para no inundar). Los estados de Notion no s
 | `ide dep add\|rm\|ls <pr> [<dep…>]` | dependencias entre PRs declaradas en el IDE, además de la descripción (`rm --ignore` ignora también una de la descripción); ver "Dependencias" |
 | `ide dev unlink <#n\|id> <pr…>` | saca PRs del desarrollo: quedan aparte y no vuelven por rama hasta un `link` |
 | `ide status <estado> [-m nota] [--session id]` | cambia el estado (dentro de una sesión usa la suya) |
+| `ide push [<repo>] [--force] [--branch b]… [--session id]` | sube a `origin` la rama actual de cada worktree de la sesión (o solo de `<repo>`; con `--branch`, esas ramas locales en vez de la actual), con `-u`. Se niega con la principal del repo (la de `origin/HEAD`) y con main/master/develop/staging/production, con una rama detached o inexistente. `--force` = `--force-with-lease` (nunca `--force` a secas). Una línea por rama (`subida` / `FALLÓ (…)`); exit 1 si alguna falló. Existe para que las sesiones no tengan que hacer `cd … && git push` |
 
 API: `GET /api/devs`, `GET /api/devs/{id}`, `POST /api/devs/{id}/status` (`{status, note, actor}`);
 canales WS `dev.list`, `dev.show`, `dev.status`. Errores: `bad_status`, `no_status`, `unknown_dev`.

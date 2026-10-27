@@ -11,6 +11,7 @@ import httpx
 from ide_server import instances, seeds
 from ide_server.devs import STATUSES
 from ide_server.handoff import handoff
+from ide_server.push import push
 from ide_server.repos_fs import add_repo, rm_repo, require_session
 from ide_server.scripts import run_script
 from ide_server.session_ops import delete_session
@@ -71,6 +72,11 @@ def _parser() -> argparse.ArgumentParser:
     r = sub.add_parser("repo").add_subparsers(dest="cmd", required=True)
     ra = r.add_parser("add"); ra.add_argument("repo"); ra.add_argument("--branch")
     ra.add_argument("--session")
+    pu = sub.add_parser("push", help="sube a origin la rama de cada worktree de la sesión (sin cd; nunca la principal)")
+    pu.add_argument("repo", nargs="?", help="solo este repo (sin él: todos los de la sesión)")
+    pu.add_argument("--branch", action="append", help="otra rama local del repo en vez de la actual (repetible; p.ej. las de un stack)")
+    pu.add_argument("--force", action="store_true", help="--force-with-lease (después de un rebase)")
+    pu.add_argument("--session")
     st = sub.add_parser("status", help="cambia el estado de la sesión (queda en la base y en el historial)")
     st.add_argument("status"); st.add_argument("-m", "--note"); st.add_argument("--session")
     ev = sub.add_parser("evidencias", help="pasos de prueba con capturas (módulo Evidencias)").add_subparsers(dest="cmd", required=True)
@@ -577,6 +583,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "telegram":
             return _telegram(a, root, url, http, out)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
+        if a.group == "push":
+            return push(root, sid, a.repo, branches=a.branch, force=a.force, out=out)
         if a.group == "repo" and a.cmd == "add":
             info = add_repo(root, sid, a.repo, branch=a.branch, out=out)
             out.write(f"{info['name']}\t{info['branch'] or '(detached)'}\tIDE_PORT={info['port']}\t"
