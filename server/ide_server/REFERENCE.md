@@ -830,7 +830,7 @@ avisa al IDE por `POST /api/sessions/{id}/activity`; canal `sessions.activity`).
 **trabajando** (empezó un turno), **esperando tu input** (terminó el turno o pide un permiso; nota =
 primera línea de su último mensaje, o el texto del permiso) y **stale** (el claude no corre y el
 desarrollo sigue activo: no mergeado ni pausado; revisión sin veredicto publicado). Se ve en el punto
-junto al título de la card (ámbar con pulso = trabajando, naranjo = te espera, rojo = stale, ○ =
+junto al título de la card (◐ celeste girando = trabajando, ● naranjo fijo = te espera, rojo = stale, ○ =
 parado sin pendientes) y, si te espera, la nota debajo en naranjo; las que te esperan suben al
 principio de su grupo; la barra de abajo cuenta "N te esperan" (sin la manager), y al pasar de
 trabajando a esperarte llega una notificación de macOS. Al aprobar un permiso en la terminal vuelve

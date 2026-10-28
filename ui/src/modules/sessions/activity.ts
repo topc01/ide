@@ -21,7 +21,8 @@ export const isWaiting = (s?: FolderSession) => !!s && s.process === "running" &
 
 /** [símbolo, clase, explicación]. */
 export const ACTIVITY: Record<Activity, [string, string, string]> = {
-  working: ["●", "text-amber-300 animate-pulse", "claude está trabajando"],
+  // trabajando gira y es de otro color: no se confunde con el punto fijo de "espera tu input"
+  working: ["◐", "inline-block leading-none text-sky-400 animate-spin", "claude está trabajando"],
   waiting: ["●", "text-orange-500", "claude terminó: espera tu input"],
   running: ["●", "text-primary", "claude corriendo"],
   queued: ["◌", "text-muted-foreground", "en cola (max_running)"],
