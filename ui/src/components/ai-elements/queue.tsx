@@ -30,10 +30,10 @@ export const QueueSectionTrigger = ({ className, children, ...p }: React.Compone
   </Collapsible.Trigger>
 );
 
-export const QueueSectionLabel = ({ label, count, icon, className }:
-  { label: string; count?: number; icon?: React.ReactNode; className?: string }) => (
+export const QueueSectionLabel = ({ label, count, icon, extra, className }:
+  { label: string; count?: number; icon?: React.ReactNode; extra?: React.ReactNode; className?: string }) => (
   <span className={cn("flex flex-1 items-center gap-1.5", className)}>
-    {icon}<span>{label}</span>
+    {icon}<span>{label}</span>{extra}
     {count !== undefined && <span className="ml-auto font-mono text-[10px] text-primary">{count}</span>}
   </span>
 );

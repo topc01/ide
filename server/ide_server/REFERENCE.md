@@ -771,7 +771,8 @@ En una sesión con varias PRs el fondo lo da la peor review y la marca de CI el 
 estado (Merges, Devueltas, Esperando revisores, Sin revisores, Draft, Aprobadas, Sin PR); con varias
 PRs manda la **peor**: devuelta > sin revisores > esperando > draft > aprobada. También por repo o
 sin agrupar (⚙). Los grupos sin nada van juntos en uno solo, **Vacíos** (cerrado); apenas tienen
-un desarrollo vuelven a su lugar. Los módulos Stack, Revisión y Dependencias muestran **todo** el desarrollo (aunque
+un desarrollo vuelven a su lugar. Junto al nombre de cada grupo (en Mis desarrollos y Revisiones) va
+cuántos claude te esperan (● naranjo) y cuántos trabajan (◐ celeste); el que está en 0 no se muestra. Los módulos Stack, Revisión y Dependencias muestran **todo** el desarrollo (aunque
 se haya elegido una fila), con una cabecera por repo si es fullstack.
 
 **Card:** el título usa todo el ancho; las marcas (⏸, CI) van en la esquina superior derecha y las

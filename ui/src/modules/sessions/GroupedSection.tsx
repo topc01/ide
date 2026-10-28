@@ -1,5 +1,6 @@
 // ui/src/modules/sessions/GroupedSection.tsx
 import type { ReactNode } from "react";
+import { cn } from "../../lib/utils";
 import { ChevronRight, Settings2 } from "lucide-react";
 import { Collapsible } from "radix-ui";
 import { QueueList, QueueSection, QueueSectionContent, QueueSectionLabel, QueueSectionTrigger }
@@ -9,6 +10,24 @@ import { usePersistentOpen } from "../../lib/persist";
 import { repoShort } from "./DevCard";
 import { useSidebarConfig, type GroupBy } from "../../state/sidebarConfig";
 import { useStore } from "../../state/store";
+import { ACTIVITY } from "./activity";
+
+/** Junto al nombre de un grupo: cuántos claude trabajan (◐) y cuántos te esperan (●); en 0 no se muestra.
+ *  Una sesión con varias PRs (stack) cuenta una vez. */
+function ActivityCounts({ items }: { items: Entry[] }) {
+  const sessions = new Map(items.filter((e) => e.session?.process === "running").map((e) => [e.session!.id, e.session!]));
+  const n = (st: "working" | "waiting") => [...sessions.values()].filter((s) => s.activity?.state === st).length;
+  const parts = (["waiting", "working"] as const).map((st) => [st, n(st)] as const).filter(([, c]) => c > 0);
+  if (!parts.length) return null;
+  return (
+    <span className="flex shrink-0 items-center gap-1.5 font-mono text-[10px] normal-case">
+      {parts.map(([st, c]) => (
+        <span key={st} className="flex items-center gap-0.5" title={`${c} ${st === "waiting" ? "te esperan" : "trabajando"}`}>
+          <span aria-hidden className={cn("text-[9px]", ACTIVITY[st][1])}>{ACTIVITY[st][0]}</span>{c}
+        </span>))}
+    </span>
+  );
+}
 
 /** Un ítem de una sección: una PR (con o sin sesión) o una sesión sin PR conocida. */
 export interface Entry {
@@ -108,7 +127,7 @@ export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, 
           <QueueSection key={`${by}-${key}`} defaultOpen persistKey={`${id}.${by}.${key}`} className="mt-1">
             <div className="flex items-center">
               <QueueSectionTrigger title={g.label}>
-                <QueueSectionLabel label={g.label} count={g.items.length} className="min-w-0 [&>span:first-child]:truncate" />
+                <QueueSectionLabel label={g.label} count={g.items.length} extra={<ActivityCounts items={g.items} />} className="min-w-0 [&>span:first-child]:truncate" />
               </QueueSectionTrigger>
               {groupActions?.[key]}
             </div>
@@ -129,7 +148,7 @@ export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, 
         {hidden.length > 0 && (
           <QueueSection defaultOpen={false} persistKey={`${id}.hidden`} className="mt-1 opacity-70">
             <QueueSectionTrigger title="Desarrollos ocultos (el ojo de cada card los vuelve a mostrar)">
-              <QueueSectionLabel label="Ocultos" count={hidden.length} />
+              <QueueSectionLabel label="Ocultos" count={hidden.length} extra={<ActivityCounts items={hidden} />} />
             </QueueSectionTrigger>
             <QueueSectionContent><QueueList>{hidden.map((e) => <div key={e.key}>{e.render()}</div>)}</QueueList></QueueSectionContent>
           </QueueSection>)}
