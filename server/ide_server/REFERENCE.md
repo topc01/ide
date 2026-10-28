@@ -347,7 +347,8 @@ la única api corriendo del desarrollo, o "la de su .env.local"; su ▶ run le p
 sesiones): `ls [--json]`, `start <bloque> <script> [--api <bloque> | --no-api]` (crea el worktree
 aparte si hace falta; un front sin su api corriendo da error: levantarla primero o `--no-api`),
 `stop <bloque> <script>`, `log <bloque> <script> [-n N]`; `--dev <#n|id>` para otro desarrollo (default:
-el de la sesión). El bloque se nombra por una de sus PRs (`api#4897`) o por el repo si tiene uno solo.
+el de la sesión). El bloque se nombra por una de sus PRs (`api#4897`) o por el repo: si el repo tiene varios bloques, el repo a
+secas (`embed`) es el de la sesión sin PR, el mismo nombre que muestra `ls`.
 La regla vive en `server_blocks.py` (la UI la replica en `servers/place.ts`). Canales
 `servers.blocks|start|stop|log`; HTTP `GET /api/devs/{id}/servers`, `POST /api/devs/{id}/servers/start|stop|log`.
 Cada bloque muestra sus scripts

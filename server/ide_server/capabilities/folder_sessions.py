@@ -732,7 +732,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         PR solo cambia datos locales del IDE; desde la terminal del usuario va sin token.)"""
         if p.get("_http") and p.get("from_session") and \
                 not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
-            raise SessionError("forbidden", "solo la sesión manager (o el usuario desde su terminal) mueve PRs")
+            raise SessionError("forbidden", "solo la sesión manager o el usuario desde su terminal mueven PRs; un comando con `!` dentro de una "
+                               "sesión cuenta como de esa sesión: córrelo en tu terminal o pídeselo a la manager")
 
     def _review_prs(s: dict) -> list[str]:
         """Las PRs de una sesión de revisión: las del stack, o la suya."""

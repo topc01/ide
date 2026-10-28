@@ -79,8 +79,8 @@ def chain(prs: list[dict]) -> str:
 
 
 def find(bl: list[dict], ref: str) -> dict:
-    """Un bloque por una de sus PRs (`api#4897`, `finnecto-api#4897`, URL) o por su repo (`admin`) si es
-    el único bloque de ese repo."""
+    """Un bloque por una de sus PRs (`api#4897`, `finnecto-api#4897`, URL) o por su repo (`admin`): el único
+    bloque de ese repo o, si hay varios, el de la sesión sin PR (el que `ide server ls` nombra `admin`)."""
     ref = ref.strip()
     m = re.search(r"([\w.-]+)(?:#|/pull/)(\d+)$", ref)
     if m:
@@ -92,6 +92,9 @@ def find(bl: list[dict], ref: str) -> dict:
     same = [b for b in bl if short(b["repo"]) == short(ref)]
     if len(same) == 1:
         return same[0]
+    bare = [b for b in same if not b["top"]]
+    if len(bare) == 1:
+        return bare[0]
     if not same:
         raise SessionError("unknown_block", f"no hay bloque de {ref} (mira `ide server ls`)")
     raise SessionError("ambiguous_block", f"{ref} tiene {len(same)} bloques: nómbralo por su PR ("
