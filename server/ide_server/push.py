@@ -1,14 +1,16 @@
 # server/ide_server/push.py
 """`ide push`: sube a `origin` las ramas de los worktrees de una sesión, sin que la sesión tenga que
 hacer `cd` ni armar el `git push` (el clasificador de permisos de claude los frena y terminan pidiéndole
-al usuario que los corra). Solo ramas de la sesión, nunca la principal del repo; con `--force` va
-`--force-with-lease` (nunca `--force` a secas)."""
+al usuario que los corra). Solo ramas de la sesión (sus worktrees y los aparte de las PRs de su
+desarrollo, `wt-<repo>-<n>`, y los que su claude armó en su scratchpad), nunca la principal del repo; con `--force` va `--force-with-lease` (nunca
+`--force` a secas)."""
 from __future__ import annotations
+import re
 import subprocess
 from pathlib import Path
 from typing import TextIO
 from ide_server.repos_fs import require_session
-from ide_server.sessions_fs import SessionError, repo_links
+from ide_server.sessions_fs import SessionError, read_session, repo_links
 
 PROTECTED = {"main", "master", "develop", "staging", "production"}
 
@@ -22,13 +24,38 @@ def _default_branch(wt: Path) -> str | None:
     return r.stdout.strip().removeprefix("origin/") or None if r.returncode == 0 else None
 
 
-def _checked_out_elsewhere(wt: Path, mine: Path) -> dict[str, str]:
+def _own_places(root: Path, sid: str) -> list[Path]:
+    """Las carpetas de worktrees de la sesión: la suya y las aparte de las PRs de su desarrollo (las
+    vinculadas a ella y, en una revisión, las que revisa)."""
+    from ide_server import pr_worktrees
+    from ide_server.db import Db
+    base = root / ".ide" / "worktrees"
+    s = read_session(root, sid)
+    urls = {u for u, link in Db(root).dev_prs().items() if link.get("sid") == sid and not link.get("out")}
+    urls |= set(s.get("stackPrs") or []) | ({s["prUrl"]} if s.get("prUrl") else set())
+    places = set()
+    for u in urls:
+        try:
+            places.add(pr_worktrees.place_for(u)[0])
+        except Exception:   # una URL que no es de PR no tiene worktree aparte
+            pass
+    return [(base / x).resolve() for x in (sid, *sorted(places))]
+
+
+def _scratch_dir(root: Path, sid: str) -> str:
+    """El nombre que claude le da a la carpeta de la sesión (scratchpad: `/tmp/claude-<uid>/<este>/…`)."""
+    return re.sub(r"[^A-Za-z0-9-]", "-", str((root / ".ide" / "sessions" / sid).resolve()))
+
+
+def _checked_out_elsewhere(wt: Path, mine: list[Path], scratch: str) -> dict[str, str]:
     """rama → worktree, de las ramas que están en un worktree que no es de esta sesión."""
     out, path = {}, None
     for line in _git(wt, "worktree", "list", "--porcelain").stdout.splitlines():
         if line.startswith("worktree "):
             path = Path(line[9:]).resolve()
-        elif line.startswith("branch refs/heads/") and path is not None and mine not in (path, *path.parents):
+        elif line.startswith("branch refs/heads/") and path is not None \
+                and not any(m in (path, *path.parents) for m in mine) \
+                and not any(d.name == scratch and d.parent.name.startswith("claude-") for d in path.parents):
             out[line[18:]] = str(path)
     return out
 
@@ -43,14 +70,14 @@ def push(root: Path, sid: str, repo: str | None, *, branches: list[str] | None =
     if not links:
         out.write(f"la sesión {sid} no tiene repos\n")
         return 1
-    failed = 0
+    failed, mine = 0, _own_places(root, sid)
     for name in [repo] if repo else sorted(links):
         wt = links[name].resolve()
         todo = branches or [_git(wt, "branch", "--show-current").stdout.strip()]
         if not todo[0]:
             out.write(f"{name}: sin rama (detached), no subo nada\n"); failed += 1; continue
         protected = PROTECTED | ({d} if (d := _default_branch(wt)) else set())
-        others = _checked_out_elsewhere(wt, (root / ".ide" / "worktrees" / sid).resolve())
+        others = _checked_out_elsewhere(wt, mine, _scratch_dir(root, sid))
         for b in todo:
             if b in protected:
                 out.write(f"{name}: {b} es una rama principal, no la subo\n"); failed += 1; continue
