@@ -394,7 +394,9 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
                     "activity": (s.get("activity") or {}).get("state") if s.get("process") == "running" else None,
                     "activityNote": (s.get("activity") or {}).get("note") if s.get("process") == "running" else None,
                     "repos": [{"name": r["name"], "branch": r.get("branch")} for r in s.get("repos", [])],
-                    "prs": [_pr_summary(c) for c in sorted(prs, key=lambda c: (c.get("stack") or {}).get("position", 0))]})
+                    # una revisión de varias PRs: en su orden (el stack de abajo arriba, las movidas al final)
+                    "prs": [_pr_summary(c) for c in (prs if s.get("stackPrs") else
+                                                     sorted(prs, key=lambda c: (c.get("stack") or {}).get("position", 0)))]})
     # solo PRs: las mías (por stack) y las que me pidieron revisar, sin sesión
     groups: dict[str, list[dict]] = {}
     for c in cards.values():
