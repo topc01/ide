@@ -469,7 +469,8 @@ notion_url: https://www.notion.so/...
 ## 9b. Revisiones de GitHub y barra de usage (UI)
 
 **Revisiones** (sidebar principal): cada `github_interval` s el server hace un `gh api graphql`
-(org-wide, no depende de la sesión abierta) y la UI muestra cards en dos grupos:
+(org-wide, no depende de la sesión abierta; al arrancar, mientras llega la primera consulta, muestra
+lo de la última guardada en la base) y la UI muestra cards en dos grupos:
 **Pendientes** (PRs abiertos de la org con review pedida a vos) y **Pedí cambios** (sus sesiones no se pueden archivar: siguen vivas hasta la próxima ronda; PRs abiertos donde tu
 última review con veredicto es `CHANGES_REQUESTED`; las respuestas en hilos no la tapan y no te re-pidieron review). Si el PR ya tiene sesión
 (`pr-<repo>-<n>`) la card es la sesión; si no, una card del PR. Las sesiones de revisión que no

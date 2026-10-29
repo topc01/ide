@@ -487,7 +487,7 @@ class GithubReviews:
             self._db.delete(f"deps:{url}")
         return self.dep_sources(url)
 
-    async def _annotate_deps(self, res: dict, data: dict) -> None:
+    async def _annotate_deps(self, res: dict, data: dict, *, offline: bool = False) -> None:
         """Agrega a cada card `deps` (cadena de dependencias declaradas) y `depsPending`."""
         prs = [n for n in data["data"]["open"]["nodes"] if n]
         by_key = {(n["repository"]["nameWithOwner"].lower(), n["number"]): n for n in prs}
@@ -500,7 +500,7 @@ class GithubReviews:
                           if (full.lower(), num) not in by_key})
         cached = self._db.get_refs(f"{f}#{n}" for f, n in unknown)
         missing = [(f, n) for f, n in unknown if f"{f}#{n}" not in cached]
-        found = await gh_deps.resolve(self._gh, missing) if missing else {}
+        found = await gh_deps.resolve(self._gh, missing) if missing and not offline else {}
         # las mergeadas/cerradas no cambian más: quedan en la base
         self._db.put_refs({f"{k[0]}#{k[1]}": v for k, v in found.items() if v.get("state") in _CLOSED})
         url_of = {k: n["url"] for k, n in by_key.items()}
@@ -575,6 +575,23 @@ class GithubReviews:
         self.state = {**self.state, "selected": self._db.get("reviewers")}
         self._on_change()
 
+    async def warm_start(self) -> None:
+        """Al arrancar, el estado sale de la base (lo de la última consulta) sin ir a GitHub: la primera
+        consulta demora y, mientras, la sidebar mostraría los desarrollos sin las fases de sus PRs."""
+        me = self._db.get("me")
+        orgs = [self._org] if self._org else await asyncio.to_thread(workspace_orgs, self._root)
+        if not me or not orgs or not self._db.open_prs():
+            return
+        members = self._db.members(orgs)
+        data = self._data(me)
+        res = parse_result(data, {m["login"] for m in members})
+        await self._annotate_deps(res, data, offline=True)
+        res["closed"] = self._closed()
+        last = max(self._db.get("last_inc") or 0, self._db.get("last_full") or 0)
+        self.state = {**res, "members": members, "selected": self._db.get("reviewers"), "error": None,
+                      "lastOk": _iso(last) if last else None, "orgs": orgs, "sync": self._db.get("last_sync")}
+        self._on_change()
+
     async def poll_once(self) -> None:
         orgs = [self._org] if self._org else await asyncio.to_thread(workspace_orgs, self._root)
         prev = self.state
@@ -609,6 +626,10 @@ class GithubReviews:
     async def run(self, stop: asyncio.Event) -> None:
         if self._interval <= 0:
             return
+        try:
+            await self.warm_start()
+        except Exception:  # noqa: BLE001 — sin esto, solo se espera la primera consulta
+            log.exception("estado inicial de GitHub desde la base")
         while not stop.is_set():
             try:
                 await self.poll_once()
