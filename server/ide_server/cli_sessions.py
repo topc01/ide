@@ -398,6 +398,13 @@ def _hook(url: str | None, http, env: dict) -> int:
     try:
         sid = env.get("IDE_SESSION_ID")
         ev = json.loads(sys.stdin.read() or "{}")
+        if ev.get("hook_event_name") == "UserPromptSubmit":
+            # lo que imprime este hook le llega a claude como contexto: Claude Code le da la fecha pero
+            # no la hora, y la adivina de lo que lee (GitHub y los logs vienen en UTC)
+            import time as _time
+            sys.stdout.write(f"Hora local del usuario: {_time.strftime('%H:%M del %a %d-%m-%Y')} "
+                             f"({_time.strftime('%Z, UTC%z')}). Los horarios de GitHub, de los logs y de las "
+                             "bases suelen venir en UTC: conviértelos a esta hora antes de mencionarlos.\n")
         if sid and url:
             http.post(f"{url}/api/sessions/{quote(sid, safe='')}/activity", timeout=3, json={
                 "event": ev.get("hook_event_name"), "notification_type": ev.get("notification_type"),
