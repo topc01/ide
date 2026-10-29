@@ -55,6 +55,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         ensure_ide_session(root, icfg["repo"], icfg["resume"])
     except Exception:  # noqa: BLE001 — sin ella el resto anda igual
         log.exception("no pude preparar la sesión IDE")
+    try:                                        # la sesión "Recursos" (batería/CPU, `ide procs`)
+        from ide_server.sessions_fs import ensure_recursos_session
+        ensure_recursos_session(root)
+    except Exception:  # noqa: BLE001
+        log.exception("no pude preparar la sesión Recursos")
 
     def build_tree(snap: dict, derived: dict) -> dict:
         """Lectura de disco + git: corre en un thread (no bloquea el loop)."""

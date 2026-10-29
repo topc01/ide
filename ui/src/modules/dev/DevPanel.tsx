@@ -109,7 +109,7 @@ export function DevPanel() {
       {s && <div className="mx-2.5 font-mono text-[10px] text-muted-foreground">{s.id} · {s.kind}{s.status ? ` · ${s.status}` : ""}</div>}
       {error && <p role="alert" className="mx-2.5 mt-2 text-destructive">{error}</p>}
 
-      {s?.kind !== "review" && s?.kind !== "main" && s?.kind !== "ide" && (<>
+      {s?.kind !== "review" && s?.kind !== "main" && s?.kind !== "ide" && s?.kind !== "recursos" && (<>
         <Label>Estado del desarrollo</Label>
         <StateEditor devKey={dev.key} prs={dev.prs} merged={dev.merged} />
       </>)}

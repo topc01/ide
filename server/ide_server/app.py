@@ -120,6 +120,9 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
                 log.exception("no se pudo guardar el historial de las terminales")
 
     stop_bg = asyncio.Event()
+    from ide_server.devs import _notify_mac
+    from ide_server.procs import Watcher
+    procs_watcher = Watcher(root, _notify_mac)
 
     def _log_done(t: asyncio.Task) -> None:
         if not t.cancelled() and t.exception() is not None:
@@ -137,6 +140,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             asyncio.create_task(save_history_loop(stop_bg)),
             asyncio.create_task(runs_watch(stop_bg)),
             asyncio.create_task(notify_box["fn"].nightly_loop(stop_bg)),
+            # el vigilante de recursos (sin IA); no en un IDE de prueba (avisaría dos veces)
+            *([] if os.environ.get("IDE_DB_PATH") else [asyncio.create_task(procs_watcher.run(stop_bg))]),
             # con IDE_DB_PATH (un IDE de prueba contra una copia) no se conecta a Telegram: le robaría los
             # mensajes al IDE real (Telegram entrega cada mensaje a un solo getUpdates)
             *([asyncio.create_task(notify_box["fn"].telegram.run(stop_bg))]

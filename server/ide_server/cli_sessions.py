@@ -74,6 +74,10 @@ def _parser() -> argparse.ArgumentParser:
     ra.add_argument("--session")
     db = sub.add_parser("db", help="una consulta de solo lectura a la base de prod o staging (vía db-connect.sh)")
     db.add_argument("env", choices=("prod", "staging")); db.add_argument("sql", help="la consulta SQL (sin comandos de psql: nada con \\\\)")
+    pr_ = sub.add_parser("procs", help="qué consume el computador y de qué desarrollo es (servidores, contenedores, claude)")
+    pr_.add_argument("--json", action="store_true")
+    prs_ = pr_.add_subparsers(dest="cmd")
+    prs_.add_parser("stop", help="corta un servidor o contenedores del IDE por su id de `ide procs`").add_argument("id")
     br = sub.add_parser("browser", help="perfiles de navegador del workspace: uno por cuenta, todos abiertos a la vez").add_subparsers(dest="cmd", required=True)
     br.add_parser("ls")
     bn = br.add_parser("new"); bn.add_argument("name"); bn.add_argument("url", help="donde inicia sesión (p.ej. http://localhost:5173 o https://tech.finnecto.com)")
@@ -494,6 +498,44 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
     return 0
 
 
+def _procs(a, root: Path, env, out: TextIO) -> int:
+    from ide_server import procs
+    caller = env.get("IDE_SESSION_ID")
+    if a.cmd == "stop":
+        if caller and caller != procs.RECURSOS:
+            raise SessionError("forbidden", "solo la sesión Recursos (o el usuario desde su terminal) corta procesos")
+        snap = procs.snapshot(root)
+        row = next((r for r in snap["servers"] + snap["docker"] if r["id"] == a.id), None)
+        if row is None:
+            raise SessionError("unknown", f"{a.id} no está en `ide procs`")
+        if caller and not row["abandoned"]:     # la sesión Recursos: solo lo abandonado
+            raise SessionError("forbidden", f"{a.id} está en uso: no lo cortes, propónselo al usuario "
+                                            "(él lo corta desde Servidores o con `ide procs stop` en su terminal)")
+        # unos contenedores levantados por un servidor del IDE: se para el servidor (Servidores lo ve parado)
+        out.write(procs.stop(root, row.get("server") or a.id) + "\n")
+        return 0
+    snap = procs.snapshot(root)
+    if a.json:
+        out.write(json.dumps(snap, ensure_ascii=False, indent=2) + "\n")
+        return 0
+    h = lambda v: "-" if v is None else f"{v}h"   # noqa: E731
+    out.write(f"batería: {snap['battery'] or '?'}\n")
+    out.write(f"claude: {snap['claude']['count']} procesos, {snap['claude']['cpu']}% CPU, {snap['claude']['mb']} MB\n")
+    out.write(f"\nSERVIDORES DEL IDE (abandonado = sin uso hace {snap['config']['idle_hours']} h, desarrollo cerrado o sesión archivada)\n")
+    for r in sorted(snap["servers"], key=lambda r: (not r["abandoned"], -r["cpu"])):
+        out.write(f"{r['id']}\t{r['cpu']}% {r['mb']}MB\tlog {h(r['lastLogH'])} claude {h(r['lastClaudeH'])}\t"
+                  f"{'ABANDONADO: ' + r['abandoned'] if r['abandoned'] else 'en uso'}\n")
+    out.write("\nCONTENEDORES\n")
+    for r in sorted(snap["docker"], key=lambda r: -r["cpu"]):
+        where = f"{r['place']}/{r['repo']}" if r["place"] else "compartido (no es de una sesión)"
+        out.write(f"{r['id']}\t{r['name']}\t{r['cpu']}% {r['mb']}MB\t{where}\t"
+                  f"{'ABANDONADO: ' + r['abandoned'] if r['abandoned'] else 'en uso' if r['place'] else ''}\n")
+    out.write("\nOTROS PROCESOS (≥5% CPU)\n")
+    for p in snap["top"]:
+        out.write(f"{p['pid']}\t{p['cpu']}% {p['mb']}MB\t{p['etime']}\t{p['command'][:100]}\n")
+    return 0
+
+
 def _browser(a, root: Path, env, out: TextIO) -> int:
     from ide_server import browsers
     if a.cmd == "ls":
@@ -643,6 +685,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _db_query(a.env, a.sql, home, out, err)
         if a.group == "browser":
             return _browser(a, root, env, out)
+        if a.group == "procs":
+            return _procs(a, root, env, out)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
         if a.group == "push":
             # una sesión solo sube lo suyo (el permiso `ide push` no le da las ramas de otras)

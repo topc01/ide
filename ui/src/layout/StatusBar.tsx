@@ -107,7 +107,7 @@ function WaitingForYou() {
   const states = useFolders((s) => s.tree.devStates);
   const names = useFolders((s) => s.tree.devNames);
   const sessions = useFolders((s) => s.tree.sessions);
-  const byActivity = sessions.filter((x) => x.kind !== "main" && x.kind !== "ide" && isWaiting(x)).map((x) => [`s:${x.id}`, { note: x.activity?.note ?? null }] as const);
+  const byActivity = sessions.filter((x) => x.kind !== "main" && x.kind !== "ide" && x.kind !== "recursos" && isWaiting(x)).map((x) => [`s:${x.id}`, { note: x.activity?.note ?? null }] as const);
   const legacy = Object.entries(states ?? {}).filter(([k, v]) => v.block === "waiting-input" && !byActivity.some(([b]) => b === k));
   const waiting = [...byActivity, ...legacy];
   if (!waiting.length) return null;

@@ -18,7 +18,7 @@ from ide_server import seeds
 from ide_server.sessions_store import slugify
 from ide_server.workspace import discover_repos
 
-KINDS = ("main", "ticket", "review", "ide")
+KINDS = ("main", "ticket", "review", "ide", "recursos")
 PERMISSIONS = ("analyze", "full", "default")
 RESERVED = {"templates"}
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
@@ -297,6 +297,63 @@ def ensure_ide_session(root: Path, repo: str | None, resume: str | None) -> str 
     return IDE_SESSION
 
 
+RECURSOS_MD = """# Recursos
+
+Eres la sesión **Recursos** del IDE: cuidas la batería y la CPU del computador del usuario. Te pregunta
+cosas como "por qué se me va la batería" o "qué puedo cortar".
+
+## Cómo mirar
+
+- `ide procs` (o `--json`): batería, servidores del IDE, contenedores y procesos que más consumen, cada
+  recurso del IDE con su sesión, cuándo se usó por última vez (log del servidor, conversación de claude)
+  y si está **ABANDONADO** (sin uso hace `idle_hours`, desarrollo mergeado/pausado, sesión archivada,
+  o contenedor huérfano).
+- `ide session ls` / `ide dev ls`: qué es cada sesión (`n-…`) y en qué está.
+- `ps`, `top -l 1`, `docker ps`, `docker stats --no-stream`, `pmset -g batt` para mirar más.
+- `alertas.log` (en tu carpeta): los avisos del vigilante del IDE (CPU alta sostenida, batería que cae
+  rápido). Ese vigilante no usa IA; tú solo trabajas cuando el usuario te habla.
+
+## Qué puedes cortar
+
+- **Solo lo ABANDONADO, solo con `ide procs stop <id>`** (el comando se niega con lo que está en uso).
+  Corta sin preguntar y cuéntale al usuario qué cortaste y por qué.
+- Lo que está **en uso** pero consume mucho (p.ej. una api al 300% de CPU): **propónselo** con el dato
+  (cuánto consume, de qué desarrollo es, desde cuándo) y el comando para que lo corte él
+  (`ide procs stop <id>` en su terminal, o desde el módulo Servidores).
+- **Nunca** mates procesos con `kill`/`pkill`, ni apps del usuario (Chrome, WhatsApp, Slack…), ni
+  procesos de macOS, ni los `claude` de otras sesiones, ni la infraestructura compartida (la base y
+  rabbitmq de `finnecto-api`): de esos solo informas y propones.
+- Si algo del sistema consume mucho (Spotlight indexando, un proceso de macOS), explícale qué es y si
+  se pasa solo.
+
+Responde corto: qué consume, de quién es, qué cortaste y qué le propones cortar.
+"""
+
+
+def ensure_recursos_session(root: Path) -> str:
+    """La sesión "Recursos" (pestaña junto a la manager y la IDE): un claude que mira qué consume el
+    computador (`ide procs`). Idempotente; su CLAUDE.md y sus permisos se escriben si faltan."""
+    import json
+    path = session_path(root, "recursos")
+    path.mkdir(parents=True, exist_ok=True)
+    if not (path / ".session.toml").is_file():
+        write_toml(path / ".session.toml", {"kind": "recursos", "permissions": "default", "title": "Recursos",
+                                            "created": datetime.now().isoformat(timespec="seconds")})
+    if not (path / "CLAUDE.md").is_file():
+        (path / "CLAUDE.md").write_text(RECURSOS_MD, encoding="utf-8")
+    settings = path / ".claude" / "settings.json"
+    data = json.loads(settings.read_text(encoding="utf-8")) if settings.is_file() else {}
+    allow = data.setdefault("permissions", {}).setdefault("allow", [])
+    for rule in ("Bash(ide procs:*)", "Bash(ide session ls:*)", "Bash(ide dev ls:*)", "Bash(ide dev show:*)",
+                 "Bash(ide server ls:*)", "Bash(ps:*)", "Bash(top -l:*)", "Bash(docker ps:*)",
+                 "Bash(docker stats:*)", "Bash(pmset -g:*)", "Read(./alertas.log)"):
+        if rule not in allow:
+            allow.append(rule)
+    settings.parent.mkdir(exist_ok=True)
+    settings.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return "recursos"
+
+
 def list_sessions(root: Path) -> list[dict]:
     d = sessions_dir(root)
     if not d.is_dir():
@@ -304,7 +361,8 @@ def list_sessions(root: Path) -> list[dict]:
     items = [read_session(root, p.name) for p in d.iterdir()
              if p.is_dir() and not p.is_symlink() and p.name not in RESERVED
              and not p.name.startswith(".")]
-    return sorted(items, key=lambda s: (s["kind"] != "main", s["kind"] != "ide", s["created"], s["id"]))
+    return sorted(items, key=lambda s: (s["kind"] != "main", s["kind"] != "ide", s["kind"] != "recursos",
+                                        s["created"], s["id"]))
 
 
 def seed_workspace(root: Path) -> list[Path]:

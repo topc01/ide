@@ -98,6 +98,10 @@ modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", 
 [ide]                     # opcional: la sesión "IDE", pestaña junto a la Manager
 repo = "/Users/topc/ide"  # su claude corre en ese repo (permisos default, hooks por --settings)
 resume = "<uuid>"         # la conversación de claude que retoma la primera vez (opcional)
+[recursos]                # opcional: la sesión Recursos y el vigilante (valores por defecto)
+idle_hours = 12           # un servidor del IDE sin uso (log ni claude) hace más de esto = abandonado
+watch_seconds = 300       # cada cuánto mira el vigilante (0 = no vigila)
+cpu_alert = 150           # % de CPU sostenido (dos miradas seguidas) que avisa con una notificación
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
@@ -622,12 +626,20 @@ PR tuya sin sesión, una **sesión en su rama** (ver abajo); en una PR de otro s
 **sesión de revisión** (se abre su `claude`); y **reabre** lo cerrado
 (doc, resúmenes de las otras PRs del desarrollo). × cierra la tab sin parar nada. Sin límite de tabs.
 
-**Pestañas Manager | IDE** (arriba de la sidebar principal): las dos sesiones fijas, la elegida
+**Pestañas Manager | IDE | Recursos** (arriba de la sidebar principal): las dos sesiones fijas, la elegida
 destacada y con el punto de actividad (trabajando / te espera); a la derecha solo el **+** (nueva
 sesión). La sesión **IDE** (kind `ide`, id `ide`) existe si `[ide] repo` está en config.toml: se crea
 sola al arrancar el server (`.ide/sessions/ide/.session.toml` con `cwd`), su claude corre en ese repo
 con los permisos de siempre (`default`), retoma la conversación de `[ide] resume` la primera vez, y
 no cuenta como desarrollo (sin número, fuera de Mis desarrollos y de "te esperan").
+La sesión **Recursos** (kind e id `recursos`, tercera pestaña) se crea sola al arrancar el server: un
+claude que mira qué consume el computador con `ide procs` y corta **solo lo abandonado**
+(`ide procs stop` se lo niega con lo que está en uso; eso te lo propone). Su `CLAUDE.md` y sus permisos
+(`.claude/settings.json`: `ide procs`, `ps`, `docker ps/stats`, `pmset -g`…) se escriben si faltan.
+Tampoco cuenta como desarrollo. Aparte, el **vigilante** del server (sin IA, cada `watch_seconds`)
+manda una notificación de macOS cuando algo pasa `cpu_alert` % de CPU dos miradas seguidas o la
+batería baja 10 puntos en media hora (a lo más una vez cada 2 h por culpable) y lo anota en
+`.ide/sessions/recursos/alertas.log`; no corre en un IDE de prueba (`IDE_DB_PATH`).
 
 **Tab `claude`**: va siempre primera y destacada (ícono, fondo de acento y el punto de actividad de
 la sesión: trabajando / te espera, con la nota en el tooltip). **Terminales en memoria**: cada
@@ -883,6 +895,7 @@ por cada cambio (la primera vez no, para no inundar). Los estados de Notion no s
 | `ide dev unlink <#n\|id> <pr…>` | saca PRs del desarrollo: quedan aparte y no vuelven por rama hasta un `link`. De una revisión: sale de su lista y queda como revisión aparte (no se puede dejar una revisión sin PRs) |
 | `ide status <estado> [-m nota] [--session id]` | cambia el estado (dentro de una sesión usa la suya) |
 | `ide db <prod\|staging> "<SQL>"` | una consulta de solo lectura a la base de prod o staging por `~/.claude/skills/db-connect.sh` (túnel SSM + psql en Docker, usuario read-only). Solo el SQL llega a psql: rechaza cualquier `\` (comandos de psql como `\!`, `\o`, `\copy`) y otros argumentos. Los perfiles `analyze`/`main` lo permiten sin preguntar |
+| `ide procs [--json]` / `ide procs stop <id>` | qué consume el computador: batería, servidores del IDE (`run:<lugar>/<repo>/<script>`), contenedores (`docker:<proyecto compose>`, asociados a su sesión por el worktree), cantidad y consumo de los `claude`, y los procesos con ≥5% de CPU. Cada recurso del IDE sale **ABANDONADO** (con el motivo) si es un contenedor huérfano, su sesión ya no existe, su desarrollo está mergeado/pausado, o nadie lo usa hace `idle_hours` (ni el log del servidor ni la conversación de claude). `stop` para un servidor (y sus contenedores) o un proyecto compose; desde la sesión Recursos solo lo abandonado, desde otras sesiones nada, desde tu terminal cualquiera |
 | `ide browser ls\|new <nombre> <url> [--note …]\|rm <nombre>\|login <nombre>` | perfiles de navegador del workspace, uno por cuenta (`.ide/browsers/<nombre>/`: `profile.toml` + `state.json` con las cookies). Cada claude arranca con `--mcp-config .ide/browsers/mcp.json`: un Playwright MCP por perfil (`browser-<nombre>`, Chrome `--isolated` con esa sesión), así una sesión usa varias cuentas a la vez y dos sesiones la misma. `login` abre Chrome; al cerrar la ventana se guarda la sesión, solo la del sitio exacto del perfil (fuera cookies de otros dominios y del dominio padre, p.ej. `.finnecto.com`, y localStorage de otros orígenes: navegar a otro cliente llega sin sesión) (el próximo navegador que se abra la toma; un perfil nuevo lo ven las sesiones al relanzar su claude). `ls` marca `local` (localhost y tech.finnecto.com: sus tools van en `--allowedTools`, sin pedir permiso) o `REAL` (cualquier otro dominio: pide permiso por acción, y las sesiones con permisos `full` no lo reciben). Desde una sesión solo `ls`: crear, borrar y el login los hace el usuario en su terminal |
 | `ide push [<repo>] [--force] [--branch b]… [--session id]` | sube a `origin` la rama actual de cada worktree de la sesión (o solo de `<repo>`; con `--branch`, esas ramas locales en vez de la actual), con `-u`. Se niega con la principal del repo (la de `origin/HEAD`) y con main/master/develop/staging/production, con una rama detached o inexistente. `--force` = `--force-with-lease` (nunca `--force` a secas). Una línea por rama (`subida` / `FALLÓ (…)`); exit 1 si alguna falló. Desde una sesión (por `IDE_SESSION_ID` o por la carpeta) solo sube las suyas: `--session` de otra se rechaza, y `--branch` no acepta una rama que esté en el worktree de otra sesión (sí las de los worktrees aparte de las PRs de su desarrollo, `wt-<repo>-<n>`, y las de worktrees que su claude armó en su scratchpad). Existe para que las sesiones no tengan que hacer `cd … && git push` |
 

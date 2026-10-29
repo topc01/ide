@@ -1,7 +1,7 @@
 import type { WsClient } from "./ws";
 import type { Repo } from "./envelope";
 
-export type Kind = "main" | "ticket" | "review" | "ide";   // ide: claude en el repo del IDE (pestaña junto a la manager)
+export type Kind = "main" | "ticket" | "review" | "ide" | "recursos";   // ide: claude en el repo del IDE (pestaña junto a la manager)
 export type Process = "running" | "queued" | "stopped";
 export interface RepoInfo {
   name: string; state: "ok" | "missing"; branch: string | null;

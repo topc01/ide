@@ -29,7 +29,8 @@ export function MainSidebar() {
 
   const main = tree.sessions.find((s) => s.kind === "main");
   const ide = tree.sessions.find((s) => s.kind === "ide");
-  const tickets = tree.sessions.filter((s) => s.kind !== "main" && s.kind !== "review" && s.kind !== "ide");
+  const recursos = tree.sessions.find((s) => s.kind === "recursos");
+  const tickets = tree.sessions.filter((s) => s.kind !== "main" && s.kind !== "review" && s.kind !== "ide" && s.kind !== "recursos");
   const reviews = tree.sessions.filter((s) => s.kind === "review");
 
   return (
@@ -41,7 +42,7 @@ export function MainSidebar() {
         </div>
       )}
       <div className={connected ? "" : "opacity-50"}>
-        {/* pestañas de las sesiones de siempre: la manager y la del IDE */}
+        {/* pestañas de las sesiones de siempre: la manager, la del IDE y Recursos */}
         <div className="flex items-end gap-1 border-b border-border px-2 pt-2">
           {main ? <SessionTab session={main} label="Manager" title={`La sesión manager: coordina los desarrollos (${main.id})`}
               active={activeId === main.id && !activePrUrl} onClick={() => setActive(main.id)} />
@@ -54,6 +55,9 @@ export function MainSidebar() {
             </>)}
           {ide && <SessionTab session={ide} label="IDE" title="Claude en el repo del IDE (para trabajar en el IDE)"
             active={activeId === ide.id && !activePrUrl} onClick={() => setActive(ide.id)} />}
+          {recursos && <SessionTab session={recursos} label="Recursos"
+            title="Claude que mira qué consume el computador (batería, CPU) y corta lo abandonado"
+            active={activeId === recursos.id && !activePrUrl} onClick={() => setActive(recursos.id)} />}
           <div className="ml-auto pb-1">
             <button aria-label="Nueva sesión" title="Nueva sesión" onClick={() => openModal("session")}
               className="grid h-5 w-5 place-items-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><Plus size={13} /></button>

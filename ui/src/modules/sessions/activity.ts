@@ -11,7 +11,7 @@ export type Activity = "working" | "waiting" | "stale" | "queued" | "running" | 
 export function activityOf(s: FolderSession, dev?: DevStateInfo | null): Activity {
   if (s.process === "queued") return "queued";
   if (s.process === "running") return s.activity?.state ?? "running";
-  const done = s.kind === "main" || s.kind === "ide"
+  const done = s.kind === "main" || s.kind === "ide" || s.kind === "recursos"
     || (s.kind === "review" ? ["approved", "changes-requested"].includes(s.status ?? "") || ["merged", "closed"].includes(s.prState ?? "")
       : !!dev && (dev.state === "merged" || dev.state === "paused"));
   return done ? "idle" : "stale";
