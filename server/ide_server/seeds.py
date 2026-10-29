@@ -161,13 +161,17 @@ mencione un archivo, una captura, un link o "te adjunté", míralos ahí (`ls -t
 links que comparte son archivos `.url` (la línea `URL=…`). Si
 generas un archivo para él (un CSV, un informe), déjalo también ahí: lo ve en el módulo Adjuntos.
 
-## Navegador (Claude in Chrome)
+## Navegador
 
-Trabaja **siempre en una ventana propia**, nunca en las del usuario: empieza con
-`tabs_context_mcp` con `createIfEmpty: true`, que te crea tu propia ventana con tu grupo de tabs, y
-abre ahí lo que necesites (`tabs_create_mcp`). No uses ni navegues las tabs que ya tenía abiertas el
-usuario. Si necesitas otro tamaño de pantalla (`resize_window`), cámbialo **solo en tu ventana**,
-nunca en una donde él esté trabajando. Al terminar, cierra tus tabs (`tabs_close_mcp`).
+Para probar en el navegador usa **`browser-local`** (tools `mcp__browser-local__browser_*`): un Chrome
+aparte del del usuario, con su propia ventana, sin cuenta iniciada (para localhost, con los usuarios de
+prueba del seed). Si necesitas una cuenta, usa un perfil (abajo). Para el tamaño de pantalla usa su
+`browser_resize`, que solo cambia esa ventana. Al terminar, ciérralo (`browser_close`).
+
+**No uses Claude in Chrome** (`mcp__claude-in-chrome__*`, el Chrome del usuario) salvo que el usuario te lo
+pida: ese Chrome es el suyo y cambiarle el tamaño o abrir ahí le saca de pantalla completa la ventana donde
+trabaja. Si te lo pide: trabaja en una ventana propia (`tabs_context_mcp` con `createIfEmpty: true`), no
+toques sus tabs y **nunca** uses `resize_window`. Al terminar, cierra tus tabs (`tabs_close_mcp`).
 
 **Varias cuentas a la vez (perfiles del IDE).** Si el desarrollo necesita probar con más de una cuenta
 (p.ej. solicitante y aprobador), no le pidas al usuario que cierre e inicie sesión: usa los perfiles de
@@ -430,7 +434,8 @@ PERM_ANALYZE = {"permissions": {
         "mcp__claude_ai_Notion__notion-fetch", "mcp__claude_ai_Notion__notion-search",
         "mcp__claude_ai_Notion__notion-query-data-sources",
     ],
-    "deny": ["Bash(git diff --output:*)", "Bash(git log --output:*)"],
+    # resize_window en el Chrome del usuario le saca de pantalla completa su ventana (usan browser-local)
+    "deny": ["Bash(git diff --output:*)", "Bash(git log --output:*)", "mcp__claude-in-chrome__resize_window"],
 }}
 
 # La principal = analyze + despachar sesiones (el server igual le niega `full`) + leer el
@@ -444,7 +449,7 @@ PERM_MAIN = {"permissions": {
     "deny": list(PERM_ANALYZE["permissions"]["deny"]),
 }}
 
-PERM_FULL = {"permissions": {"defaultMode": "bypassPermissions"}}
+PERM_FULL = {"permissions": {"defaultMode": "bypassPermissions", "deny": ["mcp__claude-in-chrome__resize_window"]}}
 
 
 def skill_handoff(root) -> str:

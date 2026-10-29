@@ -551,12 +551,13 @@ def _browser(a, root: Path, env, out: TextIO) -> int:
     from ide_server import browsers
     if a.cmd == "ls":
         ps = browsers.list_profiles(root)
+        out.write(f"local\t(sin cuenta)\tlocal\tsiempre está\tmcp__{browsers.LOCAL_SERVER}__*\tel navegador para probar en localhost\n")
         for p in ps:
             out.write(f"{p['name']}\t{p['url']}\t{'local' if p['local'] else 'REAL'}\t"
                       f"{'con sesión' if p['logged'] else 'sin sesión (ide browser login)'}\t"
                       f"mcp__{p['server']}__*\t{p['note']}\n")
         if not ps:
-            out.write("sin perfiles (ide browser new <nombre> <url>)\n")
+            out.write("sin perfiles con cuenta (ide browser new <nombre> <url>)\n")
         return 0
     if env.get("IDE_SESSION_ID") and a.cmd != "ls":
         raise SessionError("forbidden", "los perfiles de navegador los maneja el usuario desde su terminal "

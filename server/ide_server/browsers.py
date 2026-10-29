@@ -25,6 +25,11 @@ PLAYWRIGHT_VERSION = "1.64.1"   # el CLI `playwright open` del login
 LOCAL = re.compile(r"^https?://(localhost|127\.0\.0\.1|\[::1\]|tech\.finnecto\.com)(:\d+)?(/|$)")
 
 
+# siempre está (sin perfil ni cuenta): el navegador de las sesiones para probar en localhost. Es un Chrome
+# aparte del del usuario: abre su propia ventana y nunca toca las de él (Claude in Chrome sí podía)
+LOCAL_SERVER = "browser-local"
+
+
 def base(root: Path) -> Path:
     return root / ".ide" / "browsers"
 
@@ -32,6 +37,8 @@ def base(root: Path) -> Path:
 def _dir(root: Path, name: str) -> Path:
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,30}", name):
         raise SessionError("bad_name", f"nombre de perfil inválido: {name!r} (minúsculas, números y guiones)")
+    if f"browser-{name}" == LOCAL_SERVER:
+        raise SessionError("bad_name", "`local` es el navegador fijo de las sesiones (sin cuenta): usa otro nombre")
     return base(root) / name
 
 
@@ -115,15 +122,14 @@ def _keep_own_site(state: Path, url: str) -> None:
     state.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
-def write_mcp_config(root: Path, *, local_only: bool = False) -> Path | None:
-    """`.ide/browsers/mcp.json` con un servidor por perfil (`mcp-local.json`: solo los de localhost, para
-    las sesiones que no piden permiso, que no deben tener una cuenta REAL); sin perfiles, lo borra."""
+def write_mcp_config(root: Path, *, local_only: bool = False) -> Path:
+    """`.ide/browsers/mcp.json`: `browser-local` (siempre) y un servidor por perfil (`mcp-local.json`: solo
+    los locales, para las sesiones que no piden permiso, que no deben tener una cuenta REAL)."""
     f = base(root) / ("mcp-local.json" if local_only else "mcp.json")
     profiles = [p for p in list_profiles(root) if p["local"] or not local_only]
-    if not profiles:
-        f.unlink(missing_ok=True)
-        return None
-    servers = {}
+    base(root).mkdir(parents=True, exist_ok=True, mode=0o700)
+    servers = {LOCAL_SERVER: {"command": "npx", "args": [
+        "-y", f"@playwright/mcp@{MCP_VERSION}", "--isolated", "--browser", "chrome"]}}
     for p in profiles:
         servers[p["server"]] = {"command": "npx", "args": [
             "-y", f"@playwright/mcp@{MCP_VERSION}", "--isolated", "--browser", "chrome",
@@ -135,5 +141,5 @@ def write_mcp_config(root: Path, *, local_only: bool = False) -> Path | None:
 
 
 def allowed_tools(root: Path) -> list[str]:
-    """Los servidores de los perfiles locales, enteros (`mcp__<servidor>`): no piden permiso."""
-    return [f"mcp__{p['server']}" for p in list_profiles(root) if p["local"]]
+    """`browser-local` y los servidores de los perfiles locales, enteros (`mcp__<servidor>`): no piden permiso."""
+    return [f"mcp__{LOCAL_SERVER}"] + [f"mcp__{p['server']}" for p in list_profiles(root) if p["local"]]
