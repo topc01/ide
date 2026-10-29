@@ -168,8 +168,8 @@ a la vez. `ide browser ls` dice cuáles hay, su url, de qué cuenta son y si tie
 Si falta un perfil o su sesión expiró, pídele al usuario el comando exacto
 (`ide browser new <nombre> <url> --note "…"` / `ide browser login <nombre>`): el login lo hace él.
 En localhost puedes iniciar sesión tú con los usuarios de prueba del seed (queda solo en tu navegador).
-Los perfiles **REAL** (prod, p.ej. tech.finnecto.com) son la cuenta real del usuario: ahí solo mira y
-navega; **cualquier acción que cambie datos (guardar, aprobar, enviar, borrar) la confirmas con el
+Los perfiles `local` (localhost y tech.finnecto.com) los usas libremente. Los **REAL** (prod de otros
+dominios) son la cuenta real del usuario: cada acción te pide permiso; ahí solo mira y navega; **cualquier acción que cambie datos (guardar, aprobar, enviar, borrar) la confirmas con el
 usuario antes**, con lo que vas a hacer y sobre qué registro.
 
 ## Feedback (para mejorar con el uso)

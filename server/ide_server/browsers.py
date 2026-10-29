@@ -19,7 +19,9 @@ from ide_server.sessions_fs import SessionError, read_toml, write_toml
 
 MCP_VERSION = "0.0.83"          # @playwright/mcp
 PLAYWRIGHT_VERSION = "1.64.1"   # el CLI `playwright open` del login
-LOCAL = re.compile(r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(/|$)")
+# "local": localhost y tech.finnecto.com (ahí el usuario deja hacer cualquier cosa): las sesiones lo usan
+# sin pedir permiso, también las `full`. El resto es REAL: pide permiso por acción y las `full` no lo tienen.
+LOCAL = re.compile(r"^https?://(localhost|127\.0\.0\.1|\[::1\]|tech\.finnecto\.com)(:\d+)?(/|$)")
 
 
 def base(root: Path) -> Path:
@@ -112,3 +114,8 @@ def write_mcp_config(root: Path, *, local_only: bool = False) -> Path | None:
     if not f.is_file() or f.read_text(encoding="utf-8") != text:
         f.write_text(text, encoding="utf-8")
     return f
+
+
+def allowed_tools(root: Path) -> list[str]:
+    """Los servidores de los perfiles locales, enteros (`mcp__<servidor>`): no piden permiso."""
+    return [f"mcp__{p['server']}" for p in list_profiles(root) if p["local"]]
