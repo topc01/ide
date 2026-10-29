@@ -755,11 +755,16 @@ desarrollo. **Un desarrollo con sesión tiene una sola línea por repo**: la ram
 apilado sobre ella. Si una sesión abre una PR tuya con su prefijo (`<login>/d<n>-…`) en **otra** rama
 de un repo que ya tiene (una línea paralela), el IDE la separa sola en un **desarrollo nuevo**: crea la
 sesión (`d<n>-<rama>`, sin lanzar su claude), su worktree en la PR de más arriba de esa línea, le
-asigna esas PRs (pegajosas; queda en el historial de los dos) y le deja un SESSION.md con el origen. Si
+asigna esas PRs (pegajosas; queda en el historial de los dos) y le deja un PROMPT.md y un SESSION.md con el
+origen. Si la rama sigue tomada en un worktree extra de la sesión de origen, igual crea el desarrollo
+con sus PRs (sin worktree), lo dice en su SESSION.md y le deja a la de origen un pendiente para
+soltarla. La PR no recibe número propio antes que su desarrollo nuevo. Si
 una PR de otro repo del desarrollo original depende de esa línea, queda un **pendiente** (Para
 después) en el original para decidir si se va con ella ("si van juntas, que queden en el mismo
 desarrollo"). Las PRs asignadas a mano con `ide dev link` no se tocan. Regla (spec 2026-10-16-desarrollos, P1), cada PR en un solo desarrollo: (1) la sesión de
-ticket cuyos worktrees están en esa rama, más el resto de su stack — **pegajoso**: el IDE recuerda
+ticket cuyos worktrees están en esa rama (los suyos o uno **extra** que armó aparte: con otro nombre en
+su carpeta de worktrees, dentro de su carpeta o en el scratchpad de su claude; salvo que sea una línea
+paralela), más el resto de su stack — **pegajoso**: el IDE recuerda
 la PR en ese desarrollo (base, `kv` `devpr:<url>`) y sigue ahí aunque el worktree cambie de rama,
 hasta que se mergea/cierra; "sacar de este desarrollo" (hover de su fila, o `ide dev unlink`) la deja
 aparte y no vuelve por rama; "mover a otro desarrollo…" (hover de su fila, o `ide dev link`) la
