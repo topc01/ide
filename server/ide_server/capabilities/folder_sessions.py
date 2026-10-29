@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import time
 import base64
 import io
 import logging
@@ -43,6 +44,10 @@ from ide_server.supervisor import Supervisor, clean_env
 from ide_server.workspace import discover_repos
 
 log = logging.getLogger(__name__)
+
+
+NUDGE = ("[Aviso del IDE] Tu último turno terminó sin decirle nada al usuario («No response requested.»). "
+         "Cierra el turno con un resumen corto para él: qué hiciste, qué quedó pendiente y si necesitas algo suyo.")
 
 
 def review_verdict(mines: list[str | None]) -> str | None:
@@ -672,6 +677,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         merger.retry(p["url"])
         return {"ok": True}
 
+    _nudged: dict[str, float] = {}
+
     async def session_activity(p: dict) -> dict:
         """Hooks de claude (`ide hook`): UserPromptSubmit = trabajando; Stop / Notification (permiso,
         inactivo) = esperando tu input, con la primera línea de su último mensaje como nota."""
@@ -684,6 +691,16 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             return {"ok": True}
         if ev == "Stop":
             note = await asyncio.to_thread(activity_mod.last_note, p.get("transcript_path"), Path.home())
+            # claude a veces cierra el turno sin decir nada («No response requested.», p.ej. tras un comando
+            # que murió): se le pide el resumen una vez (si vuelve a pasar enseguida, no se insiste)
+            if (note or "").strip().rstrip(".").lower() == "no response requested" \
+                    and time.time() - _nudged.get(sid, 0) > 120:
+                _nudged[sid] = time.time()
+                supervisor.send(sid, NUDGE)
+                if db is not None:
+                    db.event(datetime.now().isoformat(timespec="seconds"), "ide", "prompt", dev=sid,
+                             data={"text": NUDGE[:300], "note": "turno sin respuesta"})
+                return {"ok": True}
             prev = supervisor.set_activity(sid, "waiting", note, "turn")
         elif ev == "Notification":
             kind = p.get("notification_type") or ""

@@ -854,7 +854,9 @@ draft sus PRs (`gh pr ready`; solo las tuyas).
 `.claude/settings.json` de cada sesión (UserPromptSubmit, Stop, Notification → `ide hook`, que le
 avisa al IDE por `POST /api/sessions/{id}/activity`; canal `sessions.activity`). Estados:
 **trabajando** (empezó un turno), **esperando tu input** (terminó el turno o pide un permiso; nota =
-primera línea de su último mensaje, o el texto del permiso) y **stale** (el claude no corre y el
+primera línea de su último mensaje, o el texto del permiso; si el turno terminó en «No response
+requested.», el IDE no lo marca como esperándote: le pide a la sesión que cierre con un resumen para ti,
+una vez cada 2 min a lo más) y **stale** (el claude no corre y el
 desarrollo sigue activo: no mergeado ni pausado; revisión sin veredicto publicado). Se ve en el punto
 junto al título de la card (◐ celeste girando = trabajando, ● naranjo fijo = te espera, rojo = stale, ○ =
 parado sin pendientes) y, si te espera, la nota debajo en naranjo; las que te esperan suben al
