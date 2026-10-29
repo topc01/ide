@@ -161,11 +161,11 @@ export function AssignReviewersAction({ prs, gh }: { prs: GhPr[]; gh: GithubRevi
       onClick={(e) => { e.stopPropagation(); setSel(new Set(mine.map((p) => p.url))); setOpen(true); }}><UserPlus size={11} /></QueueItemAction>
     {open && (
       <Dialog open onOpenChange={(o) => { if (!o) reset(); }}>
-        <DialogContent onClick={(e) => e.stopPropagation()} className="max-w-md">
+        <DialogContent onClick={(e) => e.stopPropagation()} className="max-w-md grid-cols-[minmax(0,1fr)]">
           <DialogHeader><DialogTitle className="text-sm">{confirm ? "¿Pedir revisión en GitHub?" : "Asignar revisor"}</DialogTitle></DialogHeader>
           {confirm ? (
             <ul className="space-y-0.5 text-xs">
-              {plan.map((t) => <li key={t.pr.url}><span className="font-mono font-bold">{repoShort(t.pr.repo)} #{t.pr.number}</span>
+              {plan.map((t) => <li key={t.pr.url} className="truncate"><span className="font-mono font-bold">{repoShort(t.pr.repo)} #{t.pr.number}</span>
                 {" → "}{t.logins.map((l) => `@${l}`).join(", ")}{t.pr.draft && <span className="text-muted-foreground"> (en draft)</span>}</li>)}
             </ul>
           ) : (<>
@@ -189,7 +189,7 @@ export function AssignReviewersAction({ prs, gh }: { prs: GhPr[]; gh: GithubRevi
                     </button>))}
                 </div>)}
             </div>
-            <div className="space-y-1.5">
+            <div className="max-h-[50vh] min-w-0 space-y-1.5 overflow-y-auto">
               <label className="flex items-center gap-1.5 text-xs font-semibold" title="Todas las PRs del desarrollo">
                 <input type="checkbox" checked={all(mine.map((p) => p.url))} onChange={(e) => toggle(mine.map((p) => p.url), e.target.checked)} />
                 Todas ({mine.length})</label>
@@ -199,9 +199,9 @@ export function AssignReviewersAction({ prs, gh }: { prs: GhPr[]; gh: GithubRevi
                     <input type="checkbox" checked={all(list.map((p) => p.url))} onChange={(e) => toggle(list.map((p) => p.url), e.target.checked)} />
                     {repoShort(repo)}</label>
                   {list.map((p) => (
-                    <label key={p.url} className="flex items-center gap-1.5 pl-4 text-xs" title={p.title}>
+                    <label key={p.url} className="flex min-w-0 items-center gap-1.5 pl-4 text-xs" title={p.title}>
                       <input type="checkbox" checked={sel.has(p.url)} onChange={(e) => toggle([p.url], e.target.checked)} />
-                      <span className="font-mono">#{p.number}</span><span className="truncate text-muted-foreground">{p.title}</span>
+                      <span className="shrink-0 font-mono">#{p.number}</span><span className="min-w-0 flex-1 truncate text-muted-foreground">{p.title}</span>
                       {!!p.reviewers?.length && <span className="shrink-0 text-[10px] text-muted-foreground">
                         ({p.reviewers.map((r) => r.login).join(", ")})</span>}
                     </label>))}
