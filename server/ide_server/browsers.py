@@ -10,6 +10,7 @@ iniciada y dos sesiones pueden usar la misma cuenta a la vez. El MCP lee `state.
 navegador (no al arrancar claude): un login nuevo lo toma el próximo navegador que se abra."""
 from __future__ import annotations
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -58,9 +59,14 @@ def new(root: Path, name: str, url: str, note: str = "") -> dict:
         raise SessionError("exists", f"ya existe el perfil {name}")
     if not re.match(r"^https?://", url):
         raise SessionError("bad_url", f"la url tiene que empezar con http:// o https:// ({url})")
-    d.mkdir(parents=True)
+    # `state.json` son las cookies de la cuenta (en prod, la sesión real): solo el usuario las lee
+    base(root).mkdir(parents=True, exist_ok=True, mode=0o700)
+    base(root).chmod(0o700)
+    d.mkdir(mode=0o700)
     write_toml(d / "profile.toml", {"url": url, "note": note})
-    (d / "state.json").write_text('{"cookies": [], "origins": []}\n', encoding="utf-8")
+    fd = os.open(d / "state.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.write(fd, b'{"cookies": [], "origins": []}\n')
+    os.close(fd)
     write_mcp_config(root)
     return next(p for p in list_profiles(root) if p["name"] == name)
 
@@ -83,7 +89,10 @@ def login(root: Path, name: str) -> int:
     url = str(read_toml(d / "profile.toml").get("url") or "")
     argv = ["npx", "-y", f"playwright@{PLAYWRIGHT_VERSION}", "open", "--channel", "chrome",
             *(["--load-storage", str(state)] if _logged(state) else []), "--save-storage", str(state), url]
-    return subprocess.run(argv).returncode
+    rc = subprocess.run(argv).returncode
+    if state.is_file():
+        state.chmod(0o600)      # Playwright lo reescribe con los permisos por defecto
+    return rc
 
 
 def write_mcp_config(root: Path) -> Path | None:
