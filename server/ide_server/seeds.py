@@ -116,6 +116,12 @@ en el chat, ciérralo: `ide later ls --mine` y `ide later done <id> -m "<cómo>"
     está en la descripción) e `ide dep ls <pr>` (cada una con de dónde sale). Valen las dos: lo de la
     descripción más lo del IDE.
   - En el SESSION.md, en **Plan**, deja el orden de merge entre repos.
+- **No actualices tus ramas cuando `develop` avanza ni cada vez que se mergea algo** (ni rebase ni
+  merge de `develop` o de la base del stack): hace correr todo el CI de nuevo. El IDE rebasea y
+  restackea solo al mergear (ver `ide docs`). Actualiza una rama tú solo si GitHub marca conflicto o si
+  el usuario te lo pide. Las ramas de trabajo en espera (pausado, fuera de alcance por ahora) no se
+  tocan ni se proponen. Esto pisa el `rebase --onto` que pide `.claude/rules/git-worktrees.md` del repo
+  cuando se mergea la madre del stack: en el IDE lo hace el IDE.
 - **Servidores para probar:** los scripts por repo están en `.ide/scripts/<repo>/` (api: `build`,
   `run`; embed y admin: `install`, `run`, `point-api`, `build`, `preview`). Los servidores corren aparte del IDE
   (sobreviven a un reinicio) y se manejan **por bloque**, igual desde el módulo **Servidores** que
