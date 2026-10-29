@@ -741,7 +741,10 @@ cada check), ⟳ amarilla girando corriendo. Una PR en **draft** lleva un cuadra
 tests no corren (quedan en "skipping"), solo los checks livianos (CI Gate, styleguide); el punto es rojo si
 alguno de esos falló. Aparte del CI: **⚠** conflicto con la base (no se puede
 mergear) y **⇣** atrasada respecto de su base (develop avanzó: aviso, no bloquea salvo que GitHub
-exija la rama al día). La misma marca en filas de stack, selector, módulo Stack y resumen. El punto
+exija la rama al día). La misma marca en filas de stack, selector, módulo Stack y resumen. Cuando una PR
+tuya **pasa a conflicto** (p.ej. se squasheó la de abajo del stack, en el IDE o en GitHub), el IDE le
+avisa a la sesión de su desarrollo (o se lo deja en Para después si está parada) y queda un evento
+`conflict`; solo avisa, no rebasea. Mientras GitHub recalcula (`mergeable` UNKNOWN) no cuenta como cambio. El punto
 de review de una PR aprobada con revisores pendientes dice en el tooltip "falta X". Las cards traen
 `ci`, `ciRunning`, `conflict` y `behind`. El borde es siempre el normal. La seleccionada
 lleva un contorno claro. Al pasar el mouse, el estado en palabras.

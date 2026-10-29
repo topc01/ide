@@ -177,6 +177,7 @@ def _card(n: dict, stacks: dict[str, dict] | None = None) -> dict:
             "fullRepo": n["repository"].get("nameWithOwner"), "fork": bool(n.get("isCrossRepository")),
             "stack": (stacks or {}).get(n["url"]), "reviewers": pr_reviewers(n),
             "ci": ci_state(n), "ciRunning": ci_running(n), "conflict": n.get("mergeable") == "CONFLICTING",
+            "mergeable": n.get("mergeable"),
             # atrasada respecto de su base (develop avanzó): aviso, no bloquea
             "behind": n.get("mergeStateStatus") == "BEHIND"}
 
@@ -308,6 +309,7 @@ class GithubReviews:
         self._gh = run_gh or _default_gh
         self._on_change = on_change or (lambda: None)
         self._clock = clock
+        self.on_conflict: Callable[[dict], None] = lambda _card: None   # una PR pasó a conflicto
         self.state: dict = {"pending": [], "changesRequested": [], "me": None, "reviewers": [],
                             "mine": {g: [] for g in MY_GROUPS}, "stacks": {},
                             "reviewersTruncated": False, "members": [], "selected": None,
@@ -523,9 +525,14 @@ class GithubReviews:
         cards = {c["url"]: c for lst in [res["pending"], res["changesRequested"], *res["mine"].values(),
                                          *res["stacks"].values()] for c in lst}
         snaps = {u: {"review": c.get("review"), "ci": c.get("ci"), "draft": c.get("draft"),
+                     # None = GitHub todavía lo está calculando (UNKNOWN): se mantiene el de antes
+                     "conflict": None if c.get("mergeable") not in ("MERGEABLE", "CONFLICTING") else bool(c.get("conflict")),
                      "reviewers": {r["login"]: r["state"] for r in c.get("reviewers") or []}}
                  for u, c in cards.items()}
         prev = self._db.pr_snaps(list(snaps))
+        for url, cur in snaps.items():
+            if cur["conflict"] is None and url in prev:
+                cur["conflict"] = prev[url].get("conflict")
         at = _iso(self._clock())
         for url, cur in snaps.items():
             old = prev.get(url)
@@ -539,6 +546,13 @@ class GithubReviews:
                 self._db.event(at, "github", "ci", pr_url=url, data={"state": cur["ci"]})
             if old["draft"] and not cur["draft"]:
                 self._db.event(at, "github", "ready-for-review", pr_url=url)
+            # pasó a conflicto (las fotos de antes de esto no traen `conflict`: no cuentan como cambio)
+            if cur["conflict"] and old.get("conflict") is False:
+                self._db.event(at, "github", "conflict", pr_url=url)
+                try:
+                    self.on_conflict(cards[url])
+                except Exception:  # noqa: BLE001 — el aviso no tumba el poll
+                    log.exception("aviso de conflicto de %s", url)
         self._db.put_pr_snaps(snaps)
 
     def optimistic(self, url: str, *, requested: list[str] = (), verdict: tuple[str, str] | None = None) -> None:
