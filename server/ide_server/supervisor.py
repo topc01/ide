@@ -186,7 +186,8 @@ def build_argv(root: Path, sid: str, *, command: str, resume: bool,
     # `--add-dir` y `--mcp-config` son variádicos en claude: con `=` no se comen el prompt posicional.
     argv.append(f"--add-dir={root / '.ide' / 'worktrees' / sid}")
     from ide_server.browsers import write_mcp_config
-    if (mcp := write_mcp_config(root)) is not None:     # perfiles de navegador (`ide browser`)
+    # perfiles de navegador (`ide browser`); una sesión que no pide permisos no recibe los de cuentas REAL
+    if (mcp := write_mcp_config(root, local_only=perm == "full")) is not None:
         argv.append(f"--mcp-config={mcp}")
     if kind == "main":
         argv.append(f"--add-dir={root / '.ide' / 'sessions'}")

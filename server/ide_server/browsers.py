@@ -95,10 +95,11 @@ def login(root: Path, name: str) -> int:
     return rc
 
 
-def write_mcp_config(root: Path) -> Path | None:
-    """`.ide/browsers/mcp.json` con un servidor por perfil; sin perfiles, lo borra."""
-    f = base(root) / "mcp.json"
-    profiles = list_profiles(root)
+def write_mcp_config(root: Path, *, local_only: bool = False) -> Path | None:
+    """`.ide/browsers/mcp.json` con un servidor por perfil (`mcp-local.json`: solo los de localhost, para
+    las sesiones que no piden permiso, que no deben tener una cuenta REAL); sin perfiles, lo borra."""
+    f = base(root) / ("mcp-local.json" if local_only else "mcp.json")
+    profiles = [p for p in list_profiles(root) if p["local"] or not local_only]
     if not profiles:
         f.unlink(missing_ok=True)
         return None
