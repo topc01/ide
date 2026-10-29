@@ -38,6 +38,9 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
 - `ide push [<repo>] [--force] [--branch <b>]…`: sube a `origin` la rama de tus worktrees (sin `cd`; nunca
   la principal). `--force` = `--force-with-lease`, después de un rebase; `--branch` para otras ramas
   locales del repo (p.ej. las de un stack). Úsalo en vez de pedirle al usuario que corra `git push`.
+- `ide update [<repo>] [--dry-run]`: pone al día tu rama sobre su base **solo si hace falta** (la PR está
+  en conflicto o su madre del stack se mergeó); si solo está atrás de `develop`, se niega. Si el rebase
+  choca, queda a medias para que resuelvas, `git rebase --continue` y `ide push <repo> --force`.
 - `ide db <prod|staging> "<SQL>"`: una consulta de solo lectura a la base (sin comandos de psql: nada con `\\`).
 - `ide script <nombre> [<repo>]`: corre un script del repo (`run`, `test`, …).
 - `ide session ls [--json]`: lista sesiones y su estado.
@@ -119,7 +122,7 @@ en el chat, ciérralo: `ide later ls --mine` y `ide later done <id> -m "<cómo>"
 - **No actualices tus ramas cuando `develop` avanza ni cada vez que se mergea algo** (ni rebase ni
   merge de `develop` o de la base del stack): hace correr todo el CI de nuevo. El IDE rebasea y
   restackea solo al mergear (ver `ide docs`). Actualiza una rama tú solo si GitHub marca conflicto o si
-  el usuario te lo pide. Las ramas de trabajo en espera (pausado, fuera de alcance por ahora) no se
+  el usuario te lo pide; para lo primero (y cuando se mergea la madre) usa `ide update`. Las ramas de trabajo en espera (pausado, fuera de alcance por ahora) no se
   tocan ni se proponen. Esto pisa el `rebase --onto` que pide `.claude/rules/git-worktrees.md` del repo
   cuando se mergea la madre del stack: en el IDE lo hace el IDE.
 - **Servidores para probar:** los scripts por repo están en `.ide/scripts/<repo>/` (api: `build`,

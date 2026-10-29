@@ -45,6 +45,26 @@ def _check(out: subprocess.CompletedProcess, what: str, code: str = "merge_faile
     return out.stdout.strip()
 
 
+def squashed_parent(wt: Path, branch: str, base: str, full_repo: str | None, number: int | None) -> str | None:
+    """Si la rama arrastra commits de una PR madre que ya se mergeó con squash (estaba apilada y GitHub la
+    re-apuntó a la base), el último commit de esa madre: hay que rebasear con `--onto` desde ahí, o se
+    re-aplican commits que la base ya tiene (squasheados) y chocan."""
+    if not full_repo:
+        return None
+    shas = _check(_run(["git", "rev-list", "--max-count=60", f"origin/{base}..origin/{branch}"], wt),
+                  "git rev-list").split()
+    for sha in shas[1:]:                    # el primero es el head de esta misma PR
+        out = _run(["gh", "api", f"repos/{full_repo}/commits/{sha}/pulls"])
+        try:
+            prs = json.loads(out.stdout or "[]") if out.returncode == 0 else []
+        except ValueError:
+            prs = []
+        if any(p.get("merged_at") and p.get("number") != number and p.get("head", {}).get("sha") == sha
+               for p in prs):
+            return sha
+    return None
+
+
 class Merger:
     def __init__(self, root: Path, *, stacks: Callable[[], dict], db: Db,
                  on_change: Callable[[], None] | None = None) -> None:
@@ -104,23 +124,7 @@ class Merger:
 
     def _squashed_parent(self, wt: Path, branch: str, base: str, full_repo: str | None,
                          number: int | None) -> str | None:
-        """Si la rama arrastra commits de una PR madre que ya se mergeó con squash (estaba apilada
-        y GitHub la re-apuntó a la base), el último commit de esa madre: hay que rebasear con
-        `--onto` desde ahí, o se re-aplican commits que la base ya tiene (squasheados) y chocan."""
-        if not full_repo:
-            return None
-        shas = _check(_run(["git", "rev-list", "--max-count=60", f"origin/{base}..origin/{branch}"], wt),
-                      "git rev-list").split()
-        for sha in shas[1:]:                    # el primero es el head de esta misma PR
-            out = _run(["gh", "api", f"repos/{full_repo}/commits/{sha}/pulls"])
-            try:
-                prs = json.loads(out.stdout or "[]") if out.returncode == 0 else []
-            except ValueError:
-                prs = []
-            if any(p.get("merged_at") and p.get("number") != number and p.get("head", {}).get("sha") == sha
-                   for p in prs):
-                return sha
-        return None
+        return squashed_parent(wt, branch, base, full_repo, number)
 
     def _rebase(self, wt: Path, branch: str, onto: str, upstream: str | None = None) -> tuple[str, str]:
         """Rebasea `origin/<branch>` sobre `onto` (con `--onto`/`upstream` si se pasa) y lo empuja.

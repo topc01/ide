@@ -279,7 +279,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         ref = f"{card['repo']}#{card['number']}"
         text = (f"[Aviso del IDE] Tu PR {ref} ({card['url']}) quedó **en conflicto** con su base "
                 f"(`{card.get('base')}`) en GitHub; suele pasar cuando se mergea la PR de abajo del stack. "
-                f"Ponla al día sobre su base, resuelve el conflicto y súbela (`ide push {card['repo']} --force`). "
+                f"Ponla al día con `ide update {card['repo']}` (rebasea sobre su base y la sube; si choca, resuelve y "
+                f"sigue como te dice). "
                 f"Si el conflicto no es obvio, pregúntale al usuario antes. Cuéntale en una línea qué hiciste.")
         if supervisor.state(sid) == "running":
             supervisor.send(sid, text)

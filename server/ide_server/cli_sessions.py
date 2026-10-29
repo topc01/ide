@@ -84,6 +84,10 @@ def _parser() -> argparse.ArgumentParser:
     bn.add_argument("--note", default="", help="qué cuenta es (p.ej. 'aprobador de Acme, usuario juan@…')")
     br.add_parser("rm").add_argument("name")
     br.add_parser("login", help="abre la ventana para iniciar sesión; al cerrarla se guarda").add_argument("name")
+    up = sub.add_parser("update", help="pone al día tu rama sobre su base SOLO si hay conflicto o su madre del stack se mergeó")
+    up.add_argument("repo", nargs="?", help="solo este repo (sin él: todos los de la sesión)")
+    up.add_argument("--dry-run", action="store_true", help="solo dice qué haría")
+    up.add_argument("--session")
     pu = sub.add_parser("push", help="sube a origin la rama de cada worktree de la sesión (sin cd; nunca la principal)")
     pu.add_argument("repo", nargs="?", help="solo este repo (sin él: todos los de la sesión)")
     pu.add_argument("--branch", action="append", help="otra rama local del repo en vez de la actual (repetible; p.ej. las de un stack)")
@@ -688,6 +692,17 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "procs":
             return _procs(a, root, env, out)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
+        if a.group == "update":
+            caller = env.get("IDE_SESSION_ID")
+            if caller is None:
+                try:
+                    caller = current_session(root, env={}, cwd=cwd)
+                except SessionError:
+                    caller = None
+            if caller and sid != caller:
+                raise SessionError("forbidden", f"desde la sesión {caller} no se actualizan ramas de {sid}")
+            from ide_server.update_branch import update
+            return update(root, sid, a.repo, dry_run=a.dry_run, out=out)
         if a.group == "push":
             # una sesión solo sube lo suyo (el permiso `ide push` no le da las ramas de otras)
             # (barrera contra errores, no de seguridad: el permiso que importa es el de claude)
