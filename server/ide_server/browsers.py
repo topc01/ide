@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from urllib.parse import urlparse
 from ide_server.sessions_fs import SessionError, read_toml, write_toml
 
 MCP_VERSION = "0.0.83"          # @playwright/mcp
@@ -93,8 +94,25 @@ def login(root: Path, name: str) -> int:
             *(["--load-storage", str(state)] if _logged(state) else []), "--save-storage", str(state), url]
     rc = subprocess.run(argv).returncode
     if state.is_file():
+        _keep_own_site(state, url)
         state.chmod(0o600)      # Playwright lo reescribe con los permisos por defecto
     return rc
+
+
+def _keep_own_site(state: Path, url: str) -> None:
+    """Deja en `state.json` solo la sesión del sitio exacto del perfil: fuera las cookies de otros
+    dominios y las del dominio padre (`.finnecto.com` serviría en `acme.finnecto.com`, el prod de un
+    cliente) y el localStorage de otros orígenes. Así un perfil sin permisos que navegue a otro sitio
+    llega sin sesión. Las cookies no distinguen puerto: en local vale cualquier `localhost`."""
+    host = urlparse(url).hostname or ""
+    hosts = {"localhost", "127.0.0.1", "::1", "[::1]"} if LOCAL.match(url) and host != "tech.finnecto.com" else {host}
+    try:
+        data = json.loads(state.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    data["cookies"] = [c for c in data.get("cookies") or [] if str(c.get("domain") or "") in hosts]
+    data["origins"] = [o for o in data.get("origins") or [] if urlparse(str(o.get("origin") or "")).hostname in hosts]
+    state.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
 def write_mcp_config(root: Path, *, local_only: bool = False) -> Path | None:
