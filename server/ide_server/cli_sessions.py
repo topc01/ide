@@ -74,6 +74,12 @@ def _parser() -> argparse.ArgumentParser:
     ra.add_argument("--session")
     db = sub.add_parser("db", help="una consulta de solo lectura a la base de prod o staging (vía db-connect.sh)")
     db.add_argument("env", choices=("prod", "staging")); db.add_argument("sql", help="la consulta SQL (sin comandos de psql: nada con \\\\)")
+    br = sub.add_parser("browser", help="perfiles de navegador del workspace: uno por cuenta, todos abiertos a la vez").add_subparsers(dest="cmd", required=True)
+    br.add_parser("ls")
+    bn = br.add_parser("new"); bn.add_argument("name"); bn.add_argument("url", help="donde inicia sesión (p.ej. http://localhost:5173 o https://tech.finnecto.com)")
+    bn.add_argument("--note", default="", help="qué cuenta es (p.ej. 'aprobador de Acme, usuario juan@…')")
+    br.add_parser("rm").add_argument("name")
+    br.add_parser("login", help="abre la ventana para iniciar sesión; al cerrarla se guarda").add_argument("name")
     pu = sub.add_parser("push", help="sube a origin la rama de cada worktree de la sesión (sin cd; nunca la principal)")
     pu.add_argument("repo", nargs="?", help="solo este repo (sin él: todos los de la sesión)")
     pu.add_argument("--branch", action="append", help="otra rama local del repo en vez de la actual (repetible; p.ej. las de un stack)")
@@ -488,6 +494,37 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
     return 0
 
 
+def _browser(a, root: Path, env, out: TextIO) -> int:
+    from ide_server import browsers
+    if a.cmd == "ls":
+        ps = browsers.list_profiles(root)
+        for p in ps:
+            out.write(f"{p['name']}\t{p['url']}\t{'local' if p['local'] else 'REAL'}\t"
+                      f"{'con sesión' if p['logged'] else 'sin sesión (ide browser login)'}\t"
+                      f"mcp__{p['server']}__*\t{p['note']}\n")
+        if not ps:
+            out.write("sin perfiles (ide browser new <nombre> <url>)\n")
+        return 0
+    if env.get("IDE_SESSION_ID") and a.cmd != "ls":
+        raise SessionError("forbidden", "los perfiles de navegador los maneja el usuario desde su terminal "
+                                        "(el login es suyo): pídeselo con el comando exacto")
+    if a.cmd == "new":
+        p = browsers.new(root, a.name, a.url, a.note)
+        out.write(f"perfil {p['name']} creado; inicia sesión con: ide browser login {p['name']}\n"
+                  "(las sesiones que ya corrían lo ven al relanzar su claude)\n")
+    elif a.cmd == "rm":
+        browsers.remove(root, a.name)
+        out.write(f"perfil {a.name} borrado\n")
+    else:
+        out.write("se abre Chrome: inicia sesión y cierra la ventana para guardarla\n")
+        out.flush()
+        rc = browsers.login(root, a.name)
+        browsers.write_mcp_config(root)
+        out.write("sesión guardada (un navegador de ese perfil ya abierto en una sesión la toma al cerrarlo y volver a abrirlo)\n" if rc == 0 else f"falló ({rc})\n")
+        return rc
+    return 0
+
+
 def _telegram(a, root: Path, url: str | None, http, out: TextIO) -> int:
     import getpass
     import secrets as _secrets
@@ -604,6 +641,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _telegram(a, root, url, http, out)
         if a.group == "db":
             return _db_query(a.env, a.sql, home, out, err)
+        if a.group == "browser":
+            return _browser(a, root, env, out)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
         if a.group == "push":
             # una sesión solo sube lo suyo (el permiso `ide push` no le da las ramas de otras)

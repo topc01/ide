@@ -160,6 +160,18 @@ abre ahí lo que necesites (`tabs_create_mcp`). No uses ni navegues las tabs que
 usuario. Si necesitas otro tamaño de pantalla (`resize_window`), cámbialo **solo en tu ventana**,
 nunca en una donde él esté trabajando. Al terminar, cierra tus tabs (`tabs_close_mcp`).
 
+**Varias cuentas a la vez (perfiles del IDE).** Si el desarrollo necesita probar con más de una cuenta
+(p.ej. solicitante y aprobador), no le pidas al usuario que cierre e inicie sesión: usa los perfiles de
+navegador del workspace. Cada perfil es un servidor MCP `browser-<nombre>` (tools
+`mcp__browser-<nombre>__browser_*`) con su propio navegador y su cuenta ya iniciada; puedes usar varios
+a la vez. `ide browser ls` dice cuáles hay, su url, de qué cuenta son y si tienen la sesión iniciada.
+Si falta un perfil o su sesión expiró, pídele al usuario el comando exacto
+(`ide browser new <nombre> <url> --note "…"` / `ide browser login <nombre>`): el login lo hace él.
+En localhost puedes iniciar sesión tú con los usuarios de prueba del seed (queda solo en tu navegador).
+Los perfiles **REAL** (prod, p.ej. tech.finnecto.com) son la cuenta real del usuario: ahí solo mira y
+navega; **cualquier acción que cambie datos (guardar, aprobar, enviar, borrar) la confirmas con el
+usuario antes**, con lo que vas a hacer y sobre qué registro.
+
 ## Feedback (para mejorar con el uso)
 
 Cuando el usuario te corrija (algo que hiciste mal, una preferencia suya, una decisión que no te

@@ -183,8 +183,11 @@ def build_argv(root: Path, sid: str, *, command: str, resume: bool,
         # corre en el repo del IDE: los hooks de actividad van por --settings (no se escribe en el repo)
         hook = {"type": "command", "command": "ide hook", "timeout": 5}
         argv += ["--settings", json.dumps({"hooks": {ev: [{"hooks": [hook]}] for ev in HOOK_EVENTS}})]
-    # `--add-dir` es variádico en claude: con `=` no se come el prompt posicional.
+    # `--add-dir` y `--mcp-config` son variádicos en claude: con `=` no se comen el prompt posicional.
     argv.append(f"--add-dir={root / '.ide' / 'worktrees' / sid}")
+    from ide_server.browsers import write_mcp_config
+    if (mcp := write_mcp_config(root)) is not None:     # perfiles de navegador (`ide browser`)
+        argv.append(f"--mcp-config={mcp}")
     if kind == "main":
         argv.append(f"--add-dir={root / '.ide' / 'sessions'}")
     if claude_name:
