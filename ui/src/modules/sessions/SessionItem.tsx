@@ -14,6 +14,7 @@ import { QueueItem, QueueItemActions, QueueItemAction } from "../../components/a
 import { Badge } from "../../components/ui/badge";
 import { ConfirmArchiveDialog } from "./ConfirmArchiveDialog";
 import { cn } from "../../lib/utils";
+import { usePersistentOpen } from "../../lib/persist";
 
 
 /** `pr`: la PR de GitHub de la sesión (si se conoce): agrega su posición en el stack.
@@ -88,7 +89,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
             : prLabel(session.prUrl) ? <span className="rounded border border-border px-1 font-mono text-[10px] font-bold">{prLabel(session.prUrl)}</span>
             : repos.length ? repos.map((r) => <RefChip key={r} repo={r} />)
             : <span className="font-mono text-[10px] text-muted-foreground">{session.id}</span>}
-          {merged.map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)}
+          {merged.length > 0 && <MergedToggle id={session.id} merged={merged} hasOpen={many || !!pr} />}
           <LaterChip devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])} />
           {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
         </div>
@@ -121,4 +122,18 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
       <ConfirmArchiveDialog id={session.id} open={confirm} onClose={() => setConfirm(false)} />
     </QueueItem>
   );
+}
+
+/** Las PRs ya mergeadas de una card: un "✓ N" que las despliega o esconde (recordado por card). Por
+ *  defecto escondidas si la card tiene PRs abiertas; si todas están mergeadas, a la vista. */
+function MergedToggle({ id, merged, hasOpen }: { id: string; merged: GhPr[]; hasOpen: boolean }) {
+  const [show, setShow] = usePersistentOpen(`merged.${id}`, !hasOpen);
+  return (<>
+    <button title={show ? `Esconder las ${merged.length} PRs mergeadas` : `Mostrar las ${merged.length} PRs mergeadas`}
+      aria-expanded={show} onClick={(e) => { e.stopPropagation(); setShow(!show); }}
+      className={cn("rounded border px-1 font-mono text-[10px] font-bold text-purple-300 hover:bg-purple-400/15",
+        show ? "border-purple-400/60 bg-purple-400/10" : "border-dashed border-purple-400/50")}>
+      ✓ {merged.length}</button>
+    {show && merged.map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)}
+  </>);
 }

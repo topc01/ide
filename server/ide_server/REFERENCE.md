@@ -857,7 +857,8 @@ a trabajando. Los claude lanzados antes de esto no tienen hooks hasta relanzarlo
 `trabajando` con la nota. Mis desarrollos agrupa **por
 estado** (pausas primero; después el flujo) y el fondo de cada card es el color de su estado; si
 agrupa por estado la card no lo repite (solo la nota), si no, lo muestra como píldora. Las PRs
-**mergeadas** de un desarrollo con sesión siguen en su card (chips moradas ✓, click = GitHub): el IDE
+**mergeadas** de un desarrollo con sesión siguen en su card (chips moradas ✓, click = GitHub; detrás de un
+**✓ N** que las muestra o esconde, recordado por card: escondidas si la card tiene PRs abiertas): el IDE
 las guarda al cerrarse (`kv` `prclosed:<url>`; las vinculadas que ya estaban cerradas se consultan una
 vez) y `reviews.github` las trae en `closed`. Los estados de antes se migran solos (analyzing /
 ready / ready-to-develop → investigating, in-progress → developing, done → ready-for-review,
