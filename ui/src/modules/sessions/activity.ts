@@ -17,6 +17,11 @@ export function activityOf(s: FolderSession, dev?: DevStateInfo | null): Activit
   return done ? "idle" : "stale";
 }
 
+/** La hora (HH:MM, local) en que claude terminó el turno, si te espera. */
+export const waitTime = (s?: FolderSession) => s?.activity?.state === "waiting" && s.activity.since
+  && s.activity.reason !== "launch"     // recién lanzada: no terminó ningún turno
+  ? new Date(s.activity.since).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }) : null;
+
 export const isWaiting = (s?: FolderSession) => !!s && s.process === "running" && s.activity?.state === "waiting";
 
 /** [símbolo, clase, explicación]. */

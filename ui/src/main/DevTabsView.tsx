@@ -18,7 +18,7 @@ import { FileTab } from "./FileTab";
 import { PrDiffTab } from "./PrDiffTab";
 import { AttachmentTab } from "./AttachmentTab";
 import { PinOverlay } from "./PinOverlay";
-import { ACTIVITY, activityOf } from "../modules/sessions/activity";
+import { ACTIVITY, activityOf, waitTime } from "../modules/sessions/activity";
 import type { Terminal } from "@xterm/xterm";
 import { useRuns } from "../transport/runs";
 import { RunState } from "../modules/servers/ServersPanel";
@@ -168,7 +168,7 @@ export function DevTabsView() {
             t.id === state.active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
             isClaude && t.id !== state.active && "text-primary/80")}>
             <button role="tab" aria-selected={t.id === state.active}
-              title={isClaude && act ? `claude — ${act[2]}${s?.activity?.note && s.activity.state === "waiting" ? `: ${s.activity.note}` : ""}` : t.label}
+              title={isClaude && act ? `claude — ${act[2]}${waitTime(s) ? ` (terminó a las ${waitTime(s)})` : ""}${s?.activity?.note && s.activity.state === "waiting" ? `: ${s.activity.note}` : ""}` : t.label}
               className="flex items-center gap-1.5 py-1.5" onClick={() => select(t, "focus")}>
               {isClaude && <Bot size={13} className="text-primary" />}
               {t.kind === "run" && <span className="mr-1"><RunState compact

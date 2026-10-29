@@ -6,7 +6,7 @@ import { CardMeta, CiMark } from "./ReviewsSection";
 import { CardActions, CardCorner, DevIndex, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
 import { ago, STATE, type Block, type DevStateInfo } from "./devStates";
-import { ACTIVITY, activityOf } from "./activity";
+import { ACTIVITY, activityOf, waitTime } from "./activity";
 import { PersonChip } from "../../lib/people";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
@@ -94,7 +94,10 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
         </div>
         <CardMeta>
-          {waitNote && <span className="line-clamp-2 basis-full text-orange-300" title={`Último mensaje de claude: ${waitNote}`}>› {waitNote}</span>}
+          {act === "waiting" && (waitNote || waitTime(session)) && (
+            <span className="line-clamp-2 basis-full text-orange-300"
+              title={`Claude terminó el turno a las ${waitTime(session) ?? "?"}${waitNote ? `\nÚltimo mensaje: ${waitNote}` : ""}`}>
+              › {waitTime(session) && <span className="font-mono text-orange-300/80">{waitTime(session)}</span>}{waitNote ? ` ${waitNote}` : ""}</span>)}
           {dev && <DevStateLabel dev={dev} devKey={`s:${session.id}`} />}
           {isReview && pause?.block && (
             <span className="block basis-full" title={`La sesión de revisión está en pausa: ${STATE[pause.block as Block]?.[0] ?? pause.block}`

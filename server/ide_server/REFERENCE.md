@@ -861,7 +861,8 @@ requested.», el IDE no lo marca como esperándote: le pide a la sesión que cie
 una vez cada 2 min a lo más) y **stale** (el claude no corre y el
 desarrollo sigue activo: no mergeado ni pausado; revisión sin veredicto publicado). Se ve en el punto
 junto al título de la card (◐ celeste girando = trabajando, ● naranjo fijo = te espera, rojo = stale, ○ =
-parado sin pendientes) y, si te espera, la nota debajo en naranjo; las que te esperan suben al
+parado sin pendientes) y, si te espera, la nota debajo en naranjo con la **hora en que claude terminó el turno** (también en el
+tooltip de la pestaña `claude` y de las pestañas fijas); las que te esperan suben al
 principio de su grupo; la barra de abajo cuenta "N te esperan" (sin la manager), y al pasar de
 trabajando a esperarte llega una notificación de macOS. Al aprobar un permiso en la terminal vuelve
 a trabajando. Los claude lanzados antes de esto no tienen hooks hasta relanzarlos (se ven como

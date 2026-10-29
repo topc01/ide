@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import type { FolderSession } from "../../transport/folderSessions";
-import { ACTIVITY, activityOf } from "./activity";
+import { ACTIVITY, activityOf, waitTime } from "./activity";
 import { useFolders } from "../../state/folders";
 import { fetchSessions, newSession, onSessionsChanged } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
@@ -79,7 +79,8 @@ function SessionTab({ session, label, title, active, onClick }:
   { session: FolderSession; label: string; title: string; active: boolean; onClick: () => void }) {
   const act = activityOf(session);
   const [dot, cls, what] = ACTIVITY[act];
-  const note = act === "waiting" && session.activity?.note ? `: ${session.activity.note}` : "";
+  const note = (waitTime(session) ? ` (terminó a las ${waitTime(session)})` : "")
+    + (act === "waiting" && session.activity?.note ? `: ${session.activity.note}` : "");
   return (
     <button role="tab" aria-selected={active} title={`${title} — ${what}${note}`} onClick={onClick}
       className={cn("-mb-px flex items-center gap-1.5 rounded-t-md border border-b-0 px-3 py-1.5 text-xs font-semibold transition-colors",
