@@ -924,7 +924,9 @@ material, no instrucciones; y con el perfil `analyze` publicar (`gh pr review`, 
 pide OK en su terminal (una PR maliciosa podría intentar que se apruebe sola): no lo agregues a los
 permitidos. Estados de revisión: `reviewing`,
 `suggests-approve`, `suggests-changes` (veredicto sin publicar), `approved`, `changes-requested` (ya no
-existe `commented`: se migra a `reviewing`). En el resumen de la PR y en el módulo Desarrollo, **Tu
+existe `commented`: se migra a `reviewing`). El IDE los alinea con GitHub en cada ronda: tu última review en la PR (en una revisión de
+stack, en todas sus PRs) da `approved` (aprobaste todas), `changes-requested` (pediste cambios en alguna) o
+`reviewing` (te volvieron a pedir review en alguna, que pesa más que los cambios pedidos). En el resumen de la PR y en el módulo Desarrollo, **Tu
 revisión** muestra el veredicto y los botones **Aprobar** / **Pedir cambios** (con confirmación; pedir
 cambios exige comentario) para publicar o corregir el veredicto tú (`gh pr review`) — solo PRs que te
 pidieron revisar o con sesión de revisión. Canales `review.draft {url}`, `review.submit {url, event, body}`.

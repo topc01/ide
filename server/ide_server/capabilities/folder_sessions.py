@@ -45,6 +45,17 @@ from ide_server.workspace import discover_repos
 log = logging.getLogger(__name__)
 
 
+def review_verdict(mines: list[str | None]) -> str | None:
+    """El estado de una sesión de revisión según tu review en cada una de sus PRs (requested / approved /
+    changes / None): re-pedida en alguna → reviewing; cambios pedidos en alguna → changes-requested;
+    aprobaste todas → approved; si no, None (no se toca)."""
+    if "requested" in mines:
+        return "reviewing"
+    if "changes" in mines:
+        return "changes-requested"
+    return "approved" if mines and all(m == "approved" for m in mines) else None
+
+
 def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supervisor,
              poller: PrPoller, gh_reviews: GithubReviews | None = None,
              limits: LimitsPoller | None = None, merger: Merger | None = None,
@@ -97,8 +108,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
 
     def _review_verdicts(sessions: list[dict], status: dict) -> None:
-        """El estado de una sesión de revisión sale de GitHub (tu última review en esa PR), no de la
-        sesión: approved / changes-requested; si te volvieron a pedir review, reviewing."""
+        """El estado de una sesión de revisión sale de GitHub (tu última review en esa PR, o en las del
+        stack que revisa), no de la sesión: approved / changes-requested; si te volvieron a pedir
+        review, reviewing."""
         st = gh_reviews.state or {}
         me = st.get("me")
         if not me:
@@ -107,10 +119,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                                          *(st.get("mine") or {}).values(), *(st.get("stacks") or {}).values()]
                  for c in lst}
         for s_ in sessions:
-            if s_.get("kind") != "review" or s_.get("stackPrs") or s_.get("prUrl") not in cards:
+            urls = s_.get("stackPrs") or ([s_["prUrl"]] if s_.get("prUrl") else [])
+            if s_.get("kind") != "review" or not urls or any(u not in cards for u in urls):
                 continue
-            mine = next((r["state"] for r in cards[s_["prUrl"]].get("reviewers") or [] if r.get("login") == me), None)
-            want = {"approved": "approved", "changes": "changes-requested", "requested": "reviewing"}.get(mine or "")
+            # tu estado en cada PR (una revisión de stack: todas); re-pedida en alguna = vuelves a revisar,
+            # cambios pedidos en alguna = cambios pedidos, aprobada solo si aprobaste todas
+            mines = [next((r["state"] for r in cards[u].get("reviewers") or [] if r.get("login") == me), None)
+                     for u in urls]
+            want = review_verdict(mines)
             if want and status.get(s_["id"]) != want:
                 try:
                     set_status(root, db, s_["id"], want, actor="github")

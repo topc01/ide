@@ -557,7 +557,8 @@ class GithubReviews:
                 revs[verdict[0]] = verdict[1]
             c["reviewers"] = [{"login": k, "state": v} for k, v in revs.items()]
             states = set(revs.values())
-            c["review"] = "changes" if "changes" in states else "review" if "requested" in states \
+            # como `review_state`: una review re-pedida pesa más que los cambios pedidos
+            c["review"] = "review" if "requested" in states else "changes" if "changes" in states \
                 else "approved" if "approved" in states else c.get("review")
         mine = st.get("mine") or {}
         group = {"changes": "returned", "review": "waiting", "approved": "approved"}
