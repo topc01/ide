@@ -796,6 +796,10 @@ esconde al instante: solo hay una a la vez). Las
 cards no tienen "parar claude" (se para desde la terminal). En Mis desarrollos, si un revisor pidió
 cambios, **Pedir re-review** (↺, con confirmación) se lo vuelve a pedir a quienes pidieron cambios en
 cada PR del desarrollo (`gh pr edit --add-reviewer`, canal `pr.reviewers`).
+En un desarrollo **listo para revisión**, **Asignar revisor** (👤+ en las acciones de hover) pide
+revisión a una o más personas de la org en las PRs tuyas que elijas: todas, las de un repo o una por una
+(agrupadas por repo); a quien ya revisa una PR no se le vuelve a pedir en esa, y antes de pedir muestra
+el detalle para confirmar. Funciona también con las PRs en draft.
 
 **Nombre del desarrollo:** el lápiz (acciones de hover de la card, o junto al título en el módulo
 Desarrollo) o doble click lo renombra **solo en el IDE** (no toca SESSION.md ni GitHub); vacío vuelve al original, que queda en el tooltip. Se guarda en

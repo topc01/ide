@@ -1,8 +1,8 @@
 // ui/src/modules/sessions/ReviewVerdict.tsx
 import { useEffect, useState } from "react";
-import { Check, MessageSquareWarning, RotateCcw } from "lucide-react";
+import { Check, MessageSquareWarning, RotateCcw, UserPlus, X } from "lucide-react";
 import { getWs } from "../../transport/wsClient";
-import { prReviewers, reviewDraft, reviewSubmit, type GhPr } from "../../transport/folderSessions";
+import { prReviewers, reviewDraft, reviewSubmit, type GhPr, type GithubReviews } from "../../transport/folderSessions";
 import { QueueItemAction } from "../../components/ai-elements/queue";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
@@ -115,6 +115,110 @@ export function RereviewAction({ prs }: { prs: GhPr[] }) {
           <DialogFooter className="gap-2">
             <Button size="sm" variant="ghost" title="No" onClick={() => setOpen(false)}>No</Button>
             <Button size="sm" disabled={busy} title="Sí, pedir re-review" onClick={go}>{busy ? "Pidiendo…" : "Sí, pedir re-review"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>)}
+  </>);
+}
+
+/** Acción de hover de un desarrollo tuyo listo para revisión: pedirle revisión a una o más personas
+ *  en las PRs que elijas (todas, las de un repo o una por una), con confirmación (`gh pr edit
+ *  --add-reviewer`). Quien ya revisa una PR no se vuelve a pedir en esa. */
+export function AssignReviewersAction({ prs, gh }: { prs: GhPr[]; gh: GithubReviews | null }) {
+  const mine = prs.filter((p) => gh?.me && p.author === `@${gh.me}`);
+  const [open, setOpen] = useState(false);
+  const [who, setWho] = useState<string[]>([]);
+  const [q, setQ] = useState("");
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (!mine.length) return null;
+  const byRepo = new Map<string, GhPr[]>();
+  for (const p of mine) byRepo.set(p.repo, [...(byRepo.get(p.repo) ?? []), p]);
+  const needle = q.trim().toLowerCase();
+  const options = (gh?.members ?? []).filter((m) => m.login !== gh?.me && !who.includes(m.login)
+    && (!needle || m.login.toLowerCase().includes(needle) || (m.name ?? "").toLowerCase().includes(needle))).slice(0, 6);
+  const toggle = (urls: string[], on: boolean) => setSel((prev) => {
+    const next = new Set(prev);
+    urls.forEach((u) => (on ? next.add(u) : next.delete(u)));
+    return next;
+  });
+  const all = (urls: string[]) => urls.every((u) => sel.has(u));
+  // por PR, a quiénes se pide (sin repetir a quien ya revisa)
+  const plan = mine.filter((p) => sel.has(p.url)).map((p) => {
+    const has = new Set((p.reviewers ?? []).map((r) => r.login));
+    return { pr: p, logins: who.filter((l) => !has.has(l)) };
+  }).filter((t) => t.logins.length);
+  const reset = () => { setOpen(false); setConfirm(false); setWho([]); setQ(""); setSel(new Set()); setErr(null); };
+  const go = () => {
+    setBusy(true); setErr(null);
+    Promise.all(plan.map((t) => prReviewers(getWs(), t.pr.url, t.logins))).then(reset)
+      .catch((e: any) => setErr(e?.message ?? String(e))).finally(() => setBusy(false));
+  };
+  return (<>
+    <QueueItemAction aria-label="Asignar revisor" title="Pedirle revisión a alguien en las PRs que elijas"
+      onClick={(e) => { e.stopPropagation(); setSel(new Set(mine.map((p) => p.url))); setOpen(true); }}><UserPlus size={11} /></QueueItemAction>
+    {open && (
+      <Dialog open onOpenChange={(o) => { if (!o) reset(); }}>
+        <DialogContent onClick={(e) => e.stopPropagation()} className="max-w-md">
+          <DialogHeader><DialogTitle className="text-sm">{confirm ? "¿Pedir revisión en GitHub?" : "Asignar revisor"}</DialogTitle></DialogHeader>
+          {confirm ? (
+            <ul className="space-y-0.5 text-xs">
+              {plan.map((t) => <li key={t.pr.url}><span className="font-mono font-bold">{repoShort(t.pr.repo)} #{t.pr.number}</span>
+                {" → "}{t.logins.map((l) => `@${l}`).join(", ")}{t.pr.draft && <span className="text-muted-foreground"> (en draft)</span>}</li>)}
+            </ul>
+          ) : (<>
+            <div className="space-y-1">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Revisores</div>
+              <div className="flex flex-wrap items-center gap-1">
+                {who.map((l) => (
+                  <span key={l} className="inline-flex items-center gap-0.5 rounded border border-border px-1.5 py-px font-mono text-[11px]">
+                    {l}<button aria-label={`Quitar a ${l}`} title={`Quitar a ${l}`} onClick={() => setWho(who.filter((x) => x !== l))}
+                      className="text-muted-foreground hover:text-foreground"><X size={10} /></button></span>))}
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="buscar persona…" aria-label="Buscar revisor"
+                  className="w-40 rounded border border-border bg-background px-1.5 py-0.5 text-xs outline-none focus:border-primary" />
+              </div>
+              {needle && (
+                <div className="rounded-md border border-border p-1">
+                  {options.length === 0 && <span className="block px-2 py-1 text-xs text-muted-foreground">sin resultados</span>}
+                  {options.map((m) => (
+                    <button key={m.login} title={`Agregar a ${m.login}`} onClick={() => { setWho([...who, m.login]); setQ(""); }}
+                      className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-accent">
+                      <span className="font-mono">{m.login}</span>{m.name && <span className="ml-1.5 text-muted-foreground">{m.name}</span>}
+                    </button>))}
+                </div>)}
+            </div>
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-semibold" title="Todas las PRs del desarrollo">
+                <input type="checkbox" checked={all(mine.map((p) => p.url))} onChange={(e) => toggle(mine.map((p) => p.url), e.target.checked)} />
+                Todas ({mine.length})</label>
+              {[...byRepo.entries()].map(([repo, list]) => (
+                <div key={repo} className="pl-3">
+                  <label className="flex items-center gap-1.5 text-xs font-semibold uppercase" title={`Todas las de ${repoShort(repo)}`}>
+                    <input type="checkbox" checked={all(list.map((p) => p.url))} onChange={(e) => toggle(list.map((p) => p.url), e.target.checked)} />
+                    {repoShort(repo)}</label>
+                  {list.map((p) => (
+                    <label key={p.url} className="flex items-center gap-1.5 pl-4 text-xs" title={p.title}>
+                      <input type="checkbox" checked={sel.has(p.url)} onChange={(e) => toggle([p.url], e.target.checked)} />
+                      <span className="font-mono">#{p.number}</span><span className="truncate text-muted-foreground">{p.title}</span>
+                      {!!p.reviewers?.length && <span className="shrink-0 text-[10px] text-muted-foreground">
+                        ({p.reviewers.map((r) => r.login).join(", ")})</span>}
+                    </label>))}
+                </div>))}
+            </div>
+          </>)}
+          {err && <p role="alert" className="text-xs text-destructive">⚠ {err}</p>}
+          <DialogFooter className="gap-2">
+            {confirm ? (<>
+              <Button size="sm" variant="ghost" title="Volver a elegir" onClick={() => setConfirm(false)}>Volver</Button>
+              <Button size="sm" disabled={busy} title="Pedir la revisión en GitHub" onClick={go}>{busy ? "Pidiendo…" : "Sí, pedir revisión"}</Button>
+            </>) : (<>
+              <Button size="sm" variant="ghost" title="Cancelar" onClick={reset}>Cancelar</Button>
+              <Button size="sm" disabled={!plan.length}
+                title={!who.length ? "Elige al menos un revisor" : !plan.length ? "Elige al menos una PR (donde no revise ya)" : "Revisar antes de pedir"}
+                onClick={() => setConfirm(true)}>Asignar…</Button>
+            </>)}
           </DialogFooter>
         </DialogContent>
       </Dialog>)}
