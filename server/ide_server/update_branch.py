@@ -72,6 +72,8 @@ def update(root: Path, sid: str, repo: str | None, *, dry_run: bool = False, out
         branch = _git(wt, "branch", "--show-current").stdout.strip()
         if not branch:
             out.write(f"{name}: sin rama (detached o rebase a medias), no hago nada\n"); failed += 1; continue
+        if branch in PROTECTED or branch == _default_branch(wt):
+            out.write(f"{name}: {branch} es una rama principal, no la toco\n"); failed += 1; continue
         _git(wt, "fetch", "origin", "--prune")
         p = plan(wt, branch)
         if "skip" in p:
