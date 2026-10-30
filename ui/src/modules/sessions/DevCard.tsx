@@ -429,7 +429,11 @@ export function TicketChip({ devKey }: { devKey: string }) {
   if (!t.url) return <span title="Este desarrollo no tiene ticket de Notion: la sesión arma el borrador y lo asocia con `ide ticket set`"
     className="inline-flex shrink-0 items-center rounded border border-dashed border-destructive/60 px-1 text-[10px] font-semibold text-destructive">
     sin ticket</span>;
-  const open = (u: string) => (e: React.MouseEvent) => { e.stopPropagation(); window.open(u, "_blank", "noopener,noreferrer"); };
+  // solo links https (el server ya los valida; esto es por si la base trae otra cosa)
+  const open = (u: string) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try { if (new URL(u).protocol === "https:") window.open(u, "_blank", "noopener,noreferrer"); } catch { /* link inválido */ }
+  };
   return (<>
     <button title={`Abrir el ticket en Notion${t.status ? ` (Status: ${t.status})` : ""}${t.error ? `\n⚠ ${t.error}` : ""}`}
       onClick={open(t.url)}

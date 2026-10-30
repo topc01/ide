@@ -181,8 +181,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         sus Adjuntos; el Status se lee de Notion."""
         from ide_server import notion_tickets as notion
         sid = _resolve(p["id"])
-        url = str(p.get("url") or "").strip()
-        notion.page_id(url)
+        url = notion.check_url(p.get("url"))
         f = session_path(root, sid) / "SESSION.md"
         meta, body = parse_frontmatter(f.read_text(encoding="utf-8")) if f.is_file() else ({}, "")
         f.write_text(write_frontmatter({**meta, "notion_url": url}, body), encoding="utf-8")
