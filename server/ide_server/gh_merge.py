@@ -159,7 +159,7 @@ class Merger:
         stack = (st.get("stacks") or {}).get(pr["stack"]["id"], []) if pr.get("stack") else []
         return pr, stack
 
-    def merge(self, url: str, *, renumber: bool = False) -> dict:
+    def merge(self, url: str, *, renumber: bool = False, patient: bool = False) -> dict:
         """Valida y arranca el merge en segundo plano (no bloquea: la card muestra el progreso). Una PR en
         conflicto no se rechaza: se pone al día al mergear (si choca, se avisa a su sesión). `renumber`:
         si sus migraciones chocan con la base, las renumera (commit + push) en vez de frenar."""
@@ -171,7 +171,7 @@ class Merger:
             raise SessionError("fork_pr", "PRs desde forks no se mergean ni restackean desde el IDE")
         if pr.get("stack") and pr["stack"]["position"] != 1:
             raise SessionError("not_bottom", "solo se mergea la PR de abajo del stack")
-        if pr.get("ci") == "failure":
+        if pr.get("ci") == "failure" and not patient:
             raise SessionError("ci_failed", "el CI falló: no se arma el merge")
         if self.jobs.get(url, {}).get("state") in ACTIVE:
             raise SessionError("merge_pending", "ya hay un merge en curso para esta PR")
@@ -188,6 +188,7 @@ class Merger:
                      native_old=None, restack_since=None,
                      repo=pr["repo"], full_repo=pr.get("fullRepo"), head=pr["head"], base=pr["base"],
                      number=pr["number"], title=pr["title"], above=above, restacked=[], moved=None, renumber=renumber,
+                     patient=patient,
                      uuid=None, me=me, at=datetime.now().isoformat(timespec="seconds"))
         self._on_change()
         threading.Thread(target=self._start, args=(url,), daemon=True).start()
@@ -273,8 +274,10 @@ class Merger:
                 self._update(url, state="waiting", auto=True)
                 return
             last = (out.stderr or out.stdout).strip()
-            if "auto merge is not allowed" in last.lower() or "auto-merge is not allowed" in last.lower():
-                # el repo no tiene habilitado el auto-merge: lo hace el IDE (espera CI y aprobación)
+            if "auto merge is not allowed" in last.lower() or "auto-merge is not allowed" in last.lower() \
+                    or "not supported for stacked pull requests" in last.lower():
+                # el repo no tiene habilitado el auto-merge, o la PR es de un stack de GitHub (ahí no se
+                # puede armar): lo hace el IDE (espera CI y aprobación)
                 self._update(url, state="waiting_ci", auto=False)
                 return
             if "clean status" in last.lower():
@@ -503,6 +506,8 @@ class Merger:
             elif st.get("mergeable") == "CONFLICTING":
                 self._update(url, state="error", error=f"conflicto con {j['base']}: resuélvelo y reintenta")
             elif st["ci"] == "failure":
+                if j.get("patient"):            # «Mergear todo»: la sesión lo arregla y se sigue esperando
+                    return False
                 self._update(url, state="error", error="el CI falló: arréglalo y reintenta")
             elif st["ci"] == "success" and st.get("mergeable") == "MERGEABLE" and st.get("reviewDecision") in ("APPROVED", None, ""):
                 self._merge_async(url, j, st["headRefOid"])

@@ -170,7 +170,7 @@ class MergeAll:
                 waiting.append(f"{ref(c)}: CI fallido (la sesión lo está viendo)")
                 continue
             try:
-                self._merger.merge(u)
+                self._merger.merge(u, patient=True)
             except SessionError as exc:
                 if exc.code in ("ci_failed",):
                     waiting.append(f"{ref(c)}: {exc}")
