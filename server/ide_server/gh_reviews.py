@@ -602,6 +602,25 @@ class GithubReviews:
                       "lastOk": _iso(last) if last else None, "orgs": orgs, "sync": self._db.get("last_sync")}
         self._on_change()
 
+    async def _ready_approved(self, res: dict, me: str) -> None:
+        """Una PR tuya en draft que quedó aprobada (sin revisiones pedidas pendientes) sale de draft sola:
+        en el equipo se revisa en draft y el CI corre después de aprobar. También las hijas de un stack
+        (el CI corre apenas puede). Queda en el historial; si `gh` falla, se reintenta en 30 min."""
+        tried = self.__dict__.setdefault("_ready_tried", {})
+        for c in [c for lst in (res.get("mine") or {}).values() for c in lst]:
+            if not c.get("draft") or c.get("review") != "approved" or c.get("author") != f"@{me}" \
+                    or any(r.get("state") == "requested" for r in c.get("reviewers") or []) \
+                    or self._clock() - tried.get(c["url"], 0) < 1800:
+                continue
+            tried[c["url"]] = self._clock()
+            code, _, err = await self._gh(["pr", "ready", c["url"]])
+            if code != 0:
+                log.warning("gh pr ready %s: %s", c["url"], err.strip())
+                continue
+            c["draft"] = False
+            self._db.event(_iso(self._clock()), "ide", "ready-for-review", pr_url=c["url"],
+                           data={"note": "sacada de draft por el IDE al aprobarse"})
+
     async def poll_once(self) -> None:
         orgs = [self._org] if self._org else await asyncio.to_thread(workspace_orgs, self._root)
         prev = self.state
@@ -616,6 +635,10 @@ class GithubReviews:
                 res = parse_result(data, {m["login"] for m in members})
                 await self._annotate_deps(res, data)
                 self._record_events(res)
+                try:
+                    await self._ready_approved(res, me)
+                except Exception:  # noqa: BLE001 — sacar de draft no tumba el poll
+                    log.exception("sacar de draft las PRs aprobadas")
                 try:
                     await self._backfill_closed({n["url"] for n in data["data"]["open"]["nodes"] if n})
                 except Exception:  # noqa: BLE001 — lo de las mergeadas no tumba el resto

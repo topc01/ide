@@ -62,6 +62,9 @@ lo que es criterio, con `ide status <estado> [-m "nota"]` (nunca editando el `st
   quién>"` si no puedes avanzar (p.ej. "definiciones de producto", "el cliente", "#12") y `ide status
   unblock` al destrabar; `paused` si el usuario lo pide.
 - Mientras trabajas, las PRs van en **draft** (`gh pr create --draft`).
+- **No saques una PR de draft** (`gh pr ready`): lo hace **el IDE solo, apenas la PR queda aprobada**
+  (sin revisiones pedidas pendientes; también las hijas de un stack). Tú no, salvo que el usuario te lo
+  pida explícito. Haz exactamente la acción que te piden; si propones algo más, pregúntalo aparte.
 - **Revisores:** pídelos (`gh pr edit --add-reviewer <login>`) cuando el usuario o el manager lo pidan,
   aunque la PR siga en draft: en el equipo se revisa en draft y el CI corre después de aprobar. Desde
   ahí el IDE muestra el desarrollo en revisión (no hace falta `ide status`).
