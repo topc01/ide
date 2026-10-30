@@ -319,7 +319,8 @@ class Merger:
         out = _run(["gh", "pr", "view", url, "--json", "state,mergeable,headRefOid,statusCheckRollup,reviewDecision"])
         data = json.loads(_check(out, "gh pr view"))
         bad = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
-        ci = "success"
+        # sin ningún check todavía (recién salida de draft o recién pusheada) = el CI no partió: no es verde
+        ci = "success" if data.get("statusCheckRollup") else "pending"
         for c in data.get("statusCheckRollup") or []:
             concl, state = c.get("conclusion") or "", c.get("state") or ""
             if concl in bad or state in ("FAILURE", "ERROR"):
@@ -344,6 +345,8 @@ class Merger:
             self._update(url, state="merging", uuid=details.get("uuid"))
         else:
             msg = details.get("message") or res.get("message") or (out.stderr or out.stdout).strip()
+            if "is expected" in str(msg) or "status check" in str(msg).lower():
+                return                          # falta un check obligatorio: sigue en waiting_ci, se reintenta
             self._update(url, state="error", error=f"merge-async: {msg or out.returncode}")
 
     # -- vigilante    # -- vigilante ---------------------------------------------------------------------------
@@ -520,6 +523,10 @@ class Merger:
                 res = json.loads(out.stdout or "{}") if out.returncode == 0 else {}
                 if res.get("status") == "failed":
                     msg = (res.get("details") or {}).get("message") or "GitHub no pudo mergear"
+                    if "is expected" in msg or "status check" in msg.lower():
+                        # falta un check obligatorio (el CI todavía no lo reporta): se sigue esperando
+                        self._update(url, state="waiting_ci", uuid=None)
+                        return True
                     self._update(url, state="error", error=f"merge-async: {msg}")
                     return True
             st = self._pr_status(url)
