@@ -180,6 +180,7 @@ export interface GithubReviews {
   mine: Partial<Record<"returned" | "waiting" | "missing" | "draft" | "approved", GhPr[]>>;
   stacks?: Record<string, GhPr[]>;      // id del stack -> PRs de abajo hacia arriba
   merges?: Record<string, MergeJob>;    // url -> merge armado desde el IDE
+  mergeAll?: Record<string, MergeAllJob>;   // clave del desarrollo -> «Mergear todo»
   closed?: GhPr[];                      // PRs de desarrollos con sesión que ya se cerraron/mergearon
   // última resincronización completa de PRs (ok = se aceptó; si no, GitHub respondió raro y no se borró nada)
   sync?: { at: string; nodes: number; issueCount: number; cached: number; gone: number; ok: boolean } | null;
@@ -197,6 +198,14 @@ export interface MergeJob {
   native?: boolean; merged_at?: string | null; url?: string;
 }
 export const mergePr = (ws: WsClient, url: string): Promise<MergeJob> => ws.request("reviews.merge", { url });
+/** «Mergear todo» de un desarrollo: running (avanzando), error (detenido por un problema), stopped (lo
+ *  detuviste), done. `waiting`: por qué alguna PR todavía no se mergea. */
+export interface MergeAllJob { state: "running" | "error" | "stopped" | "done"; total: number; done: number;
+  error: string | null; current: string[]; waiting: string | null; at: string }
+export const mergeAll = (ws: WsClient, key: string, urls: string[]): Promise<MergeAllJob> => ws.request("dev.mergeAll", { key, urls });
+export const mergeAllResume = (ws: WsClient, key: string): Promise<{ ok: boolean }> => ws.request("dev.mergeAllResume", { key });
+export const mergeAllStop = (ws: WsClient, key: string): Promise<{ ok: boolean }> => ws.request("dev.mergeAllStop", { key });
+export const mergeAllDismiss = (ws: WsClient, key: string): Promise<{ ok: boolean }> => ws.request("dev.mergeAllDismiss", { key });
 export const dismissMerge = (ws: WsClient, url: string) => ws.request("reviews.mergeDismiss", { url });
 /** Desarmar el auto-merge armado desde el IDE (lo quita en GitHub). */
 export const cancelMerge = (ws: WsClient, url: string): Promise<{ ok: boolean }> => ws.request("reviews.mergeCancel", { url });

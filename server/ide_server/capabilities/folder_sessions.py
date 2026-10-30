@@ -650,7 +650,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     async def github(_p: dict) -> dict:
         merges = merger.public() if merger else {}
-        return {**gh_reviews.state, "merges": merges} if gh_reviews else {"pending": [], "changesRequested": [], "me": None,
+        mall = merger.all.public() if merger is not None and hasattr(merger, "all") else {}
+        return {**gh_reviews.state, "merges": merges, "mergeAll": mall} if gh_reviews else {"pending": [], "changesRequested": [], "me": None,
                                                     "reviewers": [], "reviewersTruncated": False,
                                                     "members": [], "selected": None, "mine": {}, "stacks": {},
                                                     "error": "polling de GitHub desactivado",
@@ -728,6 +729,42 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     if merger is not None:
         merger.on_problem = _merge_problem
+
+    def _tell_dev(key: str, title: str, text: str) -> None:
+        """A la sesión de un desarrollo (`s:<id>`): a su claude si corre; si no, a Para después."""
+        sid = key[2:] if key.startswith("s:") else None
+        if db is None or not sid or not session_path(root, sid).is_dir():
+            return
+        if supervisor.state(sid) == "running":
+            supervisor.send(sid, text)
+            db.event(datetime.now().isoformat(timespec="seconds"), "ide", "prompt", dev=sid, data={"text": text[:300]})
+        else:
+            later_mod.add(db, key, title, text, "ide")
+        notify()
+
+    if merger is not None and hasattr(merger, "all"):
+        merger.all.tell = _tell_dev
+
+    def _mall():
+        if merger is None or not hasattr(merger, "all"):
+            raise SessionError("github_off", "merge desactivado")
+        return merger.all
+
+    async def merge_all_start(p: dict) -> dict:
+        """«Mergear todo» de un desarrollo (`key` + las URLs de sus PRs)."""
+        return await asyncio.to_thread(_mall().start, str(p["key"]), list(p.get("urls") or []))
+
+    async def merge_all_resume(p: dict) -> dict:
+        await asyncio.to_thread(_mall().resume, str(p["key"]))
+        return {"ok": True}
+
+    async def merge_all_stop(p: dict) -> dict:
+        await asyncio.to_thread(_mall().stop, str(p["key"]))
+        return {"ok": True}
+
+    async def merge_all_dismiss(p: dict) -> dict:
+        await asyncio.to_thread(_mall().dismiss, str(p["key"]))
+        return {"ok": True}
 
     async def merge_retry(p: dict) -> dict:
         if merger is None:
@@ -1487,7 +1524,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "servers.blocks": servers_blocks, "servers.start": servers_start,
         "servers.stop": servers_stop, "servers.log": servers_log, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
-        "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
+        "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
+        "dev.mergeAllStop": merge_all_stop, "dev.mergeAllDismiss": merge_all_dismiss, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
         "attachments.rename": attachments_rename, "attachments.mkdir": attachments_mkdir, "attachments.move": attachments_move, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,

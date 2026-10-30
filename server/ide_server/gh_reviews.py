@@ -19,7 +19,7 @@ from ide_server.workspace import discover_repos
 
 log = logging.getLogger(__name__)
 
-_FIELDS = """... on PullRequest { id state url title number isDraft updatedAt reviewDecision headRefName baseRefName body
+_FIELDS = """... on PullRequest { id state url title number isDraft updatedAt reviewDecision headRefName headRefOid baseRefName body
   isCrossRepository repository { nameWithOwner }
   stack { id size } stackEntry { position }
   mergeable mergeStateStatus commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
@@ -173,7 +173,7 @@ def _card(n: dict, stacks: dict[str, dict] | None = None) -> dict:
             "draft": bool(n.get("isDraft")), "updatedAt": n.get("updatedAt"),
             # mismo id que `ide session new --review` (para cruzar la card con su sesión)
             "sessionId": slugify(f"pr-{n['repository']['name']}-{n['number']}"),
-            "head": n.get("headRefName"), "base": n.get("baseRefName"), "review": review_state(n),
+            "head": n.get("headRefName"), "headSha": n.get("headRefOid"), "base": n.get("baseRefName"), "review": review_state(n),
             "fullRepo": n["repository"].get("nameWithOwner"), "fork": bool(n.get("isCrossRepository")),
             "stack": (stacks or {}).get(n["url"]), "reviewers": pr_reviewers(n),
             "ci": ci_state(n), "ciRunning": ci_running(n), "conflict": n.get("mergeable") == "CONFLICTING",

@@ -68,6 +68,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
                                on_change=lambda: notify_box["github"]())
     limits = LimitsPoller()
     merger = Merger(root, stacks=lambda: gh_reviews.state, db=db, on_change=lambda: notify_box["github"]())
+    from ide_server.merge_all import MergeAll
+    merger.all = MergeAll(db, merger, stacks=lambda: gh_reviews.state, on_change=lambda: notify_box["github"]())
     runner = Runner(root)
     viewer = DbViewer(root)
     runs_watch = runs_cap.register(registry, root, manager, runner, viewer, db)
@@ -77,7 +79,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
                                            runner=runner)
     def _github_changed() -> None:
         asyncio.get_running_loop().create_task(
-            manager.broadcast("reviews.github", {**gh_reviews.state, "merges": merger.public()}))
+            manager.broadcast("reviews.github", {**gh_reviews.state, "merges": merger.public(),
+                                                 "mergeAll": merger.all.public()}))
         notify_box["fn"]()                      # el árbol vincula las PRs nuevas a sus sesiones (devPrs)
     notify_box["github"] = _github_changed
     mlx_router = build_mlx_router(root)
@@ -136,6 +139,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             asyncio.create_task(gh_reviews.run(stop_bg)),
             asyncio.create_task(limits.run(stop_bg)),
             asyncio.create_task(merger.run(stop_bg)),
+            asyncio.create_task(merger.all.run(stop_bg)),
             asyncio.create_task(updater.run(stop_bg)),
             asyncio.create_task(save_history_loop(stop_bg)),
             asyncio.create_task(runs_watch(stop_bg)),

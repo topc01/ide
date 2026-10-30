@@ -1,10 +1,11 @@
 // ui/src/modules/sessions/MergeControls.tsx
 import { useState } from "react";
-import { GitMerge, RotateCw, X } from "lucide-react";
+import { GitMerge, Layers, Pause, Play, RotateCw, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
 import { QueueItemAction } from "../../components/ai-elements/queue";
-import { cancelMerge, mergePr, retryMerge, type GhPr, type MergeJob } from "../../transport/folderSessions";
+import { cancelMerge, mergeAll, mergeAllDismiss, mergeAllResume, mergeAllStop, mergePr, retryMerge,
+  type GhPr, type MergeAllJob, type MergeJob } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { DepsList } from "./ReviewsSection";
 import { cn } from "../../lib/utils";
@@ -106,4 +107,73 @@ export function MergeStatus({ url, job }: { url: string; job?: MergeJob }) {
           className="hover:text-foreground"><RotateCw size={10} /></button>)}
     </span>
   );
+}
+
+/** Las PRs de un desarrollo en el orden en que se mergean: por repo, de abajo hacia arriba en cada stack. */
+const mergeOrder = (prs: GhPr[]) => [...prs].sort((a, b) => a.repo.localeCompare(b.repo)
+  || (a.stack?.position ?? 0) - (b.stack?.position ?? 0));
+
+/** Acción de la card / del módulo Desarrollo: «Mergear todo». Con confirmación: saca de draft todas las PRs
+ *  y las mergea en orden (stacks de abajo hacia arriba, dependencias entre repos primero) a medida que pasan
+ *  el CI y quedan aprobadas. Detenido: reanudar o descartar. */
+export function MergeAllAction({ devKey, prs, job, me, asButton }: { devKey: string; prs: GhPr[]; job?: MergeAllJob;
+  me?: string | null; asButton?: boolean }) {
+  const mine = prs.filter((p) => me && p.author === `@${me}`);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const act = (p: Promise<unknown>, close = false) => {
+    setBusy(true); setError(null);
+    p.then(() => { if (close) setOpen(false); }).catch((e: any) => setError(e?.message ?? String(e))).finally(() => setBusy(false));
+  };
+  if (!mine.length && !job) return null;
+  const btn = (label: string, title: string, icon: React.ReactNode, onClick: () => void) => asButton
+    ? <Button size="sm" variant="secondary" className="h-7 gap-1 text-xs" title={title} disabled={busy} onClick={onClick}>{icon}{label}</Button>
+    : <QueueItemAction aria-label={label} title={title} onClick={(e) => { e.stopPropagation(); onClick(); }}>{icon}</QueueItemAction>;
+  if (job?.state === "running")
+    return btn("Detener", "Detener «Mergear todo» (lo que ya está armado en GitHub sigue armado)", <Pause size={11} />,
+      () => act(mergeAllStop(getWs(), devKey)));
+  if (job && (job.state === "error" || job.state === "stopped"))
+    return (<>
+      {btn("Reanudar", `Reanudar «Mergear todo»${job.error ? ` (se detuvo: ${job.error})` : ""}`, <Play size={11} />,
+        () => act(mergeAllResume(getWs(), devKey)))}
+      {btn("Descartar", "Descartar el «Mergear todo» detenido", <X size={11} />, () => act(mergeAllDismiss(getWs(), devKey)))}
+    </>);
+  return (<>
+    {btn("Mergear todo", `Mergear todo el desarrollo (${mine.length} PRs, en orden)`, <Layers size={11} />, () => setOpen(true))}
+    {open && (
+      <Dialog open onOpenChange={(o) => { if (!o) setOpen(false); }}>
+        <DialogContent onClick={(e) => e.stopPropagation()} className="max-w-md grid-cols-[minmax(0,1fr)]">
+          <DialogHeader><DialogTitle className="text-sm">¿Mergear todo el desarrollo?</DialogTitle></DialogHeader>
+          <ol className="list-decimal space-y-0.5 pl-5 text-xs">
+            {mergeOrder(mine).map((p) => <li key={p.url} className="truncate" title={p.title}>
+              <span className="font-mono font-bold">{p.repo.replace(/^finnecto-/, "")} #{p.number}</span> {p.title}
+              {p.draft && <span className="text-muted-foreground"> (draft)</span>}</li>)}
+          </ol>
+          <ul className="list-disc space-y-0.5 pl-5 text-[11px] text-muted-foreground">
+            <li>Saca de draft todas las PRs.</li>
+            <li>Las mergea (squash) de abajo hacia arriba en cada stack, a medida que pasan el CI y quedan aprobadas; las que
+              dependen de otro repo esperan a esa. Antes de cada una revisa las migraciones y, si está en conflicto, la pone al día.</li>
+            <li>Si falla el CI, le avisa a la sesión para que lo arregle y sigue solo. Si le piden cambios o un merge no puede
+              seguir, se detiene (card en rojo) y lo reanudas desde la card.</li>
+          </ul>
+          {error && <p role="alert" className="text-xs text-destructive">⚠ {error}</p>}
+          <DialogFooter className="gap-2">
+            <Button size="sm" variant="ghost" title="No" onClick={() => setOpen(false)}>No</Button>
+            <Button size="sm" disabled={busy} title="Empezar" onClick={() => act(mergeAll(getWs(), devKey, mine.map((p) => p.url)), true)}>
+              {busy ? "Empezando…" : "Sí, mergear todo"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>)}
+  </>);
+}
+
+/** El avance de «Mergear todo» en la card: «mergeando 2/6», por qué espera, o en rojo si se detuvo. */
+export function MergeAllStatus({ job }: { job?: MergeAllJob }) {
+  if (!job) return null;
+  const tone = job.state === "running" ? "text-purple-300" : job.state === "done" ? "text-emerald-400" : "text-destructive";
+  const label = job.state === "running" ? `mergeando ${job.done}/${job.total}` : job.state === "done" ? `mergeado todo (${job.total})`
+    : `mergear todo detenido (${job.done}/${job.total})`;
+  return <span className={cn("block basis-full", tone)} title={job.error ?? job.waiting ?? label}>
+    ⇉ {label}{job.state !== "running" && job.error ? `: ${job.error}` : job.waiting ? ` · ${job.waiting}` : ""}</span>;
 }

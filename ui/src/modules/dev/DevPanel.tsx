@@ -11,6 +11,7 @@ import { cn } from "../../lib/utils";
 import { PrRow } from "../sessions/MyDevsSection";
 import { RepoLine } from "../sessions/RepoLine";
 import { useGithubReviews } from "../sessions/ReviewsSection";
+import { MergeAllAction, MergeAllStatus } from "../sessions/MergeControls";
 import { byRepoStack } from "../sessions/desarrollos";
 import { DevIndex, DevTitle, repoShort } from "../sessions/DevCard";
 
@@ -83,6 +84,11 @@ function StateEditor({ devKey, prs, merged }: { devKey: string; prs: GhPr[]; mer
           title={`Sacar de draft (gh pr ready): ${drafts.map((p) => `${p.repo}#${p.number}`).join(", ")}`}
           onClick={() => act("ready", prsReady(getWs(), drafts.map((p) => p.url)), "Mandadas a revisión (GitHub lo refleja en el próximo poll)")}>
           {busy === "ready" ? "Mandando…" : `Mandar a revisión (${drafts.length})`}</Button>)}
+      {prs.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+          <MergeAllAction devKey={devKey} prs={prs} job={gh?.mergeAll?.[devKey]} me={gh?.me} asButton />
+          <MergeAllStatus job={gh?.mergeAll?.[devKey]} />
+        </div>)}
       {msg && <p role={msg.startsWith("⚠") ? "alert" : undefined}
         className={cn("mt-1 text-[11px]", msg.startsWith("⚠") ? "text-destructive" : "text-muted-foreground")}>{msg}</p>}
     </div>

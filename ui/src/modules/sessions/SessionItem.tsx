@@ -29,9 +29,9 @@ function prLabel(url?: string | null): string | null {
 /** `noArchive`: sin botón archivar (p.ej. revisiones donde pediste cambios: siguen vivas). */
 /** `dev`: estado del desarrollo (Mis desarrollos): se muestra y colorea la card si la sección agrupa por él. */
 /** `merged`: sus PRs ya mergeadas (chips moradas). */
-export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = false, noArchive = false, dev, merged = [] }:
+export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = false, noArchive = false, dev, merged = [], extra }:
   { session: FolderSession; actions?: ReactNode; pr?: GhPr; prs?: GhPr[]; onlyActions?: boolean; noArchive?: boolean;
-    dev?: DevStateInfo | null; merged?: GhPr[] }) {
+    dev?: DevStateInfo | null; merged?: GhPr[]; extra?: ReactNode }) {
   const pr = prProp ?? prs?.[0];
   const many = (prs?.length ?? 0) > 1;
   const { activeId, activePrUrl, setActive } = useFolders();
@@ -97,6 +97,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
         </div>
         <CardMeta>
+          {extra}
           {act === "waiting" && (waitNote || waitTime(session)) && (
             <span className="line-clamp-2 basis-full text-orange-300"
               title={`Claude terminó el turno a las ${waitTime(session) ?? "?"}${waitNote ? `\nÚltimo mensaje: ${waitNote}` : ""}`}>

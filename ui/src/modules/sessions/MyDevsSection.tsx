@@ -11,7 +11,7 @@ import { QueueItem, QueueItemAction, QueueItemActions } from "../../components/a
 import { CardActions, CardCorner, DevIndex, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { worstPr } from "./desarrollos";
 import { CiMark, PrCard, SyncWarning, useGithubReviews } from "./ReviewsSection";
-import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
+import { canMerge, MERGE_ACTIVE, MergeAllAction, MergeAllStatus, MergeButton, MergeStatus } from "./MergeControls";
 import { SessionItem } from "./SessionItem";
 import { waitingFirst } from "./activity";
 import { AssignReviewersAction, RereviewAction } from "./ReviewVerdict";
@@ -104,6 +104,7 @@ export function MovePrAction({ pr, from, to: kind = "ticket" }: { pr: GhPr; from
 
 /** Stack tuyo sin sesión: una card con una fila por PR (de abajo hacia arriba). */
 function StackCard({ d, dev }: { d: Desarrollo; dev: DevStateInfo | null }) {
+  // (la card de un stack sin sesión: también «Mergear todo»)
   const { gh } = useGithubReviews();
   const activePrUrl = useFolders((s) => s.activePrUrl);
   const setActivePr = useFolders((s) => s.setActivePr);
@@ -121,14 +122,16 @@ function StackCard({ d, dev }: { d: Desarrollo; dev: DevStateInfo | null }) {
         <div className={cn("flex items-start gap-1.5", titlePad(bottom))}>
           <DevTitle devKey={d.key} prs={d.prs} original={bottom.title} />
           <CardActions><RenameAction devKey={d.key} /><StateAction dev={dev} devKey={d.key} /><RereviewAction prs={d.prs} />
-            {dev?.state === "ready-for-review" && <AssignReviewersAction prs={d.prs} gh={gh} />}<HideToggle devKey={d.key} prs={d.prs} /></CardActions>
+            {dev?.state === "ready-for-review" && <AssignReviewersAction prs={d.prs} gh={gh} />}
+            <MergeAllAction devKey={d.key} prs={d.prs} job={gh?.mergeAll?.[d.key]} me={gh?.me} />
+            <HideToggle devKey={d.key} prs={d.prs} /></CardActions>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1" title={`stack de ${d.prs.length} (de abajo hacia arriba)`}>
           <DevIndex devKey={d.key} prs={d.prs} />
           {d.prs.map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)}
           <LaterChip devKey={d.key} prs={d.prs} />
         </div>
-        {dev && <div className="mt-1 flex flex-wrap gap-x-2 text-[11px]"><DevStateLabel dev={dev} devKey={d.key} /></div>}
+        {dev && <div className="mt-1 flex flex-wrap gap-x-2 text-[11px]"><MergeAllStatus job={gh?.mergeAll?.[d.key]} /><DevStateLabel dev={dev} devKey={d.key} /></div>}
       </CardShell>
     </QueueItem>
   );
@@ -152,7 +155,11 @@ export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
     return {
     key: d.key, pr: d.prs[0], session: d.session, status: dev.state,
     hidden: d.status !== "merges" && !!isHidden(hiddenKeys, d.key, d.prs),
-    render: () => d.session ? <SessionItem session={d.session} prs={d.prs} merged={d.merged} dev={dev} actions={<><RereviewAction prs={d.prs} />{dev.state === "ready-for-review" && <AssignReviewersAction prs={d.prs} gh={gh} />}<HideToggle devKey={d.key} prs={d.prs} /></>} />
+    render: () => d.session ? <SessionItem session={d.session} prs={d.prs} merged={d.merged} dev={dev}
+      extra={<MergeAllStatus job={gh?.mergeAll?.[d.key]} />}
+      actions={<><RereviewAction prs={d.prs} />{dev.state === "ready-for-review" && <AssignReviewersAction prs={d.prs} gh={gh} />}
+        {d.prs.length > 0 && <MergeAllAction devKey={d.key} prs={d.prs} job={gh?.mergeAll?.[d.key]} me={gh?.me} />}
+        <HideToggle devKey={d.key} prs={d.prs} /></>} />
       : d.prs.length > 1 ? <StackCard d={d} dev={dev} />
       : <PrCard pr={d.prs[0]} devKey={d.key} dev={dev} showReviewers extraActions={<><RereviewAction prs={d.prs} />{dev.state === "ready-for-review" && <AssignReviewersAction prs={d.prs} gh={gh} />}<HideToggle devKey={d.key} prs={d.prs} /></>} merge={{
           job: d.job ?? gh?.merges?.[d.prs[0].url],
