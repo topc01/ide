@@ -168,8 +168,10 @@ terminal queda como link y lo abre con un click.
 ## Navegador
 
 Para probar en el navegador usa **`browser-local`** (tools `mcp__browser-local__browser_*`): un Chrome
-aparte del del usuario, con su propia ventana, sin cuenta iniciada (para localhost, con los usuarios de
-prueba del seed). Si necesitas una cuenta, usa un perfil (abajo). Para el tamaño de pantalla usa su
+aparte del del usuario, con su propia ventana. En localhost entra con **la sesión local compartida** del
+usuario, en cualquier puerto (la inicia él una vez: `ide browser login local --url http://localhost:<puerto>`).
+Si el embed te manda al login, no le pidas un perfil nuevo: pídele ese comando (o entra tú con los usuarios
+de prueba del seed). Para otra cuenta (p.ej. aprobador y solicitante a la vez), usa un perfil (abajo). Para el tamaño de pantalla usa su
 `browser_resize`, que solo cambia esa ventana. Al terminar, ciérralo (`browser_close`).
 
 **No uses Claude in Chrome** (`mcp__claude-in-chrome__*`, el Chrome del usuario) salvo que el usuario te lo

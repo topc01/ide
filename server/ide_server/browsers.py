@@ -28,6 +28,9 @@ LOCAL = re.compile(r"^https?://(localhost|127\.0\.0\.1|\[::1\]|tech\.finnecto\.c
 # siempre está (sin perfil ni cuenta): el navegador de las sesiones para probar en localhost. Es un Chrome
 # aparte del del usuario: abre su propia ventana y nunca toca las de él (Claude in Chrome sí podía)
 LOCAL_SERVER = "browser-local"
+# la sesión de localhost que comparte browser-local (`ide browser login local`): el embed guarda el token
+# en localStorage, que es por origen (puerto); un script la copia en cada puerto local que se abra
+SHARED = "_local"
 
 
 def base(root: Path) -> Path:
@@ -38,7 +41,8 @@ def _dir(root: Path, name: str) -> Path:
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,30}", name):
         raise SessionError("bad_name", f"nombre de perfil inválido: {name!r} (minúsculas, números y guiones)")
     if f"browser-{name}" == LOCAL_SERVER:
-        raise SessionError("bad_name", "`local` es el navegador fijo de las sesiones (sin cuenta): usa otro nombre")
+        raise SessionError("bad_name", "`local` es el navegador fijo de las sesiones (su sesión de localhost se inicia "
+                                       "con `ide browser login local --url …`): usa otro nombre")
     return base(root) / name
 
 
@@ -57,10 +61,12 @@ def list_profiles(root: Path) -> list[dict]:
 
 
 def _logged(state: Path) -> bool:
+    """Tiene una sesión guardada: cookies, o localStorage (donde el embed guarda el token de Cognito)."""
     try:
-        return bool(json.loads(state.read_text(encoding="utf-8")).get("cookies"))
+        data = json.loads(state.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
+    return bool(data.get("cookies") or any(o.get("localStorage") for o in data.get("origins") or []))
 
 
 def new(root: Path, name: str, url: str, note: str = "") -> dict:
@@ -89,37 +95,63 @@ def remove(root: Path, name: str) -> None:
     write_mcp_config(root)
 
 
-def login(root: Path, name: str) -> int:
+def shared_state(root: Path) -> Path:
+    return base(root) / SHARED / "state.json"
+
+
+def login(root: Path, name: str, url: str | None = None) -> int:
     """Abre una ventana de Chrome con la cuenta del perfil (si ya tenía una, con esa); el usuario inicia
-    sesión y la cierra: Playwright guarda las cookies en `state.json`."""
-    d = _dir(root, name)
-    if not (d / "profile.toml").is_file():
-        raise SessionError("unknown_profile", f"no hay perfil {name} (créalo con `ide browser new`)")
+    sesión y la cierra: Playwright guarda las cookies en `state.json`. `local`: la sesión de localhost que
+    usa browser-local en cualquier puerto (`url`: dónde iniciarla; la primera vez es obligatoria)."""
+    if name == "local":
+        d = base(root) / SHARED
+        d.mkdir(parents=True, exist_ok=True, mode=0o700)
+        saved = (d / "url").read_text(encoding="utf-8").strip() if (d / "url").is_file() else ""
+        url = url or saved
+        if not url or not LOCAL.match(url) or (urlparse(url).hostname or "") == "tech.finnecto.com":
+            raise SessionError("bad_url", "`ide browser login local --url http://localhost:<puerto>`: la url de un "
+                                          "front local corriendo (mira `ide server ls`)")
+        (d / "url").write_text(url + "\n", encoding="utf-8")
+    else:
+        d = _dir(root, name)
+        if not (d / "profile.toml").is_file():
+            raise SessionError("unknown_profile", f"no hay perfil {name} (créalo con `ide browser new`)")
+        url = str(read_toml(d / "profile.toml").get("url") or "")
     state = d / "state.json"
-    url = str(read_toml(d / "profile.toml").get("url") or "")
     argv = ["npx", "-y", f"playwright@{PLAYWRIGHT_VERSION}", "open", "--channel", "chrome",
             *(["--load-storage", str(state)] if _logged(state) else []), "--save-storage", str(state), url]
     rc = subprocess.run(argv).returncode
     if state.is_file():
         _keep_own_site(state, url)
         state.chmod(0o600)      # Playwright lo reescribe con los permisos por defecto
+    write_mcp_config(root)
     return rc
 
 
-def _keep_own_site(state: Path, url: str) -> None:
-    """Deja en `state.json` solo la sesión del sitio exacto del perfil: fuera las cookies de otros
-    dominios y las del dominio padre (`.finnecto.com` serviría en `acme.finnecto.com`, el prod de un
-    cliente) y el localStorage de otros orígenes. Así un perfil sin permisos que navegue a otro sitio
-    llega sin sesión. Las cookies no distinguen puerto: en local vale cualquier `localhost`."""
-    host = urlparse(url).hostname or ""
-    hosts = {"localhost", "127.0.0.1", "::1", "[::1]"} if LOCAL.match(url) and host != "tech.finnecto.com" else {host}
-    try:
-        data = json.loads(state.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return
-    data["cookies"] = [c for c in data.get("cookies") or [] if str(c.get("domain") or "") in hosts]
-    data["origins"] = [o for o in data.get("origins") or [] if urlparse(str(o.get("origin") or "")).hostname in hosts]
-    state.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+def _shared_local(root: Path) -> tuple[Path, Path]:
+    """La sesión local compartida para browser-local: (storage con sus cookies —en localhost valen para
+    cualquier puerto—, script que en cada página de localhost copia su localStorage —que es por puerto, y
+    ahí guarda el embed el token de Cognito— si esa página no tiene ya el suyo). Los dos existen siempre
+    (vacíos sin login): el MCP los lee al abrir el navegador, así un login nuevo sirve sin relanzar."""
+    src = shared_state(root)
+    src.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    data = json.loads(src.read_text(encoding="utf-8")) if _logged(src) else {"cookies": [], "origins": []}
+    store = {i["name"]: i["value"] for o in data.get("origins") or [] for i in o.get("localStorage") or []}
+    script = ("(() => { if (!/^(localhost|127\\.0\\.0\\.1)$/.test(location.hostname)) return;\n"
+              f"  const items = {json.dumps(store)};\n"
+              "  try { for (const [k, v] of Object.entries(items)) if (localStorage.getItem(k) === null) localStorage.setItem(k, v); }"
+              " catch (e) {}\n})();\n")
+    outs = []
+    for name, text in (("cookies.json", json.dumps({"cookies": data.get("cookies") or [], "origins": []}) + "\n"),
+                       ("login.js", script)):
+        out = src.parent / name
+        if not out.is_file() or out.read_text(encoding="utf-8") != text:
+            fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            os.write(fd, text.encode())
+            os.close(fd)
+        outs.append(out)
+    (src.parent / "expanded.json").unlink(missing_ok=True)
+    return outs[0], outs[1]
 
 
 def write_mcp_config(root: Path, *, local_only: bool = False) -> Path:
@@ -128,8 +160,10 @@ def write_mcp_config(root: Path, *, local_only: bool = False) -> Path:
     f = base(root) / ("mcp-local.json" if local_only else "mcp.json")
     profiles = [p for p in list_profiles(root) if p["local"] or not local_only]
     base(root).mkdir(parents=True, exist_ok=True, mode=0o700)
+    cookies, script = _shared_local(root)
     servers = {LOCAL_SERVER: {"command": "npx", "args": [
-        "-y", f"@playwright/mcp@{MCP_VERSION}", "--isolated", "--browser", "chrome"]}}
+        "-y", f"@playwright/mcp@{MCP_VERSION}", "--isolated", "--browser", "chrome",
+        "--storage-state", str(cookies), "--init-script", str(script)]}}
     for p in profiles:
         servers[p["server"]] = {"command": "npx", "args": [
             "-y", f"@playwright/mcp@{MCP_VERSION}", "--isolated", "--browser", "chrome",

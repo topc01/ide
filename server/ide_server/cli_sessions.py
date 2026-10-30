@@ -83,7 +83,8 @@ def _parser() -> argparse.ArgumentParser:
     bn = br.add_parser("new"); bn.add_argument("name"); bn.add_argument("url", help="donde inicia sesión (p.ej. http://localhost:5173 o https://tech.finnecto.com)")
     bn.add_argument("--note", default="", help="qué cuenta es (p.ej. 'aprobador de Acme, usuario juan@…')")
     br.add_parser("rm").add_argument("name")
-    br.add_parser("login", help="abre la ventana para iniciar sesión; al cerrarla se guarda").add_argument("name")
+    bl = br.add_parser("login", help="abre la ventana para iniciar sesión; al cerrarla se guarda (`local`: la de localhost, para todos los puertos)")
+    bl.add_argument("name"); bl.add_argument("--url", help="solo `local`: dónde iniciarla (un front local corriendo)")
     up = sub.add_parser("update", help="pone al día tu rama sobre su base SOLO si hay conflicto o su madre del stack se mergeó")
     up.add_argument("repo", nargs="?", help="solo este repo (sin él: todos los de la sesión)")
     up.add_argument("--dry-run", action="store_true", help="solo dice qué haría")
@@ -551,7 +552,9 @@ def _browser(a, root: Path, env, out: TextIO) -> int:
     from ide_server import browsers
     if a.cmd == "ls":
         ps = browsers.list_profiles(root)
-        out.write(f"local\t(sin cuenta)\tlocal\tsiempre está\tmcp__{browsers.LOCAL_SERVER}__*\tel navegador para probar en localhost\n")
+        shared = browsers._logged(browsers.shared_state(root))
+        out.write(f"local\tlocalhost (cualquier puerto)\tlocal\t{'con sesión' if shared else 'sin sesión (ide browser login local --url …)'}"
+                  f"\tmcp__{browsers.LOCAL_SERVER}__*\tel navegador de las sesiones para probar en localhost\n")
         for p in ps:
             out.write(f"{p['name']}\t{p['url']}\t{'local' if p['local'] else 'REAL'}\t"
                       f"{'con sesión' if p['logged'] else 'sin sesión (ide browser login)'}\t"
@@ -572,7 +575,7 @@ def _browser(a, root: Path, env, out: TextIO) -> int:
     else:
         out.write("se abre Chrome: inicia sesión y cierra la ventana para guardarla\n")
         out.flush()
-        rc = browsers.login(root, a.name)
+        rc = browsers.login(root, a.name, a.url)
         browsers.write_mcp_config(root)
         out.write("sesión guardada (un navegador de ese perfil ya abierto en una sesión la toma al cerrarlo y volver a abrirlo)\n" if rc == 0 else f"falló ({rc})\n")
         return rc
