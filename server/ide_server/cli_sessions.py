@@ -714,10 +714,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
                                                    "from_session": bool(env.get("IDE_SESSION_ID"))})
             out.write(f"{a.pr}: merge armado ({data.get('state')}); el avance se ve en la card\n")
             return 0
-        if a.group == "migrations":
-            from ide_server.update_branch import migrations_cmd
-            return migrations_cmd(root, sid, a.repo, fix=a.cmd == "renumber", out=out)
-        if a.group == "update":
+        if a.group in ("migrations", "update"):
+            # una sesión solo toca sus ramas (como `ide push`)
             caller = env.get("IDE_SESSION_ID")
             if caller is None:
                 try:
@@ -725,7 +723,11 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
                 except SessionError:
                     caller = None
             if caller and sid != caller:
-                raise SessionError("forbidden", f"desde la sesión {caller} no se actualizan ramas de {sid}")
+                raise SessionError("forbidden", f"desde la sesión {caller} no se tocan las ramas de {sid}")
+        if a.group == "migrations":
+            from ide_server.update_branch import migrations_cmd
+            return migrations_cmd(root, sid, a.repo, fix=a.cmd == "renumber", out=out)
+        if a.group == "update":
             from ide_server.update_branch import update
             return update(root, sid, a.repo, dry_run=a.dry_run, out=out)
         if a.group == "push":
