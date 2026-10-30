@@ -78,4 +78,4 @@ export const diffTab = (url: string, path: string, oldPath: string | null): DevT
   ({ id: `diff:${url}:${path}`, kind: "diff", label: `Δ ${path.split("/").pop() || path}`, url, path, oldPath });
 export const dbTab = (url: string, name: string): DevTab => ({ id: `db:${name}`, kind: "db", label: `DB ${name}`, url });
 export const attachmentTab = (sid: string, name: string): DevTab =>
-  ({ id: `att:${sid}/${name}`, kind: "attachment", label: `📎 ${name.replace(/^\d{8}-\d{6}-/, "")}`, sid, name });
+  ({ id: `att:${sid}/${name}`, kind: "attachment", label: `📎 ${(name.split("/").pop() ?? name).replace(/^\d{8}-\d{6}-/, "")}`, sid, name });

@@ -354,6 +354,17 @@ def ensure_recursos_session(root: Path) -> str:
     return "recursos"
 
 
+def attachment_path(base: Path, rel: str) -> Path:
+    """`rel` (con carpetas, `a/b/c.pdf`) dentro de `base` (el `attachments/` de una sesión): cada parte
+    tiene que ser un nombre simple (sin `..`, sin rutas absolutas)."""
+    parts = [x for x in str(rel).replace("\\", "/").split("/") if x]
+    if not parts:
+        raise SessionError("bad_request", "ruta vacía")
+    for x in parts:
+        require_plain_name(x, "archivo")
+    return base.joinpath(*parts)
+
+
 def list_sessions(root: Path) -> list[dict]:
     d = sessions_dir(root)
     if not d.is_dir():

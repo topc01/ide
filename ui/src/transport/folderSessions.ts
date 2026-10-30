@@ -80,20 +80,27 @@ export const addPin = (ws: WsClient, key: string, text: string, source: string |
   ws.request("pins.add", { key, text, source });
 export const removePin = (ws: WsClient, key: string, id: string): Promise<{ ok: boolean }> => ws.request("pins.remove", { key, id });
 /** Adjuntar un archivo a la conversación de una sesión (se guarda en su carpeta y se pega su ruta). */
-export const attachFile = (ws: WsClient, id: string, name: string, data: string, paste = true): Promise<{ path: string; pasted: boolean }> =>
-  ws.request("sessions.attach", { id, name, data, paste });
-export interface Attachment { name: string; size: number; path: string; at: string; kind: "image" | "pdf" | "text" | "other"; url: string | null }
+/** `dir`: carpeta dentro de attachments/ donde queda (sin ella, la raíz). */
+export const attachFile = (ws: WsClient, id: string, name: string, data: string, paste = true, dir?: string): Promise<{ path: string; pasted: boolean }> =>
+  ws.request("sessions.attach", { id, name, data, paste, ...(dir ? { dir } : {}) });
+/** `name`: ruta relativa a attachments/ (con carpetas: `facturas/marzo.pdf`); `created`: cuándo se creó. */
+export interface Attachment { name: string; size: number; path: string; at: string; created: string; kind: "image" | "pdf" | "text" | "other"; url: string | null }
+export const mkdirAttachment = (ws: WsClient, id: string, dir: string): Promise<{ name: string }> =>
+  ws.request("attachments.mkdir", { id, dir });
+/** Mueve un archivo o carpeta a `dir` ("" = la raíz). */
+export const moveAttachment = (ws: WsClient, id: string, name: string, dir: string): Promise<{ name: string }> =>
+  ws.request("attachments.move", { id, name, dir });
 /** Guardar un link como adjunto (`.url`). */
 export const addLinkAttachment = (ws: WsClient, id: string, url: string, name: string): Promise<{ name: string }> =>
   ws.request("attachments.link", { id, url, name });
-export const listAttachments = (ws: WsClient, id: string): Promise<{ dir: string; files: Attachment[] }> =>
+export const listAttachments = (ws: WsClient, id: string): Promise<{ dir: string; files: Attachment[]; dirs: string[] }> =>
   ws.request("attachments.list", { id });
 export const renameAttachment = (ws: WsClient, id: string, name: string, to: string): Promise<{ name: string }> =>
   ws.request("attachments.rename", { id, name, to });
 export const deleteAttachment = (ws: WsClient, id: string, name: string): Promise<{ ok: boolean }> =>
   ws.request("attachments.delete", { id, name });
 export const attachmentUrl = (sid: string, name: string, download = false) =>
-  `/api/sessions/${encodeURIComponent(sid)}/attachments/${encodeURIComponent(name)}${download ? "?download=1" : ""}`;
+  `/api/sessions/${encodeURIComponent(sid)}/attachments/${name.split("/").map(encodeURIComponent).join("/")}${download ? "?download=1" : ""}`;
 export type PrLinks = Record<string, { sid: string; out?: boolean }>;
 /** Saca una PR del desarrollo de una sesión (no vuelve aunque el worktree esté en su rama). */
 /** Asigna PRs a un desarrollo (sesión): pisa la asignación que tuvieran. */

@@ -160,6 +160,10 @@ tu carpeta, con fecha en el nombre (`AAAAMMDD-HHMMSS-<nombre>`); el usuario pued
 mencione un archivo, una captura, un link o "te adjunté", míralos ahí (`ls -t attachments/`) y léelos; los
 links que comparte son archivos `.url` (la línea `URL=…`). Si
 generas un archivo para él (un CSV, un informe), déjalo también ahí: lo ve en el módulo Adjuntos.
+`attachments/` puede tener **subcarpetas** (el usuario las arma en el módulo, y tú también puedes: p.ej.
+`attachments/evidencia/`); míralas con `ls -R attachments/`. Cuando le menciones un archivo, escribe su
+ruta (`attachments/carpeta/archivo.pdf`, o `<repo>/ruta/archivo.py` para uno de tus worktrees): en su
+terminal queda como link y lo abre con un click.
 
 ## Navegador
 

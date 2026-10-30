@@ -253,13 +253,14 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
                 return mime
         return "image/webp" if head[:4] == b"RIFF" and head[8:12] == b"WEBP" else None
 
-    @app.get("/api/sessions/{sid}/attachments/{name}")
+    @app.get("/api/sessions/{sid}/attachments/{name:path}")
     async def api_attachment(sid: str, name: str, download: int = 0):
-        """Un adjunto de la sesión (vista previa o descarga). /api: mismos chequeos de origen."""
+        """Un adjunto de la sesión (vista previa o descarga; `name` puede tener carpetas). /api: mismos
+        chequeos de origen."""
         from fastapi.responses import FileResponse
-        from ide_server.sessions_fs import require_plain_name, session_path
+        from ide_server.sessions_fs import attachment_path, require_plain_name, session_path
         try:
-            f = session_path(root, require_plain_name(sid, "sesión")) / "attachments" / require_plain_name(name, "archivo")
+            f = attachment_path(session_path(root, require_plain_name(sid, "sesión")) / "attachments", name)
         except Exception:
             return JSONResponse({"code": "bad_request", "message": "nombre inválido"}, status_code=400)
         if not f.is_file():

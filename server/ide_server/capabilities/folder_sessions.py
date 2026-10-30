@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import shutil
 import time
 import base64
 import io
@@ -37,7 +38,7 @@ from ide_server.session_ops import (
     remove_session,
 )
 from ide_server.sessions_fs import (
-    find_main, list_sessions, normalize_id, parse_frontmatter, read_session, read_toml, render_template, require_plain_name,
+    attachment_path, find_main, list_sessions, normalize_id, parse_frontmatter, read_session, read_toml, render_template, require_plain_name,
     session_path, state_file, SessionError, update_session_toml,
 )
 from ide_server.supervisor import Supervisor, clean_env
@@ -509,8 +510,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if not raw or len(raw) > 10 * 1024 * 1024:
             raise SessionError("too_large", "el archivo tiene que pesar entre 1 byte y 10 MB")
         name = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(str(p.get("name") or "archivo")).name).strip("-.") or "archivo"
-        d = session_path(root, sid) / "attachments"
-        d.mkdir(exist_ok=True)
+        d = _att(sid, p.get("dir") or None)       # subido sobre una carpeta: queda en ella
+        d.mkdir(parents=True, exist_ok=True)
         f = d / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{name[-80:]}"
         await asyncio.to_thread(f.write_bytes, raw)
         pasted = p.get("paste", True) is not False and supervisor.state(sid) == "running"
@@ -519,10 +520,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"path": str(f), "pasted": pasted}
 
     def _att(sid: str, name: str | None = None) -> Path:
+        """`attachments/` de la sesión, o algo dentro (`name` con carpetas: `facturas/marzo.pdf`)."""
         require_plain_name(sid, "sesión")
         require_session(root, sid)
         d = session_path(root, sid) / "attachments"
-        return d if name is None else d / require_plain_name(name, "archivo")
+        return d if not name else attachment_path(d, name)
 
     def _link(f: Path) -> str | None:
         if f.suffix.lower() != ".url":
@@ -549,13 +551,44 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return "text" if mime.startswith("text/") or mime in ("application/json", "application/xml", "application/x-sh") else "other"
 
     async def attachments_list(p: dict) -> dict:
+        """Todo lo de `attachments/`, con subcarpetas: `files` (name = ruta relativa, `created` = cuándo se
+        creó, `at` = última modificación) y `dirs` (rutas relativas)."""
         d = _att(p["id"])
-        files = sorted((f for f in d.iterdir() if f.is_file() and not f.name.startswith(".")),
-                       key=lambda f: f.stat().st_mtime, reverse=True) if d.is_dir() else []
-        return {"dir": str(d), "files": [{"name": f.name, "size": f.stat().st_size, "path": str(f), "kind": _kind(f),
-                                          "url": _link(f),
-                                          "at": datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="minutes")}
-                                         for f in files]}
+        if not d.is_dir():
+            return {"dir": str(d), "files": [], "dirs": []}
+        items = [f for f in d.rglob("*") if not any(x.startswith(".") for x in f.relative_to(d).parts)]
+        stamp = lambda t: datetime.fromtimestamp(t).isoformat(timespec="minutes")   # noqa: E731
+        files = sorted((f for f in items if f.is_file()), key=lambda f: f.stat().st_mtime, reverse=True)
+        return {"dir": str(d),
+                "dirs": sorted(str(f.relative_to(d)) for f in items if f.is_dir()),
+                "files": [{"name": str(f.relative_to(d)), "size": f.stat().st_size, "path": str(f), "kind": _kind(f),
+                           "url": _link(f), "at": stamp(f.stat().st_mtime),
+                           "created": stamp(getattr(f.stat(), "st_birthtime", f.stat().st_mtime))}
+                          for f in files]}
+
+    async def attachments_mkdir(p: dict) -> dict:
+        """Una carpeta dentro de `attachments/` (`dir` puede ir dentro de otra: `a/b`)."""
+        f = _att(p["id"], str(p.get("dir") or "").strip())
+        if f == _att(p["id"]) or f.exists():
+            raise SessionError("exists", "ya existe" if f.exists() else "falta el nombre de la carpeta")
+        f.mkdir(parents=True)
+        return {"name": str(f.relative_to(_att(p["id"])))}
+
+    async def attachments_move(p: dict) -> dict:
+        """Mueve un archivo o carpeta a otra carpeta (`dir` vacío = la raíz de attachments)."""
+        src, base = _att(p["id"], p["name"]), _att(p["id"])
+        dst_dir = _att(p["id"], p.get("dir") or None)
+        if not src.exists():
+            raise SessionError("not_found", f"no existe {p['name']}")
+        if not dst_dir.is_dir():
+            raise SessionError("not_found", f"no existe la carpeta {p.get('dir')}")
+        if src.is_dir() and (dst_dir == src or src in dst_dir.parents):
+            raise SessionError("bad_request", "no se puede mover una carpeta dentro de sí misma")
+        dst = dst_dir / src.name
+        if dst.exists():
+            raise SessionError("exists", f"ya hay un {src.name} en esa carpeta")
+        src.rename(dst)
+        return {"name": str(dst.relative_to(base))}
 
     async def attachments_link(p: dict) -> dict:
         """Un link como adjunto: `<nombre>.url` (acceso directo estándar, `URL=…`; claude lo lee)."""
@@ -574,19 +607,23 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     async def attachments_rename(p: dict) -> dict:
         src, to = _att(p["id"], p["name"]), str(p.get("to") or "").strip()
-        if src.suffix and not Path(to).suffix:      # "tech1" → "tech1.png": sin la extensión no se sabe qué es
+        if src.is_file() and src.suffix and not Path(to).suffix:   # "tech1" → "tech1.png": sin la extensión no se sabe qué es
             to += src.suffix
-        dst = _att(p["id"], re.sub(r"[^A-Za-z0-9._ -]+", "-", to).strip(" .") or "archivo")
-        if not src.is_file():
+        # renombrar no mueve: queda en la misma carpeta
+        dst = src.parent / require_plain_name(re.sub(r"[^A-Za-z0-9._ -]+", "-", Path(to).name).strip(" .") or "archivo", "archivo")
+        if not src.exists():
             raise SessionError("not_found", f"no existe {p['name']}")
         if dst.exists():
-            raise SessionError("exists", f"ya hay un archivo {dst.name}")
+            raise SessionError("exists", f"ya hay un {dst.name}")
         src.rename(dst)
-        return {"name": dst.name, "path": str(dst)}
+        return {"name": str(dst.relative_to(_att(p["id"]))), "path": str(dst)}
 
     async def attachments_delete(p: dict) -> dict:
+        """Un archivo, o una carpeta con todo lo que tiene (la UI pide confirmar con la cantidad)."""
         f = _att(p["id"], p["name"])
-        if f.is_file():
+        if f.is_dir() and f != _att(p["id"]):
+            await asyncio.to_thread(shutil.rmtree, f)
+        elif f.is_file():
             f.unlink()
         return {"ok": True}
 
@@ -1433,7 +1470,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
-        "attachments.rename": attachments_rename, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
+        "attachments.rename": attachments_rename, "attachments.mkdir": attachments_mkdir, "attachments.move": attachments_move, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
         "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,

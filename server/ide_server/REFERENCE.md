@@ -655,13 +655,19 @@ próxima apertura recarga).
 `claude` los lee sin pedir permiso; máx. 10 MB c/u) y, si `claude` corre, su ruta se pega en el input
 como un paste de terminal (sin Enter): las imágenes entran como `[Image #n]`, igual que arrastrarlas a
 una terminal. Canal `sessions.attach {id, name, data(base64), paste}` → `{path, pasted}`.
-**Módulo Adjuntos** (id `attachments`): los adjuntos de la sesión del desarrollo, del más nuevo al más
-viejo: click los abre en una tab (imagen o PDF en línea, texto legible, lo demás para descargar);
+**Módulo Adjuntos** (id `attachments`): los adjuntos de la sesión del desarrollo, con **carpetas** ("carpeta"
+en el encabezado o 📁+ en una carpeta para una dentro de otra; se pliegan, se renombran, se borran con todo
+lo que tienen —pide confirmar con la cantidad— y se mueven), ordenados por fecha de **creación** (default),
+de **modificación** o por **nombre** (recordado por navegador); los archivos se **mueven** arrastrándolos a una
+carpeta (o a la raíz) o con "mover a…", y lo que arrastras del computador sobre una carpeta se sube ahí: click los abre en una tab (imagen o PDF en línea, texto legible, lo demás para descargar);
 **links** (pegar una URL con ⌘V sobre el módulo o "link": se guardan como `<nombre>.url`, acceso directo estándar con `URL=…` que claude lee; click los abre en otra pestaña), renombrar (si el nombre nuevo no trae extensión, se mantiene la original), descargar, copiar la ruta, borrar (con confirmación) y subir más (sin pegarlos en la
 conversación). Las sesiones saben (su `CLAUDE.md`) que `attachments/` es lo que el usuario comparte y
 dejan ahí lo que generan para él. Se sirven por `GET /api/sessions/{id}/attachments/{nombre}[?download=1]`
-(mismos chequeos de origen; el tipo sale de la extensión o, si no tiene, del contenido; lo que no es PDF/imagen se sirve como texto en sandbox). Canales
-`attachments.list|rename|delete|link`. **Artefactos:** cada ~20 s el IDE revisa lo nuevo de los
+(mismos chequeos de origen; el tipo sale de la extensión o, si no tiene, del contenido; lo que no es PDF/imagen se sirve como texto en sandbox). El nombre de un adjunto es su ruta relativa a
+`attachments/` (`facturas/marzo.pdf`). Canales `attachments.list|rename|delete|link|mkdir|move`
+(`sessions.attach` acepta `dir`). En la tab `claude`, las rutas que menciona claude (`attachments/…`, la
+ruta absoluta de la sesión o de sus worktrees, o `<repo>/…`) son **links**: un click abre el adjunto o el
+archivo del worktree en una tab. **Artefactos:** cada ~20 s el IDE revisa lo nuevo de los
 transcripts de las sesiones y, si su claude publicó un artefacto (herramienta `Artifact`: "Published
 <archivo> at https://claude.ai/…artifact/…"), guarda el link en sus Adjuntos como
 `<fecha>-artefacto-<nombre>.url` (sin repetir links; también recoge los ya publicados).

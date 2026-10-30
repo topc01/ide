@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, Paperclip, Plus, X } from "lucide-react";
 import { useFolders } from "../state/folders";
-import { claudeTab, docTab, scriptTab, summaryTab, useDevTabs, type DevTab } from "../state/devTabs";
+import { attachmentTab, claudeTab, docTab, fileTab, scriptTab, summaryTab, useDevTabs, type DevTab } from "../state/devTabs";
+import { resolvePath } from "./pathLinks";
 import type { FolderSession, GhPr } from "../transport/folderSessions";
 import { attachFile, newSessionForPr, openSession, refreshReview, startReview } from "../transport/folderSessions";
 import { openTerminal } from "../transport/terminalChannel";
@@ -39,6 +40,13 @@ function ClaudeTab({ session }: { session: FolderSession }) {
     }
   }, [session.id, session.process, session.terminalId, session.launchError]);
   const act = (p: Promise<unknown>) => p.catch((e: any) => setError(e?.message ?? String(e)));
+  // rutas que menciona claude: un adjunto o un archivo de sus worktrees se abre en una tab con un click
+  const dev = useCurrentDev();
+  const openTab = useDevTabs((s) => s.open);
+  const onPath = (raw: string) => {
+    const t = dev ? resolvePath(raw, session) : null;
+    return t && dev ? () => openTab(dev.key, t.kind === "attachment" ? attachmentTab(session.id, t.name) : fileTab(session.id, t.repo, t.path)) : null;
+  };
   // adjuntos: el archivo va a la carpeta de la sesión y su ruta se pega en el input de claude
   const fileRef = useRef<HTMLInputElement>(null);
   const [term, setTerm] = useState<Terminal | null>(null);   // para pinear mensajes con hover
@@ -83,7 +91,7 @@ function ClaudeTab({ session }: { session: FolderSession }) {
           Suelta para adjuntar a la conversación</div>}
         {session.terminalId ? (
           <PinOverlay term={term} sid={session.id} devKey={`s:${session.id}`}>
-            <TerminalTab key={session.terminalId} id={session.terminalId} onTerm={setTerm} />
+            <TerminalTab key={session.terminalId} id={session.terminalId} onTerm={setTerm} onPath={onPath} />
           </PinOverlay>) : (
           <div className="flex flex-col items-start gap-2 p-6 text-sm">
             {session.process === "queued" ? <span className="text-muted-foreground">En cola (max_running)…</span> : (<>

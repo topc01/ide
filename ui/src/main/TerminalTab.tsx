@@ -7,6 +7,7 @@ import { getWs } from "../transport/wsClient";
 import { useFolders } from "../state/folders";
 import { useTheme } from "../state/theme";
 import { termTheme } from "./termTheme";
+import { PATH_RE } from "./pathLinks";
 
 /** Terminales vivas en memoria, por id: al cambiar de desarrollo no se descartan (siguen recibiendo
  *  la salida de fondo), así volver a una es instantáneo. La primera vez cuesta el replay (todo lo que
@@ -14,6 +15,7 @@ import { termTheme } from "./termTheme";
 interface Live {
   term: Terminal; fit: FitAddon; wrap: HTMLDivElement; last: string; used: number;
   dispose: () => void;
+  onPath?: (raw: string) => (() => void) | null;  // una ruta de la línea → cómo abrirla (null: no es link)
 }
 const live = new Map<string, Live>();
 const MAX_LIVE = 10;
@@ -48,9 +50,25 @@ function create(id: string): Live {
     .catch(() => { /* server viejo sin replay: solo lo nuevo */ })
     .finally(() => { ready = true; queued.splice(0).forEach(([b, e]) => writeAfter(b, e)); });
   const input = term.onData((d) => writeTerminal(getWs(), id, d));
+  // rutas clickeables (las que la tab sepa abrir: `onPath`, p.ej. adjuntos y archivos de la sesión)
+  const links = term.registerLinkProvider({
+    provideLinks(y, cb) {
+      const line = term.buffer.active.getLine(y - 1)?.translateToString(true) ?? "";
+      const found = [];
+      for (const m of line.matchAll(PATH_RE)) {
+        const text = m[0].replace(/[.,;)]+$/, "");     // el punto final de la oración no es parte de la ruta
+        const go = entry.onPath?.(text);
+        if (!go) continue;
+        const x = (m.index ?? 0) + 1;
+        found.push({ text, range: { start: { x, y }, end: { x: x + text.length - 1, y } },
+          decorations: { underline: true, pointerCursor: true }, activate: () => go() });
+      }
+      cb(found.length ? found : undefined);
+    },
+  });
   const entry: Live = {
     term, fit, wrap, last: "", used: Date.now(),
-    dispose: () => { input.dispose(); unsubscribe(); term.dispose(); wrap.remove(); live.delete(id); },
+    dispose: () => { links.dispose(); input.dispose(); unsubscribe(); term.dispose(); wrap.remove(); live.delete(id); },
   };
   live.set(id, entry);
   return entry;
@@ -77,12 +95,16 @@ function trim() {
 }
 
 /** `onTerm`: para quien necesite leer la terminal (p.ej. pinear mensajes desde la tab claude). */
-export function TerminalTab({ id, onTerm }: { id: string; onTerm?: (term: Terminal | null) => void }) {
+/** `onPath`: qué rutas de la salida son links (p.ej. los adjuntos y archivos que menciona claude). */
+export function TerminalTab({ id, onTerm, onPath }: { id: string; onTerm?: (term: Terminal | null) => void;
+  onPath?: (raw: string) => (() => void) | null }) {
   const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { const e = live.get(id); if (e) e.onPath = onPath; });
   useEffect(() => {
     const host = ref.current;
     if (!host) return;
     const e = live.get(id) ?? create(id);
+    e.onPath = onPath;
     e.used = Date.now();
     host.appendChild(e.wrap);
     if (!e.term.element) e.term.open(e.wrap);
