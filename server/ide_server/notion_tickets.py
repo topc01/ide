@@ -32,13 +32,17 @@ def check_url(url: str) -> str:
     """Un link de Notion de verdad (https, a un dominio de Notion, sin caracteres de control): la card lo abre."""
     from urllib.parse import urlparse
     url = str(url or "").strip()
-    host = (urlparse(url).hostname or "").rstrip(".").lower()
-    if any(ord(c) < 32 for c in url) or urlparse(url).scheme != "https" or not (
+    u = urlparse(url)
+    host = (u.hostname or "").rstrip(".").lower()
+    # sin `\\`, `@` ni usuario/puerto: links que el navegador podría leer con otro dominio que Python
+    if any(ord(c) < 32 for c in url) or "\\" in url or "@" in url or u.username or u.password or u.port \
+            or u.scheme != "https" or u.netloc.lower().rstrip(".") != host or not (
             host in ("notion.so", "www.notion.so", "app.notion.com", "notion.com", "www.notion.com")
             or host.endswith(".notion.site")):
         raise SessionError("bad_notion_url", f"tiene que ser un link https de Notion: {url[:120]!r}")
     page_id(url)
-    return url
+    # se guarda reconstruido desde sus partes (lo que se abre es exactamente lo que se validó)
+    return f"https://{host}{u.path}" + (f"?{u.query}" if u.query else "")
 
 
 def page_id(url: str) -> str:
