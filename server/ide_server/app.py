@@ -69,7 +69,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     limits = LimitsPoller()
     merger = Merger(root, stacks=lambda: gh_reviews.state, db=db, on_change=lambda: notify_box["github"]())
     from ide_server.merge_all import MergeAll
-    merger.all = MergeAll(db, merger, stacks=lambda: gh_reviews.state, on_change=lambda: notify_box["github"]())
+    # se llama desde threads: el aviso va por el de Merger, que lo agenda en el loop del server
+    merger.all = MergeAll(db, merger, stacks=lambda: gh_reviews.state, on_change=lambda: merger._on_change())
     runner = Runner(root)
     viewer = DbViewer(root)
     runs_watch = runs_cap.register(registry, root, manager, runner, viewer, db)
