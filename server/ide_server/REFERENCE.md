@@ -586,8 +586,8 @@ stack se ramifica, la posición sigue el orden en profundidad.
 **Módulo Stack** (menú de acciones, id `stack`; antes "GitHub"): muestra el stack de la card de PR seleccionada
 o, si no hay, las PRs de la sesión abierta (la PR
 revisada, o las PRs cuyas ramas son las de los repos de la sesión), cada una con todo su stack
-(arriba la de más arriba). Color por review: verde aprobada, azul en revisión (reviews pedidas
-pendientes), amarillo pidieron cambios (y no re-pediste review), sin color sin review. Hover → abrir la PR. Cada ítem muestra título (truncado; completo con hover) y
+(arriba la de más arriba). Color por review: verde aprobada, amarillo en revisión (reviews pedidas
+pendientes), rojo pidieron cambios (y no re-pediste review), sin color sin review. Hover → abrir la PR. Cada ítem muestra título (truncado; completo con hover) y
 `repo#número · autor`; las PRs del stack que no son tuyas ni te tienen como revisor van tachadas y
 atenuadas. El título muestra el total; los grupos se colapsan.
 
@@ -732,8 +732,8 @@ en negrita; en Revisiones el autor como chip; ● ○ = `claude` corriendo/parad
 y una línea de detalle (posición en el stack `◫ 2/4`, "⟳ commits
 nuevos desde tu revisión", estado del merge; en Mis PRs, los revisores como chips con su estado:
 ✓ aprobó, ✗ pidió cambios, ◌ pendiente). Cada persona tiene siempre el mismo color de chip (también
-en los chips de conteo de Revisiones). **Fondo** tenue = review: verde aprobada, amarillo cambios
-pedidos, azul esperando revisor, morado mergeada (también mientras se mergea). En la **esquina
+en los chips de conteo de Revisiones). **Fondo** tenue y **punto** de cada chip de PR = review (también el estado de la PR y sus revisores en el resumen): verde aprobada, rojo cambios
+pedidos, amarillo esperando revisor, morado mergeada (también mientras se mergea). En la **esquina
 superior derecha**: **⏸ N** = N dependencias sin mergear (al pasar el mouse, cuáles) y la marca de
 **CI**: ✓ verde pasó, ✗ roja falló (**con pulso** = falló un check pero otros siguen corriendo:
 GitHub ya la da por fallida; solo en tus PRs y las que revisas, que se refrescan con el detalle de

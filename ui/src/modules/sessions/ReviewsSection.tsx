@@ -151,9 +151,9 @@ export function allPrs(gh: GithubReviews): GhPr[] {
 }
 
 const REVIEWER_TONE = {
-  requested: ["border-sky-500/60 text-sky-400", "review pedida"],
+  requested: ["border-amber-400/60 text-amber-300", "review pedida"],
   approved: ["border-emerald-500/60 text-emerald-400", "aprobó"],
-  changes: ["border-amber-400/60 text-amber-300", "pidió cambios"],
+  changes: ["border-red-500/60 text-red-400", "pidió cambios"],
 } as const;
 
 /** Badge de posición en el stack (1 = la de abajo). */

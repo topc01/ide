@@ -16,8 +16,8 @@ import { cn } from "../../lib/utils";
 
 const REVIEW = {
   approved: ["bg-emerald-500", "aprobada"],
-  review: ["bg-sky-500", "en revisión"],
-  changes: ["bg-amber-400", "pidieron cambios"],
+  review: ["bg-amber-400", "en revisión"],
+  changes: ["bg-red-500", "pidieron cambios"],
 } as const;
 
 /** Las PRs del desarrollo actual (todas, aunque se haya elegido una de sus filas), por repo y stack. */

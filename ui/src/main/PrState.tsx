@@ -11,13 +11,13 @@ import { cn } from "../lib/utils";
 /** Estado de la PR en GitHub (una palabra) a partir de draft / revisores / decisión. */
 export function prState(pr: GhPr): [string, string] {
   if (pr.draft) return ["Draft", "bg-zinc-500/20 text-zinc-300"];
-  if (pr.review === "changes") return ["Cambios pedidos", "bg-amber-400/15 text-amber-300"];
+  if (pr.review === "changes") return ["Cambios pedidos", "bg-red-500/15 text-red-400"];
   if (pr.review === "approved") return ["Aprobada", "bg-emerald-500/15 text-emerald-300"];
   if (!pr.reviewers?.length) return ["Sin revisores", "bg-sky-500/10 text-sky-300"];
-  return ["En revisión", "bg-sky-500/15 text-sky-300"];
+  return ["En revisión", "bg-amber-400/15 text-amber-300"];
 }
 const REV: Record<string, [string, string]> = {
-  approved: ["aprobó", "text-emerald-400"], changes: ["pidió cambios", "text-amber-300"], requested: ["pendiente", "text-muted-foreground"],
+  approved: ["aprobó", "text-emerald-400"], changes: ["pidió cambios", "text-red-400"], requested: ["pendiente", "text-amber-300"],
 };
 
 /** Cabecera de la PR en el resumen: su estado, el CI y los revisores (en tus PRs: pedir revisión /

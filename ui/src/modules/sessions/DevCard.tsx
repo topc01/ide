@@ -49,8 +49,8 @@ export function devTone(pr?: GhPr, job?: MergeJob, opts: { merged?: boolean; sta
 }
 
 const BG: Record<NonNullable<Tone["bg"]>, string> = {
-  approved: "bg-emerald-500/[0.07]", changes: "bg-amber-400/[0.07]",
-  review: "bg-sky-500/[0.07]", merged: "bg-purple-500/[0.09]",
+  approved: "bg-emerald-500/[0.07]", changes: "bg-red-500/[0.07]",
+  review: "bg-amber-400/[0.07]", merged: "bg-purple-500/[0.09]",
 };
 /** Cascarón de las cards de la sidebar (sesiones y PRs): fondo = review; el CI va como marca en la
  *  esquina (CiMark), no en el borde; contorno de acento = seleccionada. */
@@ -142,7 +142,7 @@ export function DevTitle({ devKey, prs, original, pencil: showPencil = false }:
 export function RefChip({ repo, number, title, pr }: { repo: string; number?: number | null; title?: string; pr?: GhPr }) {
   const active = useFolders((s) => !!pr && s.activePrUrl === pr.url);
   const setActivePr = useFolders((s) => s.setActivePr);
-  const dot = pr?.review ? { approved: "bg-emerald-500", changes: "bg-amber-400", review: "bg-sky-500" }[pr.review] : null;
+  const dot = pr?.review ? { approved: "bg-emerald-500", changes: "bg-red-500", review: "bg-amber-400" }[pr.review] : null;
   // mergeada: morada con ✓; click la abre en GitHub (ya no está entre las abiertas)
   if (pr?.merged) {
     return <a href={pr.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
