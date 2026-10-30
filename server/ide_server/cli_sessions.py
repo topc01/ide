@@ -760,7 +760,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             from urllib.parse import quote
             actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
             path = "ticket" if a.cmd == "set" else "pending-ticket"
-            data = _post(http, url, f"/api/devs/{quote(dev, safe='')}/{path}", {"url": link, "actor": actor})
+            data = _post(http, url, f"/api/devs/{quote(dev, safe='')}/{path}",
+                         {"url": link, "actor": actor, "token": env.get("IDE_MANAGER_TOKEN", "")})
             if a.cmd == "set":
                 out.write(f"{data['id']}\tticket {data['url']}\t{data.get('status') or data.get('error') or '(sin token de Notion: no leo el Status)'}\n")
             else:

@@ -42,7 +42,11 @@ def check_url(url: str) -> str:
 
 
 def page_id(url: str) -> str:
-    m = _ID_RE.search(str(url or "").strip().lower().replace("-", ""))
+    """El id de la página: los últimos 32 hex del último tramo de la ruta (no del `?v=…`, que es la vista)."""
+    from urllib.parse import urlparse
+    raw = str(url or "").strip()
+    last = (urlparse(raw).path.rstrip("/").rsplit("/", 1)[-1] if "://" in raw else raw).lower().replace("-", "")
+    m = re.search(r"([0-9a-f]{32})$", last)
     if not m:
         raise SessionError("bad_notion_url", f"no encuentro el page id en la URL de Notion: {url!r}")
     return m.group(1)

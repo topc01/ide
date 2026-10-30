@@ -176,6 +176,17 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     if merger is not None and hasattr(merger, "all"):
         merger.all.on_done = lambda _key, _urls: threading.Thread(target=live_staging, daemon=True).start()
 
+    def _ticket_guard(p: dict, sid: str, current: str | None = None) -> None:
+        """Una sesión solo toca el ticket de su propio desarrollo, y no cambia uno que ya tenía (el IDE después
+        mueve ese ticket en Notion): eso lo hace el usuario desde su terminal o la manager (con su token)."""
+        actor = str(p.get("actor") or "")
+        if not actor.startswith("claude:") or secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+            return
+        if actor[len("claude:"):] != sid:
+            raise SessionError("forbidden", "una sesión solo asocia tickets a su propio desarrollo")
+        if current and current != p.get("url"):
+            raise SessionError("forbidden", "este desarrollo ya tiene ticket: cambiarlo lo hace el usuario (o la manager)")
+
     async def ticket_set(p: dict) -> dict:
         """Asocia (o cambia) el ticket de Notion de un desarrollo: queda en su SESSION.md (`notion_url`) y en
         sus Adjuntos; el Status se lee de Notion."""
@@ -184,6 +195,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         url = notion.check_url(p.get("url"))
         f = session_path(root, sid) / "SESSION.md"
         meta, body = parse_frontmatter(f.read_text(encoding="utf-8")) if f.is_file() else ({}, "")
+        _ticket_guard({**p, "url": url}, sid, meta.get("notion_url"))
         f.write_text(write_frontmatter({**meta, "notion_url": url}, body), encoding="utf-8")
         att = session_path(root, sid) / "attachments"
         att.mkdir(exist_ok=True)
@@ -198,6 +210,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         """Un ticket que la sesión creó para lo que quedó fuera del desarrollo (pendiente)."""
         from ide_server import notion_tickets as notion
         sid = _resolve(p["id"])
+        _ticket_guard(p, sid)
         items = notion.add_pending(db, sid, str(p.get("url") or "").strip())
         db.event(datetime.now().isoformat(timespec="seconds"), p.get("actor") or "ide", "ticket-pending", dev=sid,
                  data={"url": p.get("url")})
