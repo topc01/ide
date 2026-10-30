@@ -102,3 +102,41 @@ def update(root: Path, sid: str, repo: str | None, *, dry_run: bool = False, out
         out.write(f"{name}: #{n} {p['reason']}: rebaseada sobre {p['onto']} y subida"
                   + (f"; base ahora {p['new_base']}" if p.get("new_base") else "") + "\n")
     return 1 if failed else 0
+
+
+def migrations_cmd(root: Path, sid: str, repo: str | None, *, fix: bool, out: TextIO) -> int:
+    """`ide migrations check|renumber`: las migraciones de la rama de cada worktree contra la base de su PR
+    (o develop); `renumber` las corrige con un commit y sube la rama (sin --force)."""
+    from ide_server import migrations
+    links = {p.name: p for p in repo_links(require_session(root, sid))}
+    if repo is not None and repo not in links:
+        raise SessionError("unknown_repo", f"la sesión {sid} no tiene {repo} (tiene: {', '.join(links) or 'ninguno'})")
+    failed = 0
+    for name in [repo] if repo else sorted(links):
+        wt = links[name].resolve()
+        branch = _git(wt, "branch", "--show-current").stdout.strip()
+        if not branch:
+            out.write(f"{name}: sin rama, no reviso\n"); continue
+        _git(wt, "fetch", "origin", "--prune")
+        pr = _gh(wt, "pr", "view", branch, "--json", "baseRefName")
+        base = json.loads(pr.stdout)["baseRefName"] if pr.returncode == 0 else "develop"
+        try:
+            plan = migrations.plan(wt, f"origin/{base}", "HEAD")
+        except RuntimeError as exc:
+            out.write(f"{name}: no pude revisar: {exc}\n"); failed += 1; continue
+        if plan["ok"]:
+            out.write(f"{name}: migraciones OK contra {base}\n"); continue
+        out.write(f"{name}: chocan con {base}:\n{migrations.describe(plan)}\n")
+        if not fix:
+            failed += 1; continue
+        if _git(wt, "status", "--porcelain", "--untracked-files=no").stdout.strip():
+            out.write(f"{name}: tienes cambios sin commitear: commitea o guárdalos antes\n"); failed += 1; continue
+        try:
+            touched = migrations.renumber(wt, plan)
+        except RuntimeError as exc:
+            out.write(f"{name}: no pude renumerar: {exc}\n"); failed += 1; continue
+        push = _git(wt, "push", "origin", f"HEAD:refs/heads/{branch}")
+        out.write(f"{name}: renumeradas ({', '.join(touched)}), commit "
+                  + ("subido" if push.returncode == 0 else f"local; el push falló: {push.stderr.strip()[-200:]}") + "\n")
+        failed += push.returncode != 0
+    return 1 if failed else 0

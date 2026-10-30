@@ -71,6 +71,9 @@ class Merger:
         """`stacks()`: estado actual de GitHubReviews (para saber quién está arriba de quién)."""
         self._root, self._stacks, self._db = root, stacks, db
         self._notify_cb = on_change or (lambda: None)
+        # un problema que el IDE no puede resolver solo (conflicto al rebasear, migraciones): se le avisa
+        # a la sesión del desarrollo (lo conecta folder_sessions)
+        self.on_problem: Callable[[dict, str], None] = lambda _job, _msg: None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._locks: dict[str, threading.Lock] = {}
         self._jobs_lock = threading.RLock()     # los trabajos se tocan desde varios threads
@@ -156,8 +159,10 @@ class Merger:
         stack = (st.get("stacks") or {}).get(pr["stack"]["id"], []) if pr.get("stack") else []
         return pr, stack
 
-    def merge(self, url: str) -> dict:
-        """Valida y arranca el merge en segundo plano (no bloquea: la card muestra el progreso)."""
+    def merge(self, url: str, *, renumber: bool = False) -> dict:
+        """Valida y arranca el merge en segundo plano (no bloquea: la card muestra el progreso). Una PR en
+        conflicto no se rechaza: se pone al día al mergear (si choca, se avisa a su sesión). `renumber`:
+        si sus migraciones chocan con la base, las renumera (commit + push) en vez de frenar."""
         pr, stack = self._find(url)
         me = self._stacks().get("me")
         if not me or pr.get("author") != f"@{me}":
@@ -168,8 +173,6 @@ class Merger:
             raise SessionError("not_bottom", "solo se mergea la PR de abajo del stack")
         if pr.get("ci") == "failure":
             raise SessionError("ci_failed", "el CI falló: no se arma el merge")
-        if pr.get("conflict"):
-            raise SessionError("conflict", "tiene conflicto con su base: resuélvelo antes de mergear")
         if self.jobs.get(url, {}).get("state") in ACTIVE:
             raise SessionError("merge_pending", "ya hay un merge en curso para esta PR")
         native = bool(pr.get("stack") and pr["stack"].get("native"))
@@ -184,7 +187,7 @@ class Merger:
         self._update(url, state="rebasing", error=None, merged=False, native=native, native_heads=native_heads,
                      native_old=None, restack_since=None,
                      repo=pr["repo"], full_repo=pr.get("fullRepo"), head=pr["head"], base=pr["base"],
-                     number=pr["number"], title=pr["title"], above=above, restacked=[], moved=None,
+                     number=pr["number"], title=pr["title"], above=above, restacked=[], moved=None, renumber=renumber,
                      uuid=None, me=me, at=datetime.now().isoformat(timespec="seconds"))
         self._on_change()
         threading.Thread(target=self._start, args=(url,), daemon=True).start()
@@ -210,6 +213,7 @@ class Merger:
                 else:
                     old, new = self._rebase(wt, j["head"], f"origin/{j['base']}", upstream=cut)
                     self._update(url, rebased=new != old)
+                new = self._check_migrations(url, j, wt, new)
             self._update(url, old_sha=old, head_sha=new)
             if j.get("native") and j.get("above"):
                 # dónde están hoy las ramas que GitHub va a mover: desde ahí se re-aplican las de encima
@@ -222,10 +226,40 @@ class Merger:
                 self._enable_auto(url, j, pushed=new != old)
         except SessionError as exc:
             self._update(url, state="error", error=str(exc))
+            if exc.code in ("conflict", "migrations"):
+                try:
+                    self.on_problem(self.jobs[url], str(exc))
+                except Exception:  # noqa: BLE001
+                    log.exception("aviso a la sesión de %s", url)
         except Exception as exc:  # noqa: BLE001 — queda en la card, nunca silencioso
             log.exception("merge de %s", url)
             self._update(url, state="error", error=str(exc) or type(exc).__name__)
         self._on_change()
+
+    def _check_migrations(self, url: str, j: dict, wt: Path, head: str) -> str:
+        """Las migraciones de la PR contra la base: si chocan, renumera (con `renumber`: commit + push y
+        devuelve el sha nuevo) o falla con lo que hay que renumerar."""
+        from ide_server import migrations
+        try:
+            plan = migrations.plan(wt, f"origin/{j['base']}", head)
+        except RuntimeError as exc:
+            raise SessionError("migrations", f"no pude revisar las migraciones: {exc}")
+        if plan["ok"]:
+            return head
+        what = migrations.describe(plan)
+        if not j.get("renumber") or not all(a["renames"] for a in plan["apps"]):
+            raise SessionError("migrations", "las migraciones chocan con la base (no mergeo):\n" + what
+                               + "\nLa sesión lo arregla con `ide migrations renumber`, o mergea con `ide merge <pr> --renumber`.")
+        _check(_run(["git", "checkout", "--detach", "--force", head], wt), "git checkout")
+        try:
+            migrations.renumber(wt, plan)
+        except RuntimeError as exc:
+            raise SessionError("migrations", f"no pude renumerar: {exc}")
+        new = _check(_run(["git", "rev-parse", "HEAD"], wt), "git rev-parse")
+        _check(_run(["git", "push", f"--force-with-lease={j['head']}:{head}", "origin",
+                     f"HEAD:refs/heads/{j['head']}"], wt), f"git push de {j['head']}")
+        self._update(url, rebased=True, renumbered=what)
+        return new
 
     def _enable_auto(self, url: str, j: dict, *, pushed: bool) -> None:
         """Auto-merge de GitHub (squash): mergea solo cuando pasan el CI y la aprobación, aunque el IDE

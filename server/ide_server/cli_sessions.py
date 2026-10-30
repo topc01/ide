@@ -85,6 +85,12 @@ def _parser() -> argparse.ArgumentParser:
     br.add_parser("rm").add_argument("name")
     bl = br.add_parser("login", help="abre la ventana para iniciar sesión; al cerrarla se guarda (`local`: la de localhost, para todos los puertos)")
     bl.add_argument("name"); bl.add_argument("--url", help="solo `local`: dónde iniciarla (un front local corriendo)")
+    mg = sub.add_parser("merge", help="mergea una PR tuya (squash): revisa sus migraciones, la pone al día si está en conflicto y restackea las de arriba")
+    mg.add_argument("pr", help="URL o repo#n (p.ej. api#5092)")
+    mg.add_argument("--renumber", action="store_true", help="si sus migraciones chocan con la base, las renumera (commit + push) en vez de frenar")
+    mi = sub.add_parser("migrations", help="las migraciones de tu rama contra la base (develop): si chocan, renumerarlas").add_subparsers(dest="cmd", required=True)
+    for c in ("check", "renumber"):
+        x = mi.add_parser(c); x.add_argument("repo", nargs="?"); x.add_argument("--session")
     up = sub.add_parser("update", help="pone al día tu rama sobre su base SOLO si hay conflicto o su madre del stack se mergeó")
     up.add_argument("repo", nargs="?", help="solo este repo (sin él: todos los de la sesión)")
     up.add_argument("--dry-run", action="store_true", help="solo dice qué haría")
@@ -703,6 +709,14 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "procs":
             return _procs(a, root, env, out)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
+        if a.group == "merge":
+            data = _post(http, url, "/api/merge", {"pr": a.pr, "renumber": a.renumber, "token": env.get("IDE_MANAGER_TOKEN", ""),
+                                                   "from_session": bool(env.get("IDE_SESSION_ID"))})
+            out.write(f"{a.pr}: merge armado ({data.get('state')}); el avance se ve en la card\n")
+            return 0
+        if a.group == "migrations":
+            from ide_server.update_branch import migrations_cmd
+            return migrations_cmd(root, sid, a.repo, fix=a.cmd == "renumber", out=out)
         if a.group == "update":
             caller = env.get("IDE_SESSION_ID")
             if caller is None:

@@ -223,6 +223,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_evidence_save(sid: str, body: dict):
         return await _http("evidence.save", {**body, "id": sid})
 
+    @app.post("/api/merge")
+    async def api_merge(body: dict):
+        return await _http("reviews.merge", {**body, "_http": True})
+
     @app.get("/api/later")
     async def api_later(all: bool = False):
         return await _http("later.list", {"all": all})

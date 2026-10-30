@@ -41,6 +41,10 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
 - `ide update [<repo>] [--dry-run]`: pone al día tu rama sobre su base **solo si hace falta** (la PR está
   en conflicto o su madre del stack se mergeó); si solo está atrás de `develop`, se niega. Si el rebase
   choca, queda a medias para que resuelvas, `git rebase --continue` y `ide push <repo> --force`.
+- `ide migrations check|renumber [<repo>]`: las migraciones de tu rama contra la base de su PR (develop):
+  cada nueva tiene que ir después de la última de su app y depender de ella. Si chocan, `renumber` las
+  renumera, corrige las dependencias, commitea y sube (sin preguntarle al usuario). Revísalo antes de pedir
+  revisión. Mergear (`ide merge`) lo hace el usuario.
 - `ide db <prod|staging> "<SQL>"`: una consulta de solo lectura a la base (sin comandos de psql: nada con `\\`).
 - `ide script <nombre> [<repo>]`: corre un script del repo (`run`, `test`, …).
 - `ide session ls [--json]`: lista sesiones y su estado.
@@ -436,6 +440,7 @@ PERM_ANALYZE = {"permissions": {
         "Bash(ide repo add:*)", "Bash(ide script:*)", "Bash(ide session ls:*)", "Bash(ide status:*)",
         "Bash(ide push:*)",
         "Bash(ide update:*)",
+        "Bash(ide migrations:*)",
         # consultas de solo lectura a prod/staging: `ide db` deja pasar solo el SQL (sin comandos de psql)
         "Bash(ide db:*)",
         "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh search prs:*)",

@@ -678,10 +678,56 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         await asyncio.to_thread(merger.cancel, p["url"])
         return {"ok": True}
 
+    def _pr_url(ref: str) -> str:
+        """Una PR por URL o `repo#n` (`api#5092`, `finnecto-api#5092`), entre las que conoce el IDE."""
+        ref = str(ref or "").strip()
+        if ref.startswith("https://"):
+            return ref
+        m = re.fullmatch(r"([\w.-]+)#(\d+)", ref)
+        if not m:
+            raise SessionError("bad_request", f"PR inválida: {ref!r} (URL o repo#n)")
+        short = lambda r: re.sub(r"^finnecto-", "", r or "")   # noqa: E731
+        st = gh_reviews.state if gh_reviews else {}
+        cards = [c for lst in [*(st.get("mine") or {}).values(), *(st.get("stacks") or {}).values()] for c in lst]
+        hit = next((c for c in cards if short(c["repo"]) == short(m[1]) and c["number"] == int(m[2])), None)
+        if hit is None:
+            raise SessionError("unknown_pr", f"no conozco {ref} entre tus PRs abiertas")
+        return hit["url"]
+
     async def merge(p: dict) -> dict:
         if merger is None:
             raise SessionError("github_off", "merge desactivado")
-        return await asyncio.to_thread(merger.merge, p["url"])
+        # por CLI, mergear es tuyo (o de la manager): una sesión no mergea
+        if p.get("_http") and p.get("from_session") and \
+                not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+            raise SessionError("forbidden", "mergear lo hace el usuario (o la manager), no una sesión: si sus "
+                                            "migraciones chocan, arréglalas con `ide migrations renumber`")
+        return await asyncio.to_thread(lambda: merger.merge(_pr_url(p.get("url") or p.get("pr")),
+                                                            renumber=bool(p.get("renumber"))))
+
+    def _merge_problem(job: dict, msg: str) -> None:
+        """El merge no pudo seguir solo (conflicto al rebasear, migraciones): a la sesión del desarrollo."""
+        if db is None:
+            return
+        link = db.dev_prs().get(job.get("url") or "") or {}
+        url = next((u for u, j in (merger.jobs if merger else {}).items() if j is job), None)
+        link = db.dev_prs().get(url or "") or link
+        sid = link.get("sid") if not link.get("out") else None
+        if not sid or not session_path(root, sid).is_dir():
+            return
+        ref = f"{job.get('repo')}#{job.get('number')}"
+        text = (f"[Aviso del IDE] El merge de {ref} se detuvo y necesita que lo arregles: {msg}\n"
+                f"Cuando esté arreglado y subido, dile al usuario que lo reintente desde la card (o `ide merge {ref}`). "
+                f"Cuéntale en una línea qué hiciste.")
+        if supervisor.state(sid) == "running":
+            supervisor.send(sid, text)
+            db.event(datetime.now().isoformat(timespec="seconds"), "ide", "prompt", dev=sid, data={"text": text[:300]})
+        else:
+            later_mod.add(db, f"s:{sid}", f"El merge de {ref} se detuvo", text, "ide")
+        notify()
+
+    if merger is not None:
+        merger.on_problem = _merge_problem
 
     async def merge_retry(p: dict) -> dict:
         if merger is None:
