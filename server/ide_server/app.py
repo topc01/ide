@@ -144,6 +144,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             asyncio.create_task(save_history_loop(stop_bg)),
             asyncio.create_task(runs_watch(stop_bg)),
             asyncio.create_task(notify_box["fn"].nightly_loop(stop_bg)),
+            *([] if os.environ.get("IDE_DB_PATH") else [asyncio.create_task(notify_box["fn"].notion_loop(stop_bg))]),
             # el vigilante de recursos (sin IA); no en un IDE de prueba (avisaría dos veces)
             *([] if os.environ.get("IDE_DB_PATH") else [asyncio.create_task(procs_watcher.run(stop_bg))]),
             # con IDE_DB_PATH (un IDE de prueba contra una copia) no se conecta a Telegram: le robaría los
@@ -226,6 +227,14 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     @app.post("/api/sessions/{sid}/evidence/save")
     async def api_evidence_save(sid: str, body: dict):
         return await _http("evidence.save", {**body, "id": sid})
+
+    @app.post("/api/devs/{sid}/ticket")
+    async def api_ticket(sid: str, body: dict):
+        return await _http("dev.ticketSet", {**body, "id": sid})
+
+    @app.post("/api/devs/{sid}/pending-ticket")
+    async def api_pending_ticket(sid: str, body: dict):
+        return await _http("dev.ticketPending", {**body, "id": sid})
 
     @app.post("/api/merge")
     async def api_merge(body: dict):

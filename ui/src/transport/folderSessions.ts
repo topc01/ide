@@ -28,6 +28,9 @@ export interface SessionsTree {
   devStates?: Record<string, { phase?: string | null; block?: string | null; note?: string | null; since?: string | null }>;   // fase + bloqueo
   feedbackPending?: string[];            // planes de feedback de la manager sin revisar
   later?: LaterItem[];                  // pendientes para después, abiertos
+  // ticket de Notion de cada desarrollo de ticket (`s:<id>`): url (null = sin ticket), Status de la caché, pendientes
+  devTickets?: Record<string, { url: string | null; status: string | null; error: string | null;
+    pending: { url: string; status: string | null; title: string | null }[] }>;
 }
 /** Pendiente "para después" de un desarrollo (lo deja la sesión con `ide later add` o el usuario). */
 export interface LaterItem {

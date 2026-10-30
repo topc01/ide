@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Archive, ExternalLink } from "lucide-react";
 import type { FolderSession, GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
-import { CardActions, CardCorner, DevIndex, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { CardActions, CardCorner, DevIndex, TicketChip, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
 import { ago, STATE, type Block, type DevStateInfo } from "./devStates";
 import { ACTIVITY, activityOf, waitTime } from "./activity";
@@ -83,6 +83,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
         {/* repos con su número: una chip por PR (con varias, por repo: las filas dan los números) */}
         <div className="mt-1 flex flex-wrap items-center gap-1">
           <DevIndex devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])} />
+          {session.kind === "ticket" && <TicketChip devKey={`s:${session.id}`} />}
           {many ? groups.flatMap((g) => g.stacks.flat()).map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)
             : pr ? <RefChip repo={pr.repo} number={pr.number} pr={pr} />
             : merged.length ? null

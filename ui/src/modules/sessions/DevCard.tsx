@@ -420,3 +420,26 @@ export function LaterChip({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
       className="inline-flex shrink-0 items-center gap-0.5 rounded border border-yellow-400/40 px-1 font-mono text-[10px] font-bold text-yellow-300 hover:border-yellow-300">
       <Clock size={10} />{n}</button>);
 }
+
+/** El ticket de Notion del desarrollo: chip con su Status (click: abre la tarjeta en Notion) y los tickets de
+ *  pendientes; «sin ticket» si no tiene. Solo desarrollos con sesión de ticket. */
+export function TicketChip({ devKey }: { devKey: string }) {
+  const t = useFolders((s) => s.tree.devTickets?.[devKey]);
+  if (!t) return null;
+  if (!t.url) return <span title="Este desarrollo no tiene ticket de Notion: la sesión arma el borrador y lo asocia con `ide ticket set`"
+    className="inline-flex shrink-0 items-center rounded border border-dashed border-destructive/60 px-1 text-[10px] font-semibold text-destructive">
+    sin ticket</span>;
+  const open = (u: string) => (e: React.MouseEvent) => { e.stopPropagation(); window.open(u, "_blank", "noopener,noreferrer"); };
+  return (<>
+    <button title={`Abrir el ticket en Notion${t.status ? ` (Status: ${t.status})` : ""}${t.error ? `\n⚠ ${t.error}` : ""}`}
+      onClick={open(t.url)}
+      className={cn("inline-flex shrink-0 items-center gap-0.5 rounded border px-1 text-[10px] font-semibold hover:border-primary",
+        t.error ? "border-destructive/50 text-destructive" : "border-border text-muted-foreground")}>
+      ▤ {t.status ?? "Notion"}</button>
+    {t.pending.length > 0 && (
+      <button title={"Tickets de pendientes (lo que quedó fuera):\n" + t.pending.map((x) => `· ${x.title ?? x.url} (${x.status ?? "?"})`).join("\n")}
+        onClick={open(t.pending[0].url)}
+        className="inline-flex shrink-0 items-center rounded border border-border px-1 text-[10px] text-muted-foreground hover:border-primary">
+        +{t.pending.length} pendiente{t.pending.length > 1 ? "s" : ""}</button>)}
+  </>);
+}

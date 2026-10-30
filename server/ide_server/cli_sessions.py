@@ -85,6 +85,12 @@ def _parser() -> argparse.ArgumentParser:
     br.add_parser("rm").add_argument("name")
     bl = br.add_parser("login", help="abre la ventana para iniciar sesión; al cerrarla se guarda (`local`: la de localhost, para todos los puertos)")
     bl.add_argument("name"); bl.add_argument("--url", help="solo `local`: dónde iniciarla (un front local corriendo)")
+    nt = sub.add_parser("notion", help="la integración de Notion del IDE (Status de los tickets)").add_subparsers(dest="cmd", required=True)
+    nt.add_parser("token", help="guarda el token de la integración interna en el llavero (lo pide sin mostrarlo)")
+    nt.add_parser("status", help="dice si hay token y si responde")
+    tk = sub.add_parser("ticket", help="el ticket de Notion del desarrollo").add_subparsers(dest="cmd", required=True)
+    for c, h in (("set", "asocia (o cambia) el ticket del desarrollo"), ("add-pending", "suma un ticket de pendientes (lo que quedó fuera)")):
+        x = tk.add_parser(c, help=h); x.add_argument("args", nargs="+", metavar="[#n] url")
     mg = sub.add_parser("merge", help="mergea una PR tuya (squash): revisa sus migraciones, la pone al día si está en conflicto y restackea las de arriba")
     mg.add_argument("pr", help="URL o repo#n (p.ej. api#5092)")
     mg.add_argument("--renumber", action="store_true", help="si sus migraciones chocan con la base, las renumera (commit + push) en vez de frenar")
@@ -482,7 +488,9 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
             title = f"{d['name']} ({d['title']})" if d.get("name") else d["title"] or ""
             n = f"#{d['index']}" if d.get("index") else "-"
             proc = {"waiting": "TE ESPERA", "working": "trabajando"}.get(d.get("activity") or "", d["process"] or "-")
-            out.write(f"{n}\t{d['id']}\t{d['kind']}\t{d['status'] or '-'}\t{proc}\t{title}\n")
+            t = d.get("ticket")
+            tk = "-" if t is None else ("SIN TICKET" if not t.get("url") else (t.get("status") or "?") + (" ⚠" if t.get("mismatch") else ""))
+            out.write(f"{n}\t{d['id']}\t{d['kind']}\t{d['status'] or '-'}\tticket: {tk}\t{proc}\t{title}\n")
             if d.get("activity") == "waiting" and d.get("activityNote"):
                 out.write(f"    › {d['activityNote']}\n")
             for p in d["prs"]:
@@ -494,7 +502,15 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         return 0
     out.write(f"{'#' + str(d['index']) + '  ' if d.get('index') else ''}{d['id']}  {d['kind']}  status={d['status'] or '-'}  claude={d['process'] or '-'}\n"
               + (f"nombre: {d['name']}\n" if d.get("name") else "") + f"{d['title'] or ''}\n")
-    if d.get("notionUrl"):
+    t = d.get("ticket")
+    if t is not None:
+        out.write(f"ticket: {t['url']}  Status: {t.get('status') or t.get('error') or '?'}\n" if t.get("url")
+                  else "ticket: SIN TICKET (asócialo con `ide ticket set`)\n")
+        if t.get("mismatch"):
+            out.write(f"  ⚠ no calza: {t['mismatch']}\n")
+        for x in t.get("pending") or []:
+            out.write(f"  pendiente: {x.get('title') or x['url']}  ({x.get('status') or '?'})  {x['url']}\n")
+    elif d.get("notionUrl"):
         out.write(f"notion: {d['notionUrl']}\n")
     for r in d.get("repos") or []:
         out.write(f"  repo {r['name']} @ {r['branch'] or '(detached)'}\n")
@@ -585,6 +601,35 @@ def _browser(a, root: Path, env, out: TextIO) -> int:
         browsers.write_mcp_config(root)
         out.write("sesión guardada (un navegador de ese perfil ya abierto en una sesión la toma al cerrarlo y volver a abrirlo)\n" if rc == 0 else f"falló ({rc})\n")
         return rc
+    return 0
+
+
+def _notion_cmd(a, env, out: TextIO) -> int:
+    import getpass
+    from ide_server import notion_tickets as notion
+    if a.cmd == "status":
+        tok = notion.get_token()
+        if not tok:
+            out.write("sin token: `ide notion token` (en tu terminal)\n")
+            return 1
+        try:
+            me = notion._call("GET", "/users/me")
+            out.write(f"token OK: integración «{me.get('name') or me.get('bot', {}).get('owner', {}).get('type', '?')}»\n")
+            return 0
+        except SessionError as exc:
+            out.write(f"el token no responde: {exc}\n")
+            return 1
+    if env.get("IDE_SESSION_ID"):
+        raise SessionError("forbidden", "el token de Notion lo guarda el usuario en su terminal: pídeselo")
+    out.write("Token de la integración interna de Notion (Settings → Connections → Develop or manage integrations;\n"
+              "dale acceso a la base Desarrollo con «Add connections» en la base). No se muestra al escribirlo.\n")
+    out.flush()
+    notion.set_token(getpass.getpass("Token: ").strip())
+    try:
+        notion._call("GET", "/users/me")
+        out.write("guardado en el llavero y responde. (Si un ticket da 404, comparte la base Desarrollo con la integración.)\n")
+    except SessionError as exc:
+        out.write(f"guardado, pero no responde: {exc}\n")
     return 0
 
 
@@ -706,6 +751,21 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _db_query(a.env, a.sql, home, out, err)
         if a.group == "browser":
             return _browser(a, root, env, out)
+        if a.group == "notion":
+            return _notion_cmd(a, env, out)
+        if a.group == "ticket":
+            dev, link = (a.args[0], a.args[1]) if len(a.args) > 1 else (env.get("IDE_SESSION_ID"), a.args[0])
+            if not dev:
+                raise SessionError("no_session", "¿de qué desarrollo? `ide ticket set '#n' <url>`")
+            from urllib.parse import quote
+            actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
+            path = "ticket" if a.cmd == "set" else "pending-ticket"
+            data = _post(http, url, f"/api/devs/{quote(dev, safe='')}/{path}", {"url": link, "actor": actor})
+            if a.cmd == "set":
+                out.write(f"{data['id']}\tticket {data['url']}\t{data.get('status') or data.get('error') or '(sin token de Notion: no leo el Status)'}\n")
+            else:
+                out.write(f"{data['id']}\t{len(data['pending'])} tickets de pendientes\n")
+            return 0
         if a.group == "procs":
             return _procs(a, root, env, out)
         sid = current_session(root, env=env, cwd=cwd, explicit=a.session)

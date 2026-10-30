@@ -441,6 +441,7 @@ PERM_ANALYZE = {"permissions": {
         "Bash(ide push:*)",
         "Bash(ide update:*)",
         "Bash(ide migrations:*)",
+        "Bash(ide ticket:*)",
         # consultas de solo lectura a prod/staging: `ide db` deja pasar solo el SQL (sin comandos de psql)
         "Bash(ide db:*)",
         "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh search prs:*)",

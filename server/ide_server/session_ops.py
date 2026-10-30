@@ -135,6 +135,13 @@ def create_session(root: Path, req: dict, *, runner: Runner = _run) -> dict:
         variables.setdefault("notion_url", notion)
     prompt = (render_template(load_template(root, req["template"]), variables)
               if req.get("template") else req.get("prompt") or "")
+    # sin ticket no hay desarrollo: solo nacen sin él las que crea otra sesión (hotfix, línea paralela) y los
+    # traspasos; esas le piden a su claude el borrador del ticket en el primer turno
+    if kind == "ticket" and not variables.get("notion_url"):
+        if not (req.get("caller") or req.get("handoff")):
+            raise SessionError("no_ticket", "falta el ticket de Notion del desarrollo (--notion <url>): sin ticket no hay "
+                                            "desarrollo. (Una sesión que separa algo propio puede crearla con --title.)")
+        prompt = (prompt + "\n\n" if prompt else "") + NO_TICKET_PROMPT
     meta = None
     if kind == "ticket":
         meta = {"title": req.get("title") or variables.get("title"),
@@ -151,6 +158,11 @@ def create_session(root: Path, req: dict, *, runner: Runner = _run) -> dict:
         att.mkdir(exist_ok=True)
         (att / "ticket-notion.url").write_text(f"[InternetShortcut]\nURL={meta['notion_url']}\n", encoding="utf-8")
     return {"session": read_session(root, sid), "log": ""}
+
+
+NO_TICKET_PROMPT = ("[Del IDE] Este desarrollo no tiene ticket de Notion todavía. En este primer turno arma el borrador del "
+                    "ticket (skill `notion-tickets`: título, contexto, alcance), muéstraselo al usuario y, cuando lo cree, "
+                    "asócialo con `ide ticket set <url>`.")
 
 
 def _create_review(root: Path, req: dict, permissions: str, runner: Runner) -> dict:

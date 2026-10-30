@@ -83,7 +83,7 @@ def _session_for(root: Path, notion: str | None, explicit: str | None, title: st
             stored = (s.get("meta") or {}).get("notion_url") or ""
             if s["id"] == target or (stored and notion_session_id(stored) == target):
                 return s["id"], False
-    res = create_session(root, {k: v for k, v in {"notion": notion, "title": title}.items() if v})
+    res = create_session(root, {**{k: v for k, v in {"notion": notion, "title": title}.items() if v}, "handoff": True})
     return res["session"]["id"], True
 
 

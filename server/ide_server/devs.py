@@ -478,6 +478,24 @@ def _name(names: dict[str, str], key: str, prs: list[dict]) -> str | None:
     return None
 
 
+def _ticket(db: Db, row: dict, open_prs: list, merged: int) -> dict | None:
+    """El ticket de Notion de un desarrollo de ticket: Status (de la caché), los de pendientes, y si no calza
+    con el desarrollo (`mismatch`). None para los que no llevan ticket (revisiones, manager…)."""
+    if row.get("kind") != "ticket":
+        return None
+    from ide_server import notion_tickets as notion
+    info = notion.cached(db, row.get("notionUrl")) or {}
+    st = info.get("status")
+    mismatch = None
+    if st and not open_prs and merged and st in ("Backlog", "In progress", "PR Review"):
+        mismatch = f"sus PRs están mergeadas y el ticket sigue en «{st}»"
+    elif st == "Backlog" and open_prs:
+        mismatch = "tiene PRs abiertas y el ticket sigue en «Backlog»"
+    return {"url": row.get("notionUrl"), "status": st, "error": info.get("error"), "mismatch": mismatch,
+            "pending": [{"url": u, "status": (notion.cached(db, u) or {}).get("status"),
+                         "title": (notion.cached(db, u) or {}).get("title")} for u in notion.pending(db, row["id"])]}
+
+
 def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
     """Todos los desarrollos: los de sesión (estado de la base) y los que son solo PRs."""
     cards = _cards(gh)
@@ -487,6 +505,10 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
     me = gh.get("me")
     idx = db.with_prefix("devidx:")
     taken: set[str] = set()
+    merged_by_sid: dict[str, int] = {}
+    for u, c in db.with_prefix("prclosed:").items():
+        if c.get("merged") and (links.get(u) or {}).get("sid") and not links[u].get("out"):
+            merged_by_sid[links[u]["sid"]] = merged_by_sid.get(links[u]["sid"], 0) + 1
     out = []
     for row in db.devs():
         s = by_sid.get(row["id"], {})
@@ -505,7 +527,8 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
         taken |= {c["url"] for c in prs}
         out.append({"id": row["id"], "kind": row["kind"], "name": _name(names, f"s:{row['id']}", prs),
                     "title": row["title"], "status": row["status"],
-                    "notionUrl": row["notionUrl"], "process": s.get("process"),
+                    "notionUrl": row["notionUrl"], "ticket": _ticket(db, row, prs, merged_by_sid.get(row["id"], 0)),
+                    "process": s.get("process"),
                     # trabajando / esperando al usuario (hooks de claude), con la 1ª línea de su último mensaje
                     "activity": (s.get("activity") or {}).get("state") if s.get("process") == "running" else None,
                     "activityNote": (s.get("activity") or {}).get("note") if s.get("process") == "running" else None,

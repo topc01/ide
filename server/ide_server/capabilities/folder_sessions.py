@@ -38,7 +38,7 @@ from ide_server.session_ops import (
     remove_session,
 )
 from ide_server.sessions_fs import (
-    attachment_path, find_main, list_sessions, normalize_id, parse_frontmatter, read_session, read_toml, render_template, require_plain_name,
+    attachment_path, find_main, list_sessions, normalize_id, parse_frontmatter, write_frontmatter, read_session, read_toml, render_template, require_plain_name,
     session_path, state_file, SessionError, update_session_toml,
 )
 from ide_server.supervisor import Supervisor, clean_env
@@ -115,8 +115,97 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "devIndex": db.with_prefix("devidx:") if db else {},
                 "devStates": dev_states(db) if db else {},
                 "later": later_mod.items(db) if db else [],
+                "devTickets": _tickets(sessions) if db else {},
                 "feedbackPending": pending_plans(root),
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
+
+    def _tickets(sessions: list[dict]) -> dict:
+        """Por desarrollo con sesión de ticket (`s:<id>`): su ticket de Notion (url, Status de la caché, error)
+        y los tickets de pendientes. Sin ticket: {url: None} (la card avisa «sin ticket»)."""
+        from ide_server import notion_tickets as notion
+        out = {}
+        for s_ in sessions:
+            if s_.get("kind") != "ticket":
+                continue
+            url = (s_.get("meta") or {}).get("notion_url")
+            info = notion.cached(db, url) or {}
+            out[f"s:{s_['id']}"] = {"url": url, "status": info.get("status"), "error": info.get("error"),
+                                   "pending": [{"url": u, "status": (notion.cached(db, u) or {}).get("status"),
+                                                "title": (notion.cached(db, u) or {}).get("title")}
+                                               for u in notion.pending(db, s_["id"])]}
+        return out
+
+    def ticket_urls() -> list[str]:
+        """Los tickets a mantener al día: de los desarrollos abiertos y sus pendientes."""
+        from ide_server import notion_tickets as notion
+        urls = []
+        for s_ in list_sessions(root):
+            if s_.get("kind") == "ticket":
+                urls += [u for u in [(s_.get("meta") or {}).get("notion_url")] if u] + notion.pending(db, s_["id"])
+        return urls
+
+    def live_staging() -> None:
+        """Cuando se mergeó la última PR abierta de un desarrollo (le quedan mergeadas y ninguna abierta), su
+        ticket pasa a «Live Staging» (una vez por desarrollo). Corre con el refresco de Notion y al terminar
+        «Mergear todo»."""
+        from ide_server import notion_tickets as notion
+        if db is None or gh_reviews is None or not notion.get_token():
+            return
+        sessions = list_sessions(root)
+        devs_ = {d["id"]: d for d in list_devs(root, db, sessions, gh_reviews.state)}
+        merged = {u for u, c in db.with_prefix("prclosed:").items() if c.get("merged")}
+        links = db.dev_prs()
+        for s_ in sessions:
+            url = (s_.get("meta") or {}).get("notion_url")
+            d = devs_.get(s_["id"])
+            if s_.get("kind") != "ticket" or not url or d is None or d["prs"] or db.get(f"notionlive:{s_['id']}"):
+                continue
+            if not any(u in merged and l.get("sid") == s_["id"] for u, l in links.items()):
+                continue
+            status = (notion.read(db, url) or {}).get("status")
+            if status in ("Backlog", "In progress", "PR Review"):
+                try:
+                    notion.set_status(db, url, notion.LIVE_STAGING)
+                except SessionError:
+                    log.exception("Live Staging de %s", s_["id"])
+                    continue
+                db.event(datetime.now().isoformat(timespec="seconds"), "ide", "ticket-status", dev=s_["id"],
+                         data={"from": status, "to": notion.LIVE_STAGING, "note": "se mergeó la última PR"})
+            db.set(f"notionlive:{s_['id']}", True)
+
+    if merger is not None and hasattr(merger, "all"):
+        merger.all.on_done = lambda _key, _urls: threading.Thread(target=live_staging, daemon=True).start()
+
+    async def ticket_set(p: dict) -> dict:
+        """Asocia (o cambia) el ticket de Notion de un desarrollo: queda en su SESSION.md (`notion_url`) y en
+        sus Adjuntos; el Status se lee de Notion."""
+        from ide_server import notion_tickets as notion
+        sid = _resolve(p["id"])
+        url = str(p.get("url") or "").strip()
+        notion.page_id(url)
+        f = session_path(root, sid) / "SESSION.md"
+        meta, body = parse_frontmatter(f.read_text(encoding="utf-8")) if f.is_file() else ({}, "")
+        f.write_text(write_frontmatter({**meta, "notion_url": url}, body), encoding="utf-8")
+        att = session_path(root, sid) / "attachments"
+        att.mkdir(exist_ok=True)
+        (att / "ticket-notion.url").write_text(f"[InternetShortcut]\nURL={url}\n", encoding="utf-8")
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), p.get("actor") or "ide", "ticket", dev=sid, data={"url": url})
+            info = await asyncio.to_thread(notion.read, db, url, fresh=True) if notion.get_token() else {}
+        notify()
+        return {"id": sid, "url": url, "status": (info or {}).get("status"), "error": (info or {}).get("error")}
+
+    async def ticket_pending(p: dict) -> dict:
+        """Un ticket que la sesión creó para lo que quedó fuera del desarrollo (pendiente)."""
+        from ide_server import notion_tickets as notion
+        sid = _resolve(p["id"])
+        items = notion.add_pending(db, sid, str(p.get("url") or "").strip())
+        db.event(datetime.now().isoformat(timespec="seconds"), p.get("actor") or "ide", "ticket-pending", dev=sid,
+                 data={"url": p.get("url")})
+        if notion.get_token():
+            await asyncio.to_thread(notion.read, db, p["url"], fresh=True)
+        notify()
+        return {"id": sid, "pending": items}
 
     def _review_verdicts(sessions: list[dict], status: dict) -> None:
         """El estado de una sesión de revisión sale de GitHub (tu última review en esa PR, o en las del
@@ -1525,7 +1614,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "servers.stop": servers_stop, "servers.log": servers_log, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
-        "dev.mergeAllStop": merge_all_stop, "dev.mergeAllDismiss": merge_all_dismiss, "usage.get": usage,
+        "dev.mergeAllStop": merge_all_stop, "dev.mergeAllDismiss": merge_all_dismiss,
+        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
         "attachments.rename": attachments_rename, "attachments.mkdir": attachments_mkdir, "attachments.move": attachments_move, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
@@ -1535,5 +1625,24 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     }.items():
         registry.register(channel, handler)
     notify.nightly_loop = nightly_loop      # type: ignore[attr-defined]
+
+    async def notion_loop(stop: asyncio.Event) -> None:
+        """El Status de los tickets (cada 10 min) y «Live Staging» de los desarrollos que terminaron."""
+        from ide_server import notion_tickets as notion
+        if db is None:
+            return
+        async def tick_live() -> None:
+            while not stop.is_set():
+                try:
+                    await asyncio.to_thread(live_staging)
+                except Exception:  # noqa: BLE001
+                    log.exception("Live Staging")
+                try:
+                    await asyncio.wait_for(stop.wait(), notion.TTL)
+                except asyncio.TimeoutError:
+                    pass
+        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live())
+
+    notify.notion_loop = notion_loop        # type: ignore[attr-defined]
     notify.telegram = bridge                # type: ignore[attr-defined]
     return notify
