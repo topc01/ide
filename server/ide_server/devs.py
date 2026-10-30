@@ -61,6 +61,37 @@ def _archived(root: Path, sid: str) -> bool:
     return (root / ".ide" / "archive" / "sessions" / sid).exists()
 
 
+# los nombres de la pantalla (ui/src/modules/sessions/devStates.ts), para los mensajes
+LABEL = {"investigating": "investigando", "developing": "desarrollando", "ready-for-review": "listo para revisión",
+         "testing": "en testeo", "in-review": "en revisión", "changes-requested": "cambios pedidos",
+         "approved": "aprobado", "merging": "mergeando", "merged": "mergeado"}
+
+
+# una nota de bloqueo que en realidad espera al usuario (su decisión, su OK): eso es «te espera»
+_USER_RE = re.compile(r"\b(tom[aá]s|el usuario|del usuario|tu (ok|decisi[oó]n|visto bueno|respuesta|confirmaci[oó]n|input)"
+                      r"|visto bueno|que (decidas|confirmes|me digas))\b", re.I)
+
+
+def _asks_user(note: str | None) -> bool:
+    return bool(note and _USER_RE.search(note))
+
+
+def _edited_after(s: dict, row: dict) -> bool:
+    """El SESSION.md de la sesión se modificó después del último cambio de su fila en la base."""
+    from datetime import datetime
+    try:
+        mtime = (Path(s["path"]) / "SESSION.md").stat().st_mtime
+        return mtime > datetime.fromisoformat(str(row.get("updated"))).timestamp() + 1
+    except (OSError, ValueError, KeyError, TypeError):
+        return True
+
+
+def _backwards(before: str | None, status: str | None) -> bool:
+    """«investigando» es solo el estado inicial: un desarrollo que ya pasó a desarrollando (o más
+    adelante) no vuelve ahí, lo pida quien lo pida (sesión, UI o archivo)."""
+    return status == "investigating" and before not in (None, "investigating")
+
+
 def sync_from_disk(root: Path, db: Db, sessions: list[dict] | None = None) -> None:
     """Registra sesiones nuevas, adopta cambios hechos a mano en los archivos y marca archivadas."""
     sessions = list_sessions(root) if sessions is None else sessions
@@ -87,7 +118,10 @@ def sync_from_disk(root: Path, db: Db, sessions: list[dict] | None = None) -> No
             disk["status"] = changes["status"]
             db.event(now(), "ide", "status", dev=sid, data={"from": row["status"], "to": changes["status"], "note": "migrado"})
             row = {**row, "status": changes["status"]}
-        if disk["status"] and disk["status"] != row.get("status"):   # editado a mano en el archivo
+        # editado a mano en el archivo: solo si el archivo cambió después del último guardado en la base
+        # (si no, es el SESSION.md de antes de que el IDE le copiara el estado nuevo: volvería atrás)
+        if disk["status"] and disk["status"] != row.get("status") and _edited_after(s, row) \
+                and not _backwards(row.get("status"), disk["status"]):
             changes["status"] = disk["status"]
             db.event(now(), "archivo", "status", dev=sid, data={"from": row.get("status"), "to": disk["status"]})
         if row.get("archived"):
@@ -138,6 +172,15 @@ def _apply(db: Db, key: str, status: str | None, note: str | None, actor: str, r
     GitHub siga en esa); una fase puesta sin `gh` (sesiones) deja mandar a GitHub."""
     cur = _state(db, key, row_status)
     phase, block = cur.get("phase"), cur.get("block")
+    if status == "blocked" and actor.startswith("claude:") and _asks_user(note):
+        raise SessionError("not_blocked", "eso no es un bloqueo: si falta una decisión o un OK del usuario, el "
+                                          "desarrollo queda en «te espera» solo. Termina el turno con la pregunta "
+                                          "para él (clara, en el último mensaje). «Bloqueado» es solo para lo que "
+                                          "depende de afuera: otra persona, producto, el cliente u otro desarrollo")
+    if _backwards(phase, status):
+        raise SessionError("backwards", "«investigando» es solo el estado inicial: este desarrollo ya pasó a "
+                                        f"«{LABEL.get(phase, phase)}» y no vuelve ahí (si está frenado, márcalo "
+                                        "bloqueado o pausado)")
     pinned = "gh" in cur
     pin = cur.get("gh")
     before = block or phase

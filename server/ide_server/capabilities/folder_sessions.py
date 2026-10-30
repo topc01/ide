@@ -267,32 +267,6 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return state, how
 
-    def _conflict_notice(card: dict) -> None:
-        """Una PR tuya pasó a conflicto en GitHub (p.ej. se squasheó la de abajo del stack): se le avisa
-        a su sesión (si está parada, le queda en Para después). Solo avisa: no rebasea."""
-        st = gh_reviews.state if gh_reviews else {}
-        if db is None or card.get("author") != f"@{st.get('me')}":
-            return
-        link = db.dev_prs().get(card["url"])
-        sid = link["sid"] if link and not link.get("out") else None
-        if not sid or not session_path(root, sid).is_dir():
-            return
-        ref = f"{card['repo']}#{card['number']}"
-        text = (f"[Aviso del IDE] Tu PR {ref} ({card['url']}) quedó **en conflicto** con su base "
-                f"(`{card.get('base')}`) en GitHub; suele pasar cuando se mergea la PR de abajo del stack. "
-                f"Ponla al día con `ide update {card['repo']}` (rebasea sobre su base y la sube; si choca, resuelve y "
-                f"sigue como te dice). "
-                f"Si el conflicto no es obvio, pregúntale al usuario antes. Cuéntale en una línea qué hiciste.")
-        if supervisor.state(sid) == "running":
-            supervisor.send(sid, text)
-            db.event(datetime.now().isoformat(timespec="seconds"), "ide", "prompt", dev=sid, data={"text": text[:300]})
-        else:
-            later_mod.add(db, f"s:{sid}", f"{ref} quedó en conflicto con su base", text, "ide")
-        notify()
-
-    if gh_reviews is not None:
-        gh_reviews.on_conflict = _conflict_notice
-
     def _resolve(raw: str) -> str:
         """Id de sesión o número de desarrollo (#8/8) → id de sesión."""
         sid = str(raw or "").strip()

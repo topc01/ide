@@ -365,7 +365,8 @@ function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: st
         {dev.note && <div className="mt-0.5 line-clamp-3 text-[11px] italic text-muted-foreground">{dev.note}</div>}
       </div>
       {title("¿En qué está el trabajo?")}
-      {MANUAL.map((st) => option(st, !dev.block && dev.phase === st))}
+      {/* «investigando» es solo el estado inicial: pasado eso no se vuelve (el server tampoco lo acepta) */}
+      {MANUAL.filter((st) => st !== "investigating" || dev.phase === "investigating").map((st) => option(st, !dev.block && dev.phase === st))}
       {title("¿Está frenado?")}
       {dev.block ? (
         <div className="px-2">

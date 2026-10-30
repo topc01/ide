@@ -309,7 +309,6 @@ class GithubReviews:
         self._gh = run_gh or _default_gh
         self._on_change = on_change or (lambda: None)
         self._clock = clock
-        self.on_conflict: Callable[[dict], None] = lambda _card: None   # una PR pasó a conflicto
         self.state: dict = {"pending": [], "changesRequested": [], "me": None, "reviewers": [],
                             "mine": {g: [] for g in MY_GROUPS}, "stacks": {},
                             "reviewersTruncated": False, "members": [], "selected": None,
@@ -546,13 +545,9 @@ class GithubReviews:
                 self._db.event(at, "github", "ci", pr_url=url, data={"state": cur["ci"]})
             if old["draft"] and not cur["draft"]:
                 self._db.event(at, "github", "ready-for-review", pr_url=url)
-            # pasó a conflicto (las fotos de antes de esto no traen `conflict`: no cuentan como cambio)
+            # pasó a conflicto (queda en el historial; no se avisa ni se rebasea: se resuelve al mergear)
             if cur["conflict"] and old.get("conflict") is False:
                 self._db.event(at, "github", "conflict", pr_url=url)
-                try:
-                    self.on_conflict(cards[url])
-                except Exception:  # noqa: BLE001 — el aviso no tumba el poll
-                    log.exception("aviso de conflicto de %s", url)
         self._db.put_pr_snaps(snaps)
 
     def optimistic(self, url: str, *, requested: list[str] = (), verdict: tuple[str, str] | None = None) -> None:

@@ -29,9 +29,10 @@ export const ACTIVITY: Record<Activity, [string, string, string]> = {
   // trabajando gira y es de otro color: no se confunde con el punto fijo de "espera tu input"
   working: ["◐", "inline-block leading-none text-sky-400 animate-spin", "claude está trabajando"],
   waiting: ["●", "text-orange-500", "claude terminó: espera tu input"],
-  running: ["●", "text-primary", "claude corriendo"],
+  // sin relleno: lo que no es "trabaja" ni "te espera" (no se sabe todavía, o no está corriendo)
+  running: ["◯", "text-primary", "claude corriendo (todavía no se sabe si trabaja o te espera)"],
   queued: ["◌", "text-muted-foreground", "en cola (max_running)"],
-  stale: ["●", "text-red-500", "stale: el claude no está corriendo y el desarrollo sigue activo"],
+  stale: ["◯", "text-red-500", "stale: el claude no está corriendo y el desarrollo sigue activo (se abre al entrar a la sesión)"],
   idle: ["○", "text-muted-foreground", "claude parado"],
 };
 

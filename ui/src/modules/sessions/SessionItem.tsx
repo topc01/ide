@@ -90,6 +90,9 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
             : repos.length ? repos.map((r) => <RefChip key={r} repo={r} />)
             : <span className="font-mono text-[10px] text-muted-foreground">{session.id}</span>}
           {merged.length > 0 && <MergedToggle id={session.id} merged={merged} hasOpen={many || !!pr} />}
+          {session.kind === "ticket" && !pr && !many && !merged.length && dev && dev.phase !== "investigating" && dev.phase !== "merged" && (
+            <span className="rounded border border-dashed border-border px-1 text-[10px] text-muted-foreground"
+              title="Ya pasó de investigando, pero no tiene ninguna PR abierta">sin PR</span>)}
           <LaterChip devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])} />
           {isReview && session.meta.author && <PersonChip login={session.meta.author} title={`autor: ${session.meta.author}`} />}
         </div>
