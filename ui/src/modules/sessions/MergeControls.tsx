@@ -127,6 +127,8 @@ export function MergeAllAction({ devKey, prs, job, me, asButton }: { devKey: str
     p.then(() => { if (close) setOpen(false); }).catch((e: any) => setError(e?.message ?? String(e))).finally(() => setBusy(false));
   };
   if (!mine.length && !job) return null;
+  // se ofrece recién cuando todas sus PRs abiertas están aprobadas (en curso o detenido, siempre)
+  if (!job && !mine.every((p) => p.review === "approved")) return null;
   const btn = (label: string, title: string, icon: React.ReactNode, onClick: () => void) => asButton
     ? <Button size="sm" variant="secondary" className="h-7 gap-1 text-xs" title={title} disabled={busy} onClick={onClick}>{icon}{label}</Button>
     : <QueueItemAction aria-label={label} title={title} onClick={(e) => { e.stopPropagation(); onClick(); }}>{icon}</QueueItemAction>;

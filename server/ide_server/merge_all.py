@@ -97,6 +97,9 @@ class MergeAll:
         mine = [u for u in dict.fromkeys(urls) if u in cards and cards[u].get("author") == f"@{me}"]
         if not mine:
             raise SessionError("no_prs", "el desarrollo no tiene PRs tuyas abiertas para mergear")
+        pending = [f"{cards[u]['repo']}#{cards[u]['number']}" for u in mine if cards[u].get("review") != "approved"]
+        if pending:
+            raise SessionError("not_approved", "«Mergear todo» es cuando todas sus PRs están aprobadas; faltan: " + ", ".join(pending))
         if (self._jobs().get(key) or {}).get("state") == "running":
             raise SessionError("merge_pending", "ya se está mergeando este desarrollo")
         drafts = [u for u in mine if cards[u].get("draft")]
