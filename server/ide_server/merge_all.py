@@ -28,6 +28,11 @@ def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+def _fixable(error) -> bool:
+    """Un merge que falló por algo que arregla la sesión (conflicto al rebasear, migraciones)."""
+    return any(w in str(error or "") for w in ("conflicto", "migraciones"))
+
+
 class MergeAll:
     def __init__(self, db: Db, merger, stacks: Callable[[], dict], on_change: Callable[[], None]) -> None:
         self._db, self._merger, self._stacks, self._on_change = db, merger, stacks, on_change
@@ -122,6 +127,11 @@ class MergeAll:
     def tick(self) -> None:
         cards = self._cards()
         for key, job in self._jobs().items():
+            # detenido antes por un conflicto o migraciones (antes no se esperaba el arreglo): se retoma y se
+            # reintenta (la sesión ya pudo haberlo arreglado)
+            if job.get("state") == "error" and _fixable(job.get("error")) and not job.get("fix_wait"):
+                job = {**job, "state": "running", "error": None, "retry_now": True}
+                self._save(key, job)
             if job.get("state") != "running":
                 continue
             with self._lock:
@@ -143,10 +153,22 @@ class MergeAll:
             if c.get("review") == "changes":
                 return self._halt(key, job, f"le pidieron cambios a {ref(c)}")
             mj = self._merger.jobs.get(u) or {}
+            if mj.get("state") == "error" and _fixable(mj.get("error")):
+                # conflicto o migraciones: el Merger ya le avisó a la sesión; se espera su arreglo y, apenas
+                # sube un commit nuevo a la PR, se reintenta solo (sin que el usuario reanude)
+                sha = c.get("headSha") or c.get("updatedAt")
+                fix = job.setdefault("fix_wait", {})
+                if u not in fix:
+                    fix[u] = None if job.pop("retry_now", False) else sha
+                if fix[u] != sha:
+                    fix.pop(u, None)
+                    try:
+                        self._merger.retry(u)
+                    except SessionError:
+                        pass
+                continue
             if mj.get("state") == "error":
-                # el Merger ya le avisó a la sesión si fue un conflicto o las migraciones
-                return self._halt(key, job, f"el merge de {ref(c)} falló: {mj.get('error')}",
-                                  tell=not any(w in str(mj.get("error")) for w in ("conflicto", "migraciones")))
+                return self._halt(key, job, f"el merge de {ref(c)} falló: {mj.get('error')}")
             sha = c.get("headSha") or c.get("updatedAt")
             if c.get("ci") == "failure" and job["ci_told"].get(u) != sha:     # una vez por commit
                 job["ci_told"][u] = sha
@@ -159,6 +181,9 @@ class MergeAll:
         for u in remaining:
             c = cards[u]
             if (self._merger.jobs.get(u) or {}).get("state") in ACTIVE_MERGE:
+                continue
+            if u in (job.get("fix_wait") or {}):
+                waiting.append(f"{ref(c)}: esperando que la sesión arregle el conflicto (reintenta solo cuando suba el arreglo)")
                 continue
             if c.get("stack") and c["stack"].get("position", 1) != 1:
                 continue                            # espera a que se mergeen las de abajo

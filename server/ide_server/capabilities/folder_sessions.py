@@ -819,7 +819,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             return
         ref = f"{job.get('repo')}#{job.get('number')}"
         text = (f"[Aviso del IDE] El merge de {ref} se detuvo y necesita que lo arregles: {msg}\n"
-                f"Cuando esté arreglado y subido, dile al usuario que lo reintente desde la card (o `ide merge {ref}`). "
+                f"Arréglalo y súbelo (`ide push --force` si rebaseaste): si el merge es parte de «Mergear todo», se "
+                f"reintenta solo apenas subas el commit; si no, dile al usuario que lo reintente desde la card. "
                 f"Cuéntale en una línea qué hiciste.")
         if supervisor.state(sid) == "running":
             supervisor.send(sid, text)
