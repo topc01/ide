@@ -51,8 +51,10 @@ def squashed_parent(wt: Path, branch: str, base: str, full_repo: str | None, num
     re-aplican commits que la base ya tiene (squasheados) y chocan."""
     if not full_repo:
         return None
-    shas = _check(_run(["git", "rev-list", "--max-count=60", f"origin/{base}..origin/{branch}"], wt),
-                  "git rev-list").split()
+    out = _run(["git", "rev-list", "--max-count=60", f"origin/{base}..origin/{branch}"], wt)
+    if out.returncode != 0:                 # la rama ya no está (p.ej. GitHub la mergeó y la borró)
+        return None
+    shas = out.stdout.split()
     for sha in shas[1:]:                    # el primero es el head de esta misma PR
         out = _run(["gh", "api", f"repos/{full_repo}/commits/{sha}/pulls"])
         try:
@@ -201,6 +203,9 @@ class Merger:
             with self._lock(j["repo"]):
                 wt = self._wt(j["repo"], j.get("full_repo"))
                 _check(_run(["git", "fetch", "origin", "--prune"], wt), "git fetch")
+                if json.loads(_check(_run(["gh", "pr", "view", url, "--json", "state"]), "gh pr view"))["state"] == "MERGED":
+                    self._merged(url)           # ya se mergeó (p.ej. GitHub la mergeó con su stack): sigue el restack
+                    return
                 cut = self._squashed_parent(wt, j["head"], j["base"], j.get("full_repo"), j.get("number"))
                 st = self._merge_state(url)
                 # rebasear solo si hace falta: GitHub exige la rama al día (BEHIND), hay conflicto

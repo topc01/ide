@@ -364,6 +364,11 @@ function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: st
         <div className="text-[11px] text-muted-foreground">{sourceOf(dev)}{dev.since && !dev.inferred ? ` · hace ${ago(dev.since)}` : ""}</div>
         {dev.note && <div className="mt-0.5 line-clamp-3 text-[11px] italic text-muted-foreground">{dev.note}</div>}
       </div>
+      {/* lo puesto a mano tapa lo que dice GitHub: volver a lo automático, a la vista (no escondido abajo) */}
+      {dev.manual && dev.gh && !dev.github && dev.manual !== dev.gh && (
+        <button onClick={() => set(dev.manual, null)} title="Dejar que la fase la dé GitHub otra vez"
+          className="mx-2 mt-2 w-[calc(100%-1rem)] rounded border border-primary/50 px-2 py-1 text-left text-[11px] text-primary hover:bg-accent">
+          ↺ volver a lo de GitHub ({STATE[dev.gh][0]})</button>)}
       {title("¿En qué está el trabajo?")}
       {/* «investigando» es solo el estado inicial: pasado eso no se vuelve (el server tampoco lo acepta) */}
       {MANUAL.filter((st) => st !== "investigating" || dev.phase === "investigating").map((st) => option(st, !dev.block && dev.phase === st))}
@@ -398,10 +403,6 @@ function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: st
         <span className={cn("transition-transform", more && "rotate-90")}>▸</span> Corregir lo que dice GitHub</button>
       {more && (<>
         {GITHUB.map((st) => option(st, !dev.block && dev.phase === st))}
-        {dev.manual && dev.gh && !dev.github && dev.manual !== dev.gh && (
-          <button onClick={() => set(dev.manual, null)} title="Dejar que la fase la dé GitHub otra vez"
-            className="w-full px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground">
-            ↺ volver a lo de GitHub ({STATE[dev.gh][0]})</button>)}
       </>)}
       {err && <p role="alert" className="px-2 py-1 text-[11px] text-destructive">{err}</p>}
     </div>);

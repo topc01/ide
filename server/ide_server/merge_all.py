@@ -165,6 +165,12 @@ class MergeAll:
             if job.get("state") == "error" and _fixable(job.get("error")) and not job.get("fix_wait"):
                 job = {**job, "state": "running", "error": None, "retry_now": True}
                 self._save(key, job)
+            # detenido, pero ya no le queda nada abierto ni en curso (se mergeó todo igual): terminado
+            if job.get("state") in ("error", "stopped") and not any(u in cards for u in job["urls"]) \
+                    and not any((self._merger.jobs.get(u) or {}).get("state") in ACTIVE_MERGE for u in job["urls"]):
+                job = {**job, "state": "done", "done": job["total"], "error": None, "waiting": None}
+                self._save(key, job)
+                self.on_done(key, job["urls"])
             if job.get("state") != "running":
                 continue
             with self._lock:
