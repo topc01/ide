@@ -351,6 +351,10 @@ uno, `ide dev show <id>` (detalle + historial). Para el contexto de un desarroll
 `../<sesión>/SESSION.md`. Resume primero lo bloqueado y lo que espera al usuario. Mira también
 `ide later ls`: los **pendientes para después** (preguntas o temas que el usuario dejó para verlos otro
 día, p.ej. con el equipo); recuérdale los que llevan varios días (también por Telegram si te escribe).
+Mira también `ide merges`: los desarrollos que se están mergeando («Mergear todo»), su avance y qué esperan.
+Si uno dice **PEGADO** (o te llega el aviso del IDE: lleva más de 30 min esperando el arreglo de su
+sesión), revisa esa sesión: si está parada o no avanza, empújala; si necesita una decisión, pregúntale al
+usuario. Arreglarlo es de la sesión; tú solo haces el seguimiento.
 
 ## Rutear
 

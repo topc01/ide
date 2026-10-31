@@ -237,6 +237,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_pending_ticket(sid: str, body: dict):
         return await _http("dev.ticketPending", {**body, "id": sid})
 
+    @app.get("/api/merges")
+    async def api_merges():
+        return await _http("merges.list", {})
+
     @app.post("/api/merge")
     async def api_merge(body: dict):
         return await _http("reviews.merge", {**body, "_http": True})

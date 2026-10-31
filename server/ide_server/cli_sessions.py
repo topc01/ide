@@ -91,6 +91,8 @@ def _parser() -> argparse.ArgumentParser:
     tk = sub.add_parser("ticket", help="el ticket de Notion del desarrollo").add_subparsers(dest="cmd", required=True)
     for c, h in (("set", "asocia (o cambia) el ticket del desarrollo"), ("add-pending", "suma un ticket de pendientes (lo que quedó fuera)")):
         x = tk.add_parser(c, help=h); x.add_argument("args", nargs="+", metavar="[#n] url")
+    ms = sub.add_parser("merges", help="los desarrollos que se están mergeando («Mergear todo»): avance, qué esperan, si están pegados")
+    ms.add_argument("--json", action="store_true")
     mg = sub.add_parser("merge", help="mergea una PR tuya (squash): revisa sus migraciones, la pone al día si está en conflicto y restackea las de arriba")
     mg.add_argument("pr", help="URL o repo#n (p.ej. api#5092)")
     mg.add_argument("--renumber", action="store_true", help="si sus migraciones chocan con la base, las renumera (commit + push) en vez de frenar")
@@ -481,6 +483,10 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         return 0
     if a.cmd == "ls":
         devs = _get(http, url, "/api/devs")["devs"]
+        try:
+            mall = {m["key"]: m for m in _get(http, url, "/api/merges")["mergeAll"]}
+        except SessionError:
+            mall = {}
         if a.json:
             out.write(json.dumps(devs, ensure_ascii=False, indent=2) + "\n")
             return 0
@@ -495,6 +501,8 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
                 out.write(f"    › {d['activityNote']}\n")
             for p in d["prs"]:
                 out.write(_pr_line(p) + "\n")
+            if (m := mall.get(f"s:{d['id']}")) and m["state"] != "done":
+                out.write(_merge_all_line(m) + "\n")
         return 0
     d = _get(http, url, f"/api/devs/{quote(a.id, safe='')}")["dev"]
     if a.json:
@@ -514,6 +522,12 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         out.write(f"notion: {d['notionUrl']}\n")
     for r in d.get("repos") or []:
         out.write(f"  repo {r['name']} @ {r['branch'] or '(detached)'}\n")
+    try:
+        m = next((x for x in _get(http, url, "/api/merges")["mergeAll"] if x["key"] == f"s:{d['id']}"), None)
+    except SessionError:
+        m = None
+    if m:
+        out.write(_merge_all_line(m).strip() + "\n")
     if d["prs"]:
         out.write("PRs:\n")
         for p in d["prs"]:
@@ -602,6 +616,22 @@ def _browser(a, root: Path, env, out: TextIO) -> int:
         out.write("sesión guardada (un navegador de ese perfil ya abierto en una sesión la toma al cerrarlo y volver a abrirlo)\n" if rc == 0 else f"falló ({rc})\n")
         return rc
     return 0
+
+
+def _merge_all_line(m: dict, head: bool = False) -> str:
+    """Una línea del «Mergear todo» de un desarrollo: avance, qué espera y desde cuándo, PEGADO."""
+    label = {"running": "mergeando", "error": "DETENIDO", "stopped": "detenido por ti", "done": "mergeado todo"}.get(m["state"], m["state"])
+    txt = f"{label} {m.get('done')}/{m.get('total')}"
+    if m.get("stuck"):
+        txt += f"  PEGADO (esperando a su sesión desde {str(m.get('waitingSince'))[11:16]})"
+    if m["state"] in ("error", "stopped") and m.get("error"):
+        txt += f"  {m['error']}"
+    elif m.get("waiting"):
+        txt += f"  · {m['waiting']}"
+    if head:
+        n = f"#{m['index']}" if m.get("index") else m["key"]
+        return f"{n}\t{m.get('title') or ''}\n    ⇉ {txt}"
+    return f"    ⇉ mergear todo: {txt}"
 
 
 def _notion_cmd(a, env, out: TextIO) -> int:
@@ -751,6 +781,19 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _db_query(a.env, a.sql, home, out, err)
         if a.group == "browser":
             return _browser(a, root, env, out)
+        if a.group == "merges":
+            data = _get(http, url, "/api/merges")
+            if a.json:
+                out.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+                return 0
+            for m in data["mergeAll"]:
+                out.write(_merge_all_line(m, head=True) + "\n")
+            for u, j in data["merges"].items():
+                out.write(f"merge suelto\t{j.get('repo')}#{j.get('number')}\t{j.get('state')}"
+                          + (f"\t{j['error']}" if j.get("error") else "") + "\n")
+            if not data["mergeAll"] and not data["merges"]:
+                out.write("no hay nada mergeándose\n")
+            return 0
         if a.group == "notion":
             return _notion_cmd(a, env, out)
         if a.group == "ticket":

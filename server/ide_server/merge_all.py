@@ -14,6 +14,7 @@ import json
 import logging
 import subprocess
 import threading
+import time
 from datetime import datetime
 from typing import Callable
 from ide_server.db import Db
@@ -28,6 +29,18 @@ def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+STUCK = 30 * 60                      # sin avance esperando a la sesión: se le avisa al manager
+
+
+def _iso(ts: float) -> str:
+    return datetime.fromtimestamp(ts).isoformat(timespec="seconds")
+
+
+def _clear(job: dict, u: str) -> None:
+    for f in ("since", "mgr_told"):
+        (job.get(f) or {}).pop(u, None)
+
+
 def _fixable(error) -> bool:
     """Un merge que falló por algo que arregla la sesión (conflicto al rebasear, migraciones)."""
     return any(w in str(error or "") for w in ("conflicto", "migraciones"))
@@ -40,6 +53,8 @@ class MergeAll:
         # le habla a la sesión de un desarrollo (lo conecta folder_sessions): (clave, título, texto)
         self.tell: Callable[[str, str, str], None] = lambda _key, _title, _text: None
         self.on_done: Callable[[str, list[str]], None] = lambda _key, _urls: None
+        # le avisa a la sesión manager (texto): cuando un desarrollo lleva STUCK sin avanzar esperando a su sesión
+        self.tell_manager: Callable[[str], None] = lambda _text: None
 
     # -- estado -------------------------------------------------------------------------------------
     def _jobs(self) -> dict[str, dict]:
@@ -49,8 +64,26 @@ class MergeAll:
         self._db.set(f"mergeall:{key}", job)
 
     def public(self) -> dict[str, dict]:
-        return {k: {f: j.get(f) for f in ("state", "total", "done", "error", "current", "waiting", "at")}
+        now = time.time()
+        return {k: {**{f: j.get(f) for f in ("state", "total", "done", "error", "current", "waiting", "at")},
+                    # desde cuándo espera a su sesión (el arreglo de un conflicto o de un CI fallido), si espera
+                    "waitingSince": _iso(min(j["since"].values())) if j.get("since") else None,
+                    "stuck": any(now - t > STUCK for t in (j.get("since") or {}).values())}
                 for k, j in self._jobs().items() if j.get("state") != "dismissed"}
+
+    def _since(self, key: str, job: dict, u: str, ref: str, why: str) -> None:
+        """Anota desde cuándo `u` espera a la sesión; pasados STUCK sin avance, le avisa al manager (una vez)."""
+        since = job.setdefault("since", {})
+        since.setdefault(u, time.time())
+        told = job.setdefault("mgr_told", {})
+        if time.time() - since[u] > STUCK and not told.get(u):
+            told[u] = True
+            mins = int((time.time() - since[u]) / 60)
+            n = self._db.with_prefix("devidx:").get(key)
+            dev = f"#{n}" if n else (key[2:] if key.startswith("s:") else key)
+            self.tell_manager(f"[Aviso del IDE] «Mergear todo» del desarrollo {dev} está pegado: {ref} lleva {mins} min {why}. "
+                              f"Revisa la sesión del desarrollo (`ide dev show '{dev}'`, `ide merges`): "
+                              "si está parada o no avanza, empújala; si necesita una decisión, pregúntale al usuario.")
 
     def _cards(self) -> dict[str, dict]:
         st = self._stacks() or {}
@@ -162,14 +195,23 @@ class MergeAll:
                     fix[u] = None if job.pop("retry_now", False) else sha
                 if fix[u] != sha:
                     fix.pop(u, None)
+                    _clear(job, u)
                     try:
                         self._merger.retry(u)
                     except SessionError:
                         pass
+                else:
+                    self._since(key, job, u, ref(c), "esperando que su sesión arregle el conflicto")
                 continue
             if mj.get("state") == "error":
                 return self._halt(key, job, f"el merge de {ref(c)} falló: {mj.get('error')}")
             sha = c.get("headSha") or c.get("updatedAt")
+            if c.get("ci") == "failure":
+                if job["ci_told"].get(u) != sha:
+                    _clear(job, u)                  # un commit nuevo que también falla: se cuenta de nuevo
+                self._since(key, job, u, ref(c), "con el CI fallido esperando el arreglo de su sesión")
+            elif (job.get("since") or {}).get(u) and u not in (job.get("fix_wait") or {}):
+                _clear(job, u)                      # el CI pasó: ya no espera
             if c.get("ci") == "failure" and job["ci_told"].get(u) != sha:     # una vez por commit
                 job["ci_told"][u] = sha
                 self.tell(key, f"El CI de {ref(c)} falló", f"[Aviso del IDE] «Mergear todo» está esperando: el CI de {ref(c)} "

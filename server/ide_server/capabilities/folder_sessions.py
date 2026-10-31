@@ -844,8 +844,16 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             later_mod.add(db, key, title, text, "ide")
         notify()
 
+    def _tell_manager(text: str) -> None:
+        """A la sesión manager: a su claude si corre; si no, a Para después."""
+        main = find_main(root)
+        if not main:
+            return
+        _tell_dev(f"s:{main}", "Un «Mergear todo» está pegado", text)
+
     if merger is not None and hasattr(merger, "all"):
         merger.all.tell = _tell_dev
+        merger.all.tell_manager = _tell_manager
 
     def _mall():
         if merger is None or not hasattr(merger, "all"):
@@ -855,6 +863,19 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def merge_all_start(p: dict) -> dict:
         """«Mergear todo» de un desarrollo (`key` + las URLs de sus PRs)."""
         return await asyncio.to_thread(_mall().start, str(p["key"]), list(p.get("urls") or []))
+
+    async def merges_list(_p: dict) -> dict:
+        """Los «Mergear todo» (por desarrollo, con su número y título) y los merges sueltos en curso."""
+        idx = db.with_prefix("devidx:") if db else {}
+        names = db.dev_names() if db else {}
+        mall = merger.all.public() if merger is not None and hasattr(merger, "all") else {}
+        out = []
+        for key, j in mall.items():
+            row = db.dev(key[2:]) if db and key.startswith("s:") else None
+            out.append({"key": key, "index": idx.get(key), "title": names.get(key) or (row or {}).get("title"), **j})
+        single = {u: j for u, j in (merger.public() if merger else {}).items() if j.get("state") in
+                  ("rebasing", "waiting", "waiting_ci", "merging", "restacking", "error")}
+        return {"mergeAll": out, "merges": single}
 
     async def merge_all_resume(p: dict) -> dict:
         await asyncio.to_thread(_mall().resume, str(p["key"]))
@@ -1627,7 +1648,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "servers.stop": servers_stop, "servers.log": servers_log, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
-        "dev.mergeAllStop": merge_all_stop, "dev.mergeAllDismiss": merge_all_dismiss,
+        "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "dev.mergeAllDismiss": merge_all_dismiss,
         "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
