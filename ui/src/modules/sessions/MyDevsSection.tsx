@@ -147,11 +147,13 @@ export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
   const { gh, error } = useGithubReviews();
   const links = useFolders((s) => s.tree.devPrs);
   const states = useFolders((s) => s.tree.devStates);
+  const devTickets = useFolders((s) => s.tree.devTickets);
   const devs = deriveMine(tickets, gh, links);
   const hiddenKeys = useFolders((s) => s.tree.devHidden);
   const ghError = error ?? gh?.error;
   const all: (Entry & { hidden: boolean })[] = devs.map((d) => {
-    const dev = devStateOf(states, d.key, d.prs, d.job ?? (d.prs[0] ? gh?.merges?.[d.prs[0].url] : undefined), d.merged);
+    const dev = devStateOf(states, d.key, d.prs, d.job ?? (d.prs[0] ? gh?.merges?.[d.prs[0].url] : undefined), d.merged,
+      devTickets?.[d.key]?.status);
     return {
     key: d.key, pr: d.prs[0], session: d.session, status: dev.state,
     hidden: d.status !== "merges" && !!isHidden(hiddenKeys, d.key, d.prs),

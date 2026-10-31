@@ -7,7 +7,7 @@ import type { GhPr, MergeJob } from "../../transport/folderSessions";
 import { devKeys } from "./desarrollos";
 
 export type Phase = "investigating" | "developing" | "ready-for-review" | "testing" | "in-review"
-  | "changes-requested" | "approved" | "merging" | "merged";
+  | "changes-requested" | "approved" | "merging" | "staging-evidence" | "merged";
 export type Block = "waiting-input" | "blocked" | "paused";
 export type State = Phase | Block;
 
@@ -24,11 +24,13 @@ export const STATE: Record<State, [string, string, string, string]> = {
   "changes-requested": ["cambios pedidos", "bg-amber-400/[0.09]", "text-amber-300", "un revisor pidió cambios"],
   approved: ["aprobado", "bg-emerald-500/[0.08]", "text-emerald-300", "aprobado, listo para mergear"],
   merging: ["mergeando", "bg-purple-500/[0.09]", "text-purple-300", "el IDE lo está mergeando"],
+  "staging-evidence": ["evidencias en staging", "bg-fuchsia-500/[0.09]", "text-fuchsia-300",
+    "mergeado y su ticket en Live Staging: falta sacar las evidencias en staging y pasar el ticket a Completed Staging"],
   merged: ["mergeado", "bg-purple-500/[0.09]", "text-purple-300", "todas sus PRs ya están mergeadas"],
 };
 /** Orden de los grupos: lo que hay que destrabar primero, después el flujo, pausado al final. */
 export const STATE_ORDER: State[] = ["waiting-input", "blocked", "changes-requested", "investigating", "developing",
-  "ready-for-review", "testing", "in-review", "approved", "merging", "merged", "paused"];
+  "ready-for-review", "testing", "in-review", "approved", "merging", "staging-evidence", "merged", "paused"];
 export const BLOCKS: Block[] = ["waiting-input", "blocked", "paused"];
 /** Las pausas que se ponen: "esperando tu input" ya no es del desarrollo (es la actividad de la
  *  sesión, por los hooks); las que quedaron puestas se ven hasta que las cambies. */
@@ -68,12 +70,14 @@ export function githubPhase(prs: GhPr[], job?: MergeJob, merged: GhPr[] = []): P
   return "approved";
 }
 
+/** `ticket`: el Status del ticket de Notion: mergeado y en «Live Staging» = faltan las evidencias en staging. */
 export function devStateOf(states: DevStates | undefined, key: string, prs: GhPr[] = [], job?: MergeJob,
-  merged: GhPr[] = []): DevStateInfo {
+  merged: GhPr[] = [], ticket?: string | null): DevStateInfo {
   const s = devKeys(key, prs).map((k) => states?.[k]).find(Boolean);
   const manual = (PHASES as string[]).includes(s?.phase ?? "") ? s!.phase as Phase : null;
   const block = (BLOCKS as string[]).includes(s?.block ?? "") ? s!.block as Block : null;
-  const gh = githubPhase(prs, job, merged);
+  const gh0 = githubPhase(prs, job, merged);
+  const gh: Phase | null = gh0 === "merged" && ticket === "Live Staging" ? "staging-evidence" : gh0;
   // puesta a mano desde la UI: gana mientras GitHub siga en la fase de ese momento
   const pinned = !!manual && !!s && "gh" in s && (s.gh ?? null) === gh;
   // "investigando" puesto por la sesión queda viejo apenas abre una PR: con PRs es "desarrollando"

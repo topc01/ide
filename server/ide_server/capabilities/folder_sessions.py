@@ -171,6 +171,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     continue
                 db.event(datetime.now().isoformat(timespec="seconds"), "ide", "ticket-status", dev=s_["id"],
                          data={"from": status, "to": notion.LIVE_STAGING, "note": "se mergeó la última PR"})
+                _tell_dev(f"s:{s_['id']}", "Evidencias en staging",
+                          "[Aviso del IDE] Se mergeó la última PR del desarrollo y su ticket pasó a Live Staging. Ahora toca "
+                          "**sacar las evidencias en staging**: prueba el flujo en tech.finnecto.com (perfiles `browser-tech-…`, "
+                          "`ide browser ls`), carga las fotos en el bloque Evidencias del ticket y pásalo a Completed Staging. "
+                          "Cuéntale al usuario en una línea qué cargaste.")
             db.set(f"notionlive:{s_['id']}", True)
 
     if merger is not None and hasattr(merger, "all"):

@@ -33,7 +33,8 @@ function StateButton({ st, on, faded, onClick, disabled, title }:
 function StateEditor({ devKey, prs, merged }: { devKey: string; prs: GhPr[]; merged?: GhPr[] }) {
   const states = useFolders((s) => s.tree.devStates);
   const { gh } = useGithubReviews();
-  const cur = devStateOf(states, devKey, prs, prs[0] ? gh?.merges?.[prs[0].url] : undefined, merged);
+  const ticket = useFolders((s) => s.tree.devTickets?.[devKey]?.status);
+  const cur = devStateOf(states, devKey, prs, prs[0] ? gh?.merges?.[prs[0].url] : undefined, merged, ticket);
   const [note, setNote] = useState(cur.note ?? "");
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
