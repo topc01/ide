@@ -11,7 +11,7 @@ export function DevSwitcher() {
   const { open, items, index } = useSwitcher();
   const tree = useFolders((s) => s.tree);
   const sel = useRef<HTMLButtonElement>(null);
-  useEffect(() => { sel.current?.scrollIntoView({ block: "nearest", inline: "center" }); }, [index, open]);
+  useEffect(() => { sel.current?.scrollIntoView({ block: "nearest", inline: "nearest" }); }, [index, open]);
   if (!open) return null;
   const info = (k: string) => {
     if (k.startsWith("p:")) {
@@ -38,7 +38,9 @@ export function DevSwitcher() {
             const on = i === index;
             return (
               <button key={k} ref={on ? sel : undefined} title={d.title}
-                onMouseEnter={() => useSwitcher.setState({ index: i })}
+                // solo si el mouse se mueve de verdad: con mouseenter, el scroll de las flechas pasaba
+                // tarjetas bajo el puntero quieto y la selección saltaba varias de una vez
+                onMouseMove={(e) => { if ((e.movementX || e.movementY) && useSwitcher.getState().index !== i) useSwitcher.setState({ index: i }); }}
                 onClick={() => { useSwitcher.setState({ index: i }); window.dispatchEvent(new KeyboardEvent("keyup", { key: "Meta" })); }}
                 // las tarjetas, sólidas (el panel es el que deja ver algo de atrás); la marcada, teñida de ámbar
                 style={{ background: on ? "color-mix(in srgb, var(--primary) 22%, var(--card))" : "var(--card)" }}

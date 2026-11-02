@@ -43,14 +43,14 @@ export function MainSidebar() {
       )}
       <div className={connected ? "" : "opacity-50"}>
         {/* pestañas de las sesiones de siempre: la manager, la del IDE y Recursos */}
-        <div className="flex items-end gap-1 border-b border-border px-2 pt-2">
+        <div className="flex items-center gap-1.5 px-2.5 pt-2.5">
           {main ? <SessionTab session={main} label="Manager" title={`La sesión manager: coordina los desarrollos (${main.id})`}
               active={activeId === main.id && !activePrUrl} onClick={() => setActive(main.id)} />
             : (<>
               <button title="Crear y lanzar la sesión manager" onClick={() => { setMainError(null); newSession(getWs(), { main: true })
                   .then((r: any) => setActive(r.session.id))
                   .catch((e: any) => setMainError(e?.message ?? String(e))); }}
-                className="rounded-t-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent/60 hover:text-foreground">+ Manager</button>
+                className="rounded-md border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground">+ Manager</button>
               {mainError && <span role="alert" title={mainError} className="pb-1.5 text-xs text-destructive">⚠</span>}
             </>)}
           {ide && <SessionTab session={ide} label="IDE" title="Claude en el repo del IDE (para trabajar en el IDE)"
@@ -58,7 +58,7 @@ export function MainSidebar() {
           {recursos && <SessionTab session={recursos} label="Recursos"
             title="Claude que mira qué consume el computador (batería, CPU) y corta lo abandonado"
             active={activeId === recursos.id && !activePrUrl} onClick={() => setActive(recursos.id)} />}
-          <div className="ml-auto pb-1">
+          <div className="ml-auto">
             <button aria-label="Nueva sesión" title="Nueva sesión" onClick={() => openModal("session")}
               className="grid h-5 w-5 place-items-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><Plus size={13} /></button>
           </div>
@@ -82,10 +82,11 @@ function SessionTab({ session, label, title, active, onClick }:
   const note = (waitTime(session) ? ` (terminó a las ${waitTime(session)})` : "")
     + (act === "waiting" && session.activity?.note ? `: ${session.activity.note}` : "");
   return (
+    // una card chica (como las de la sidebar): la elegida con el contorno de acento
     <button role="tab" aria-selected={active} title={`${title} — ${what}${note}`} onClick={onClick}
-      className={cn("-mb-px flex items-center gap-1.5 rounded-t-md border border-b-0 px-3 py-1.5 text-xs font-semibold transition-colors",
-        active ? "border-border bg-background text-foreground shadow-[inset_0_2px_0_var(--primary)]"
-          : "border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground")}>
+      className={cn("flex items-center gap-1.5 rounded-md border bg-card px-3 py-1.5 text-xs font-semibold transition-colors",
+        active ? "border-primary text-foreground ring-1 ring-primary"
+          : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground")}>
       {label}
       <span aria-hidden className={cn("text-[9px]", cls)}>{dot}</span>
     </button>);
