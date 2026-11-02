@@ -250,16 +250,22 @@ def _notify_mac(message: str, focus: str | None = None) -> None:
         return
     tn = shutil.which("terminal-notifier") or next(
         (p for p in ("/opt/homebrew/bin/terminal-notifier", "/usr/local/bin/terminal-notifier") if Path(p).is_file()), None)
+    # el texto va como argumento (no se interpreta como AppleScript)
+    plain = ["osascript", "-e", "on run argv", "-e", 'display notification (item 1 of argv) with title "IDE"',
+             "-e", "end run", message[:200]]
     if tn:
         from urllib.parse import quote
         url = f"{NOTIFY_URL}/#{quote(focus)}" if NOTIFY_URL and focus else NOTIFY_URL
         argv = [tn, "-title", "IDE", "-message", message[:200], *(["-open", url] if url else []),
                 *(["-group", f"ide-{focus}"] if focus else [])]
-    else:
-        # el texto va como argumento (no se interpreta como AppleScript)
-        argv = ["osascript", "-e", "on run argv", "-e", 'display notification (item 1 of argv) with title "IDE"',
-                "-e", "end run", message[:200]]
-    threading.Thread(target=lambda: subprocess.run(argv, capture_output=True), daemon=True).start()
+
+        def send() -> None:
+            # sin permiso de notificaciones (macOS), terminal-notifier falla: el aviso sale igual por osascript
+            if subprocess.run(argv, capture_output=True).returncode != 0:
+                subprocess.run(plain, capture_output=True)
+        threading.Thread(target=send, daemon=True).start()
+        return
+    threading.Thread(target=lambda: subprocess.run(plain, capture_output=True), daemon=True).start()
 
 
 def set_dev_state(root: Path, db: Db, key: str, status: str | None, *, actor: str, note: str | None = None,
