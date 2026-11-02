@@ -126,6 +126,18 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
                 log.exception("no se pudo guardar el historial de las terminales")
 
     stop_bg = asyncio.Event()
+
+    async def browsers_loop(stop: asyncio.Event) -> None:
+        from ide_server.browsers import write_mcp_config
+        while not stop.is_set():
+            try:
+                await asyncio.to_thread(write_mcp_config, root)
+            except Exception:  # noqa: BLE001
+                log.exception("servidores de navegador")
+            try:
+                await asyncio.wait_for(stop.wait(), 60)
+            except asyncio.TimeoutError:
+                pass
     from ide_server.devs import _notify_mac
     from ide_server.procs import Watcher
     procs_watcher = Watcher(root, _notify_mac)
@@ -150,6 +162,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             *([] if os.environ.get("IDE_DB_PATH") else [asyncio.create_task(notify_box["fn"].notion_loop(stop_bg))]),
             # el vigilante de recursos (sin IA); no en un IDE de prueba (avisaría dos veces)
             *([] if os.environ.get("IDE_DB_PATH") else [asyncio.create_task(procs_watcher.run(stop_bg))]),
+            # los navegadores de prueba compartidos (uno por perfil): se levantan y se reviven si se caen
+            *([] if os.environ.get("IDE_DB_PATH") else [asyncio.create_task(browsers_loop(stop_bg))]),
             # con IDE_DB_PATH (un IDE de prueba contra una copia) no se conecta a Telegram: le robaría los
             # mensajes al IDE real (Telegram entrega cada mensaje a un solo getUpdates)
             *([asyncio.create_task(notify_box["fn"].telegram.run(stop_bg))]

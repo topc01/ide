@@ -157,24 +157,106 @@ def _shared_local(root: Path) -> tuple[Path, Path]:
     return outs[0], outs[1]
 
 
-def write_mcp_config(root: Path, *, local_only: bool = False) -> Path:
-    """`.ide/browsers/mcp.json`: `browser-local` (siempre) y un servidor por perfil (`mcp-local.json`: solo
-    los locales, para las sesiones que no piden permiso, que no deben tener una cuenta REAL)."""
-    f = base(root) / ("mcp-local.json" if local_only else "mcp.json")
-    profiles = [p for p in list_profiles(root) if p["local"] or not local_only]
-    base(root).mkdir(parents=True, exist_ok=True, mode=0o700)
+def _specs(root: Path) -> dict[str, list[str]]:
+    """Por servidor (`browser-local`, `browser-<perfil>`): los argumentos de su Playwright MCP."""
     cookies, script = _shared_local(root)
-    servers = {LOCAL_SERVER: {"command": "npx", "args": [
-        "-y", f"@playwright/mcp@{MCP_VERSION}", "--isolated", "--browser", "chrome",
-        "--storage-state", str(cookies), "--init-script", str(script)]}}
-    for p in profiles:
-        servers[p["server"]] = {"command": "npx", "args": [
-            "-y", f"@playwright/mcp@{MCP_VERSION}", "--isolated", "--browser", "chrome",
-            "--storage-state", str(base(root) / p["name"] / "state.json")]}
+    out = {LOCAL_SERVER: ["--storage-state", str(cookies), "--init-script", str(script)]}
+    for p in list_profiles(root):
+        out[p["server"]] = ["--storage-state", str(base(root) / p["name"] / "state.json")]
+    return out
+
+
+def _ports(root: Path, names) -> dict[str, int]:
+    """Un puerto fijo por servidor (`.ide/browsers/ports.json`): las sesiones que ya corren lo siguen usando."""
+    f = base(root) / "ports.json"
+    try:
+        ports = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        ports = {}
+    for n in names:
+        if n not in ports:
+            ports[n] = max([PORT0 - 1, *ports.values()]) + 1
+    f.write_text(json.dumps(ports, indent=2) + "\n", encoding="utf-8")
+    return ports
+
+
+PORT0 = 18920
+
+
+def write_mcp_config(root: Path, *, local_only: bool = False) -> Path:
+    """`.ide/browsers/mcp.json`: `browser-local` (siempre) y uno por perfil (`mcp-local.json`: solo los locales,
+    para las sesiones que no piden permiso, que no deben tener una cuenta REAL). Cada uno es un servidor
+    Playwright MCP **compartido** entre todas las sesiones (`BrowserServers`; por HTTP, cada sesión con su
+    propio navegador aislado): antes cada sesión levantaba los suyos (~150 MB por perfil y sesión)."""
+    f = base(root) / ("mcp-local.json" if local_only else "mcp.json")
+    base(root).mkdir(parents=True, exist_ok=True, mode=0o700)
+    local = {p["server"] for p in list_profiles(root) if p["local"]} | {LOCAL_SERVER}
+    specs = _specs(root)
+    ports = _ports(root, specs)
+    BrowserServers.of(root).ensure()
+    servers = {n: {"type": "http", "url": f"http://localhost:{ports[n]}/mcp"}
+               for n in specs if n in local or not local_only}
     text = json.dumps({"mcpServers": servers}, indent=2) + "\n"
     if not f.is_file() or f.read_text(encoding="utf-8") != text:
         f.write_text(text, encoding="utf-8")
     return f
+
+
+class BrowserServers:
+    """Los servidores Playwright MCP compartidos, uno por perfil, como procesos aparte (siguen vivos si el
+    IDE se reinicia: se reconocen por su pid en `.ide/browsers/servers/<nombre>.json`). `ensure` levanta los
+    que faltan, reinicia los que cambiaron de argumentos y para los de perfiles que ya no están. El
+    navegador de cada uno se abre recién cuando una sesión lo usa."""
+    _by_root: dict[str, "BrowserServers"] = {}
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+
+    @classmethod
+    def of(cls, root: Path) -> "BrowserServers":
+        return cls._by_root.setdefault(str(root.resolve()), cls(root))
+
+    def _dir(self) -> Path:
+        d = base(self.root) / "servers"
+        d.mkdir(parents=True, exist_ok=True, mode=0o700)
+        return d
+
+    @staticmethod
+    def _alive(pid: int | None) -> bool:
+        if not pid:
+            return False
+        try:
+            os.kill(pid, 0)
+        except (ProcessLookupError, PermissionError):
+            return False
+        out = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True).stdout
+        return "playwright/mcp" in out
+
+    def ensure(self) -> None:
+        import signal
+        specs = _specs(self.root)
+        ports = _ports(self.root, specs)
+        for f in self._dir().glob("*.json"):            # perfiles que ya no están
+            if f.stem not in specs:
+                info = json.loads(f.read_text(encoding="utf-8"))
+                if self._alive(info.get("pid")):
+                    os.killpg(info["pid"], signal.SIGTERM)
+                f.unlink()
+        for name, args in specs.items():
+            f = self._dir() / f"{name}.json"
+            want = [*args, "--port", str(ports[name])]
+            try:
+                info = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                info = {}
+            if self._alive(info.get("pid")):
+                if info.get("args") == want:
+                    continue
+                os.killpg(info["pid"], signal.SIGTERM)  # cambió (p.ej. otro archivo de sesión): se relanza
+            log = open(self._dir() / f"{name}.log", "ab")
+            proc = subprocess.Popen(["npx", "-y", f"@playwright/mcp@{MCP_VERSION}", "--isolated", "--browser", "chrome", *want],
+                                    stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
+            f.write_text(json.dumps({"pid": proc.pid, "args": want}) + "\n", encoding="utf-8")
 
 
 def allowed_tools(root: Path) -> list[str]:
