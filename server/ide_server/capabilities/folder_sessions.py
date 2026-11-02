@@ -906,6 +906,21 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {**res, "log": lines}
 
+    async def open_prs(_p: dict) -> dict:
+        """Las PRs abiertas de la org (las de la última consulta a GitHub), por repo: para elegir cuál revisar.
+        Sin las tuyas (no te revisas a ti mismo)."""
+        me = (gh_reviews.state or {}).get("me") if gh_reviews else None
+        here = {r["id"] for r in discover_repos(root)}     # solo repos del workspace (si no, no hay worktree)
+        out: dict[str, list] = {}
+        for n in (db.open_prs() if db else []):
+            author = (n.get("author") or {}).get("login")
+            repo = (n.get("repository") or {}).get("name")
+            if author == me or repo not in here:
+                continue
+            out.setdefault(repo, []).append({"url": n["url"], "number": n["number"], "title": n.get("title"),
+                                             "author": author, "draft": bool(n.get("isDraft"))})
+        return {"repos": {r: sorted(v, key=lambda x: -x["number"]) for r, v in sorted(out.items())}}
+
     async def merges_list(_p: dict) -> dict:
         """Los «Mergear todo» (por desarrollo, con su número y título) y los merges sueltos en curso."""
         idx = db.with_prefix("devidx:") if db else {}
@@ -1690,7 +1705,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "servers.stop": servers_stop, "servers.log": servers_log, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
-        "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
+        "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
         "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,

@@ -200,6 +200,9 @@ export interface MergeJob {
   repo?: string; number?: number; title?: string; above?: { url: string }[];
   native?: boolean; merged_at?: string | null; url?: string;
 }
+/** Las PRs abiertas de la org (sin las tuyas), por repo: para elegir cuál revisar. */
+export interface OpenPr { url: string; number: number; title: string | null; author: string | null; draft: boolean }
+export const fetchOpenPrs = (ws: WsClient): Promise<{ repos: Record<string, OpenPr[]> }> => ws.request("reviews.openPrs", {});
 export const mergePr = (ws: WsClient, url: string): Promise<MergeJob> => ws.request("reviews.merge", { url });
 /** «Mergear todo» de un desarrollo: running (avanzando), error (detenido por un problema), stopped (lo
  *  detuviste), done. `waiting`: por qué alguna PR todavía no se mergea. */

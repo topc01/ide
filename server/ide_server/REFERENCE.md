@@ -468,6 +468,9 @@ notion_url: https://www.notion.so/...
 
 ## 9b. Revisiones de GitHub y barra de usage (UI)
 
+**Nueva revisión** (el **+** de Revisiones): eliges el **repo** y una de sus **PRs abiertas** (número, título, autor; de la última
+consulta a GitHub, sin las tuyas y solo repos del workspace; canal `reviews.openPrs`), o pegas la URL si no aparece.
+
 **Revisiones** (sidebar principal): cada `github_interval` s el server hace un `gh api graphql`
 (org-wide, no depende de la sesión abierta; al arrancar, mientras llega la primera consulta, muestra
 lo de la última guardada en la base) y la UI muestra cards en dos grupos:

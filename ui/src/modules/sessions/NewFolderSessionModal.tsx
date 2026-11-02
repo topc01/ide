@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useFolders } from "../../state/folders";
-import { newSession, type NewSessionReq } from "../../transport/folderSessions";
+import { fetchOpenPrs, newSession, type NewSessionReq, type OpenPr } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
@@ -20,8 +20,18 @@ export function NewFolderSessionModal() {
   const [prUrl, setPrUrl] = useState(""); const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // revisión: repo + una de sus PRs abiertas (o pegar la URL)
+  const [openPrs, setOpenPrs] = useState<Record<string, OpenPr[]> | null>(null);
+  const [repo, setRepo] = useState("");
+
   // Un error viejo no debe verse al reabrir el modal.
   useEffect(() => { setError(null); }, [modal]);
+  useEffect(() => {
+    if (modal !== "review") return;
+    setOpenPrs(null); setPrUrl("");
+    fetchOpenPrs(getWs()).then((r) => { setOpenPrs(r.repos); setRepo((cur) => cur && r.repos[cur] ? cur : Object.keys(r.repos)[0] ?? ""); })
+      .catch((e: any) => setError(e?.message ?? String(e)));
+  }, [modal]);
 
   const payload = (): NewSessionReq => {
     if (modal === "review") return { review: prUrl.trim() };
@@ -54,12 +64,29 @@ export function NewFolderSessionModal() {
       <DialogContent>
         <DialogHeader><DialogTitle>{modal === "review" ? "Nueva revisión de PR" : "Nueva sesión"}</DialogTitle></DialogHeader>
         {modal === "review" ? (
-          <div className={field}><Label htmlFor="pr">URL del PR</Label>
-            <Input id="pr" value={prUrl} onChange={(e) => setPrUrl(e.target.value)} /></div>
+          <div className="flex flex-col gap-2">
+            <div className={field}><Label htmlFor="repo">Repo</Label>
+              <select id="repo" className={select} value={repo} disabled={!openPrs}
+                onChange={(e) => { setRepo(e.target.value); setPrUrl(""); }}>
+                {!openPrs && <option>cargando…</option>}
+                {openPrs && Object.entries(openPrs).map(([r, list]) => (
+                  <option key={r} value={r}>{r.replace(/^finnecto-/, "")} ({list.length} abiertas)</option>))}
+              </select></div>
+            <div className={field}><Label htmlFor="prsel">PR</Label>
+              <select id="prsel" className={select} value={prUrl} disabled={!openPrs?.[repo]?.length}
+                onChange={(e) => setPrUrl(e.target.value)}>
+                <option value="">elige una PR…</option>
+                {(openPrs?.[repo] ?? []).map((p) => (
+                  <option key={p.url} value={p.url}>#{p.number} {p.title}{p.author ? ` · @${p.author}` : ""}{p.draft ? " (draft)" : ""}</option>))}
+              </select></div>
+            <div className={field}><Label htmlFor="pr">o la URL del PR</Label>
+              <Input id="pr" placeholder="https://github.com/…/pull/123 (si no aparece arriba)" value={prUrl}
+                onChange={(e) => setPrUrl(e.target.value)} /></div>
+          </div>
         ) : (
           <div className="flex flex-col gap-2">
             <div className={field}><Label htmlFor="sid">Id</Label>
-              <Input id="sid" placeholder="vacío = al azar" value={id} onChange={(e) => setId(e.target.value)} /></div>
+              <Input id="sid" placeholder="vacío = el número del desarrollo (#n)" value={id} onChange={(e) => setId(e.target.value)} /></div>
             <div className={field}><Label htmlFor="tpl">Plantilla</Label>
               <select id="tpl" className={select} value={template}
                 onChange={(e) => setTemplate(e.target.value as any)}>
@@ -84,7 +111,7 @@ export function NewFolderSessionModal() {
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
         <DialogFooter>
           <Button title="Cerrar sin crear" variant="ghost" onClick={closeModal}>Cancelar</Button>
-          <Button title="Crear la sesión y lanzar claude" onClick={submit} disabled={busy}>Crear</Button>
+          <Button title="Crear la sesión y lanzar claude" onClick={submit} disabled={busy || (modal === "review" && !prUrl.trim())}>Crear</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
