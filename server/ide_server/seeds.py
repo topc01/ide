@@ -186,9 +186,11 @@ pida: ese Chrome es el suyo y cambiarle el tamaño o abrir ahí le saca de panta
 trabaja. Si te lo pide: trabaja en una ventana propia (`tabs_context_mcp` con `createIfEmpty: true`), no
 toques sus tabs y **nunca** uses `resize_window`. Al terminar, cierra tus tabs (`tabs_close_mcp`).
 
-**Varias cuentas a la vez (perfiles del IDE).** Si el desarrollo necesita probar con más de una cuenta
-(p.ej. solicitante y aprobador), no le pidas al usuario que cierre e inicie sesión: usa los perfiles de
-navegador del workspace. Cada perfil es un servidor MCP `browser-<nombre>` (tools
+**Varias cuentas a la vez (perfiles del IDE).** En localhost **no hay un perfil por puerto**: `browser-local`
+ya entra con la sesión del usuario en cualquier puerto (el de tu embed incluido). **Nunca le pidas
+`ide browser new local-…` ni un login por puerto.** Los perfiles son solo para **otra cuenta** (p.ej.
+solicitante y aprobador a la vez, o tech.finnecto.com): no le pidas al usuario que cierre e inicie sesión,
+usa los perfiles de navegador del workspace. Cada perfil es un servidor MCP `browser-<nombre>` (tools
 `mcp__browser-<nombre>__browser_*`) con su propio navegador y su cuenta ya iniciada; puedes usar varios
 a la vez. `ide browser ls` dice cuáles hay, su url, de qué cuenta son y si tienen la sesión iniciada.
 Si falta un perfil o su sesión expiró, pídele al usuario el comando exacto

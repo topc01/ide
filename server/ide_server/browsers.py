@@ -135,6 +135,9 @@ def _shared_local(root: Path) -> tuple[Path, Path]:
     (vacíos sin login): el MCP los lee al abrir el navegador, así un login nuevo sirve sin relanzar."""
     src = shared_state(root)
     src.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    for f in (src, src.parent / "url"):         # la sesión del usuario: solo él la lee
+        if f.is_file():
+            f.chmod(0o600)
     data = json.loads(src.read_text(encoding="utf-8")) if _logged(src) else {"cookies": [], "origins": []}
     store = {i["name"]: i["value"] for o in data.get("origins") or [] for i in o.get("localStorage") or []}
     script = ("(() => { if (!/^(localhost|127\\.0\\.0\\.1)$/.test(location.hostname)) return;\n"
