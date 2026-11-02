@@ -653,13 +653,13 @@ def _notion_cmd(a, env, out: TextIO) -> int:
             return 1
     if env.get("IDE_SESSION_ID"):
         raise SessionError("forbidden", "el token de Notion lo guarda el usuario en su terminal: pídeselo")
-    out.write("Token de la integración interna de Notion (Settings → Connections → Develop or manage integrations;\n"
-              "dale acceso a la base Desarrollo con «Add connections» en la base). No se muestra al escribirlo.\n")
+    out.write("Token de Notion: uno personal (Developer tools → Personal access tokens: actúa con tu usuario) o el de\n"
+              "una conexión interna (con la base Desarrollo compartida con ella). No se muestra al escribirlo.\n")
     out.flush()
     notion.set_token(getpass.getpass("Token: ").strip())
     try:
         notion._call("GET", "/users/me")
-        out.write("guardado en el llavero y responde. (Si un ticket da 404, comparte la base Desarrollo con la integración.)\n")
+        out.write("guardado en el llavero y responde.\n")
     except SessionError as exc:
         out.write(f"guardado, pero no responde: {exc}\n")
     return 0

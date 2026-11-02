@@ -69,8 +69,9 @@ def get_token() -> str | None:
 
 def set_token(token: str) -> None:
     """Al llavero por stdin (`security -i`): como argumento quedaría a la vista en `ps`."""
-    if not re.fullmatch(r"(secret_|ntn_)[A-Za-z0-9]{20,80}", token):
-        raise SessionError("bad_request", "eso no parece un token de integración de Notion (empieza con ntn_ o secret_)")
+    # de una conexión interna (ntn_…/secret_…) o un token personal (Developer tools → Personal access tokens)
+    if not re.fullmatch(r"[A-Za-z0-9_\-]{20,200}", token):
+        raise SessionError("bad_request", "eso no parece un token de Notion (sin espacios ni comillas)")
     out = subprocess.run(["security", "-i"], input=f'add-generic-password -U -s {SERVICE} -a integration -w "{token}"\n',
                          capture_output=True, text=True)
     if out.returncode != 0:
