@@ -632,6 +632,8 @@ PR tuya sin sesión, una **sesión en su rama** (ver abajo); en una PR de otro s
 **sesión de revisión** (se abre su `claude`); y **reabre** lo cerrado
 (doc, resúmenes de las otras PRs del desarrollo). × cierra la tab sin parar nada. Sin límite de tabs.
 
+**App instalable (PWA):** el IDE trae manifiesto (`manifest.json`), íconos y un service worker mínimo (`sw.js`, sin caché: la UI siempre en vivo), así que Chrome lo ofrece instalar como app (ícono de instalar en la barra de direcciones, o ⋮ → Transmitir, guardar y compartir → Instalar página como app): abre en su propia ventana, con su ícono en el Dock.
+
 **URL de una sesión:** `#<id>` enfoca esa sesión al abrir el IDE (p.ej. `http://127.0.0.1:8787/#98`, `#manager`, `#ide`; el id de una sesión de ticket es su número) y se actualiza al elegir otra. Las **notificaciones de macOS** (te espera, Recursos) usan `terminal-notifier` si está instalado (`brew install terminal-notifier`): un click lleva a **la pestaña de Chrome que ya tiene el IDE** y la cambia a esa sesión (solo el `#`, no recarga; `assets/focus_tab.applescript`, pide permiso de Automatización para Chrome la primera vez); si no hay ninguna, abre una nueva (necesita permiso en Configuración del Sistema → Notificaciones → terminal-notifier; si falla, el aviso sale igual con osascript); sin él, salen con osascript y el click no abre nada.
 
 **Pestañas Manager | IDE | Recursos** (arriba de la sidebar principal): las dos sesiones fijas, la elegida

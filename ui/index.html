@@ -1,4 +1,9 @@
 <!doctype html><html lang="es"><head><meta charset="UTF-8" />
 <title>Agentic IDE</title>
+<link rel="manifest" href="/manifest.json" />
+<link rel="icon" href="/icon-192.png" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<meta name="theme-color" content="#1c1a17" />
 <script>try{var t=localStorage.getItem("ide.theme");if(t==="light"||(t==="system"&&matchMedia("(prefers-color-scheme: light)").matches))document.documentElement.classList.add("light")}catch(e){}</script></head><body><div id="root"></div>
-<script type="module" src="/src/main.tsx"></script></body></html>
+<script type="module" src="/src/main.tsx"></script>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(function(){})</script></body></html>
