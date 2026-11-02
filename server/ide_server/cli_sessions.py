@@ -764,7 +764,7 @@ def _handoff(a, root: Path, home: Path, out: TextIO) -> int:
 
 
 def _db_query(env_name: str, sql: str, home: Path, out: TextIO, err: TextIO, *, csv: bool = False,
-              to: str | None = None, cwd: Path | None = None) -> int:
+              to: str | None = None, root: Path | None = None, sid: str | None = None) -> int:
     """Solo el SQL llega a psql: nada de otros argumentos ni comandos de psql (`\\!` corre comandos
     del sistema, `\\o`/`\\copy` escriben archivos), que el usuario read-only de la base no frena."""
     import subprocess
@@ -780,20 +780,19 @@ def _db_query(env_name: str, sql: str, home: Path, out: TextIO, err: TextIO, *, 
     if to and r.returncode == 0:
         # el resultado a un archivo: así no hace falta un pipe (un `ide db … | …` ya no es el comando permitido)
         # `ide db` va permitido sin preguntar: `--out` no puede ser una vía para escribir donde sea (config de
-        # claude, del shell…). Solo un archivo nuevo, relativo y dentro de la carpeta donde se corre.
+        # claude o del shell, un conftest.py…). Solo un nombre de archivo de datos, en una carpeta fija: la de la
+        # sesión (`attachments/db/`, el usuario lo ve en Adjuntos) o, desde la terminal, `.ide/db-out/`.
         import os
-        base = (cwd or Path.cwd()).resolve()
-        rel = Path(to)
-        if rel.is_absolute() or ".." in rel.parts or any(part.startswith(".") for part in rel.parts):
-            raise SessionError("bad_request", "--out: un archivo relativo a esta carpeta (sin /, .. ni carpetas ocultas)")
-        f = base / rel
-        f.parent.mkdir(parents=True, exist_ok=True)
-        if f.parent.resolve() != f.parent or not f.parent.resolve().is_relative_to(base):
-            raise SessionError("bad_request", "--out: la carpeta sale de la carpeta actual (enlace)")
+        from ide_server.sessions_fs import session_path
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,80}\.(csv|tsv|txt|json)", to):
+            raise SessionError("bad_request", "--out: solo un nombre de archivo de datos (p.ej. facturas.csv; .csv, .tsv, .txt o .json)")
+        base = (session_path(root, sid) / "attachments" / "db") if sid and root else ((root or Path.cwd()) / ".ide" / "db-out")
+        base.mkdir(parents=True, exist_ok=True)
+        f = base / to
         try:
             fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         except FileExistsError:
-            raise SessionError("exists", f"--out: {to} ya existe (usa otro nombre)")
+            raise SessionError("exists", f"--out: {f} ya existe (usa otro nombre)")
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(r.stdout)
         out.write(f"{len(r.stdout.splitlines())} líneas en {f}\n")
@@ -840,7 +839,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "telegram":
             return _telegram(a, root, url, http, out)
         if a.group == "db":
-            return _db_query(a.env, a.sql, home, out, err, csv=a.csv, to=a.out, cwd=cwd)
+            return _db_query(a.env, a.sql, home, out, err, csv=a.csv, to=a.out, root=root, sid=env.get("IDE_SESSION_ID"))
         if a.group == "browser":
             return _browser(a, root, env, out)
         if a.group == "migrate-ids":

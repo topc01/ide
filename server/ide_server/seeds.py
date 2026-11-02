@@ -48,8 +48,8 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
 - `ide db <prod|staging> "<SQL>" [--csv] [--out <archivo>]`: una consulta de solo lectura a la base (sin comandos
   de psql: nada con `\\\\`). **Córrelo siempre solo, como único comando de la línea**: sin pipes (`| head`,
   `| tr`), sin `;`, sin loops (`for env in …`) ni `cd … &&` delante. Solo así lo cubre el permiso; combinado,
-  el clasificador lo bloquea como «Production Reads». Para procesar el resultado: `--out archivo` (con `--csv`)
-  y después léelo en otro comando; para filtrar u ordenar, hazlo en el SQL.
+  el clasificador lo bloquea como «Production Reads». Para procesar el resultado: `--out nombre.csv` (con `--csv`;
+  queda en `attachments/db/`) y después léelo en otro comando; para filtrar u ordenar, hazlo en el SQL.
 - `ide script <nombre> [<repo>]`: corre un script del repo (`run`, `test`, …).
 - `ide session ls [--json]`: lista sesiones y su estado.
 - `ide session new --if-missing --notion <url> --template ticket --vars-file -` (JSON por stdin):
