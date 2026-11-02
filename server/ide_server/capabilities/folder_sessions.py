@@ -992,7 +992,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             from ide_server.devs import _notify_mac
             label = (db.get(f"devname:s:{sid}") if db else None) or sid
             note = (supervisor.snapshot().get(sid, {}).get("activity") or {}).get("note")
-            _notify_mac(f"{label} te espera" + (f": {note}" if note else ""))
+            _notify_mac(f"{label} te espera" + (f": {note}" if note else ""), focus=sid)
         return {"ok": True}
 
     async def dev_status(p: dict) -> dict:

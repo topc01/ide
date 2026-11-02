@@ -58,3 +58,29 @@ export const useFolders = create<State>((set) => ({
     scriptTabs: { ...s.scriptTabs,
       [sid]: (s.scriptTabs[sid] ?? []).filter((t) => t.terminalId !== terminalId) } })),
 }));
+
+// La URL enfoca una sesión: `#<id>` (p.ej. `#98`, `#manager`; el id de una sesión de ticket es su número).
+// Al abrir el IDE (o cambiar el hash, p.ej. desde una notificación) se elige esa; al elegir otra, se escribe.
+if (typeof window !== "undefined") {
+  let pending: string | null = null;
+  const apply = () => {
+    const id = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+    if (!id) return;
+    const s = useFolders.getState();
+    if (s.tree.sessions.some((x) => x.id === id)) {
+      pending = null;
+      if (s.activeId !== id || s.activePrUrl) s.setActive(id);
+    } else {
+      pending = id;                             // el árbol todavía no llega: se aplica cuando llegue
+    }
+  };
+  window.addEventListener("hashchange", apply);
+  useFolders.subscribe((s, prev) => {
+    if (pending && s.tree !== prev.tree) apply();
+    if (s.activeId !== prev.activeId || s.activePrUrl !== prev.activePrUrl) {
+      const want = s.activeId && !s.activePrUrl ? `#${encodeURIComponent(s.activeId)}` : "";
+      if (window.location.hash !== want) window.history.replaceState(null, "", want || window.location.pathname + window.location.search);
+    }
+  });
+  apply();
+}

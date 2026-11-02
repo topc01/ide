@@ -219,7 +219,7 @@ class Watcher:
         if now - self._told.get(key, 0) < 2 * 3600:
             return
         self._told[key] = now
-        self.notify(f"Recursos: {msg}")
+        self.notify(f"Recursos: {msg}", RECURSOS)    # el click abre la sesión Recursos
         log = session_path(self.root, RECURSOS) / "alertas.log"
         if log.parent.is_dir():
             with open(log, "a", encoding="utf-8") as f:

@@ -201,7 +201,8 @@ def _apply(db: Db, key: str, status: str | None, note: str | None, actor: str, r
         db.set(f"devstate:{key}", {"phase": phase, "block": block, "note": note if status != "unblock" else None,
                                    "since": since, "actor": actor, **({"gh": pin} if pinned else {})})
     if block == "waiting-input" and before != "waiting-input" and actor != "ide":
-        _notify_mac(f"{key[2:] if key.startswith('s:') else 'Un desarrollo'} te espera" + (f": {note}" if note else ""))
+        _notify_mac(f"{key[2:] if key.startswith('s:') else 'Un desarrollo'} te espera" + (f": {note}" if note else ""),
+                    focus=key[2:] if key.startswith("s:") else None)
     return before, after
 
 
@@ -235,15 +236,29 @@ def set_status(root: Path, db: Db, sid: str, status: str, *, actor: str, note: s
     return db.dev(sid)
 
 
-def _notify_mac(message: str) -> None:
+NOTIFY_URL: str | None = None             # la URL del IDE (la pone app.py): el click en el aviso la abre
+
+
+def _notify_mac(message: str, focus: str | None = None) -> None:
+    """Notificación de macOS. Con `terminal-notifier` (brew), un click abre el IDE enfocado en la sesión
+    `focus` (`<url>#<id>`); si no está, con osascript (sin click)."""
+    import shutil
     import subprocess
     import sys
     import threading
     if sys.platform != "darwin":
         return
-    # el texto va como argumento (no se interpreta como AppleScript)
-    argv = ["osascript", "-e", "on run argv", "-e", 'display notification (item 1 of argv) with title "IDE"',
-            "-e", "end run", message[:200]]
+    tn = shutil.which("terminal-notifier") or next(
+        (p for p in ("/opt/homebrew/bin/terminal-notifier", "/usr/local/bin/terminal-notifier") if Path(p).is_file()), None)
+    if tn:
+        from urllib.parse import quote
+        url = f"{NOTIFY_URL}/#{quote(focus)}" if NOTIFY_URL and focus else NOTIFY_URL
+        argv = [tn, "-title", "IDE", "-message", message[:200], *(["-open", url] if url else []),
+                *(["-group", f"ide-{focus}"] if focus else [])]
+    else:
+        # el texto va como argumento (no se interpreta como AppleScript)
+        argv = ["osascript", "-e", "on run argv", "-e", 'display notification (item 1 of argv) with title "IDE"',
+                "-e", "end run", message[:200]]
     threading.Thread(target=lambda: subprocess.run(argv, capture_output=True), daemon=True).start()
 
 
