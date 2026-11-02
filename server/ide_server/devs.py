@@ -504,6 +504,37 @@ def _name(names: dict[str, str], key: str, prs: list[dict]) -> str | None:
     return None
 
 
+def github_phase(prs: list[dict], merged: int) -> str | None:
+    """La fase según GitHub (la misma regla que la card, `githubPhase` de ui/.../devStates.ts): mergeado si no
+    quedan abiertas y hay mergeadas; si no, la peor de las que cuentan (fuera de draft, o en draft con
+    revisores o revisión)."""
+    if not prs:
+        return "merged" if merged else None
+    open_ = [p for p in prs if not p.get("draft") or p.get("review") or p.get("reviewers")]
+    if not open_:
+        return None
+    if any(p.get("review") == "changes" for p in open_):
+        return "changes-requested"
+    if any(not p.get("review") and not p.get("reviewers") for p in open_):
+        return "testing"
+    if any(p.get("review") != "approved" for p in open_):
+        return "in-review"
+    return "approved"
+
+
+def effective_state(db: Db, key: str, row_status: str | None, prs: list[dict], merged: int) -> str:
+    """El estado que muestra la card (`devStateOf`): el bloqueo si hay; si no, la fase puesta a mano mientras
+    GitHub siga en la de ese momento, o la de GitHub, o la puesta, o la deducida."""
+    cur = _state(db, key, row_status)
+    manual = cur.get("phase") if cur.get("phase") in PHASES else None
+    block = cur.get("block") if cur.get("block") in BLOCKS else None
+    gh = github_phase(prs, merged)
+    pinned = bool(manual) and "gh" in cur and cur.get("gh") == gh
+    stale = manual == "investigating" and bool(prs) and not pinned
+    phase = (manual if pinned else gh or (None if stale else manual)) or ("developing" if prs else "investigating")
+    return block or phase
+
+
 def _ticket(db: Db, row: dict, open_prs: list, merged: int) -> dict | None:
     """El ticket de Notion de un desarrollo de ticket: Status (de la caché), los de pendientes, y si no calza
     con el desarrollo (`mismatch`). None para los que no llevan ticket (revisiones, manager…)."""
@@ -552,7 +583,11 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
                     and not (links.get(c["url"]) and (links[c["url"]]["sid"] != row["id"] or links[c["url"]].get("out")))]
         taken |= {c["url"] for c in prs}
         out.append({"id": row["id"], "kind": row["kind"], "name": _name(names, f"s:{row['id']}", prs),
-                    "title": row["title"], "status": row["status"],
+                    "title": row["title"],
+                    # el de la card (sale de GitHub); `stored`: el guardado en la base
+                    "status": effective_state(db, f"s:{row['id']}", row["status"], [_pr_summary(c) for c in prs],
+                                              merged_by_sid.get(row["id"], 0)) if row["kind"] == "ticket" else row["status"],
+                    "stored": row["status"],
                     "notionUrl": row["notionUrl"], "ticket": _ticket(db, row, prs, merged_by_sid.get(row["id"], 0)),
                     "process": s.get("process"),
                     # trabajando / esperando al usuario (hooks de claude), con la 1ª línea de su último mensaje
