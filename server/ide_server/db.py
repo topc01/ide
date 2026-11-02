@@ -167,6 +167,24 @@ class Db:
                 raise
         return n
 
+    def reserve_session_number(self, taken) -> int:
+        """El siguiente número de desarrollo libre, ya reservado para la sesión que se llamará así
+        (`devidx:s:<n>` = n; atómico entre procesos). `taken(n)`: si ya hay una carpeta con ese nombre."""
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                used = [json.loads(v) for (v,) in self._conn.execute(
+                    "SELECT value FROM kv WHERE substr(key, 1, 7) = 'devidx:'").fetchall()]
+                n = max(used, default=0) + 1
+                while taken(n):
+                    n += 1
+                self._conn.execute("INSERT INTO kv VALUES (?, ?)", (f"devidx:s:{n}", json.dumps(n)))
+                self._conn.execute("COMMIT")
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
+        return n
+
     def set_dev_name(self, key: str, name: str | None) -> None:
         if name:
             self.set(f"devname:{key}", name)

@@ -91,6 +91,8 @@ def _parser() -> argparse.ArgumentParser:
     tk = sub.add_parser("ticket", help="el ticket de Notion del desarrollo").add_subparsers(dest="cmd", required=True)
     for c, h in (("set", "asocia (o cambia) el ticket del desarrollo"), ("add-pending", "suma un ticket de pendientes (lo que quedó fuera)")):
         x = tk.add_parser(c, help=h); x.add_argument("args", nargs="+", metavar="[#n] url")
+    mid = sub.add_parser("migrate-ids", help="(una vez) las sesiones de ticket pasan a llamarse por su número y la manager a `manager`")
+    mid.add_argument("--dry-run", action="store_true")
     ms = sub.add_parser("merges", help="los desarrollos que se están mergeando («Mergear todo»): avance, qué esperan, si están pegados")
     ms.add_argument("--json", action="store_true")
     mg = sub.add_parser("merge", help="mergea una PR tuya (squash): revisa sus migraciones, la pone al día si está en conflicto y restackea las de arriba")
@@ -781,6 +783,19 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _db_query(a.env, a.sql, home, out, err)
         if a.group == "browser":
             return _browser(a, root, env, out)
+        if a.group == "migrate-ids":
+            data = _post(http, url, "/api/admin/migrate-ids", {"dry_run": a.dry_run, "from_session": env.get("IDE_SESSION_ID")},
+                         timeout=900)
+            if a.dry_run:
+                for old, new in data["plan"]:
+                    out.write(f"{old}\t→ {new}\n")
+                out.write(f"{len(data['plan'])} sesiones\n")
+                return 0
+            for line in data.get("log") or []:
+                out.write(line + "\n")
+            out.write(f"listo: {len(data['mapping'])} sesiones; relanzadas: {', '.join(data['relaunched']) or 'ninguna'}; "
+                      f"respaldo en {data['backup']}\n")
+            return 0
         if a.group == "merges":
             data = _get(http, url, "/api/merges")
             if a.json:

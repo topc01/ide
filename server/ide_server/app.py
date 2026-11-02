@@ -237,6 +237,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_pending_ticket(sid: str, body: dict):
         return await _http("dev.ticketPending", {**body, "id": sid})
 
+    @app.post("/api/admin/migrate-ids")
+    async def api_migrate_ids(body: dict):
+        return await _http("admin.migrateIds", {**body, "_http": True})
+
     @app.get("/api/merges")
     async def api_merges():
         return await _http("merges.list", {})

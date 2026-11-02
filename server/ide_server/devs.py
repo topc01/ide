@@ -388,17 +388,15 @@ def split_parallel(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[s
         for prs in stacks.values():
             prs.sort(key=lambda c: (c.get("stack") or {}).get("position", 0))
             top = prs[-1]
-            new = re.sub(r"[^a-z0-9-]+", "-", f"d{n}-{top['head'][len(prefix):]}".lower()).strip("-")[:60]
-            if (session_path(root, new) / ".session.toml").is_file():
-                continue
             nums = " → ".join(f"{c['repo']}#{c['number']}" for c in prs)
             # dónde está tomada la rama (un worktree extra de la sesión de origen): se avisa en vez de fallar
             busy = next((e["path"] for e in s.get("extra") or [] if e["name"] == top["repo"] and e["branch"] == top["head"]), None)
             prompt = (f"Este desarrollo se separó solo del #{n} (sesión `{s['id']}`): es una línea paralela de "
                       f"{top['repo']} ({nums}), y un desarrollo tiene una sola línea por repo. El contexto está en "
                       f"`../{s['id']}/SESSION.md`. Lee eso y la PR, y sigue desde ahí.")
-            # la de origen como `caller`: hereda sus permisos (nunca más, nunca full)
-            create_session(root, {"id": new, "title": f"{top['title']} (sale del #{n})", "caller": s["id"], "prompt": prompt})
+            # la de origen como `caller`: hereda sus permisos (nunca más, nunca full). Su id es su número (#n);
+            # no se vuelve a crear porque sus PRs quedan vinculadas a ella justo abajo
+            new = create_session(root, {"title": f"{top['title']} (sale del #{n})", "caller": s["id"], "prompt": prompt})["session"]["id"]
             try:
                 add_repo(root, new, top["repo"], branch=top["head"], out=io.StringIO())
             except BranchOccupied:

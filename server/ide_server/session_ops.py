@@ -14,7 +14,7 @@ from ide_server.repos_fs import add_repo, rm_repo, worktree_path, require_sessio
 from ide_server.prompts import load_prompt
 from ide_server.sessions_fs import (
     repo_links,
-    SessionError, create_session_dir, new_id, normalize_id, read_session, render_template,
+    SessionError, create_session_dir, list_sessions, new_id, normalize_id, read_session, render_template,
     require_plain_name, session_path, sessions_dir, update_session_toml, read_toml,
 )
 from ide_server.workspace import discover_repos
@@ -93,6 +93,18 @@ def notion_session_id(url: str) -> str:
     return f"n-{m.group(1)[-10:]}"           # el final es la parte aleatoria (el prefijo se repite)
 
 
+def _session_for_ticket(root: Path, url: str) -> str | None:
+    """La sesión viva cuyo ticket de Notion es esa página (por el page id)."""
+    m = _NOTION_ID_RE.search(url.strip().lower().replace("-", ""))
+    if not m:
+        raise SessionError("bad_notion_url", f"no encuentro el page id en la URL de Notion: {url!r}")
+    for s in list_sessions(root):
+        mine = (s.get("meta") or {}).get("notion_url") or ""
+        if m.group(1) in mine.lower().replace("-", ""):
+            return s["id"]
+    return None
+
+
 def _existing(root: Path, sid: str, req: dict) -> dict | None:
     """Si la sesión ya existe: con if_missing/dry_run la devuelve; si no, error."""
     if archive_path(root, sid).exists():
@@ -121,10 +133,17 @@ def create_session(root: Path, req: dict, *, runner: Runner = _run) -> dict:
     kind = "main" if req.get("main") else "ticket"
     if req.get("id"):
         sid = normalize_id(req["id"])
-    elif req.get("notion"):
-        sid = notion_session_id(req["notion"])
+    elif kind == "main":
+        sid = "manager"
+    elif req.get("notion") and (same := _session_for_ticket(root, req["notion"])):
+        sid = same                              # ya hay una sesión de ese ticket (idempotente)
+    elif req.get("dry_run"):
+        sid = "<número>"
     else:
-        sid = new_id(lambda s: session_path(root, s).exists() or archive_path(root, s).exists())
+        # el id de la sesión es el número del desarrollo (#n): se reserva en la base
+        from ide_server.db import Db
+        sid = str(Db(root).reserve_session_number(
+            lambda n: session_path(root, str(n)).exists() or archive_path(root, str(n)).exists()))
     if (found := _existing(root, sid, req)) is not None:
         return found
     variables = {"id": sid, **(req.get("vars") or {})}

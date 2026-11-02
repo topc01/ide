@@ -78,7 +78,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     except Exception:  # noqa: BLE001
         log.exception("no pude preparar la sesión Recursos")
 
+    _migrating = threading.Lock()   # la migración de ids y el refresco del árbol no se cruzan
+
     def build_tree(snap: dict, derived: dict) -> dict:
+        with _migrating:
+            return _build_tree(snap, derived)
+
+    def _build_tree(snap: dict, derived: dict) -> dict:
         """Lectura de disco + git: corre en un thread (no bloquea el loop)."""
         sessions = list_sessions(root)
         if db is not None:                      # la base es la fuente de verdad del estado
@@ -869,6 +875,37 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         """«Mergear todo» de un desarrollo (`key` + las URLs de sus PRs)."""
         return await asyncio.to_thread(_mall().start, str(p["key"]), list(p.get("urls") or []))
 
+    async def migrate_ids(p: dict) -> dict:
+        """Una vez: las sesiones de ticket pasan a llamarse por su número y la manager a `manager` (ver
+        ids_migration). Solo desde la terminal del usuario o la sesión IDE. `dry_run`: solo el plan."""
+        from ide_server import ids_migration
+        from ide_server.db import db_path
+        if p.get("_http") and p.get("from_session") not in (None, False, "", "ide"):
+            raise SessionError("forbidden", "la migración de ids la corre el usuario (o la sesión IDE)")
+        pairs = ids_migration.plan(root, db)
+        if p.get("dry_run"):
+            return {"plan": pairs}
+        lines: list[str] = []
+
+        def stop(sid: str) -> bool:
+            was = supervisor.state(sid) == "running"
+            if supervisor.state(sid) in ("running", "queued"):
+                supervisor.stop(sid)
+            return was
+
+        def stop_runs(sid: str) -> None:
+            if runner is not None:
+                runner.stop_place(sid)
+
+        def run() -> dict:
+            with _migrating:
+                return ids_migration.migrate(root, db_path(root), stop=stop, stop_runs=stop_runs,
+                                             start=lambda sid: supervisor.start(sid, resume=True),
+                                             home=Path.home(), log=lines.append)
+        res = await asyncio.to_thread(run)
+        notify()
+        return {**res, "log": lines}
+
     async def merges_list(_p: dict) -> dict:
         """Los «Mergear todo» (por desarrollo, con su número y título) y los merges sueltos en curso."""
         idx = db.with_prefix("devidx:") if db else {}
@@ -1653,7 +1690,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "servers.stop": servers_stop, "servers.log": servers_log, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
-        "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "dev.mergeAllDismiss": merge_all_dismiss,
+        "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
         "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
