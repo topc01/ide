@@ -256,7 +256,14 @@ def _notify_mac(message: str, focus: str | None = None) -> None:
     if tn:
         from urllib.parse import quote
         url = f"{NOTIFY_URL}/#{quote(focus)}" if NOTIFY_URL and focus else NOTIFY_URL
-        argv = [tn, "-title", "IDE", "-message", message[:200], *(["-open", url] if url else []),
+        import shlex
+        # el click lleva a la pestaña del IDE que ya está abierta en Chrome (cambia el #, no recarga); si no
+        # hay ninguna, abre una nueva
+        script = Path(__file__).parent / "assets" / "focus_tab.applescript"
+        click = (["-execute", f"/usr/bin/osascript {shlex.quote(str(script))} {shlex.quote(url)} "
+                              f"{shlex.quote(NOTIFY_URL + '/')} | grep -q ok || open {shlex.quote(url)}"]
+                 if url and NOTIFY_URL and script.is_file() else ["-open", url] if url else [])
+        argv = [tn, "-title", "IDE", "-message", message[:200], *click,
                 *(["-group", f"ide-{focus}"] if focus else [])]
 
         def send() -> None:
