@@ -24,25 +24,36 @@ export function DevSwitcher() {
     const n = tree.devIndex?.[k] ?? (s && /^\d+$/.test(s.id) ? Number(s.id) : null);
     return { n, title: tree.devNames?.[k] ?? s?.title ?? tag ?? k.slice(2), tag, dot: s ? ACTIVITY[activityOf(s)] : null };
   };
+  const cur = info(items[index]);
+  // los colores son variables hex (`var(--popover)`): la opacidad de tailwind (`bg-popover/85`) no aplica sobre
+  // ellas, así que el fondo se mezcla con color-mix
+  const glass = { background: "color-mix(in srgb, var(--popover) 94%, transparent)", backdropFilter: "blur(24px) saturate(1.4)" };
   return (
-    <div className="fixed inset-0 z-[100] grid place-items-center bg-black/30 backdrop-blur-[2px]">
-      <div className="flex max-w-[90vw] gap-2 overflow-x-auto rounded-2xl border border-border/60 bg-popover/85 p-3 shadow-2xl">
-        {items.map((k, i) => {
-          const d = info(k);
-          return (
-            <button key={k} ref={i === index ? sel : undefined} title={d.title}
-              onMouseEnter={() => useSwitcher.setState({ index: i })}
-              onClick={() => { useSwitcher.setState({ index: i }); window.dispatchEvent(new KeyboardEvent("keyup", { key: "Meta" })); }}
-              className={cn("flex w-36 shrink-0 flex-col gap-1 rounded-xl border p-2.5 text-left transition-colors",
-                i === index ? "border-primary bg-primary/15" : "border-transparent hover:bg-accent/60")}>
-              <span className="flex items-center gap-1.5 font-mono text-sm font-bold text-primary">
-                {d.dot && <span className={cn("text-[10px]", d.dot[1])}>{d.dot[0]}</span>}
-                {d.n ? `#${d.n}` : d.tag ?? ""}
-                {d.n && d.tag && <span className="text-[10px] font-normal text-muted-foreground">{d.tag}</span>}
-              </span>
-              <span className="line-clamp-3 text-xs leading-snug text-foreground">{d.title}</span>
-            </button>);
-        })}
+    <div className="pointer-events-auto fixed inset-0 z-[100] grid place-items-center bg-black/15">
+      <div className="flex max-w-[92vw] flex-col items-center gap-3 rounded-3xl border border-border p-5 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+        style={glass}>
+        <div className="flex max-w-full gap-3 overflow-x-auto pb-1">
+          {items.map((k, i) => {
+            const d = info(k);
+            const on = i === index;
+            return (
+              <button key={k} ref={on ? sel : undefined} title={d.title}
+                onMouseEnter={() => useSwitcher.setState({ index: i })}
+                onClick={() => { useSwitcher.setState({ index: i }); window.dispatchEvent(new KeyboardEvent("keyup", { key: "Meta" })); }}
+                style={on ? { background: "color-mix(in srgb, var(--primary) 18%, transparent)" } : undefined}
+                className={cn("flex h-32 w-44 shrink-0 flex-col justify-between rounded-2xl p-3 text-left transition-colors",
+                  on ? "ring-2 ring-primary" : "hover:bg-accent")}>
+                <span className="flex items-center gap-2">
+                  {d.dot && <span className={cn("text-xs", d.dot[1])}>{d.dot[0]}</span>}
+                  <span className="font-mono text-2xl font-bold leading-none text-primary">{d.n ? `#${d.n}` : d.tag ?? "·"}</span>
+                  {d.n && d.tag && <span className="text-[11px] text-muted-foreground">{d.tag}</span>}
+                </span>
+                <span className="line-clamp-3 text-[13px] leading-snug text-popover-foreground">{d.title}</span>
+              </button>);
+          })}
+        </div>
+        <div className="max-w-[80vw] truncate text-sm font-medium text-popover-foreground">
+          {cur ? `${cur.n ? `#${cur.n} · ` : ""}${cur.title}` : ""}</div>
       </div>
     </div>
   );
