@@ -466,6 +466,9 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
     if (s.prState === "merged" || s.prState === "closed") return "closed";
     const mine = pr?.reviewers?.find((r) => r.login === gh?.me);
     if (mine ? mine.state === "approved" : s.status === "approved") return "approved";
+    if (mine ? mine.state === "changes" : s.status === "changes-requested") return "changes";
+    // una revisión que abriste tú (sin que GitHub te la pida) y todavía no publicas: pendiente
+    if (s.status === "reviewing") return "pending";
     return "others";
   };
   for (const s of sessions.filter((x) => !onGithub.has(x.id))) {

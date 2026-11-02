@@ -7,9 +7,9 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Button } from "../../components/ui/button";
 
-const field = "flex flex-col gap-1";
+const field = "flex min-w-0 flex-col gap-1";
 const area = "min-h-[80px] rounded-md border border-border bg-background p-2 text-xs";
-const select = "h-8 rounded-md border border-border bg-background px-2 text-xs";
+const select = "h-8 w-full min-w-0 truncate rounded-md border border-border bg-background px-2 text-xs";
 
 export function NewFolderSessionModal() {
   const { modal, closeModal, setActive } = useFolders();
@@ -63,7 +63,7 @@ export function NewFolderSessionModal() {
 
   return (
     <Dialog open={modal !== null} onOpenChange={(o) => !o && closeModal()}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md [&>*]:min-w-0">
         <DialogHeader><DialogTitle>{modal === "review" ? "Nueva revisión de PR" : "Nueva sesión"}</DialogTitle></DialogHeader>
         {modal === "review" ? (
           <div className="flex flex-col gap-2">
