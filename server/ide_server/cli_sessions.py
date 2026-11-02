@@ -74,6 +74,8 @@ def _parser() -> argparse.ArgumentParser:
     ra.add_argument("--session")
     db = sub.add_parser("db", help="una consulta de solo lectura a la base de prod o staging (vía db-connect.sh)")
     db.add_argument("env", choices=("prod", "staging")); db.add_argument("sql", help="la consulta SQL (sin comandos de psql: nada con \\\\)")
+    db.add_argument("--csv", action="store_true", help="salida en CSV (con encabezados)")
+    db.add_argument("--out", help="guarda el resultado en ese archivo (en vez de mostrarlo): procésalo después en otro comando")
     pr_ = sub.add_parser("procs", help="qué consume el computador y de qué desarrollo es (servidores, contenedores, claude)")
     pr_.add_argument("--json", action="store_true")
     prs_ = pr_.add_subparsers(dest="cmd")
@@ -120,9 +122,13 @@ def _parser() -> argparse.ArgumentParser:
     el.add_argument("--session")
     eh = ev.add_parser("shot", help="adjunta captura(s) a un paso (lo marca hecho)")
     eh.add_argument("step", type=int, help="número del paso (1, 2, …)"); eh.add_argument("files", nargs="+")
+    eh.add_argument("--replace", action="store_true", help="reemplaza las capturas que ya tenía el paso (las obsoletas salen)")
     ed = ev.add_parser("done", help="marca un paso como hecho (sin captura)")
     ed.add_argument("step", type=int); ed.add_argument("--undo", action="store_true", help="desmarcarlo")
-    for x in (eh, ed):
+    er = ev.add_parser("rm", help="borra evidencias obsoletas: una corrida entera, un paso (--step) o una captura (--step y --shot)")
+    er.add_argument("--step", type=int, help="número del paso (sin --shot: saca el paso entero)")
+    er.add_argument("--shot", help="la captura del paso: su número (1, 2, …) o su nombre de archivo")
+    for x in (eh, ed, er):
         x.add_argument("--label", help="corrida por su nombre (default: la última)"); x.add_argument("--session")
     sub.add_parser("hook", help="(lo llaman los hooks de claude) le avisa al IDE si la sesión trabaja o te espera")
     lt = sub.add_parser("later", help="pendientes para después (preguntas/temas que el usuario verá otro día)").add_subparsers(dest="cmd", required=True)
@@ -287,6 +293,34 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
             out.write("aviso: no encontré pasos (un ítem de lista por paso: '1. …' o '- …')\n")
         return 0
     runs = _get(http, url, path)["runs"]
+    if a.cmd == "rm":
+        pick = [r for r in runs if not a.label or r["label"].lower() == a.label.lower()]
+        if not pick:
+            raise SessionError("not_found", f"no hay corrida {a.label!r}" if a.label else "no hay evidencias")
+        run = pick[-1]
+        if a.step is None:
+            if a.shot:
+                raise SessionError("bad_request", "--shot va con --step")
+            _post(http, url, path + "/delete", {"run": run["id"]})
+            out.write(f"{run['label']}	corrida borrada ({len(run['steps'])} pasos)\n")
+            return 0
+        if not 1 <= a.step <= len(run["steps"]):
+            raise SessionError("bad_request", f"la corrida {run['label']} tiene {len(run['steps'])} pasos")
+        step = run["steps"][a.step - 1]
+        if a.shot is None:
+            run["steps"].pop(a.step - 1)
+            _post(http, url, path + "/save", {"run": run})
+            out.write(f"{run['label']}	paso {a.step} borrado ({step['title'][:60]})\n")
+            return 0
+        shots = step["shots"]
+        name = shots[int(a.shot) - 1] if a.shot.isdigit() and 1 <= int(a.shot) <= len(shots) else a.shot
+        if name not in shots:
+            raise SessionError("not_found", f"el paso {a.step} no tiene la captura {a.shot!r} (tiene: {', '.join(shots) or 'ninguna'})")
+        shots.remove(name)
+        step["done"] = step["done"] and bool(shots)
+        _post(http, url, path + "/save", {"run": run})
+        out.write(f"{run['label']}	paso {a.step}	captura {name} sacada\n")
+        return 0
     if a.cmd in ("shot", "done"):
         pick = [r for r in runs if not a.label or r["label"].lower() == a.label.lower()]
         if not pick:
@@ -301,6 +335,9 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
             out.write(f"{run['label']}\tpaso {a.step}\t{'hecho' if step['done'] else 'pendiente'}\n")
             return 0
         import base64
+        if a.replace and step["shots"]:         # las capturas viejas del paso salen antes de subir la nueva
+            step["shots"] = []
+            _post(http, url, path + "/save", {"run": run})
         for f in a.files:
             try:
                 raw = Path(f).read_bytes()
@@ -726,7 +763,8 @@ def _handoff(a, root: Path, home: Path, out: TextIO) -> int:
     return 0
 
 
-def _db_query(env_name: str, sql: str, home: Path, out: TextIO, err: TextIO) -> int:
+def _db_query(env_name: str, sql: str, home: Path, out: TextIO, err: TextIO, *, csv: bool = False,
+              to: str | None = None, cwd: Path | None = None) -> int:
     """Solo el SQL llega a psql: nada de otros argumentos ni comandos de psql (`\\!` corre comandos
     del sistema, `\\o`/`\\copy` escriben archivos), que el usuario read-only de la base no frena."""
     import subprocess
@@ -737,9 +775,17 @@ def _db_query(env_name: str, sql: str, home: Path, out: TextIO, err: TextIO) -> 
     script = home / ".claude" / "skills" / "db-connect.sh"
     if not script.is_file():
         raise SessionError("no_script", f"no está {script} (lo instala la skill db-prod)")
-    r = subprocess.run([str(script), env_name, "-c", sql], stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                       timeout=600)
-    out.write(r.stdout); err.write(r.stderr)
+    r = subprocess.run([str(script), env_name, *(["--csv"] if csv else []), "-c", sql], stdin=subprocess.DEVNULL,
+                       capture_output=True, text=True, timeout=600)
+    if to and r.returncode == 0:
+        # el resultado a un archivo: así no hace falta un pipe (un `ide db … | …` ya no es el comando permitido)
+        f = (cwd or Path.cwd()) / to if not Path(to).is_absolute() else Path(to)
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(r.stdout, encoding="utf-8")
+        out.write(f"{len(r.stdout.splitlines())} líneas en {f}\n")
+    else:
+        out.write(r.stdout)
+    err.write(r.stderr)
     return r.returncode
 
 
@@ -780,7 +826,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "telegram":
             return _telegram(a, root, url, http, out)
         if a.group == "db":
-            return _db_query(a.env, a.sql, home, out, err)
+            return _db_query(a.env, a.sql, home, out, err, csv=a.csv, to=a.out, cwd=cwd)
         if a.group == "browser":
             return _browser(a, root, env, out)
         if a.group == "migrate-ids":

@@ -45,7 +45,11 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
   cada nueva tiene que ir después de la última de su app y depender de ella. Si chocan, `renumber` las
   renumera, corrige las dependencias, commitea y sube (sin preguntarle al usuario). Revísalo antes de pedir
   revisión. Mergear (`ide merge`) lo hace el usuario.
-- `ide db <prod|staging> "<SQL>"`: una consulta de solo lectura a la base (sin comandos de psql: nada con `\\`).
+- `ide db <prod|staging> "<SQL>" [--csv] [--out <archivo>]`: una consulta de solo lectura a la base (sin comandos
+  de psql: nada con `\\\\`). **Córrelo siempre solo, como único comando de la línea**: sin pipes (`| head`,
+  `| tr`), sin `;`, sin loops (`for env in …`) ni `cd … &&` delante. Solo así lo cubre el permiso; combinado,
+  el clasificador lo bloquea como «Production Reads». Para procesar el resultado: `--out archivo` (con `--csv`)
+  y después léelo en otro comando; para filtrar u ordenar, hazlo en el SQL.
 - `ide script <nombre> [<repo>]`: corre un script del repo (`run`, `test`, …).
 - `ide session ls [--json]`: lista sesiones y su estado.
 - `ide session new --if-missing --notion <url> --template ticket --vars-file -` (JSON por stdin):
@@ -84,6 +88,10 @@ usuario: qué hacer en la plataforma, paso a paso, y dónde sacar captura. Va po
 adjunta las capturas a cada paso (quedan en `attachments/`; `ide evidencias ls` muestra las rutas).
 Si las capturas las sacas tú (p.ej. con el navegador), adjúntalas tú: `ide evidencias shot <n>
 <archivo>…` (lo marca hecho; `--label` para otra corrida); un paso sin captura, `ide evidencias done <n>`.
+**Evidencias obsoletas** (cambió la pantalla, la captura quedó vieja): no edites ni borres archivos a mano ni
+inventes caminos. Reemplaza las capturas de un paso con `ide evidencias shot <n> <archivo> --replace`; saca una
+captura con `ide evidencias rm --step <n> --shot <n|archivo>`, un paso con `ide evidencias rm --step <n>` o la
+corrida entera con `ide evidencias rm` (`--label` para otra corrida que la última).
 
 **Para después:** si el usuario no puede responder ahora ("esto lo veo con el equipo", "déjalo para
 después"), o ves una pregunta que puede esperar, déjala como pendiente:

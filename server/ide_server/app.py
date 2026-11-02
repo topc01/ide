@@ -241,6 +241,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_evidence_shot(sid: str, body: dict):
         return await _http("evidence.shot", {**body, "id": sid})
 
+    @app.post("/api/sessions/{sid}/evidence/delete")
+    async def api_evidence_delete(sid: str, body: dict):
+        return await _http("evidence.delete", {**body, "id": sid})
+
     @app.post("/api/sessions/{sid}/evidence/save")
     async def api_evidence_save(sid: str, body: dict):
         return await _http("evidence.save", {**body, "id": sid})
