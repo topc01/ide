@@ -602,12 +602,30 @@ class GithubReviews:
                       "lastOk": _iso(last) if last else None, "orgs": orgs, "sync": self._db.get("last_sync")}
         self._on_change()
 
+    def _active_dev_prs(self) -> set[str]:
+        """Las PRs vinculadas a un desarrollo con sesión viva y en curso: no archivada, no pausada ni mergeada.
+        (Una PR suelta o vieja aprobada hace meses no se toca.)"""
+        from ide_server.sessions_fs import session_path
+        out = set()
+        for url, link in self._db.dev_prs().items():
+            sid = link.get("sid")
+            if not sid or link.get("out") or not (session_path(self._root, sid) / ".session.toml").is_file():
+                continue
+            st = self._db.get(f"devstate:s:{sid}") or {}
+            if st.get("block") == "paused" or st.get("phase") == "merged":
+                continue
+            out.add(url)
+        return out
+
     async def _ready_approved(self, res: dict, me: str) -> None:
         """Una PR tuya en draft que quedó aprobada (sin revisiones pedidas pendientes) sale de draft sola:
         en el equipo se revisa en draft y el CI corre después de aprobar. También las hijas de un stack
         (el CI corre apenas puede). Queda en el historial; si `gh` falla, se reintenta en 30 min."""
         tried = self.__dict__.setdefault("_ready_tried", {})
+        active = self._active_dev_prs()
         for c in [c for lst in (res.get("mine") or {}).values() for c in lst]:
+            if c["url"] not in active:          # solo PRs de un desarrollo en curso (no sueltas, ni pausados)
+                continue
             if not c.get("draft") or c.get("review") != "approved" or c.get("author") != f"@{me}" \
                     or any(r.get("state") == "requested" for r in c.get("reviewers") or []) \
                     or self._clock() - tried.get(c["url"], 0) < 1800:
