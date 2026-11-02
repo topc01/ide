@@ -1409,22 +1409,20 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"markdown": text}
 
     async def evidence_github(p: dict) -> dict:
-        """Comentario en una PR del desarrollo con los pasos y las capturas (`gh pr comment --attach`:
-        sube cada imagen y reemplaza su ruta en el texto). Solo desde la UI, que pide confirmar."""
+        """Comentario en una PR del desarrollo con los pasos y las capturas (`gh pr comment --attach`: sube cada
+        imagen y reemplaza su ruta en el texto), verificado (ver evidence.publish). Desde la UI (pide confirmar)
+        o `ide evidencias github <pr>`."""
         sid = _ev_sid(p)
-        url = str(p.get("url") or "")
+        url = _pr_url(p.get("url") or "")            # URL o repo#n (desde la CLI)
         parse_pr_url(url)
         text, files = await asyncio.to_thread(evidence_mod.markdown, root, sid, str(p.get("run")))
         if len(files) > 50:
             raise SessionError("too_many", "gh sube hasta 50 archivos por comentario")
-        args = ["gh", "pr", "comment", url, "--body-file", "-"] + [x for f in files for x in ("--attach", str(f))]
-        out = await asyncio.to_thread(subprocess.run, args, input=text, capture_output=True, text=True, timeout=300)
-        if out.returncode != 0:
-            raise SessionError("gh_failed", f"gh pr comment: {out.stderr.strip() or out.returncode}")
+        res = await asyncio.to_thread(evidence_mod.publish, url, text, files)   # publica y verifica
         if db is not None:
-            db.event(datetime.now().isoformat(timespec="seconds"), "ide", "evidence-github", dev=sid, pr_url=url,
-                     data={"run": p.get("run"), "shots": len(files)})
-        return {"ok": True, "comment": out.stdout.strip()}
+            db.event(datetime.now().isoformat(timespec="seconds"), p.get("actor") or "ide", "evidence-github", dev=sid,
+                     pr_url=url, data={"run": p.get("run"), "shots": len(files), "comment": res["comment"]})
+        return {"ok": True, **res}
 
     # -- pendientes "para después" ----------------------------------------------------------------
     async def later_add(p: dict) -> dict:

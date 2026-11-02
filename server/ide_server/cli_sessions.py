@@ -128,7 +128,9 @@ def _parser() -> argparse.ArgumentParser:
     er = ev.add_parser("rm", help="borra evidencias obsoletas: una corrida entera, un paso (--step) o una captura (--step y --shot)")
     er.add_argument("--step", type=int, help="número del paso (sin --shot: saca el paso entero)")
     er.add_argument("--shot", help="la captura del paso: su número (1, 2, …) o su nombre de archivo")
-    for x in (eh, ed, er):
+    eg = ev.add_parser("github", help="publica la guía (pasos + capturas) como comentario en una PR y verifica que subieron todas")
+    eg.add_argument("pr", help="URL o repo#n de una PR tuya")
+    for x in (eh, ed, er, eg):
         x.add_argument("--label", help="corrida por su nombre (default: la última)"); x.add_argument("--session")
     sub.add_parser("hook", help="(lo llaman los hooks de claude) le avisa al IDE si la sesión trabaja o te espera")
     lt = sub.add_parser("later", help="pendientes para después (preguntas/temas que el usuario verá otro día)").add_subparsers(dest="cmd", required=True)
@@ -293,6 +295,24 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
             out.write("aviso: no encontré pasos (un ítem de lista por paso: '1. …' o '- …')\n")
         return 0
     runs = _get(http, url, path)["runs"]
+    att = root / ".ide" / "sessions" / normalize_id(sid) / "attachments"
+
+    def drop(names) -> None:
+        """Las capturas que dejaron de estar en la corrida se borran de attachments/ (solo las del módulo)."""
+        for n in names:
+            f = att / n
+            if "-evidencia-" in n and Path(n).name == n and f.is_file() and not f.is_symlink():
+                f.unlink()
+
+    if a.cmd == "github":
+        pick = [r for r in runs if not a.label or r["label"].lower() == a.label.lower()]
+        if not pick:
+            raise SessionError("not_found", f"no hay corrida {a.label!r}" if a.label else "no hay evidencias: ide evidencias set")
+        res = _post(http, url, path + "/github", {"url": a.pr, "run": pick[-1]["id"],
+                                                    "actor": f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"},
+                    timeout=600)
+        out.write(f"{pick[-1]['label']}\tpublicada: {res['comment']}\t{res['attachments']} imágenes subidas de {res['shots']}\n")
+        return 0
     if a.cmd == "rm":
         pick = [r for r in runs if not a.label or r["label"].lower() == a.label.lower()]
         if not pick:
@@ -302,6 +322,7 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
             if a.shot:
                 raise SessionError("bad_request", "--shot va con --step")
             _post(http, url, path + "/delete", {"run": run["id"]})
+            drop([n for st in run["steps"] for n in st["shots"]])
             out.write(f"{run['label']}	corrida borrada ({len(run['steps'])} pasos)\n")
             return 0
         if not 1 <= a.step <= len(run["steps"]):
@@ -310,6 +331,7 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
         if a.shot is None:
             run["steps"].pop(a.step - 1)
             _post(http, url, path + "/save", {"run": run})
+            drop(step["shots"])
             out.write(f"{run['label']}	paso {a.step} borrado ({step['title'][:60]})\n")
             return 0
         shots = step["shots"]
@@ -319,6 +341,7 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
         shots.remove(name)
         step["done"] = step["done"] and bool(shots)
         _post(http, url, path + "/save", {"run": run})
+        drop([name])
         out.write(f"{run['label']}	paso {a.step}	captura {name} sacada\n")
         return 0
     if a.cmd in ("shot", "done"):
@@ -335,9 +358,10 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
             out.write(f"{run['label']}\tpaso {a.step}\t{'hecho' if step['done'] else 'pendiente'}\n")
             return 0
         import base64
-        if a.replace and step["shots"]:         # las capturas viejas del paso salen antes de subir la nueva
-            step["shots"] = []
+        if a.replace and step["shots"]:         # las capturas viejas del paso salen (y sus archivos) antes de subir la nueva
+            old_shots, step["shots"] = step["shots"], []
             _post(http, url, path + "/save", {"run": run})
+            drop(old_shots)
         for f in a.files:
             try:
                 raw = Path(f).read_bytes()

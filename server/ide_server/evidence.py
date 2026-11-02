@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from ide_server.sessions_fs import SessionError, session_path, workspace_lock
@@ -162,3 +163,41 @@ def markdown(root: Path, sid: str, run_id: str, *, images: bool = True) -> tuple
                 lines += ["", f"   ![{alt}]({f})" if images else f"   _[captura: {shot}]_"]
         lines.append("")
     return "\n".join(lines).rstrip() + "\n", files
+
+
+def _gh(args: list[str], text: str | None = None) -> subprocess.CompletedProcess:
+    return subprocess.run(["gh", *args], input=text, capture_output=True, text=True, timeout=300)
+
+
+def publish(url: str, text: str, files: list[Path]) -> dict:
+    """Publica la guía como comentario en la PR (`gh pr comment --attach`: sube cada captura y reemplaza su
+    ruta en el texto) y **verifica** el comentario publicado: con gh 2.102 `pr comment` a veces deja sin
+    subir la última referencia (queda la ruta local, imagen rota). Si quedó alguna, reintenta con
+    `--edit-last` adjuntando solo esas (hasta 2 veces); si sigue faltando, falla. Devuelve {comment, attachments}."""
+    from ide_server.session_ops import parse_pr_url
+    attach = lambda fs: [x for f in fs for x in ("--attach", str(f))]   # noqa: E731 — una lista: nada de separar texto
+    out = _gh(["pr", "comment", url, "--body-file", "-", *attach(files)], text)
+    if out.returncode != 0:
+        raise SessionError("gh_failed", f"gh pr comment: {out.stderr.strip() or out.returncode}")
+    link = out.stdout.strip()
+    m = re.search(r"#issuecomment-(\d+)", link)
+    full = re.search(r"github\.com/([^/]+/[^/]+)/pull/\d+", url)
+    if not m or not full:
+        raise SessionError("gh_failed", f"no pude ubicar el comentario publicado ({link or 'sin link'}) para verificarlo")
+    missing: list[Path] = []
+    body = ""
+    for attempt in range(3):
+        got = _gh(["api", f"repos/{full.group(1)}/issues/comments/{m.group(1)}", "--jq", ".body"])
+        if got.returncode != 0:
+            raise SessionError("gh_failed", f"no pude leer el comentario publicado: {got.stderr.strip()}")
+        body = got.stdout
+        missing = [f for f in files if f"({f})" in body]
+        if not missing or attempt == 2:
+            break
+        retry = _gh(["pr", "comment", url, "--edit-last", "--body-file", "-", *attach(missing)], body)
+        if retry.returncode != 0:
+            raise SessionError("gh_failed", f"gh pr comment --edit-last: {retry.stderr.strip() or retry.returncode}")
+    if missing:
+        raise SessionError("partial", f"el comentario quedó sin {len(missing)} captura(s) (imagen rota): "
+                                      + ", ".join(f.name for f in missing) + f" — {link}")
+    return {"comment": link, "attachments": body.count("user-attachments"), "shots": len(files)}
