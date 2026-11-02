@@ -779,9 +779,23 @@ def _db_query(env_name: str, sql: str, home: Path, out: TextIO, err: TextIO, *, 
                        capture_output=True, text=True, timeout=600)
     if to and r.returncode == 0:
         # el resultado a un archivo: así no hace falta un pipe (un `ide db … | …` ya no es el comando permitido)
-        f = (cwd or Path.cwd()) / to if not Path(to).is_absolute() else Path(to)
+        # `ide db` va permitido sin preguntar: `--out` no puede ser una vía para escribir donde sea (config de
+        # claude, del shell…). Solo un archivo nuevo, relativo y dentro de la carpeta donde se corre.
+        import os
+        base = (cwd or Path.cwd()).resolve()
+        rel = Path(to)
+        if rel.is_absolute() or ".." in rel.parts or any(part.startswith(".") for part in rel.parts):
+            raise SessionError("bad_request", "--out: un archivo relativo a esta carpeta (sin /, .. ni carpetas ocultas)")
+        f = base / rel
         f.parent.mkdir(parents=True, exist_ok=True)
-        f.write_text(r.stdout, encoding="utf-8")
+        if f.parent.resolve() != f.parent or not f.parent.resolve().is_relative_to(base):
+            raise SessionError("bad_request", "--out: la carpeta sale de la carpeta actual (enlace)")
+        try:
+            fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        except FileExistsError:
+            raise SessionError("exists", f"--out: {to} ya existe (usa otro nombre)")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(r.stdout)
         out.write(f"{len(r.stdout.splitlines())} líneas en {f}\n")
     else:
         out.write(r.stdout)
