@@ -634,7 +634,7 @@ PR tuya sin sesión, una **sesión en su rama** (ver abajo); en una PR de otro s
 **sesión de revisión** (se abre su `claude`); y **reabre** lo cerrado
 (doc, resúmenes de las otras PRs del desarrollo). × cierra la tab sin parar nada. Sin límite de tabs.
 
-**Atajos:** **⌘↑ / ⌘↓** pasan al desarrollo anterior / siguiente en el orden de la sidebar (las cards visibles); **⌘→** vuelve al último que tuviste abierto y, si sigues, a los anteriores en orden de acceso; **⌘←** recorre hacia los más recientes (elegir uno de otra forma reinicia el recorrido). No se activan escribiendo en un campo de texto (ahí ⌘←/⌘→ mueven el cursor); en la terminal sí, y le ganan al atrás/adelante del navegador.
+**Atajos:** **⌘↑ / ⌘↓** pasan al desarrollo anterior / siguiente en el orden de la sidebar (las cards visibles); **⌘→** abre el **selector** (como ⌘Tab de macOS): un panel semitransparente con los desarrollos por último acceso y el anterior marcado; con ⌘ apretado, **→ / ←** mueven la selección, **al soltar ⌘** se abre el marcado y **Esc** lo cierra sin cambiar (también se elige con el mouse). No se activan escribiendo en un campo de texto (ahí ⌘←/⌘→ mueven el cursor); en la terminal sí, y le ganan al atrás/adelante del navegador.
 
 **App instalable (PWA):** el IDE trae manifiesto (`manifest.json`), íconos y un service worker mínimo (`sw.js`, sin caché: la UI siempre en vivo), así que Chrome lo ofrece instalar como app (ícono de instalar en la barra de direcciones, o ⋮ → Transmitir, guardar y compartir → Instalar página como app): abre en su propia ventana, con su ícono en el Dock.
 
