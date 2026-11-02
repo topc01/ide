@@ -90,8 +90,7 @@ export function StatusBar() {
             <span className="flex items-center gap-1.5 text-sky-400"
               title={`Se reinicia solo cuando nadie tecleó en una terminal por ${update.idleBefore} s; las conversaciones de claude siguen.`}>
               ⟳ versión nueva: se reinicia cuando dejes de escribir
-              <button title="Reiniciar el IDE ya con la versión nueva" onClick={() => getWs().request("server.restart", {}).catch(() => {})}
-                className="rounded border border-sky-400/60 px-1 hover:bg-sky-400/10">reiniciar ahora</button>
+              <RestartNow />
             </span>)}
           {lim?.error && <span role="alert" className="text-destructive"
             title={`${lim.error} (último OK: ${lim.lastOk ?? "nunca"})`}>⚠ límites: {lim.error}</span>}
@@ -129,4 +128,31 @@ function FeedbackPending() {
       title={`La sesión manager dejó ${plans.length === 1 ? "un plan" : `${plans.length} planes`} de feedback para revisar (${plans.join(", ")}): pídele que te lo muestre y dile qué aplicar`}
       className="rounded border border-primary/60 px-1 text-primary hover:bg-primary/10">
       plan de feedback pendiente</button>);
+}
+
+/** «Reiniciar ahora»: si hay sesiones trabajando, reiniciar les corta el turno a medias (lo que estaban
+ *  haciendo se pierde; la conversación sigue). Entonces el botón sale como alerta, dice cuáles y pide confirmar. */
+function RestartNow() {
+  const sessions = useFolders((s) => s.tree.sessions);
+  const idx = useFolders((s) => s.tree.devIndex);
+  const [confirm, setConfirm] = useState(false);
+  const working = sessions.filter((x) => x.process === "running" && x.activity?.state === "working");
+  const names = working.map((x) => x.kind === "main" ? "Manager" : x.kind === "ide" ? "IDE" : x.kind === "recursos" ? "Recursos"
+    : idx?.[`s:${x.id}`] ? `#${idx[`s:${x.id}`]}` : x.id);
+  const restart = () => { setConfirm(false); getWs().request("server.restart", {}).catch(() => {}); };
+  if (!working.length)
+    return <button title="Reiniciar el IDE ya con la versión nueva (ninguna sesión está trabajando)" onClick={restart}
+      className="rounded border border-sky-400/60 px-1 hover:bg-sky-400/10">reiniciar ahora</button>;
+  const who = names.join(", ");
+  return confirm ? (
+    <span className="flex items-center gap-1 text-destructive">
+      ¿cortar el turno de {who}?
+      <button title="Sí, reiniciar igual" onClick={restart} className="rounded border border-destructive/70 px-1 hover:bg-destructive/10">sí</button>
+      <button title="No reiniciar" onClick={() => setConfirm(false)} className="px-1 text-muted-foreground hover:text-foreground">no</button>
+    </span>
+  ) : (
+    <button title={`Reiniciar ahora corta el turno de ${working.length === 1 ? "la sesión que está trabajando" : `las ${working.length} sesiones que están trabajando`} (${who}): lo que estaban haciendo se pierde. Pide confirmar.`}
+      onClick={() => setConfirm(true)}
+      className="rounded border border-destructive/70 px-1 text-destructive hover:bg-destructive/10">⚠ reiniciar ahora ({working.length} trabajando)</button>
+  );
 }

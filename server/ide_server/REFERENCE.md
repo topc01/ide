@@ -35,7 +35,7 @@ uno viejo más arriba (ej. `~/.ide`).
 **Auto-actualización:** `ide run` es un supervisor: corre el server como proceso hijo y lo relanza
 en el mismo puerto si se cae o si se instala una versión nueva del IDE (`uv tool install
 --reinstall`). El server vigila la huella de su código instalado; al cambiar avisa en la barra
-inferior ("versión nueva: se reinicia cuando dejes de escribir", con **reiniciar ahora**) y se
+inferior ("versión nueva: se reinicia cuando dejes de escribir", con **reiniciar ahora**; si hay sesiones trabajando, el botón sale como alerta —«⚠ reiniciar ahora (N trabajando)»—, dice cuáles y pide confirmar, porque reiniciar les corta el turno a medias) y se
 reinicia cuando nadie tecleó en una terminal por 60 s. Las conversaciones de `claude` siguen vivas
 en su daemon (se reenganchan al abrir la sesión); la pantalla de cada `claude` se guarda en
 `.ide/terminals/claude-<sesión>.log` (cada 30 s y al cerrar) y al volver se muestra con una marca
