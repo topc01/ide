@@ -75,6 +75,15 @@ if (typeof window !== "undefined") {
     }
   };
   window.addEventListener("hashchange", apply);
+  // el click de una notificación: el server le dice a todas las ventanas (pestaña o app instalada) qué sesión
+  // enfocar; una ventana recién abierta pregunta si hubo un pedido en los últimos segundos
+  const focusSession = (id: string) => {
+    if (!id) return;
+    window.location.hash = encodeURIComponent(id);     // dispara `apply` (no recarga)
+    window.focus();
+  };
+  import("../transport/wsClient").then(({ getWs }) => getWs().on("ui.focus", (p: any) => focusSession(String(p?.id ?? ""))));
+  fetch("/api/ui/focus").then((r) => r.ok ? r.json() : null).then((d) => { if (d?.id) focusSession(d.id); }).catch(() => {});
   useFolders.subscribe((s, prev) => {
     if (pending && s.tree !== prev.tree) apply();
     if (s.activeId !== prev.activeId || s.activePrUrl !== prev.activePrUrl) {

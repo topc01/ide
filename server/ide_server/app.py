@@ -265,6 +265,24 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_merge(body: dict):
         return await _http("reviews.merge", {**body, "_http": True})
 
+    # enfocar una sesión en la UI (el click de una notificación): a todas las ventanas abiertas, y queda 30 s
+    # para una que se abra recién (la app instalada que estaba cerrada)
+    ui_focus: dict = {"id": None, "at": 0.0}
+
+    @app.post("/api/ui/focus")
+    async def api_ui_focus(body: dict):
+        import time as _t
+        from ide_server.sessions_fs import require_plain_name
+        sid = require_plain_name(str(body.get("id") or ""), "sesión")
+        ui_focus.update(id=sid, at=_t.time())
+        await manager.broadcast("ui.focus", {"id": sid})
+        return {"ok": True}
+
+    @app.get("/api/ui/focus")
+    async def api_ui_focus_get():
+        import time as _t
+        return {"id": ui_focus["id"] if _t.time() - ui_focus["at"] < 30 else None}
+
     @app.get("/api/later")
     async def api_later(all: bool = False):
         return await _http("later.list", {"all": all})

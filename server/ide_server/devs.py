@@ -8,6 +8,7 @@
 - Los desarrollos que son solo PRs (tuyas o pendientes de revisar, sin sesión) salen de GitHub.
 - `events`: historial de lo que hace el IDE, las sesiones y lo que pasa en GitHub."""
 from __future__ import annotations
+import json
 import re
 import unicodedata
 from datetime import datetime
@@ -260,9 +261,18 @@ def _notify_mac(message: str, focus: str | None = None) -> None:
         # el click lleva a la pestaña del IDE que ya está abierta en Chrome (cambia el #, no recarga); si no
         # hay ninguna, abre una nueva
         script = Path(__file__).parent / "assets" / "focus_tab.applescript"
-        click = (["-execute", f"/usr/bin/osascript {shlex.quote(str(script))} {shlex.quote(url)} "
-                              f"{shlex.quote(NOTIFY_URL + '/')} | grep -q ok || open {shlex.quote(url)}"]
-                 if url and NOTIFY_URL and script.is_file() else ["-open", url] if url else [])
+        app = Path.home() / "Applications" / "Chrome Apps.localized" / "Agentic IDE.app"   # el IDE instalado (PWA)
+        if url and NOTIFY_URL and focus:
+            # 1) el IDE le dice a sus ventanas abiertas que enfoquen la sesión (sin recargar); 2) al frente la app
+            # instalada si está, si no la pestaña de Chrome, y si no hay ninguna, una pestaña nueva
+            tell = (f"curl -s -m 3 -X POST -H 'Content-Type: application/json' "
+                    f"-d {shlex.quote(json.dumps({'id': focus}))} {shlex.quote(NOTIFY_URL + '/api/ui/focus')} >/dev/null; ")
+            front = (f"open -a {shlex.quote(str(app))}" if app.is_dir() else
+                     f"/usr/bin/osascript {shlex.quote(str(script))} {shlex.quote(url)} {shlex.quote(NOTIFY_URL + '/')} "
+                     f"| grep -q ok || open {shlex.quote(url)}")
+            click = ["-execute", tell + front]
+        else:
+            click = ["-open", url] if url else []
         argv = [tn, "-title", "IDE", "-message", message[:200], *click,
                 *(["-group", f"ide-{focus}"] if focus else [])]
 
