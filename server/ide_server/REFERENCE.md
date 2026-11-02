@@ -887,7 +887,7 @@ desarrollo sigue activo: no mergeado ni pausado; revisión sin veredicto publica
 junto al título de la card (◐ celeste girando = trabajando, ● naranjo fijo = te espera, ◯ rojo sin relleno = stale, ◯ sin relleno del color del IDE = corriendo sin saber todavía si trabaja o te espera, ○ gris =
 parado sin pendientes) y, si te espera, la nota debajo en naranjo con la **hora en que claude terminó el turno** (también en el
 tooltip de la pestaña `claude` y de las pestañas fijas); las que te esperan suben al
-principio de su grupo; la barra de abajo cuenta "N te esperan" (sin la manager), y al pasar de
+principio de su grupo; la barra de abajo cuenta "N te esperan" (sin la manager; al pasar el mouse se despliega hacia arriba la lista, con la hora y la nota de cada una: el mouse o ↑/↓ eligen, click o Enter abren esa sesión sin cerrar la lista, y sacar el mouse del contador + la lista la cierra), y al pasar de
 trabajando a esperarte llega una notificación de macOS. Al aprobar un permiso en la terminal vuelve
 a trabajando. Los claude lanzados antes de esto no tienen hooks hasta relanzarlos (se ven como
 "corriendo"). `sessions.tree` trae `activity` por sesión; `ide dev ls` muestra `TE ESPERA` /
