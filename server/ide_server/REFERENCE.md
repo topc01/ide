@@ -334,6 +334,8 @@ para probar un cambio (sobre todo de reglas de estado) contra una copia sin toca
 de estados que va y vuelve). Con `IDE_DB_PATH` el IDE no se conecta a Telegram (si no, le roba los
 mensajes al IDE real).
 
+**Base de datos de la api de cada worktree:** el `run` de la api (`.ide/scripts/finnecto-api/.lib/api-lib.sh`, `choose_db`) le da a cada worktree **siempre su propia base** (`finnecto_dev_<slug>`, clon de `finnecto_dev` la primera vez, ~65 MB y unos segundos), aunque la rama no tenga migraciones: antes usaba la compartida hasta que la rama tuviera migraciones, y las que una sesión agregaba después se corrían sobre `finnecto_dev` y rompían a las demás.
+
 **Tests de la api y memoria:** el override de compose de las apis de los worktrees (`.ide/scripts/finnecto-api/.lib/api-compose.override.yml`) limita `pytest -n auto` a 2 procesos (`PYTEST_XDIST_AUTO_NUM_WORKERS`) y cada contenedor de api a 4 núcleos (`cpus`); las sesiones corren `make test` y nunca `-n` mayor a 2 (cada proceso ~750 MB: con varias sesiones OrbStack llega a su tope y la Mac hace swap).
 
 ## 8b. Servidores y Archivos (UI)
