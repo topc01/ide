@@ -1415,6 +1415,12 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         sid = _ev_sid(p)
         url = _pr_url(p.get("url") or "")            # URL o repo#n (desde la CLI)
         parse_pr_url(url)
+        # solo en una PR de este desarrollo (vinculada a la sesión, o la que revisa): nunca una cualquiera
+        mine = {u for u, l in (db.dev_prs() if db else {}).items() if l.get("sid") == sid and not l.get("out")}
+        sess = read_session(root, sid)
+        mine |= set(sess.get("stackPrs") or []) | ({sess["prUrl"]} if sess.get("prUrl") else set())
+        if url not in mine:
+            raise SessionError("forbidden", f"{url} no es una PR de este desarrollo: la guía solo se publica en las suyas")
         text, files = await asyncio.to_thread(evidence_mod.markdown, root, sid, str(p.get("run")))
         if len(files) > 50:
             raise SessionError("too_many", "gh sube hasta 50 archivos por comentario")
