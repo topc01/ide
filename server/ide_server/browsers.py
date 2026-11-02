@@ -14,6 +14,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 from ide_server.sessions_fs import SessionError, read_toml, write_toml
@@ -162,7 +163,8 @@ def _specs(root: Path) -> dict[str, list[str]]:
     cookies, script = _shared_local(root)
     out = {LOCAL_SERVER: ["--storage-state", str(cookies), "--init-script", str(script)]}
     for p in list_profiles(root):
-        out[p["server"]] = ["--storage-state", str(base(root) / p["name"] / "state.json")]
+        if p["local"]:      # los de cuentas REAL no se comparten por un puerto sin clave (ver write_mcp_config)
+            out[p["server"]] = ["--storage-state", str(base(root) / p["name"] / "state.json")]
     return out
 
 
@@ -183,6 +185,23 @@ def _ports(root: Path, names) -> dict[str, int]:
 PORT0 = 18920
 
 
+def _listeners(port: int) -> set[int]:
+    """Los pids que escuchan en ese puerto (lsof)."""
+    out = subprocess.run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"], capture_output=True, text=True).stdout
+    return {int(x) for x in out.split() if x.isdigit()}
+
+
+def _pgid(pid: int) -> int | None:
+    out = subprocess.run(["ps", "-o", "pgid=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+    return int(out) if out.isdigit() else None
+
+
+def _foreign(port: int, ours: int | None) -> bool:
+    """El puerto lo tiene otro proceso (no el servidor que levantó el IDE, que es líder de su grupo): las
+    sesiones le hablarían a él como si fuera el navegador."""
+    return any(_pgid(pid) != ours for pid in _listeners(port)) if ours else bool(_listeners(port))
+
+
 def write_mcp_config(root: Path, *, local_only: bool = False) -> Path:
     """`.ide/browsers/mcp.json`: `browser-local` (siempre) y uno por perfil (`mcp-local.json`: solo los locales,
     para las sesiones que no piden permiso, que no deben tener una cuenta REAL). Cada uno es un servidor
@@ -190,12 +209,21 @@ def write_mcp_config(root: Path, *, local_only: bool = False) -> Path:
     propio navegador aislado): antes cada sesión levantaba los suyos (~150 MB por perfil y sesión)."""
     f = base(root) / ("mcp-local.json" if local_only else "mcp.json")
     base(root).mkdir(parents=True, exist_ok=True, mode=0o700)
-    local = {p["server"] for p in list_profiles(root) if p["local"]} | {LOCAL_SERVER}
     specs = _specs(root)
     ports = _ports(root, specs)
-    BrowserServers.of(root).ensure()
+    bs = BrowserServers.of(root)
+    bs.ensure()
+    ports = _ports(root, specs)                 # (ensure pudo mover alguno a otro puerto)
     servers = {n: {"type": "http", "url": f"http://localhost:{ports[n]}/mcp"}
-               for n in specs if n in local or not local_only}
+               for n in specs if not _foreign(ports[n], bs.pid(n))}
+    if not local_only:
+        # una cuenta REAL (prod) no va en un servidor compartido (cualquier proceso local podría usarla): un
+        # Playwright MCP propio por sesión, solo en las que pueden (nunca las `full`)
+        for p in list_profiles(root):
+            if not p["local"]:
+                servers[p["server"]] = {"command": "npx", "args": [
+                    "-y", f"@playwright/mcp@{MCP_VERSION}", "--isolated", "--browser", "chrome",
+                    "--storage-state", str(base(root) / p["name"] / "state.json")]}
     text = json.dumps({"mcpServers": servers}, indent=2) + "\n"
     if not f.is_file() or f.read_text(encoding="utf-8") != text:
         f.write_text(text, encoding="utf-8")
@@ -232,6 +260,12 @@ class BrowserServers:
         out = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True).stdout
         return "playwright/mcp" in out
 
+    def pid(self, name: str) -> int | None:
+        try:
+            return json.loads((self._dir() / f"{name}.json").read_text(encoding="utf-8")).get("pid")
+        except (OSError, ValueError):
+            return None
+
     def ensure(self) -> None:
         import signal
         specs = _specs(self.root)
@@ -253,6 +287,13 @@ class BrowserServers:
                 if info.get("args") == want:
                     continue
                 os.killpg(info["pid"], signal.SIGTERM)  # cambió (p.ej. otro archivo de sesión): se relanza
+                time.sleep(1)
+            if _listeners(ports[name]):                 # el puerto lo tiene otro proceso: se usa otro
+                pmap = json.loads((base(self.root) / "ports.json").read_text(encoding="utf-8"))
+                pmap[name] = max(pmap.values()) + 1
+                (base(self.root) / "ports.json").write_text(json.dumps(pmap, indent=2) + "\n", encoding="utf-8")
+                ports[name] = pmap[name]
+                want = [*args, "--port", str(ports[name])]
             log = open(self._dir() / f"{name}.log", "ab")
             proc = subprocess.Popen(["npx", "-y", f"@playwright/mcp@{MCP_VERSION}", "--isolated", "--browser", "chrome", *want],
                                     stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
