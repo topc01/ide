@@ -61,7 +61,8 @@ function DevLine({ d, names }: { d: Desarrollo; names?: Record<string, string> }
         {pr && <CiMark pr={pr} />}
       </div>
       <div className="flex items-center gap-1.5 pl-4 font-mono text-[10px] text-muted-foreground">
-        <span className="truncate">{d.kind === "session" ? (d.session.kind === "main" ? "sesión principal" : d.session.kind === "ide" ? "repo del IDE" : d.session.kind === "recursos" ? "batería y CPU" : d.session.id) : `${d.pr.repo}#${d.pr.number}`}</span>
+        <span className="truncate">{d.kind === "session" ? (d.session.kind === "main" ? "sesión principal" : d.session.kind === "ide" ? "repo del IDE" : d.session.kind === "recursos" ? "batería y CPU"
+          : /^\d+$/.test(d.session.id) ? d.session.repos.map((r) => r.name.replace(/^finnecto-/, "")).join(" · ") || "sin repos" : d.session.id) : `${d.pr.repo}#${d.pr.number}`}</span>
         {repos.length > 1 && <RepoChips repos={repos} />}
         {pr && (d.kind === "pr" || d.prs.length === 1) && <StackBadge pr={pr} />}
         {pr && <DepsBadge pr={pr} />}

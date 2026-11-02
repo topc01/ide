@@ -89,6 +89,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
             : merged.length ? null
             : prLabel(session.prUrl) ? <span className="rounded border border-border px-1 font-mono text-[10px] font-bold">{prLabel(session.prUrl)}</span>
             : repos.length ? repos.map((r) => <RefChip key={r} repo={r} />)
+            : /^\d+$/.test(session.id) ? null   // el id es el número (#n): ya se ve
             : <span className="font-mono text-[10px] text-muted-foreground">{session.id}</span>}
           {merged.length > 0 && <MergedToggle id={session.id} merged={merged} hasOpen={many || !!pr} />}
           {session.kind === "ticket" && !pr && !many && !merged.length && dev && dev.phase !== "investigating" && dev.phase !== "merged" && (
