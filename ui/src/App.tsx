@@ -31,8 +31,10 @@ import { MainPanel } from "./layout/MainPanel";
 import { StatusBar } from "./layout/StatusBar";
 import { DevSelector } from "./layout/DevSelector";
 import { HoverTips } from "./layout/HoverTips";
+import { useDevShortcuts } from "./layout/devShortcuts";
 
 export default function App() {
+  useDevShortcuts();
   const setUiModules = useFolders((s) => s.setUiModules);
   const setConnected = useFolders((s) => s.setConnected);
   useEffect(() => {
