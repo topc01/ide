@@ -58,13 +58,17 @@ def workspace_orgs(root: Path) -> list[str]:
 
 
 def review_state(n: dict) -> str | None:
-    """approved | changes | review (con reviews pedidas pendientes) | None (sin review)."""
-    # Como Graphite: si pidieron cambios pero re-pediste review, vuelve a estar "en revisión"
-    # (GitHub mantiene CHANGES_REQUESTED hasta que el revisor apruebe).
+    """approved | changes | review (con reviews pedidas pendientes) | None (sin review).
+    Por revisor: si **cualquiera** tiene cambios pedidos, la PR está en cambios pedidos, aunque otro siga
+    pendiente o haya aprobado. Si a ese mismo revisor se le re-pidió la review, ya no cuenta como cambios
+    (vuelve a "en revisión"; GitHub mantiene CHANGES_REQUESTED hasta que apruebe)."""
+    states = {r["state"] for r in pr_reviewers(n)}
     decision = n.get("reviewDecision")
+    if "changes" in states:
+        return "changes"
     if decision == "APPROVED":
         return "approved"
-    if _requested(n):
+    if "requested" in states or _requested(n):
         return "review"
     return "changes" if decision == "CHANGES_REQUESTED" else None
 
@@ -566,8 +570,8 @@ class GithubReviews:
                 revs[verdict[0]] = verdict[1]
             c["reviewers"] = [{"login": k, "state": v} for k, v in revs.items()]
             states = set(revs.values())
-            # como `review_state`: una review re-pedida pesa más que los cambios pedidos
-            c["review"] = "review" if "requested" in states else "changes" if "changes" in states \
+            # como `review_state`: un revisor con cambios pedidos manda (al que se le re-pidió ya está en requested)
+            c["review"] = "changes" if "changes" in states else "review" if "requested" in states \
                 else "approved" if "approved" in states else c.get("review")
         mine = st.get("mine") or {}
         group = {"changes": "returned", "review": "waiting", "approved": "approved"}
