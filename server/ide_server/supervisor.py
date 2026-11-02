@@ -174,6 +174,8 @@ def build_argv(root: Path, sid: str, *, command: str, resume: bool,
     data = read_toml(path / ".session.toml")
     perm, kind = data.get("permissions", "default"), data.get("kind")
     argv = shlex.split(command)
+    if isinstance(data.get("model"), str) and data["model"]:
+        argv += ["--model", data["model"]]          # `ide session new --model` / `ide session model`
     if perm in ("analyze", "full"):
         profile = "main" if (kind == "main" and perm == "analyze") else perm
         argv += ["--settings", str(root / ".ide" / "permissions" / f"{profile}.json")]

@@ -20,6 +20,18 @@ from ide_server.workspace import discover_repos
 
 KINDS = ("main", "ticket", "review", "ide", "recursos")
 PERMISSIONS = ("analyze", "full", "default")
+# el modelo de claude de una sesión (`--model`): un alias (sonnet, opus, haiku, opusplan…) o un id completo
+MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.\-\[\]]{0,63}$")
+
+
+def check_model(model: str | None) -> str | None:
+    """El modelo pedido, validado (None/"" o "default" = el de siempre)."""
+    model = (model or "").strip()
+    if not model or model == "default":
+        return None
+    if not MODEL_RE.match(model):
+        raise SessionError("bad_model", f"modelo inválido: {model!r} (p.ej. sonnet, opus, haiku o un id como claude-sonnet-5-5)")
+    return model
 RESERVED = {"templates"}
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 _VAR_RE = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
@@ -238,7 +250,7 @@ def read_session(root: Path, sid: str) -> dict:
     if kind is not None and not isinstance(kind, str):
         info["error"] = f"kind inválido: {kind!r}"
         kind = None
-    info.update(kind=kind, permissions=data.get("permissions"),
+    info.update(kind=kind, permissions=data.get("permissions"), model=data.get("model") if isinstance(data.get("model"), str) else None,
                 created=str(data.get("created", "")), prUrl=data.get("pr_url"),
                 reviewedSha=data.get("reviewed_sha"),
                 # revisión de un stack: las PRs que revisa, de abajo hacia arriba (pr_url = la de arriba)

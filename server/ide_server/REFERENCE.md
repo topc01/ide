@@ -175,6 +175,7 @@ Crea la carpeta y lanza `claude` en ella (o la encola si se llegó a `max_runnin
 | `--prompt "…"` / `--prompt-file f` | prompt libre (sin plantilla) |
 | `--title T` | título (si no, sale de la variable `title`) |
 | `--permissions analyze\|full\|default` | perfil (§5) |
+| `--model <modelo>` | modelo de su claude (`claude --model …`): un alias (`sonnet`, `opus`, `haiku`, `opusplan`) o un id completo. Queda en `.session.toml` (`model`) y se usa cada vez que se lanza o retoma; sin él, el de siempre. También en el modal "Nueva sesión" (campo Modelo). Para tickets simples, `sonnet` o `haiku` salen más baratos |
 | `--review <pr-url>` | sesión de revisión: id `pr-<repo>-<n>`, worktree detached en el head del PR, `gh` requerido |
 | `--if-missing` | si el id ya existe: no hace nada y sale 0 (imprime `existe`). Usalo siempre al despachar |
 | `--dry-run` | valida todo y muestra id + prompt, sin crear ni lanzar |
@@ -182,7 +183,8 @@ Crea la carpeta y lanza `claude` en ella (o la encola si se llegó a `max_runnin
 Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run` + el prompt.
 
 ### Otros comandos de sesión
-- `ide session ls [--json]`: sesiones desde disco (id, kind, status, proceso, título, repos, ⚠ error). El proceso sale `?` si no hay server.
+- `ide session ls [--json]`: sesiones desde disco (id, kind, status, proceso, modelo —`-` = el de siempre—, título, repos, ⚠ error). El proceso sale `?` si no hay server. La card de la sesión muestra el modelo como chip cuando no es el de siempre.
+- `ide session model <id> <modelo|default>`: cambia el modelo de una sesión ya creada (`default` = el de siempre). Vale desde que su claude se relanza (al reiniciar el IDE o `ide session stop` + `open`); para cambiarlo en el momento, `/model <modelo>` en su terminal (ojo: un `/model` en la terminal no queda guardado: al relanzarse vuelve al de `.session.toml`).
 - `ide session open <id>` [server]: si está parada, la lanza con `claude --continue` (retoma la conversación de esa carpeta) o con `PROMPT.md` si no hay historia.
 - `ide session stop <id>` [server]: mata el proceso; carpeta y worktrees quedan.
 - **Archivar** (botón de la card en la UI; canal `sessions.archive {id, force}`; solo de ida, sin

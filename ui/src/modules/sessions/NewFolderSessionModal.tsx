@@ -17,6 +17,7 @@ export function NewFolderSessionModal() {
   const [notionUrl, setNotionUrl] = useState(""); const [body, setBody] = useState("");
   const [template, setTemplate] = useState<"ticket" | "none">("ticket");
   const [permissions, setPermissions] = useState<"" | "analyze" | "full" | "default">("");
+  const [model, setModel] = useState("");
   const [prUrl, setPrUrl] = useState(""); const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -34,7 +35,7 @@ export function NewFolderSessionModal() {
   }, [modal]);
 
   const payload = (): NewSessionReq => {
-    if (modal === "review") return { review: prUrl.trim() };
+    if (modal === "review") return { review: prUrl.trim(), ...(model ? { model } : {}) };
     const base: NewSessionReq = {};
     if (id.trim()) base.id = id.trim();
     else if (template === "ticket" && notionUrl.trim()) base.notion = notionUrl.trim();
@@ -46,6 +47,7 @@ export function NewFolderSessionModal() {
       base.prompt = body;
     }
     if (permissions) base.permissions = permissions;
+    if (model) base.model = model;
     return base;
   };
 
@@ -108,6 +110,13 @@ export function NewFolderSessionModal() {
               </select></div>
           </div>
         )}
+        <div className={field}><Label htmlFor="model">Modelo</Label>
+          <select id="model" className={select} value={model} title="El modelo de claude de la sesión (se mantiene al retomarla)"
+            onChange={(e) => setModel(e.target.value)}>
+            <option value="">El de siempre</option>
+            <option value="opus">opus</option><option value="sonnet">sonnet (más barato)</option>
+            <option value="haiku">haiku (el más barato, para lo muy simple)</option>
+          </select></div>
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
         <DialogFooter>
           <Button title="Cerrar sin crear" variant="ghost" onClick={closeModal}>Cancelar</Button>

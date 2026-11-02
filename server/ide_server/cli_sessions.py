@@ -15,7 +15,8 @@ from ide_server.push import push
 from ide_server.repos_fs import add_repo, rm_repo, require_session
 from ide_server.scripts import run_script
 from ide_server.session_ops import delete_session
-from ide_server.sessions_fs import SessionError, list_sessions, normalize_id, repo_links, sessions_dir
+from ide_server.sessions_fs import (SessionError, check_model, list_sessions, normalize_id, repo_links, sessions_dir,
+                                    update_session_toml)
 from ide_server.workspace import find_workspace_root
 from ide_server.worktrees import BranchOccupied, WorktreeError
 
@@ -54,12 +55,15 @@ def _parser() -> argparse.ArgumentParser:
     new.add_argument("--var", action="append", default=[])
     new.add_argument("--prompt"); new.add_argument("--prompt-file")
     new.add_argument("--permissions", choices=["analyze", "full", "default"])
+    new.add_argument("--model", help="modelo de su claude (sonnet, opus, haiku o un id); sin él, el de siempre")
     new.add_argument("--review")
     new.add_argument("--notion", help="URL del ticket en Notion (deriva el id: n-<8 hex>)")
     new.add_argument("--vars-file", help="JSON con variables de la plantilla ('-' = stdin)")
     new.add_argument("--if-missing", action="store_true", help="si ya existe, no hace nada")
     new.add_argument("--dry-run", action="store_true", help="valida y muestra, sin crear")
     ls = s.add_parser("ls"); ls.add_argument("--json", action="store_true")
+    mo = s.add_parser("model", help="cambia el modelo de claude de una sesión (vale desde que su claude se relanza)")
+    mo.add_argument("id"); mo.add_argument("model", help="sonnet, opus, haiku, un id, o `default` (el de siempre)")
     for name in ("open", "stop"):
         s.add_parser(name).add_argument("id")
     rm = s.add_parser("rm"); rm.add_argument("id"); rm.add_argument("--force", action="store_true")
@@ -208,7 +212,7 @@ def _new_payload(a, env: dict) -> dict:
     body: dict = {}
     if env.get("IDE_SESSION_ID"):                # lo pide una sesión: el server valida permisos
         body["caller"] = env["IDE_SESSION_ID"]
-    for key in ("id", "title", "template", "permissions", "review", "notion"):
+    for key in ("id", "title", "template", "permissions", "review", "notion", "model"):
         if getattr(a, key):
             body[key] = getattr(a, key)
     for flag in ("main", "if_missing", "dry_run"):
@@ -1019,6 +1023,14 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
         else:
             out.write(f"{data['id']}\t{data['delivered']}\t{data['process']}\n")
         return 0
+    if a.cmd == "model":
+        sid = a.id.lstrip("#") if a.id.lstrip("#").isdigit() else normalize_id(a.id)
+        model = check_model(a.model)
+        require_session(root, sid)
+        update_session_toml(root, sid, lambda d: d.update(model=model) if model else d.pop("model", None))
+        out.write(f"{sid}\t{model or 'default'}\tvale cuando su claude se relance (para cambiarlo ya: `/model "
+                  f"{model or 'default'}` en su terminal)\n")
+        return 0
     if a.cmd in ("open", "stop", "rm"):
         a.id = normalize_id(a.id)
     if a.cmd in ("open", "stop"):
@@ -1044,6 +1056,6 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
         return 0
     for s in sessions:
         repos = ",".join(r["name"] for r in s["repos"]) or "-"
-        out.write(f"{s['id']}\t{s['kind']}\t{s['status'] or '-'}\t{s['process']}\t"
+        out.write(f"{s['id']}\t{s['kind']}\t{s['status'] or '-'}\t{s['process']}\t{s.get('model') or '-'}\t"
                   f"{s['title'] or ''}\t{repos}{'  ⚠ ' + s['error'] if s['error'] else ''}\n")
     return 0

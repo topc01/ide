@@ -84,6 +84,9 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
         <div className="mt-1 flex flex-wrap items-center gap-1">
           <DevIndex devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])} />
           {session.kind === "ticket" && <TicketChip devKey={`s:${session.id}`} />}
+          {session.model && (
+            <span title={`Su claude usa el modelo ${session.model} (cambiarlo: ide session model ${session.id} <modelo>)`}
+              className="rounded border border-border px-1 font-mono text-[10px] text-muted-foreground">{session.model}</span>)}
           {many ? groups.flatMap((g) => g.stacks.flat()).map((p) => <RefChip key={p.url} repo={p.repo} number={p.number} pr={p} />)
             : pr ? <RefChip repo={pr.repo} number={pr.number} pr={pr} />
             : merged.length ? null

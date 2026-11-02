@@ -15,8 +15,7 @@ from ide_server.prompts import load_prompt
 from ide_server.sessions_fs import (
     repo_links,
     SessionError, create_session_dir, list_sessions, new_id, normalize_id, read_session, render_template,
-    require_plain_name, session_path, sessions_dir, update_session_toml, read_toml,
-)
+    require_plain_name, session_path, sessions_dir, update_session_toml, read_toml, check_model)
 from ide_server.workspace import discover_repos
 from ide_server.worktrees import BranchOccupied, has_uncommitted_changes
 
@@ -128,6 +127,7 @@ def _existing(root: Path, sid: str, req: dict) -> dict | None:
 
 def create_session(root: Path, req: dict, *, runner: Runner = _run) -> dict:
     permissions = _resolve_permissions(root, req)
+    req = {**req, "model": check_model(req.get("model"))}
     if req.get("review"):
         return _create_review(root, req, permissions, runner)
     kind = "main" if req.get("main") else "ticket"
@@ -166,11 +166,13 @@ def create_session(root: Path, req: dict, *, runner: Runner = _run) -> dict:
         meta = {"title": req.get("title") or variables.get("title"),
                 "notion_url": variables.get("notion_url")}
     if req.get("dry_run"):
-        return {"session": {"id": sid, "kind": kind, "permissions": permissions,
+        return {"session": {"id": sid, "kind": kind, "permissions": permissions, "model": req["model"],
                             "title": (meta or {}).get("title")},
                 "prompt": prompt, "log": "", "dryRun": True,
                 "existed": session_path(root, sid).exists()}
     create_session_dir(root, sid=sid, kind=kind, permissions=permissions, prompt=prompt, meta=meta)
+    if req["model"]:
+        update_session_toml(root, sid, lambda d: d.update(model=req["model"]))
     if (meta or {}).get("notion_url"):
         # el ticket queda en sus Adjuntos (link `.url`, el mismo formato que el botón "link")
         att = session_path(root, sid) / "attachments"
@@ -193,7 +195,7 @@ def _create_review(root: Path, req: dict, permissions: str, runner: Runner) -> d
     if (found := _existing(root, sid, req)) is not None:
         return found
     if req.get("dry_run"):
-        return {"session": {"id": sid, "kind": "review", "permissions": permissions,
+        return {"session": {"id": sid, "kind": "review", "permissions": permissions, "model": req.get("model"),
                             "title": None},
                 "prompt": "", "log": "", "dryRun": True,
                 "existed": session_path(root, sid).exists()}
@@ -208,7 +210,8 @@ def _create_review(root: Path, req: dict, permissions: str, runner: Runner) -> d
                        meta={"title": pr["title"], "author": author, "pr_url": url})
     log = io.StringIO()
     try:
-        update_session_toml(root, sid, lambda d: d.update(pr_url=url, reviewed_sha=pr["headRefOid"]))
+        update_session_toml(root, sid, lambda d: d.update(pr_url=url, reviewed_sha=pr["headRefOid"],
+                                                          **({"model": req["model"]} if req.get("model") else {})))
         _fetch_pr(root, repo, number, runner)
         try:
             add_repo(root, sid, repo, detach_at=pr["headRefOid"], out=log)

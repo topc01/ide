@@ -8,7 +8,7 @@ export interface RepoInfo {
   port: number | null; setup: "ok" | "failed" | null;
 }
 export interface FolderSession {
-  id: string; kind: Kind | null; path: string; created: string; permissions: string | null;
+  id: string; kind: Kind | null; path: string; created: string; permissions: string | null; model?: string | null;
   title: string | null; status: string | null; meta: Record<string, string>; repos: RepoInfo[];
   error: string | null; process: Process; terminalId: string | null; launchError?: string | null;
   prUrl?: string | null; reviewedSha?: string | null;
@@ -120,7 +120,7 @@ export const renameDev = (ws: WsClient, key: string, name: string): Promise<{ ok
 export interface NewSessionReq {
   id?: string; main?: boolean; title?: string; template?: string;
   vars?: Record<string, string>; prompt?: string;
-  permissions?: "analyze" | "full" | "default"; review?: string;
+  permissions?: "analyze" | "full" | "default"; review?: string; model?: string;
   notion?: string; if_missing?: boolean; dry_run?: boolean;
 }
 
