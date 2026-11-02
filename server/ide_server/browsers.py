@@ -21,9 +21,10 @@ from ide_server.sessions_fs import SessionError, read_toml, write_toml
 
 MCP_VERSION = "0.0.83"          # @playwright/mcp
 PLAYWRIGHT_VERSION = "1.64.1"   # el CLI `playwright open` del login
-# "local": localhost y tech.finnecto.com (ahí el usuario deja hacer cualquier cosa): las sesiones lo usan
-# sin pedir permiso, también las `full`. El resto es REAL: pide permiso por acción y las `full` no lo tienen.
-LOCAL = re.compile(r"^https?://(localhost|127\.0\.0\.1|\[::1\]|tech\.finnecto\.com)(:\d+)?(/|$)")
+# "local": localhost (con sus subdominios: el embed elige la sociedad por ellos, p.ej. demo-cl.localhost)
+# y tech.finnecto.com (ahí el usuario deja hacer cualquier cosa): las sesiones lo usan sin pedir permiso,
+# también las `full`. El resto es REAL: pide permiso por acción y las `full` no lo tienen.
+LOCAL = re.compile(r"^https?://(([a-z0-9-]+\.)*localhost|127\.0\.0\.1|\[::1\]|tech\.finnecto\.com)(:\d+)?(/|$)", re.I)
 
 
 # siempre está (sin perfil ni cuenta): el navegador de las sesiones para probar en localhost. Es un Chrome
@@ -131,7 +132,7 @@ def login(root: Path, name: str, url: str | None = None) -> int:
 
 def _shared_local(root: Path) -> tuple[Path, Path]:
     """La sesión local compartida para browser-local: (storage con sus cookies —en localhost valen para
-    cualquier puerto—, script que en cada página de localhost copia su localStorage —que es por puerto, y
+    cualquier puerto—, script que en cada página de localhost —o un subdominio suyo— copia su localStorage —que es por origen, y
     ahí guarda el embed el token de Cognito— si esa página no tiene ya el suyo). Los dos existen siempre
     (vacíos sin login): el MCP los lee al abrir el navegador, así un login nuevo sirve sin relanzar."""
     src = shared_state(root)
@@ -141,7 +142,7 @@ def _shared_local(root: Path) -> tuple[Path, Path]:
             f.chmod(0o600)
     data = json.loads(src.read_text(encoding="utf-8")) if _logged(src) else {"cookies": [], "origins": []}
     store = {i["name"]: i["value"] for o in data.get("origins") or [] for i in o.get("localStorage") or []}
-    script = ("(() => { if (!/^(localhost|127\\.0\\.0\\.1)$/.test(location.hostname)) return;\n"
+    script = ("(() => { if (!/(^|\\.)localhost$|^127\\.0\\.0\\.1$/.test(location.hostname)) return;\n"
               f"  const items = {json.dumps(store)};\n"
               "  try { for (const [k, v] of Object.entries(items)) if (localStorage.getItem(k) === null) localStorage.setItem(k, v); }"
               " catch (e) {}\n})();\n")
