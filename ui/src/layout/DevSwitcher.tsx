@@ -40,9 +40,10 @@ export function DevSwitcher() {
               <button key={k} ref={on ? sel : undefined} title={d.title}
                 onMouseEnter={() => useSwitcher.setState({ index: i })}
                 onClick={() => { useSwitcher.setState({ index: i }); window.dispatchEvent(new KeyboardEvent("keyup", { key: "Meta" })); }}
-                style={on ? { background: "color-mix(in srgb, var(--primary) 18%, transparent)" } : undefined}
-                className={cn("flex h-32 w-44 shrink-0 flex-col justify-between rounded-2xl p-3 text-left transition-colors",
-                  on ? "ring-2 ring-primary" : "hover:bg-accent")}>
+                // las tarjetas, sólidas (el panel es el que deja ver algo de atrás); la marcada, teñida de ámbar
+                style={{ background: on ? "color-mix(in srgb, var(--primary) 22%, var(--card))" : "var(--card)" }}
+                className={cn("flex h-32 w-44 shrink-0 flex-col justify-between rounded-2xl border p-3 text-left shadow-sm transition-colors",
+                  on ? "border-primary ring-2 ring-primary" : "border-border hover:border-primary/50")}>
                 <span className="flex items-center gap-2">
                   {d.dot && <span className={cn("text-xs", d.dot[1])}>{d.dot[0]}</span>}
                   <span className="font-mono text-2xl font-bold leading-none text-primary">{d.n ? `#${d.n}` : d.tag ?? "·"}</span>
