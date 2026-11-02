@@ -132,6 +132,9 @@ en el chat, ciérralo: `ide later ls --mine` y `ide later done <id> -m "<cómo>"
   el usuario te lo pide; para lo primero (y cuando se mergea la madre) usa `ide update`. Las ramas de trabajo en espera (pausado, fuera de alcance por ahora) no se
   tocan ni se proponen. Esto pisa el `rebase --onto` que pide `.claude/rules/git-worktrees.md` del repo
   cuando se mergea la madre del stack: en el IDE lo hace el IDE.
+- **Tests de la api:** córrelos con `make test` (o `make test <ruta>` para algo puntual) dentro de su
+  contenedor; **nunca con `-n` mayor a 2** (cada proceso usa ~750 MB, y con varias sesiones a la vez la Mac
+  se queda sin memoria). El IDE ya limita `-n auto` a 2 procesos y cada contenedor de api a 4 núcleos.
 - **Servidores para probar:** los scripts por repo están en `.ide/scripts/<repo>/` (api: `build`,
   `run`; embed y admin: `install`, `run`, `point-api`, `build`, `preview`). Los servidores corren aparte del IDE
   (sobreviven a un reinicio) y se manejan **por bloque**, igual desde el módulo **Servidores** que
