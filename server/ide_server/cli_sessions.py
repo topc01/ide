@@ -786,8 +786,13 @@ def _db_query(env_name: str, sql: str, home: Path, out: TextIO, err: TextIO, *, 
         from ide_server.sessions_fs import session_path
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,80}\.(csv|tsv|txt|json)", to):
             raise SessionError("bad_request", "--out: solo un nombre de archivo de datos (p.ej. facturas.csv; .csv, .tsv, .txt o .json)")
-        base = (session_path(root, sid) / "attachments" / "db") if sid and root else ((root or Path.cwd()) / ".ide" / "db-out")
+        if sid and not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", sid):
+            raise SessionError("bad_request", "id de sesión inválido")
+        top = (root or Path.cwd()).resolve()
+        base = (session_path(top, sid) / "attachments" / "db") if sid and root else (top / ".ide" / "db-out")
         base.mkdir(parents=True, exist_ok=True)
+        if base.resolve() != base or not base.resolve().is_relative_to(top):   # ninguna parte es un enlace
+            raise SessionError("bad_request", f"--out: {base} no es una carpeta normal del workspace")
         f = base / to
         try:
             fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
