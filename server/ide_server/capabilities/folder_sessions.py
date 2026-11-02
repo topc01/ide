@@ -21,7 +21,7 @@ from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
 from ide_server.devs import PHASES, add_extra_worktrees, split_parallel, assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
-from ide_server import pr_changes, seeds
+from ide_server import pr_changes, seeds, staging_deploy
 from ide_server import pins as pins_mod
 from ide_server import later as later_mod
 from ide_server import evidence as evidence_mod
@@ -177,12 +177,37 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     continue
                 db.event(datetime.now().isoformat(timespec="seconds"), "ide", "ticket-status", dev=s_["id"],
                          data={"from": status, "to": notion.LIVE_STAGING, "note": "se mergeó la última PR"})
-                _tell_dev(f"s:{s_['id']}", "Evidencias en staging",
-                          "[Aviso del IDE] Se mergeó la última PR del desarrollo y su ticket pasó a Live Staging. Ahora toca "
-                          "**sacar las evidencias en staging**: prueba el flujo en tech.finnecto.com (perfiles `browser-tech-…`, "
-                          "`ide browser ls`), carga las fotos en el bloque Evidencias del ticket y pásalo a Completed Staging. "
-                          "Cuéntale al usuario en una línea qué cargaste.")
+                # el aviso de sacar evidencias espera a que el merge esté desplegado en staging (staging_notices)
+                prs = [{"url": u, "repo": l.get("repo") or u.split("/")[4], "full": "/".join(u.split("/")[3:5]),
+                        **(staging_deploy.merge_info(u) or {"sha": None, "mergedAt": None})}
+                       for u, l in links.items() if u in merged and l.get("sid") == s_["id"]]
+                db.set(f"stagingnotice:{s_['id']}", {"prs": prs, "since": datetime.now().isoformat(timespec="seconds")})
             db.set(f"notionlive:{s_['id']}", True)
+
+    def staging_notices() -> None:
+        """Avisa a cada desarrollo que pasó a Live Staging cuando sus merges ya están en staging (o, si no se
+        puede ver, a la hora del release + holgura). Lo pendiente vive en la base: sobrevive a un reinicio."""
+        if db is None:
+            return
+        for key, pend in db.with_prefix("stagingnotice:").items():
+            sid = key.split(":", 1)[1]
+            if not session_path(root, sid).is_dir():
+                db.delete(key)
+                continue
+            prs = [p for p in pend.get("prs") or [] if p.get("sha")]
+            for p in pend.get("prs") or []:             # sin sha (gh falló al mergear): se reintenta
+                if not p.get("sha") and (info := staging_deploy.merge_info(p["url"])):
+                    p.update(info); prs.append(p)
+            ready, note = staging_deploy.check(root, prs) if prs else (True, "(Ojo: no pude ver los merges en GitHub.)")
+            if not ready:
+                db.set(key, pend)                       # los que ya llegaron quedan marcados
+                continue
+            db.delete(key)
+            _tell_dev(f"s:{sid}", "Evidencias en staging",
+                      "[Aviso del IDE] El último merge del desarrollo ya está desplegado en staging (su ticket está en Live "
+                      "Staging). Ahora toca **sacar las evidencias en staging**: prueba el flujo en tech.finnecto.com "
+                      "(perfiles `browser-tech-…`, `ide browser ls`), carga las fotos en el bloque Evidencias del ticket y "
+                      "pásalo a Completed Staging. Cuéntale al usuario en una línea qué cargaste." + (f" {note}" if note else ""))
 
     if merger is not None and hasattr(merger, "all"):
         merger.all.on_done = lambda _key, _urls: threading.Thread(target=live_staging, daemon=True).start()
@@ -1736,7 +1761,17 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     await asyncio.wait_for(stop.wait(), notion.TTL)
                 except asyncio.TimeoutError:
                     pass
-        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live())
+        async def tick_staging() -> None:
+            while not stop.is_set():
+                try:
+                    await asyncio.to_thread(staging_notices)
+                except Exception:  # noqa: BLE001
+                    log.exception("Avisos de staging")
+                try:
+                    await asyncio.wait_for(stop.wait(), 180)
+                except asyncio.TimeoutError:
+                    pass
+        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live(), tick_staging())
 
     notify.notion_loop = notion_loop        # type: ignore[attr-defined]
     notify.telegram = bridge                # type: ignore[attr-defined]
