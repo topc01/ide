@@ -422,6 +422,28 @@ export function LaterChip({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
       <Clock size={10} />{n}</button>);
 }
 
+const REL = {
+  ticket: { label: "mismo ticket que", tip: "Tiene el mismo ticket de Notion que el desarrollo" },
+  stacked: { label: "apilada sobre", tip: "Una PR suya está apilada sobre una rama del desarrollo" },
+  split: { label: "sale del", tip: "El IDE lo separó como línea paralela del desarrollo" },
+} as const;
+
+/** Avisos de que el desarrollo cuelga de otro (mismo ticket, apilado sobre su rama, separado de él): si es el
+ *  mismo trabajo, se juntan con `ide dev link`. Click: va a ese desarrollo. */
+export function RelationChips({ devKey }: { devKey: string }) {
+  const rels = useFolders((s) => s.tree.devRelations?.[devKey]);
+  if (!rels?.length) return null;
+  return (<>{rels.map((r) => {
+    const who = r.n != null ? `#${r.n}` : r.dev;
+    return (
+      <button key={`${r.kind}:${r.dev}`}
+        title={`${REL[r.kind].tip} ${who}${r.pr ? ` (${r.pr})` : ""}. Si es el mismo trabajo, júntalos con \`ide dev link\`. Click: ir a ${who}`}
+        onClick={(e) => { e.stopPropagation(); useFolders.getState().setActive(r.dev); }}
+        className="inline-flex shrink-0 items-center rounded border border-yellow-400/50 px-1 text-[10px] font-semibold text-yellow-300 hover:border-yellow-300">
+        {REL[r.kind].label} {who}</button>);
+  })}</>);
+}
+
 /** El ticket de Notion del desarrollo: chip con su Status (click: abre la tarjeta en Notion) y los tickets de
  *  pendientes; «sin ticket» si no tiene. Solo desarrollos con sesión de ticket. */
 export function TicketChip({ devKey }: { devKey: string }) {

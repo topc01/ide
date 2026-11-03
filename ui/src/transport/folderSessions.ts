@@ -31,6 +31,8 @@ export interface SessionsTree {
   // ticket de Notion de cada desarrollo de ticket (`s:<id>`): url (null = sin ticket), Status de la caché, pendientes
   devTickets?: Record<string, { url: string | null; status: string | null; error: string | null;
     pending: { url: string; status: string | null; title: string | null }[] }>;
+  // desarrollos colgados de otro (`s:<id>`): mismo ticket, PR apilada sobre una rama de otro, separado por el IDE
+  devRelations?: Record<string, { kind: "ticket" | "stacked" | "split"; dev: string; n: number | null; pr?: string }[]>;
 }
 /** Pendiente "para después" de un desarrollo (lo deja la sesión con `ide later add` o el usuario). */
 export interface LaterItem {

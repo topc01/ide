@@ -19,7 +19,7 @@ from ide_server.feedback import as_markdown, collect, pending_plans
 from ide_server.telegram import TelegramBridge, get_token
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
-from ide_server.devs import PHASES, add_extra_worktrees, split_parallel, assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
+from ide_server.devs import PHASES, add_extra_worktrees, dev_relations, split_parallel, assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
 from ide_server import pr_changes, seeds, staging_deploy
 from ide_server import pins as pins_mod
@@ -87,6 +87,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     def _build_tree(snap: dict, derived: dict) -> dict:
         """Lectura de disco + git: corre en un thread (no bloquea el loop)."""
         sessions = list_sessions(root)
+        relations: dict = {}
         if db is not None:                      # la base es la fuente de verdad del estado
             sync_from_disk(root, db, sessions)
             status = {d["id"]: d["status"] for d in db.devs()}
@@ -102,8 +103,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 except Exception:  # noqa: BLE001
                     log.exception("separar líneas paralelas")
                 # después de separar: la PR de una línea paralela no recibe número propio antes que su sesión
-                assign_indices(db, list_devs(root, db, sessions, gh_reviews.state))
+                devs_ = list_devs(root, db, sessions, gh_reviews.state)
+                assign_indices(db, devs_)
                 _review_verdicts(sessions, status, derived)
+                try:
+                    relations = dev_relations(db, sessions, devs_)
+                    _warn_relations(relations)
+                except Exception:  # noqa: BLE001
+                    log.exception("avisos de desarrollos colgados de otro")
             for s in sessions:
                 if status.get(s["id"]):
                     s["status"] = status[s["id"]]
@@ -122,6 +129,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "devStates": dev_states(db) if db else {},
                 "later": later_mod.items(db) if db else [],
                 "devTickets": _tickets(sessions) if db else {},
+                "devRelations": relations,
                 "feedbackPending": pending_plans(root),
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
 
@@ -240,7 +248,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             db.event(datetime.now().isoformat(timespec="seconds"), p.get("actor") or "ide", "ticket", dev=sid, data={"url": url})
             info = await asyncio.to_thread(notion.read, db, url, fresh=True) if notion.get_token() else {}
         notify()
-        return {"id": sid, "url": url, "status": (info or {}).get("status"), "error": (info or {}).get("error")}
+        # otro desarrollo abierto con el mismo ticket: se dice al tiro (la manager también se entera, ver _warn_relations)
+        tid = lambda u: (m.group(0) if (m := re.search(r"[0-9a-f]{32}", (u or "").replace("-", ""))) else None)
+        idx = db.with_prefix("devidx:") if db is not None else {}
+        same = [f"#{idx[f's:{x['id']}']}" if idx.get(f"s:{x['id']}") else x["id"] for x in list_sessions(root)
+                if x.get("kind") == "ticket" and x["id"] != sid and tid((x.get("meta") or {}).get("notion_url")) == tid(url)]
+        warning = (f"este ticket ya es del desarrollo {', '.join(same)}: si es el mismo trabajo, va ahí (pídele a la "
+                   f"manager que junte las PRs con `ide dev link`); si es aparte, sigue") if same else None
+        return {"id": sid, "url": url, "status": (info or {}).get("status"), "error": (info or {}).get("error"), "warning": warning}
 
     async def ticket_pending(p: dict) -> dict:
         """Un ticket que la sesión creó para lo que quedó fuera del desarrollo (pendiente)."""
@@ -887,12 +902,43 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             later_mod.add(db, key, title, text, "ide")
         notify()
 
-    def _tell_manager(text: str) -> None:
+    def _tell_manager(text: str, title: str = "Un «Mergear todo» está pegado") -> None:
         """A la sesión manager: a su claude si corre; si no, a Para después."""
         main = find_main(root)
         if not main:
             return
-        _tell_dev(f"s:{main}", "Un «Mergear todo» está pegado", text)
+        _tell_dev(f"s:{main}", title, text)
+
+    REL_TEXT = {"ticket": "tiene el mismo ticket de Notion que el {o}",
+                "stacked": "tiene la PR {pr} apilada sobre una rama del {o}",
+                "split": "lo separó el IDE del {o} como línea paralela"}
+
+    def _warn_relations(relations: dict) -> None:
+        """Le avisa a la manager, una vez, cada desarrollo que quedó colgado de otro (mismo ticket, apilado
+        sobre su rama, separado de él): para juntarlos con `ide dev link` si son el mismo trabajo. La primera
+        vez solo registra los que ya había (no avisa lo viejo)."""
+        seen = db.get("relwarn")
+        first = seen is None
+        seen = set(seen or [])
+        new = []
+        for key, rels in relations.items():
+            for r in rels:
+                k = f"{key}|{r['kind']}|{r['dev']}"
+                if k not in seen:
+                    seen.add(k)
+                    new.append((key[2:], r))
+        if not new and not first:
+            return
+        db.set("relwarn", sorted(seen))
+        if first:
+            return
+        idx = db.with_prefix("devidx:")
+        lab = lambda sid: f"#{idx[f's:{sid}']}" if idx.get(f"s:{sid}") else sid
+        lines = [f"- El desarrollo {lab(sid)} " + REL_TEXT[r["kind"]].format(o=f"desarrollo {lab(r['dev'])}", pr=r.get("pr", ""))
+                 for sid, r in new]
+        _tell_manager("[Aviso del IDE] Un desarrollo quedó colgado de otro:\n" + "\n".join(lines)
+                      + "\nSi es el mismo trabajo, confírmalo con Tomás y júntalos con `ide dev link` "
+                        "(y archiva el que sobra); si es aparte, no hagas nada.", "Un desarrollo quedó colgado de otro")
 
     if merger is not None and hasattr(merger, "all"):
         merger.all.tell = _tell_dev
@@ -1236,10 +1282,42 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         _after_deps()
         return _deps_view(src)
 
+    def _branch_hint(repo: str, head: str, target: dict, sessions: list[dict], free: bool) -> str | None:
+        """La rama de una PR movida no está en el worktree del destino: dónde está y cómo la trabaja el
+        destino. Con `free`, si la tiene otra sesión detenida y sin cambios, se la saca (queda libre)."""
+        from ide_server.repos_fs import rm_repo
+        from ide_server.worktrees import has_uncommitted_changes
+        idx = db.with_prefix("devidx:")
+        short = lambda x: f"#{idx[f's:{x}']}" if idx.get(f"s:{x}") else x
+        tid, tl = target["id"], short(target["id"])
+        has_repo = any(r["name"] == repo for r in target.get("repos") or [])
+        take = (f"en el worktree de {repo} de {tl}: `git fetch origin && git switch {head}`" if has_repo
+                else f"`ide repo add {repo} --branch {head} --session {tid}`")
+        holder = next((x for x in sessions if x["id"] != tid
+                       and any(r["name"] == repo and r.get("branch") == head for r in x.get("repos") or [])), None)
+        extra = next((e["path"] for x in sessions for e in x.get("extra") or []
+                      if x["id"] != tid and e["name"] == repo and e["branch"] == head), None)
+        if holder is None and extra is None:
+            return f"su rama {head} ({repo}) no está en ningún worktree: para trabajarla desde {tl}, {take}"
+        if holder is None:
+            return (f"su rama {head} ({repo}) está tomada en {extra}: sácala de ahí (`git worktree remove`) y "
+                    f"después, para trabajarla desde {tl}, {take}")
+        hl = short(holder["id"])
+        if not free:
+            return (f"su rama {head} ({repo}) está en el worktree de {hl}. Para trabajarla desde {tl}: archiva {hl}, "
+                    f"o repite con `--free-branch` (con {hl} detenida y sin cambios sin commitear); después, {take}")
+        if supervisor.state(holder["id"]) == "running":
+            return f"no liberé {head}: el claude de {hl} está corriendo (detenlo o archívalo y repite)"
+        if has_uncommitted_changes(session_path(root, holder["id"]) / repo):
+            return f"no liberé {head}: el worktree de {repo} de {hl} tiene cambios sin commitear"
+        rm_repo(root, holder["id"], repo, out=io.StringIO())
+        return f"liberé {head}: salió del worktree de {hl}. Para trabajarla desde {tl}, {take}"
+
     async def dev_link_pr(p: dict) -> dict:
         """Asigna PRs a un desarrollo (`ide dev link`, "mover a otro desarrollo…"): pisa la asignación
         que tuvieran (explícita > pegajosa > por rama > stack) y quedan pegajosas en el nuevo. Avisa si
-        la rama de la PR no está en ningún worktree del destino."""
+        la rama de la PR no está en ningún worktree del destino, diciendo dónde está y cómo trabajarla; con
+        `free`, la saca del worktree de la sesión que la tiene (detenida y sin cambios)."""
         if db is None:
             raise SessionError("no_db", "sin base")
         _move_guard(p)
@@ -1271,7 +1349,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             if c is None:
                 warn = "no conozco su rama (¿cerrada o de otra org?)"
             elif (c.get("repo"), c.get("head")) not in branches:
-                warn = f"su rama {c.get('head')} ({c.get('repo')}) no está en ningún worktree de {sid}"
+                warn = await asyncio.to_thread(_branch_hint, c["repo"], c["head"], target, sessions, bool(p.get("free")))
             out.append({"pr": url, "from": _dev_label(prev), "to": _dev_label(sid), "warning": warn})
         notify()
         return {"ok": True, "moved": out}

@@ -391,7 +391,8 @@ def _on_branch(c: dict, s: dict, me: str | None = None, n: int | None = None) ->
 def split_parallel(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[str]:
     """Un desarrollo tiene **una línea por repo** (la rama de su worktree y lo apilado sobre ella). Si
     una sesión abre una PR tuya con su prefijo (`<login>/d<n>-…`) en otra rama de un repo que ya tiene
-    (una línea paralela), esa línea pasa a un **desarrollo nuevo**: sesión con el worktree en la PR de
+    que sale de la rama base del repo (una línea paralela: ni apilada sobre una rama del desarrollo ni
+    contenida en la rama del worktree), esa línea pasa a un **desarrollo nuevo**: sesión con el worktree en la PR de
     más arriba de esa línea, las PRs asignadas ahí y un SESSION.md que dice de dónde salió. Si una PR
     de otro repo del desarrollo original depende de esa línea, queda un pendiente para decidir si va
     con ella. Devuelve las sesiones creadas. Las PRs ya asignadas a mano (`link`) no se tocan."""
@@ -430,6 +431,13 @@ def split_parallel(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[s
             stacks.setdefault((c.get("stack") or {}).get("id") or c["url"], []).append(c)
         for prs in stacks.values():
             prs.sort(key=lambda c: (c.get("stack") or {}).get("position", 0))
+            # paralela de verdad = sale de la rama base del repo (develop/main): si la de abajo está apilada sobre
+            # una rama de este desarrollo, o alguna de sus ramas ya está en la rama del worktree (la sesión abre
+            # las PRs de un stack de a una y la de arriba todavía no tiene PR), es su stack, no otra línea
+            base = prs[0].get("base") or ""
+            if (base in line[prs[0]["repo"]] or base.startswith(prefix)
+                    or any(_in_worktree(session_path(root, s["id"]) / c["repo"], c.get("head")) for c in prs)):
+                continue
             top = prs[-1]
             nums = " → ".join(f"{c['repo']}#{c['number']}" for c in prs)
             # dónde está tomada la rama (un worktree extra de la sesión de origen): se avisa en vez de fallar
@@ -444,6 +452,7 @@ def split_parallel(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[s
                 add_repo(root, new, top["repo"], branch=top["head"], out=io.StringIO())
             except BranchOccupied:
                 busy = busy or "otro worktree"
+            db.set(f"splitfrom:{new}", s["id"])   # la card dice «sale del #n» y la manager se entera
             now_ = now()
             for c in prs:
                 db.link_pr(c["url"], new)
@@ -474,6 +483,22 @@ def split_parallel(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[s
                                   f"muévela con `ide dev link <#n de {new}> {c['repo']}#{c['number']}`.", "ide")
             created.append(new)
     return created
+
+
+def _in_worktree(wt: Path, branch: str | None) -> bool:
+    """¿La rama (local o de origin) ya está contenida en la rama del worktree? (git, sin esperar a GitHub)"""
+    import subprocess
+    if not branch or not wt.exists():
+        return False
+    for ref in (f"refs/heads/{branch}", f"refs/remotes/origin/{branch}"):
+        try:
+            r = subprocess.run(["git", "-C", str(wt), "merge-base", "--is-ancestor", ref, "HEAD"],
+                               capture_output=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        if r.returncode == 0:
+            return True
+    return False
 
 
 def link_prs(db: Db, sessions: list[dict], gh: dict) -> bool:
@@ -711,3 +736,53 @@ def dev_env(root: Path, sid: str) -> dict[str, str]:
     slug = f"d{n}_{_slug(name, '_')}"[:32].rstrip("_")
     return {"IDE_DEV_INDEX": str(n), "IDE_DEV_SLUG": slug,
             "IDE_DEV_BRANCH": f"{me + '/' if me else ''}d{n}-{_slug(name, '-')}"[:60].rstrip("-")}
+
+
+def dev_relations(db: Db, sessions: list[dict], devs: list[dict]) -> dict[str, list[dict]]:
+    """`s:<id>` → avisos de que ese desarrollo cuelga de otro: `ticket` (el mismo ticket de Notion que otro
+    desarrollo abierto), `stacked` (una PR suya apilada sobre una rama de otro desarrollo) y `split` (el IDE
+    lo separó de otro como línea paralela). Cada uno: {kind, dev (id de la otra sesión), n (su número)}."""
+    idx = db.with_prefix("devidx:")
+    tickets = {s["id"]: s for s in sessions if s.get("kind") == "ticket"}
+    out: dict[str, list[dict]] = {}
+
+    def add(sid: str, kind: str, other: str, **extra) -> None:
+        if other == sid or other not in tickets:
+            return
+        rel = {"kind": kind, "dev": other, "n": idx.get(f"s:{other}"), **extra}
+        if rel not in out.setdefault(f"s:{sid}", []):
+            out[f"s:{sid}"].append(rel)
+
+    def ticket_id(url: str | None) -> str | None:
+        m = re.search(r"[0-9a-f]{32}", (url or "").replace("-", ""))
+        return m.group(0) if m else None
+
+    by_ticket: dict[str, list[str]] = {}
+    for s in tickets.values():
+        if t := ticket_id((s.get("meta") or {}).get("notion_url")):
+            by_ticket.setdefault(t, []).append(s["id"])
+    for ids in by_ticket.values():
+        for a in ids:
+            for b in ids:
+                add(a, "ticket", b)
+    # de quién es cada rama: las de sus PRs y las de sus worktrees
+    owner: dict[tuple, str] = {}
+    for s in tickets.values():
+        for r in s.get("repos") or []:
+            if r.get("branch"):
+                owner[(r["name"], r["branch"])] = s["id"]
+    for d in devs:
+        if d["id"] in tickets:
+            for c in d.get("prs") or []:
+                if c.get("head"):
+                    owner.setdefault((c.get("repo"), c["head"]), d["id"])
+    for d in devs:
+        if d["id"] not in tickets:
+            continue
+        for c in d.get("prs") or []:
+            o = owner.get((c.get("repo"), c.get("base")))
+            if o and o != d["id"]:
+                add(d["id"], "stacked", o, pr=f"{c.get('repo')}#{c.get('number')}")
+    for k, origin in db.with_prefix("splitfrom:").items():
+        add(k, "split", origin)
+    return out

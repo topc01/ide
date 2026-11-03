@@ -171,6 +171,9 @@ def _parser() -> argparse.ArgumentParser:
                        ("unlink", "saca PRs de un desarrollo (no vuelven por rama hasta un link)")):
         x = dv.add_parser(name, help=what)
         x.add_argument("id", help="desarrollo: #n o id de sesión"); x.add_argument("prs", nargs="+", help="URL o repo#n")
+        if name == "link":
+            x.add_argument("--free-branch", action="store_true",
+                           help="si la rama está en el worktree de otra sesión detenida y sin cambios, la saca de ahí")
     rr = r.add_parser("rm"); rr.add_argument("repo"); rr.add_argument("--force", action="store_true")
     rr.add_argument("--session")
     ho = sub.add_parser("handoff", help="traspasa un worktree de otra herramienta (Conductor) a una sesión del IDE")
@@ -540,7 +543,8 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         out.write(f"{sid}\t{data['dev']['status']}\n" + (f"{data['message']}\n" if data.get("message") else ""))
         return 0
     if a.cmd in ("link", "unlink"):
-        body = {"prs": a.prs, "token": env.get("IDE_MANAGER_TOKEN", ""), "from_session": bool(env.get("IDE_SESSION_ID")),
+        body = {"prs": a.prs, "free": bool(getattr(a, "free_branch", False)),
+                "token": env.get("IDE_MANAGER_TOKEN", ""), "from_session": bool(env.get("IDE_SESSION_ID")),
                 "actor": f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"}
         data = _post(http, url, f"/api/devs/{quote(a.id, safe='')}/{a.cmd}", body)
         for m in data["moved"]:
@@ -914,6 +918,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
                          {"url": link, "actor": actor, "token": env.get("IDE_MANAGER_TOKEN", "")})
             if a.cmd == "set":
                 out.write(f"{data['id']}\tticket {data['url']}\t{data.get('status') or data.get('error') or '(sin token de Notion: no leo el Status)'}\n")
+                if data.get("warning"):
+                    out.write(f"aviso: {data['warning']}\n")
             else:
                 out.write(f"{data['id']}\t{len(data['pending'])} tickets de pendientes\n")
             return 0
