@@ -105,7 +105,7 @@ export function EvidencePanel() {
           <Button size="sm" className="h-6 px-2 text-[11px]" title={ask.kind === "dup" ? "Duplicar" : "Crear"} onClick={createRun}>{ask.kind === "dup" ? "Duplicar" : "Crear"}</Button>
         </div>)}
       {!runs.length && !ask && <p className="mx-2.5 mt-3 text-[11px] text-muted-foreground">
-        Sin evidencias. La sesión define los pasos con <code>ide evidencias set</code>, o crea una corrida con + y agrégalos.</p>}
+        Sin evidencias. La sesión define los pasos con <code>ide evidence plan</code>, o crea una corrida con + y agrégalos.</p>}
 
       {run && (<>
         {!editing && current && <p className="mx-2.5 mt-2 text-[10px] text-muted-foreground">

@@ -120,24 +120,33 @@ def _parser() -> argparse.ArgumentParser:
     pu.add_argument("--session")
     st = sub.add_parser("status", help="cambia el estado de la sesión (queda en la base y en el historial)")
     st.add_argument("status"); st.add_argument("-m", "--note"); st.add_argument("--session")
-    ev = sub.add_parser("evidencias", help="pasos de prueba con capturas (módulo Evidencias)").add_subparsers(dest="cmd", required=True)
-    es = ev.add_parser("set", help="crea una corrida con los pasos (markdown: un ítem de lista por paso; 📸 o [captura] = lleva captura)")
-    es.add_argument("--label", default="PR"); es.add_argument("--file", default="-", help="markdown ('-' = stdin)")
+    ev = sub.add_parser("evidence", help="pasos de prueba con capturas (módulo Evidencias)").add_subparsers(dest="cmd", required=True)
+    es = ev.add_parser("plan", help="crea una corrida con los pasos (markdown: un ítem de lista por paso; 📸 o [captura] = lleva captura)")
+    es.add_argument("--run", default="PR", help="nombre de la corrida (default: PR)"); es.add_argument("--file", default="-", help="markdown ('-' = stdin)")
     es.add_argument("--session")
     el = ev.add_parser("ls", help="las corridas con sus pasos y capturas"); el.add_argument("--json", action="store_true")
     el.add_argument("--session")
+    ea = ev.add_parser("add", help="suma un paso al final (o después de --after N)")
+    ea.add_argument("text", help="el paso"); ea.add_argument("--after", type=int, help="después del paso N (0 = al principio)")
+    ea.add_argument("--detail", help="detalle del paso"); ea.add_argument("--shot", action="store_true", help="lleva captura")
+    ee = ev.add_parser("edit", help="corrige un paso: su texto, su detalle o si lleva captura (las capturas se conservan)")
+    ee.add_argument("step", type=int, help="número del paso (1, 2, …)"); ee.add_argument("text", nargs="?", help="texto nuevo")
+    ee.add_argument("--detail", help="detalle nuevo ('' lo borra)")
+    g = ee.add_mutually_exclusive_group()
+    g.add_argument("--shot", dest="shot", action="store_true", default=None, help="lleva captura")
+    g.add_argument("--no-shot", dest="shot", action="store_false", help="no lleva captura")
     eh = ev.add_parser("shot", help="adjunta captura(s) a un paso (lo marca hecho)")
     eh.add_argument("step", type=int, help="número del paso (1, 2, …)"); eh.add_argument("files", nargs="+")
     eh.add_argument("--replace", action="store_true", help="reemplaza las capturas que ya tenía el paso (las obsoletas salen)")
-    ed = ev.add_parser("done", help="marca un paso como hecho (sin captura)")
+    ed = ev.add_parser("check", help="marca un paso como hecho (sin captura)")
     ed.add_argument("step", type=int); ed.add_argument("--undo", action="store_true", help="desmarcarlo")
     er = ev.add_parser("rm", help="borra evidencias obsoletas: una corrida entera, un paso (--step) o una captura (--step y --shot)")
     er.add_argument("--step", type=int, help="número del paso (sin --shot: saca el paso entero)")
     er.add_argument("--shot", help="la captura del paso: su número (1, 2, …) o su nombre de archivo")
-    eg = ev.add_parser("github", help="publica la guía (pasos + capturas) como comentario en una PR y verifica que subieron todas")
+    eg = ev.add_parser("publish", help="publica la guía (pasos + capturas) como comentario en una PR y verifica que subieron todas")
     eg.add_argument("pr", help="URL o repo#n de una PR tuya")
-    for x in (eh, ed, er, eg):
-        x.add_argument("--label", help="corrida por su nombre (default: la última)"); x.add_argument("--session")
+    for x in (ea, ee, eh, ed, er, eg):
+        x.add_argument("--run", help="corrida por su nombre (default: la última)"); x.add_argument("--session")
     sub.add_parser("hook", help="(lo llaman los hooks de claude) le avisa al IDE si la sesión trabaja o te espera")
     lt = sub.add_parser("later", help="pendientes para después (preguntas/temas que el usuario verá otro día)").add_subparsers(dest="cmd", required=True)
     la = lt.add_parser("add", help="deja un pendiente en el desarrollo de la sesión")
@@ -293,12 +302,12 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
     if not sid:
         raise SessionError("no_session", "no estoy dentro de una sesión: usa --session <id>")
     path = f"/api/sessions/{quote(normalize_id(sid), safe='')}/evidence"
-    if a.cmd == "set":
+    if a.cmd == "plan":
         try:
             md = sys.stdin.read() if a.file == "-" else Path(a.file).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             raise SessionError("bad_file", f"no se pudo leer --file: {exc}")
-        run = _post(http, url, path, {"label": a.label, "markdown": md})["run"]
+        run = _post(http, url, path, {"label": a.run, "markdown": md})["run"]
         out.write(f"{run['id']}\t{run['label']}\t{len(run['steps'])} pasos\n")
         if not run["steps"]:
             out.write("aviso: no encontré pasos (un ítem de lista por paso: '1. …' o '- …')\n")
@@ -313,19 +322,19 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
             if "-evidencia-" in n and Path(n).name == n and f.is_file() and not f.is_symlink():
                 f.unlink()
 
-    if a.cmd == "github":
-        pick = [r for r in runs if not a.label or r["label"].lower() == a.label.lower()]
+    if a.cmd == "publish":
+        pick = [r for r in runs if not a.run or r["label"].lower() == a.run.lower()]
         if not pick:
-            raise SessionError("not_found", f"no hay corrida {a.label!r}" if a.label else "no hay evidencias: ide evidencias set")
+            raise SessionError("not_found", f"no hay corrida {a.run!r}" if a.run else "no hay evidencias: ide evidence plan")
         res = _post(http, url, path + "/github", {"url": a.pr, "run": pick[-1]["id"],
                                                     "actor": f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"},
                     timeout=600)
         out.write(f"{pick[-1]['label']}\tpublicada: {res['comment']}\t{res['attachments']} imágenes subidas de {res['shots']}\n")
         return 0
     if a.cmd == "rm":
-        pick = [r for r in runs if not a.label or r["label"].lower() == a.label.lower()]
+        pick = [r for r in runs if not a.run or r["label"].lower() == a.run.lower()]
         if not pick:
-            raise SessionError("not_found", f"no hay corrida {a.label!r}" if a.label else "no hay evidencias")
+            raise SessionError("not_found", f"no hay corrida {a.run!r}" if a.run else "no hay evidencias")
         run = pick[-1]
         if a.step is None:
             if a.shot:
@@ -353,15 +362,35 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
         drop([name])
         out.write(f"{run['label']}	paso {a.step}	captura {name} sacada\n")
         return 0
-    if a.cmd in ("shot", "done"):
-        pick = [r for r in runs if not a.label or r["label"].lower() == a.label.lower()]
+    if a.cmd in ("shot", "check", "add", "edit"):
+        pick = [r for r in runs if not a.run or r["label"].lower() == a.run.lower()]
         if not pick:
-            raise SessionError("not_found", f"no hay corrida {a.label!r}" if a.label else "no hay evidencias: ide evidencias set")
+            raise SessionError("not_found", f"no hay corrida {a.run!r}" if a.run else "no hay evidencias: ide evidence plan")
         run = pick[-1]
+        if a.cmd == "add":
+            at = len(run["steps"]) if a.after is None else a.after
+            if not 0 <= at <= len(run["steps"]):
+                raise SessionError("bad_request", f"la corrida {run['label']} tiene {len(run['steps'])} pasos")
+            run["steps"].insert(at, {"title": a.text, "detail": a.detail or "", "shot": a.shot, "shots": [], "done": False})
+            _post(http, url, path + "/save", {"run": run})
+            out.write(f"{run['label']}\tpaso {at + 1} agregado ({a.text[:60]})\n")
+            return 0
         if not 1 <= a.step <= len(run["steps"]):
             raise SessionError("bad_request", f"la corrida {run['label']} tiene {len(run['steps'])} pasos")
         step = run["steps"][a.step - 1]
-        if a.cmd == "done":
+        if a.cmd == "edit":
+            if a.text is None and a.detail is None and a.shot is None:
+                raise SessionError("bad_request", "¿qué cambio? el texto, --detail o --shot/--no-shot")
+            if a.text is not None:
+                step["title"] = a.text
+            if a.detail is not None:
+                step["detail"] = a.detail
+            if a.shot is not None:
+                step["shot"] = a.shot
+            _post(http, url, path + "/save", {"run": run})
+            out.write(f"{run['label']}\tpaso {a.step} corregido ({step['title'][:60]})\n")
+            return 0
+        if a.cmd == "check":
             step["done"] = not a.undo
             _post(http, url, path + "/save", {"run": run})
             out.write(f"{run['label']}\tpaso {a.step}\t{'hecho' if step['done'] else 'pendiente'}\n")
@@ -841,9 +870,23 @@ def _db_query(env_name: str, sql: str, home: Path, out: TextIO, err: TextIO, *, 
     return r.returncode
 
 
+_OLD_EVIDENCE = {"set": "plan", "done": "check", "github": "publish"}
+
+
+def _legacy(argv: list[str]) -> list[str]:
+    """`ide evidencias …` (el nombre de antes, en español) sigue andando: pasa a `ide evidence …` con sus
+    subcomandos (set → plan, done → check, github → publish) y --label → --run."""
+    if not argv or argv[0] != "evidencias":
+        return argv
+    out = ["evidence"] + [_OLD_EVIDENCE.get(argv[1], argv[1])] if len(argv) > 1 else ["evidence"]
+    for x in argv[2:]:
+        out.append("--run" + x[len("--label"):] if x == "--label" or x.startswith("--label=") else x)
+    return out
+
+
 def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
          out: TextIO = sys.stdout, err: TextIO = sys.stderr) -> int:
-    a = _parser().parse_args(argv)
+    a = _parser().parse_args(_legacy(argv))
     root = Path(env["IDE_WORKSPACE"]) if env.get("IDE_WORKSPACE") else find_workspace_root(cwd)
     if root is None:
         err.write("error: no hay workspace (.ide/) aquí ni arriba; ejecuta `ide init`\n")
@@ -862,7 +905,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _hook(url, http, env)
         if a.group == "later":
             return _later_cmd(a, url, http, out, env)
-        if a.group == "evidencias":
+        if a.group == "evidence":
             return _evidence_cmd(a, root, url, http, out, env)
         if a.group == "handoff":
             return _handoff(a, root, home, out)

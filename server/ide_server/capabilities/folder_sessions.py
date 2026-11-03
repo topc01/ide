@@ -1509,7 +1509,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"runs": await asyncio.to_thread(evidence_mod.runs, root, _ev_sid(p))}
 
     async def evidence_new(p: dict) -> dict:
-        """Corrida nueva: con pasos (`steps`), o desde markdown (`markdown`, como `ide evidencias set`)."""
+        """Corrida nueva: con pasos (`steps`), o desde markdown (`markdown`, como `ide evidence plan`)."""
         sid = _ev_sid(p)
         steps = evidence_mod.parse_steps(p["markdown"]) if isinstance(p.get("markdown"), str) else (p.get("steps") or [])
         run = await asyncio.to_thread(evidence_mod.new, root, sid, str(p.get("label") or "PR"), steps)
@@ -1556,7 +1556,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def evidence_github(p: dict) -> dict:
         """Comentario en una PR del desarrollo con los pasos y las capturas (`gh pr comment --attach`: sube cada
         imagen y reemplaza su ruta en el texto), verificado (ver evidence.publish). Desde la UI (pide confirmar)
-        o `ide evidencias github <pr>`."""
+        o `ide evidence publish <pr>`."""
         sid = _ev_sid(p)
         url = _pr_url(p.get("url") or "")            # URL o repo#n (desde la CLI)
         parse_pr_url(url)

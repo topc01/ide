@@ -1,6 +1,6 @@
 # server/ide_server/evidence.py
 """Evidencias: una guía de pasos de prueba (qué hacer en la plataforma y dónde sacar captura) que se
-va llenando con capturas. La define la sesión (`ide evidencias set`) o el usuario en el módulo
+va llenando con capturas. La define la sesión (`ide evidence plan`) o el usuario en el módulo
 Evidencias; cada captura queda en `attachments/` de la sesión (su claude la ve) y en su paso. Una
 sesión puede tener varias corridas (p.ej. "PR" y "Ticket": se duplica). Se exporta a markdown (con las
 capturas como imágenes) para un comentario de la PR (`gh pr comment --attach`) o para copiar.

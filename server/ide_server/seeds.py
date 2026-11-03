@@ -93,18 +93,19 @@ lo que es criterio, con `ide status <estado> [-m "nota"]` (nunca editando el `st
 **Evidencias:** cuando el desarrollo está listo para probar, deja la guía de pruebas para el
 usuario: qué hacer en la plataforma, paso a paso, y dónde sacar captura. Va por stdin en markdown, un
 ítem de lista por paso (las líneas de abajo son su detalle; `📸` = lleva captura):
-`ide evidencias set --label PR <<'EOF'` … `EOF`. El usuario la sigue en el módulo Evidencias y
-adjunta las capturas a cada paso (quedan en `attachments/`; `ide evidencias ls` muestra las rutas).
-Si las capturas las sacas tú (p.ej. con el navegador), adjúntalas tú: `ide evidencias shot <n>
-<archivo>…` (lo marca hecho; `--label` para otra corrida); un paso sin captura, `ide evidencias done <n>`.
-**Publicar la guía en una PR:** `ide evidencias github <pr>` (URL o `repo#n`; `--label` para otra corrida): arma el
+`ide evidence plan --run PR <<'EOF'` … `EOF`. El usuario la sigue en el módulo Evidencias y
+adjunta las capturas a cada paso (quedan en `attachments/`; `ide evidence ls` muestra las rutas).
+Si las capturas las sacas tú (p.ej. con el navegador), adjúntalas tú: `ide evidence shot <n>
+<archivo>…` (lo marca hecho; `--run` para otra corrida); un paso sin captura, `ide evidence check <n>`.
+**Publicar la guía en una PR:** `ide evidence publish <pr>` (URL o `repo#n`; `--run` para otra corrida): arma el
 comentario, sube las capturas y verifica que subieron todas. No armes el body ni los `--attach` a mano. Si alguna vez
 armas un `gh … --attach` (usas zsh): los `--attach` van en un array (`args+=(--attach "$f")` y `"${{args[@]}}"`),
 nunca en una variable de texto, y a un `gh` que publica no le pongas `| tail` (escondería el error).
 **Evidencias obsoletas** (cambió la pantalla, la captura quedó vieja): no edites ni borres archivos a mano ni
-inventes caminos. Reemplaza las capturas de un paso con `ide evidencias shot <n> <archivo> --replace`; saca una
-captura con `ide evidencias rm --step <n> --shot <n|archivo>`, un paso con `ide evidencias rm --step <n>` o la
-corrida entera con `ide evidencias rm` (`--label` para otra corrida que la última).
+inventes caminos. Corrige un paso con `ide evidence edit <n> "texto" [--detail …] [--shot|--no-shot]` (conserva
+sus capturas) y suma uno con `ide evidence add "texto" [--after <n>] [--shot]`. Reemplaza las capturas de un paso con `ide evidence shot <n> <archivo> --replace`; saca una
+captura con `ide evidence rm --step <n> --shot <n|archivo>`, un paso con `ide evidence rm --step <n>` o la
+corrida entera con `ide evidence rm` (`--run` para otra corrida que la última).
 
 **Para después:** si el usuario no puede responder ahora ("esto lo veo con el equipo", "déjalo para
 después"), o ves una pregunta que puede esperar, déjala como pendiente:
