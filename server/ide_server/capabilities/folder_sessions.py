@@ -400,7 +400,15 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     async def unarchive(p: dict) -> dict:
         """Reabre una sesión archivada (⌘K): vuelven su carpeta, worktrees y ramas; su claude se retoma."""
-        sid = require_plain_name(str(p.get("id") or ""), "sesión")
+        # por CLI: la manager (con su token) o el usuario desde su terminal; otra sesión, no
+        if p.get("_http") and p.get("from_session") and \
+                not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+            raise SessionError("forbidden", "solo la sesión manager o el usuario desde su terminal reabren sesiones archivadas")
+        raw = str(p.get("id") or "").strip()
+        if re.fullmatch(r"#?\d+", raw) and db is not None:   # #n: el número del desarrollo
+            n = int(raw.lstrip("#"))
+            raw = next((k[2:] for k, v in db.with_prefix("devidx:").items() if v == n and k.startswith("s:")), raw.lstrip("#"))
+        sid = require_plain_name(raw, "sesión")
         warnings = await asyncio.to_thread(unarchive_session, root, sid)
         if db is not None:
             db.event(datetime.now().isoformat(timespec="seconds"), p.get("actor") or "ide", "unarchived", dev=sid,

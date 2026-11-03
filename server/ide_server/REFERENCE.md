@@ -188,7 +188,9 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 - `ide session open <id>` [server]: si está parada, la lanza con `claude --continue` (retoma la conversación de esa carpeta) o con `PROMPT.md` si no hay historia.
 - `ide session stop <id>` [server]: mata el proceso; carpeta y worktrees quedan.
 - **Reabrir** una archivada: desde el buscador **⌘K** (canal `sessions.unarchive {id}`; la lista sale de
-  `sessions.archived`): vuelve la carpeta a `.ide/sessions/<id>`, cada worktree a `.ide/worktrees/<id>/<repo>`
+  `sessions.archived`) o por CLI: `ide session archived [--json]` (las que se pueden reabrir: `#n`, id, tipo,
+  cuándo, título) e `ide session unarchive <#n|id>` (avisos con `aviso:`). Por CLI solo la **manager** (con su
+  token) o el usuario desde su terminal; otra sesión no (`forbidden`). vuelve la carpeta a `.ide/sessions/<id>`, cada worktree a `.ide/worktrees/<id>/<repo>`
   con puerto nuevo y en la rama que tenía al archivarse (si otro worktree la tiene, queda en detach y lo
   avisa), corre `setup` de cada repo (el archivado borró los ignorados) y su claude se retoma con la
   conversación de antes. Mantiene su número; queda en el historial (`unarchived`).

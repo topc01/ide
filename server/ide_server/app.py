@@ -253,6 +253,14 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_evidence_save(sid: str, body: dict):
         return await _http("evidence.save", {**body, "id": sid})
 
+    @app.get("/api/sessions/archived")
+    async def api_sessions_archived():
+        return await _http("sessions.archived", {})
+
+    @app.post("/api/sessions/unarchive")
+    async def api_sessions_unarchive(body: dict):
+        return await _http("sessions.unarchive", {**body, "_http": True})
+
     @app.post("/api/devs/{sid}/ticket")
     async def api_ticket(sid: str, body: dict):
         return await _http("dev.ticketSet", {**body, "id": sid})

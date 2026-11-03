@@ -67,6 +67,8 @@ def _parser() -> argparse.ArgumentParser:
     for name in ("open", "stop"):
         s.add_parser(name).add_argument("id")
     rm = s.add_parser("rm"); rm.add_argument("id"); rm.add_argument("--force", action="store_true")
+    s.add_parser("archived", help="las sesiones archivadas que se pueden reabrir").add_argument("--json", action="store_true")
+    s.add_parser("unarchive", help="reabre una sesión archivada (carpeta, worktrees, rama y su claude); la manager o tu terminal").add_argument("id", help="#n o id")
     sd = s.add_parser("send", help="encola un prompt a la sesión de un desarrollo (id o #número)")
     sd.add_argument("id"); sd.add_argument("--prompt"); sd.add_argument("--prompt-file", help="'-' = stdin")
     rs = s.add_parser("review-stack", help="una sesión que revisa un stack de PRs que te pidieron revisar (de abajo hacia arriba)")
@@ -1036,6 +1038,26 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
         update_session_toml(root, sid, lambda d: d.update(model=model) if model else d.pop("model", None))
         out.write(f"{sid}\t{model or 'default'}\tvale cuando su claude se relance (para cambiarlo ya: `/model "
                   f"{model or 'default'}` en su terminal)\n")
+        return 0
+    if a.cmd == "archived":
+        items = _get(http, url, "/api/sessions/archived")["sessions"]
+        if a.json:
+            out.write(json.dumps(items, ensure_ascii=False, indent=2) + "\n")
+            return 0
+        for x in items:
+            out.write(f"{('#' + str(x['n'])) if x.get('n') else '-'}\t{x['id']}\t{x.get('kind') or ''}\t"
+                      f"{(x.get('archivedAt') or '')[:16]}\t{x.get('title') or ''}\n")
+        if not items:
+            out.write("no hay sesiones archivadas\n")
+        return 0
+    if a.cmd == "unarchive":
+        data = _post(http, url, "/api/sessions/unarchive", {"id": a.id, "token": env.get("IDE_MANAGER_TOKEN", ""),
+                                                            "from_session": bool(env.get("IDE_SESSION_ID")),
+                                                            "actor": f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"},
+                     timeout=900)
+        out.write(f"{data['id']}\treabierta (su claude se retoma al abrirla)\n")
+        for w in data.get("warnings") or []:
+            out.write(f"aviso: {w}\n")
         return 0
     if a.cmd in ("open", "stop", "rm"):
         a.id = normalize_id(a.id)
