@@ -54,7 +54,7 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
 └── .ide/
     ├── config.toml                     # §4
     ├── permissions/{analyze,main,full}.json   # §5 (settings de claude, editables)
-    ├── archive/{sessions,worktrees}/<id>/  # sesiones archivadas (solo de ida)
+    ├── archive/{sessions,worktrees}/<id>/  # sesiones archivadas (se reabren desde ⌘K)
     ├── ide.db                          # base local (SQLite): cache de GitHub, merges, ajustes (§9c)
     ├── prompts/*.md                    # §7b (prompts que la UI pega en el input de claude)
     ├── scripts/<repo>/<nombre>         # §8 (ejecutables; `.lib/` u otros con punto = helpers, no se listan)
@@ -187,8 +187,12 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 - `ide session model <id> <modelo|default>`: cambia el modelo de una sesión ya creada (`default` = el de siempre). Vale desde que su claude se relanza (al reiniciar el IDE o `ide session stop` + `open`); para cambiarlo en el momento, `/model <modelo>` en su terminal (ojo: un `/model` en la terminal no queda guardado: al relanzarse vuelve al de `.session.toml`).
 - `ide session open <id>` [server]: si está parada, la lanza con `claude --continue` (retoma la conversación de esa carpeta) o con `PROMPT.md` si no hay historia.
 - `ide session stop <id>` [server]: mata el proceso; carpeta y worktrees quedan.
-- **Archivar** (botón de la card en la UI; canal `sessions.archive {id, force}`; solo de ida, sin
-  CLI por ahora): para el proceso, corre `archive` de cada repo (si falla, se puede forzar), deja
+- **Reabrir** una archivada: desde el buscador **⌘K** (canal `sessions.unarchive {id}`; la lista sale de
+  `sessions.archived`): vuelve la carpeta a `.ide/sessions/<id>`, cada worktree a `.ide/worktrees/<id>/<repo>`
+  con puerto nuevo y en la rama que tenía al archivarse (si otro worktree la tiene, queda en detach y lo
+  avisa), corre `setup` de cada repo (el archivado borró los ignorados) y su claude se retoma con la
+  conversación de antes. Mantiene su número; queda en el historial (`unarchived`).
+- **Archivar** (botón de la card en la UI; canal `sessions.archive {id, force}`; sin CLI por ahora): para el proceso, corre `archive` de cada repo (si falla, se puede forzar), deja
   cada worktree en **detach** (la rama queda libre; los cambios sin commitear se conservan), borra
   los ignorados (`git clean -fdX`: `node_modules`, venvs…), mueve los worktrees a
   `.ide/archive/worktrees/<id>/<repo>` (`git worktree move`) y la carpeta a
@@ -636,7 +640,7 @@ PR tuya sin sesión, una **sesión en su rama** (ver abajo); en una PR de otro s
 **sesión de revisión** (se abre su `claude`); y **reabre** lo cerrado
 (doc, resúmenes de las otras PRs del desarrollo). × cierra la tab sin parar nada. Sin límite de tabs.
 
-**Atajos:** **⌘↑ / ⌘↓** pasan al desarrollo anterior / siguiente en el orden de la sidebar (las cards visibles); **⌘→** abre el **selector** (como ⌘Tab de macOS): un panel semitransparente con los desarrollos por último acceso y el anterior marcado; con ⌘ apretado, **→ / ←** mueven la selección, **al soltar ⌘** se abre el marcado y **Esc** lo cierra sin cambiar (también se elige con el mouse). No se activan escribiendo en un campo de texto (ahí ⌘←/⌘→ mueven el cursor); en la terminal sí, y le ganan al atrás/adelante del navegador. **Enter** (sin estar escribiendo en un campo ni con el foco en un botón, link o diálogo; p. ej. después de elegir una card) pasa a la tab `claude` de la sesión elegida y le pone el cursor en el input, para escribir altiro. **⌘O** abre el **ticket de Notion** de la sesión elegida en una pestaña nueva (si no tiene ticket, no hace nada; ⌘N no se puede: Chrome no se lo pasa a la página). **⌘K** abre / cierra el **buscador de sesiones** (como Spotlight; vale también escribiendo en un campo): un input y abajo las sesiones que calzan, primero por número (`12` o `#12`: el exacto, los que empiezan así, los que lo contienen) y después por nombre (fuzzy, sin acentos); vacío, por último acceso. ↑/↓ mueven, Enter (o click) abre, Esc o click afuera cierran.
+**Atajos:** **⌘↑ / ⌘↓** pasan al desarrollo anterior / siguiente en el orden de la sidebar (las cards visibles); **⌘→** abre el **selector** (como ⌘Tab de macOS): un panel semitransparente con los desarrollos por último acceso y el anterior marcado; con ⌘ apretado, **→ / ←** mueven la selección, **al soltar ⌘** se abre el marcado y **Esc** lo cierra sin cambiar (también se elige con el mouse). No se activan escribiendo en un campo de texto (ahí ⌘←/⌘→ mueven el cursor); en la terminal sí, y le ganan al atrás/adelante del navegador. **Enter** (sin estar escribiendo en un campo ni con el foco en un botón, link o diálogo; p. ej. después de elegir una card) pasa a la tab `claude` de la sesión elegida y le pone el cursor en el input, para escribir altiro. **⌘O** abre el **ticket de Notion** de la sesión elegida en una pestaña nueva (si no tiene ticket, no hace nada; ⌘N no se puede: Chrome no se lo pasa a la página). **⌘K** abre / cierra el **buscador de sesiones** (como Spotlight; vale también escribiendo en un campo): un input y abajo las sesiones que calzan, primero por número (`12` o `#12`: el exacto, los que empiezan así, los que lo contienen) y después por nombre (fuzzy, sin acentos); vacío, por último acceso. Al escribir también salen las **archivadas** (al final, atenuadas, «Archivada»): Enter (o click) la primera vez pide confirmar («Enter otra vez para reabrir»), la segunda la **reabre** (ver Reabrir) y la abre; si hubo avisos (rama tomada, setup que falló) los muestra y Enter va a la sesión. ↑/↓ mueven, Enter (o click) abre, Esc o click afuera cierran.
 
 **App instalable (PWA):** el IDE trae manifiesto (`manifest.json`), íconos y un service worker mínimo (`sw.js`, sin caché: la UI siempre en vivo), así que Chrome lo ofrece instalar como app (ícono de instalar en la barra de direcciones, o ⋮ → Transmitir, guardar y compartir → Instalar página como app): abre en su propia ventana, con su ícono en el Dock.
 

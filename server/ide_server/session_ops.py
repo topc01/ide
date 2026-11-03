@@ -15,7 +15,7 @@ from ide_server.prompts import load_prompt
 from ide_server.sessions_fs import (
     repo_links,
     SessionError, create_session_dir, list_sessions, new_id, normalize_id, read_session, render_template,
-    require_plain_name, session_path, sessions_dir, update_session_toml, read_toml, check_model)
+    require_plain_name, session_path, sessions_dir, update_session_toml, read_toml, check_model, workspace_lock)
 from ide_server.workspace import discover_repos
 from ide_server.worktrees import BranchOccupied, has_uncommitted_changes
 
@@ -401,6 +401,54 @@ def archive_session(root: Path, sid: str, *, force: bool = False, out=None) -> N
         (root / ".ide" / "worktrees" / sid).rmdir()
     except OSError:
         pass
+
+
+def unarchive_session(root: Path, sid: str, *, out=None) -> list[str]:
+    """Reabre una sesión archivada (lo inverso de `archive_session`): vuelve su carpeta, sus worktrees
+    (con puerto nuevo) y la rama que tenía cada uno, si sigue libre (si otro worktree la tiene, queda en
+    detach y se avisa); corre `setup` de cada repo (el archivado borró los ignorados: .env, dependencias).
+    Su claude se retoma con la conversación de antes. Devuelve los avisos."""
+    from ide_server.repos_fs import allocate_port
+    from ide_server.scripts import has_script, run_script
+    src = archive_path(root, sid)
+    if not (src / ".session.toml").is_file():
+        raise SessionError("not_archived", f"no hay una sesión archivada {sid}")
+    if session_path(root, sid).exists():
+        raise SessionError("session_exists", f"ya hay una sesión {sid} abierta")
+    data = read_toml(src / ".session.toml")
+    branches = ((data.get("archived") or {}).get("branches") or {})
+    repos = [p.name for p in (root / ".ide" / "archive" / "worktrees" / sid).iterdir()] \
+        if (root / ".ide" / "archive" / "worktrees" / sid).is_dir() else []
+    warnings: list[str] = []
+    with workspace_lock(root):
+        shutil.move(str(src), str(session_path(root, sid)))
+        spath = session_path(root, sid)
+        for repo in repos:
+            old, wt = archived_worktree_path(root, sid, repo), worktree_path(root, sid, repo)
+            wt.parent.mkdir(parents=True, exist_ok=True)
+            _git(root / repo, "worktree", "move", str(old), str(wt))
+            link = spath / repo
+            link.unlink(missing_ok=True)
+            link.symlink_to(os.path.relpath(wt, spath))
+            if (b := branches.get(repo)):
+                at = _checked_out_at(root / repo, b, _run)
+                if at:
+                    warnings.append(f"{repo}: la rama {b} está en {at}; el worktree quedó en detach")
+                elif subprocess.run(["git", "-C", str(wt), "checkout", b], capture_output=True).returncode != 0:
+                    warnings.append(f"{repo}: no pude volver a la rama {b}; el worktree quedó en detach")
+            port = allocate_port(root)
+            update_session_toml(root, sid, lambda d, r=repo, p=port: d.setdefault("ports", {}).update({r: p}))
+        update_session_toml(root, sid, lambda d: (d.pop("archived", None), d.pop("setup", None)))
+    try:
+        (root / ".ide" / "archive" / "worktrees" / sid).rmdir()
+    except OSError:
+        pass
+    for repo in repos:
+        if has_script(root, repo, "setup"):
+            code = run_script(root, sid, repo, "setup", out=out or io.StringIO())
+            if code != 0:
+                warnings.append(f"setup de {repo} falló (exit {code}): reintenta con `ide script setup {repo}`")
+    return warnings
 
 
 def _checked_out_at(repo_path: Path, branch: str, runner: Runner) -> str | None:

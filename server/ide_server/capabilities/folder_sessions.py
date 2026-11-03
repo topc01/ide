@@ -34,7 +34,7 @@ from ide_server.prompts import list_prompts, load_prompt
 from ide_server.repos_fs import require_session, rm_repo, worktree_path
 from ide_server.scripts import list_scripts, script_argv, script_env
 from ide_server.session_ops import (
-    archive_session, check_delete, create_pr_session, create_session, create_stack_review, parse_pr_url, refresh_review,
+    archive_session, unarchive_session, archive_path, check_delete, create_pr_session, create_session, create_stack_review, parse_pr_url, refresh_review,
     remove_session,
 )
 from ide_server.sessions_fs import (
@@ -380,6 +380,33 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         await asyncio.to_thread(archive_session, root, p["id"], force=bool(p.get("force")))
         notify()
         return {"ok": True}
+
+    async def archived(_p: dict) -> dict:
+        """Las sesiones archivadas que se pueden reabrir (para el buscador ⌘K): id, tipo, título, número y
+        cuándo se archivaron, la más reciente primero."""
+        if db is None:
+            return {"sessions": []}
+        idx, names = db.with_prefix("devidx:"), db.dev_names()
+
+        def read() -> list[dict]:
+            out = []
+            for d in db.devs(include_archived=True):
+                if not d.get("archived") or not (archive_path(root, d["id"]) / ".session.toml").is_file():
+                    continue
+                out.append({"id": d["id"], "kind": d.get("kind"), "n": idx.get(f"s:{d['id']}"),
+                            "title": names.get(f"s:{d['id']}") or d.get("title"), "archivedAt": d.get("updated")})
+            return sorted(out, key=lambda x: x.get("archivedAt") or "", reverse=True)
+        return {"sessions": await asyncio.to_thread(read)}
+
+    async def unarchive(p: dict) -> dict:
+        """Reabre una sesión archivada (⌘K): vuelven su carpeta, worktrees y ramas; su claude se retoma."""
+        sid = require_plain_name(str(p.get("id") or ""), "sesión")
+        warnings = await asyncio.to_thread(unarchive_session, root, sid)
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), p.get("actor") or "ide", "unarchived", dev=sid,
+                     data={"warnings": warnings} if warnings else None)
+        notify()
+        return {"ok": True, "id": sid, "warnings": warnings}
 
     async def script(p: dict) -> dict:
         require_session(root, p["id"])
@@ -1824,7 +1851,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
         "attachments.rename": attachments_rename, "attachments.mkdir": attachments_mkdir, "attachments.move": attachments_move, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
-        "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.script": script,
+        "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.archived": archived, "sessions.unarchive": unarchive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,
     }.items():

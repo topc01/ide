@@ -5,6 +5,9 @@ import { go, recentKeys, useSearch } from "./devShortcuts";
 import { useFolders } from "../state/folders";
 import { ACTIVITY, activityOf } from "../modules/sessions/activity";
 import { cn } from "../lib/utils";
+import { getWs } from "../transport/wsClient";
+
+type Archived = { id: string; kind: string | null; n: number | null; title: string | null; archivedAt: string | null };
 
 const norm = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -28,11 +31,12 @@ export function fuzzy(q: string, text: string): number | null {
   return total;
 }
 
-type Item = { key: string; n: number | null; title: string; tag: string | null; dot: [string, string, string] | null };
+type Item = { key: string; n: number | null; title: string; tag: string | null; dot: [string, string, string] | null; archived?: boolean };
 
 /** ⌘K (como Spotlight): un input y abajo las sesiones que calzan, por número primero (`12`, `#12`) y
  *  después por nombre (fuzzy). ↑/↓ mueven, Enter abre, Esc o ⌘K otra vez cierran. Vacío: por último
- *  acceso. */
+ *  acceso. Al escribir, también las **archivadas** (al final, «Archivada»): Enter una vez pide confirmar,
+ *  Enter otra vez la reabre (vuelven su carpeta, worktrees y rama; su claude se retoma) y la abre. */
 export function DevSearch() {
   const open = useSearch((s) => s.open);
   const tree = useFolders((s) => s.tree);
@@ -40,7 +44,15 @@ export function DevSearch() {
   const [index, setIndex] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const sel = useRef<HTMLButtonElement>(null);
-  useEffect(() => { if (open) { setQ(""); setIndex(0); setTimeout(() => input.current?.focus(), 0); } }, [open]);
+  const [archived, setArchived] = useState<Archived[]>([]);
+  // reabrir una archivada: confirm (Enter otra vez) → busy → listo (o error / avisos)
+  const [reopen, setReopen] = useState<{ key: string; phase: "confirm" | "busy" | "error" | "warn"; msg?: string } | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    setQ(""); setIndex(0); setReopen(null); setTimeout(() => input.current?.focus(), 0);
+    getWs().request("sessions.archived", {}).then((r) => setArchived((r as { sessions: Archived[] }).sessions ?? []))
+      .catch(() => setArchived([]));
+  }, [open]);
 
   const all: Item[] = useMemo(() => tree.sessions.map((s) => {
     const k = `s:${s.id}`;
@@ -49,6 +61,9 @@ export function DevSearch() {
     const n = tree.devIndex?.[k] ?? (/^\d+$/.test(s.id) ? Number(s.id) : null);
     return { key: k, n, title: tree.devNames?.[k] ?? s.title ?? tag ?? s.id, tag, dot: ACTIVITY[activityOf(s)] };
   }), [tree]);
+  const live = useMemo(() => new Set(tree.sessions.map((s) => s.id)), [tree]);
+  const old: Item[] = useMemo(() => archived.filter((a) => !live.has(a.id)).map((a) => ({
+    key: `s:${a.id}`, n: a.n, title: a.title ?? a.id, tag: "Archivada", dot: null, archived: true })), [archived, live]);
 
   const results = useMemo(() => {
     const query = q.trim();
@@ -65,17 +80,34 @@ export function DevSearch() {
         return r(a) - r(b) || a.n! - b.n!;
       }) : [];
     const seen = new Set(byNumber.map((x) => x.key));
-    const byName = all.filter((x) => !seen.has(x.key))
+    const named = (list: Item[]) => list.filter((x) => !seen.has(x.key))
       .map((x) => ({ x, sc: fuzzy(query, `${x.title} ${x.tag ?? ""} ${x.key.slice(2)}`) }))
       .filter((r) => r.sc !== null).sort((a, b) => b.sc! - a.sc!).map((r) => r.x);
-    return [...byNumber, ...byName];
-  }, [q, all]);
+    // las archivadas, después de todas las abiertas (también por número primero)
+    const oldByNumber = /^\d+$/.test(num) ? old.filter((x) => x.n !== null && String(x.n).includes(num))
+      .sort((a, b) => (String(a.n) === num ? 0 : 1) - (String(b.n) === num ? 0 : 1) || a.n! - b.n!) : [];
+    oldByNumber.forEach((x) => seen.add(x.key));
+    return [...byNumber, ...named(all), ...oldByNumber, ...named(old)];
+  }, [q, all, old]);
 
-  useEffect(() => { setIndex(0); }, [q]);
+  useEffect(() => { setIndex(0); setReopen(null); }, [q]);
+  useEffect(() => { setReopen((r) => (r?.phase === "confirm" ? null : r)); }, [index]);
   useEffect(() => { sel.current?.scrollIntoView({ block: "nearest" }); }, [index]);
   if (!open) return null;
   const close = () => useSearch.setState({ open: false });
-  const pick = (it?: Item) => { if (!it) return; close(); go(it.key); };
+  const pick = (it?: Item) => {
+    if (!it) return;
+    if (!it.archived) { close(); go(it.key); return; }
+    if (reopen?.key === it.key && reopen.phase === "warn") { close(); go(it.key); return; }
+    if (reopen?.key !== it.key || reopen.phase === "error") { setReopen({ key: it.key, phase: "confirm" }); return; }
+    if (reopen.phase !== "confirm") return;
+    setReopen({ key: it.key, phase: "busy" });
+    getWs().request("sessions.unarchive", { id: it.key.slice(2) }).then((r) => {
+      const w = (r as { warnings?: string[] }).warnings ?? [];
+      if (w.length) setReopen({ key: it.key, phase: "warn", msg: w.join(" · ") });
+      else { close(); go(it.key); }
+    }).catch((e: unknown) => setReopen({ key: it.key, phase: "error", msg: e instanceof Error ? e.message : String(e) }));
+  };
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
@@ -100,20 +132,27 @@ export function DevSearch() {
             {results.map((it, i) => {
               const on = i === index;
               return (
-                <button key={it.key} ref={on ? sel : undefined} role="option" aria-selected={on} title={`Abrir ${it.title}`}
+                <button key={it.key} ref={on ? sel : undefined} role="option" aria-selected={on}
+                  title={it.archived ? `Reabrir ${it.title} (archivada): vuelven su carpeta, worktrees y rama, y se retoma su claude` : `Abrir ${it.title}`}
                   onMouseMove={(e) => { if ((e.movementX || e.movementY) && i !== index) setIndex(i); }}
                   onClick={() => pick(it)}
                   className={cn("flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm",
-                    on ? "bg-primary/20 text-foreground" : "text-popover-foreground")}
+                    on ? "bg-primary/20 text-foreground" : it.archived ? "text-muted-foreground" : "text-popover-foreground")}
                   style={on ? { background: "color-mix(in srgb, var(--primary) 22%, transparent)" } : undefined}>
                   {it.dot && <span aria-hidden className={cn("w-3 text-xs", it.dot[1])}>{it.dot[0]}</span>}
                   <span className="w-12 shrink-0 font-mono font-bold text-primary">{it.n ? `#${it.n}` : ""}</span>
                   <span className="min-w-0 flex-1 truncate">{it.title}</span>
-                  {it.tag && <span className="shrink-0 text-[11px] text-muted-foreground">{it.tag}</span>}
+                  {reopen?.key === it.key ? (
+                    <span className={cn("shrink-0 text-[11px]", reopen.phase === "error" ? "text-destructive" : "text-yellow-300")}>
+                      {reopen.phase === "confirm" ? "Enter otra vez para reabrir" : reopen.phase === "busy" ? "Reabriendo…"
+                        : reopen.phase === "warn" ? "Reabierta · Enter para ir" : "No se pudo reabrir"}</span>
+                  ) : it.tag && <span className="shrink-0 text-[11px] text-muted-foreground">{it.tag}</span>}
                 </button>);
             })}
           </div>
         ) : q.trim() ? <div className="border-t border-border px-4 py-3 text-sm text-muted-foreground">Sin resultados</div> : null}
+        {reopen?.msg && <div className={cn("border-t border-border px-4 py-2 text-xs", reopen.phase === "error" ? "text-destructive" : "text-yellow-300")}>
+          {reopen.msg}</div>}
       </div>
     </div>
   );
