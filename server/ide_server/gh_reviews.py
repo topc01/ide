@@ -162,22 +162,20 @@ CHECK_BAD = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "S
 
 
 def latest_checks(nodes: list[dict]) -> list[dict]:
-    """Un check por nombre: el de la corrida más nueva. Cuando una corrida reemplaza a otra en el mismo
-    commit (el workflow cancela la anterior al arrancar otra), GitHub deja los dos en el rollup y lo marca
-    FAILURE por el cancelado aunque el nuevo pase."""
-    best: dict[str, tuple] = {}
-    for i, c in enumerate(nodes):
-        if not c:
-            continue
-        name = c.get("name") or c.get("context")
-        if not name:
-            best[f"#{i}"] = ((0, ""), c)
-            continue
-        m = _RUN_RE.search(c.get("detailsUrl") or c.get("targetUrl") or "")
-        rank = (int(m.group(1)) if m else 0, c.get("startedAt") or "", i)
-        if name not in best or rank > best[name][0]:
-            best[name] = (rank, c)
-    return [c for _, c in best.values()]
+    """Saca solo los CheckRun CANCELADOS que tienen una corrida más nueva del mismo check (mismo nombre,
+    run id mayor en su link). Cuando una corrida reemplaza a otra en el mismo commit (el workflow cancela la
+    anterior al arrancar otra), GitHub deja las dos en el rollup y lo marca FAILURE por la cancelada aunque
+    la nueva pase. Un fallo real (FAILURE, ERROR, ...) o un status externo nunca se descartan."""
+    def run(c: dict) -> int:
+        m = _RUN_RE.search(c.get("detailsUrl") or "")
+        return int(m.group(1)) if m else 0
+    newest: dict[str, int] = {}
+    for c in nodes:
+        if c and c.get("__typename") == "CheckRun" and c.get("name"):
+            newest[c["name"]] = max(newest.get(c["name"], 0), run(c))
+    return [c for c in nodes if c and not (
+        c.get("__typename") == "CheckRun" and c.get("conclusion") == "CANCELLED"
+        and 0 < run(c) < newest.get(c.get("name") or "", 0))]
 
 
 def checks_state(nodes: list[dict]) -> str | None:
