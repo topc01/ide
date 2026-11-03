@@ -197,8 +197,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         puede ver, a la hora del release + holgura). Lo pendiente vive en la base: sobrevive a un reinicio."""
         if db is None:
             return
-        for key, pend in db.with_prefix("stagingnotice:").items():
-            sid = key.split(":", 1)[1]
+        for sid, pend in db.with_prefix("stagingnotice:").items():   # las claves vienen sin el prefijo
+            key = f"stagingnotice:{sid}"
             if not session_path(root, sid).is_dir():
                 db.delete(key)
                 continue
