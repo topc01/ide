@@ -31,6 +31,15 @@ permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace
 
 {lines}
 
+## Las instrucciones de cada repo
+
+Tu sesión corre en `.ide/sessions/<id>/`, fuera de los repos: el `CLAUDE.md` de cada repo **no se te carga
+solo**. Apenas tengas un repo en la sesión (ya estaba al empezar, o lo agregas con `ide repo add`), lee su
+`<repo>/CLAUDE.md` entero (y los archivos que ese CLAUDE.md pida leer, p. ej. `.claude/rules/`) **antes de
+planificar o tocar código** en él, y síguelo como si trabajaras dentro del repo: sus reglas obligatorias
+valen para ti (p. ej. correr la skill `finnecto-core:anti-frankenstein` antes del plan de un desarrollo que
+viene de un ticket). Si una regla del repo choca con una de este archivo, gana este archivo (es del IDE).
+
 ## Herramientas del IDE (por Bash)
 
 - `ide repo add <repo> [--branch b]`: agrega el repo a tu sesión como worktree (corre su `setup` si existe).
@@ -425,7 +434,8 @@ TEMPLATE_TICKET = """\
 Eres la sesión del ticket {{id}} ({{notion_url}}).
 
 Tu trabajo AHORA es analizar, no implementar:
-1. Lee ../CLAUDE.md (mapa de repos) y el ticket en Notion ({{notion_url}}).
+1. Lee ../CLAUDE.md (mapa de repos) y el ticket en Notion ({{notion_url}}). Por cada repo que agregues,
+   lee su `<repo>/CLAUDE.md` antes del plan (ver «Las instrucciones de cada repo» en ../CLAUDE.md).
 2. Si el frontmatter de SESSION.md no tiene `title:`, ponle el título del ticket.
 3. Determina scope y qué repos toca. Por cada uno: `ide repo add <repo>` (varios = fullstack;
    misma rama en todos).

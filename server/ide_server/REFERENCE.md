@@ -73,7 +73,7 @@ Cambios en `config.toml` se leen **al arrancar el server** (reinicia `ide run`).
 
 `ide init` **siembra** `sessions/CLAUDE.md`, `templates/*.md`, `prompts/tickets-y-prs.md`, `prompts/review-pr.md`, `prompts/rereview-pr.md`, `skills/backlog/SKILL.md`, `permissions/*.json` y
 `config.toml` **solo si no existen**: nunca pisa ediciones. Para volver a la semilla, borra el
-archivo y ejecuta `ide init`.
+archivo y ejecuta `ide init`. La semilla de `sessions/CLAUDE.md` le pide a cada sesión leer el `CLAUDE.md` de cada repo que tenga (corre fuera de los repos y no se le carga solo) antes de planificar, y seguir sus reglas (p. ej. la skill `finnecto-core:anti-frankenstein` antes del plan de un ticket).
 
 `claude` también hereda (por walk-up) cualquier `CLAUDE.md` en `<workspace>/` o más arriba.
 
