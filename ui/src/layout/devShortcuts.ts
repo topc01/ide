@@ -4,6 +4,7 @@
  *  - ⌘→: abre el selector (como ⌘Tab de macOS): los desarrollos por último acceso, con el anterior marcado;
  *    con ⌘ apretado, → y ← mueven la selección; al soltar ⌘ se abre el marcado; Esc lo cierra sin cambiar.
  *  - Enter (sin estar escribiendo en un campo ni sobre un botón): enfoca el input de claude de la sesión elegida.
+ *  - ⌘O: abre el ticket de Notion de la sesión elegida en una pestaña nueva (⌘N no: Chrome no lo suelta).
  *  - ⌘K: abre / cierra el buscador de sesiones (DevSearch), también escribiendo en un campo.
  *  No se activan escribiendo en un campo de texto (ahí ⌘←/⌘→ mueven el cursor); en la terminal sí. */
 import { useEffect } from "react";
@@ -107,6 +108,13 @@ export function useDevShortcuts() {
         e.preventDefault(); e.stopPropagation();
         closeSwitcher(false);
         useSearch.setState({ open: !useSearch.getState().open });
+        return;
+      }
+      if (e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && (e.code === "KeyO" || e.key.toLowerCase() === "o")) {
+        const { activeId, activePrUrl, tree } = useFolders.getState();
+        const url = activeId && !activePrUrl ? tree.devTickets?.[`s:${activeId}`]?.url : null;
+        e.preventDefault(); e.stopPropagation();       // sin ticket tampoco: el ⌘O del navegador abre un archivo
+        if (url) window.open(url, "_blank", "noopener");
         return;
       }
       if (e.key === "Enter" && !e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && !e.isComposing
