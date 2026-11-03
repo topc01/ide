@@ -3,6 +3,7 @@
  *  - ⌘↑ / ⌘↓: el anterior / el siguiente en el orden de la sidebar (las cards visibles).
  *  - ⌘→: abre el selector (como ⌘Tab de macOS): los desarrollos por último acceso, con el anterior marcado;
  *    con ⌘ apretado, → y ← mueven la selección; al soltar ⌘ se abre el marcado; Esc lo cierra sin cambiar.
+ *  - Enter (sin estar escribiendo en un campo ni sobre un botón): enfoca el input de claude de la sesión elegida.
  *  - ⌘K: abre / cierra el buscador de sesiones (DevSearch), también escribiendo en un campo.
  *  No se activan escribiendo en un campo de texto (ahí ⌘←/⌘→ mueven el cursor); en la terminal sí. */
 import { useEffect } from "react";
@@ -15,6 +16,9 @@ const keyOf = (s: { activeId: string | null; activePrUrl: string | null }): Key 
 
 const recent: Key[] = [];                 // orden de acceso: el más reciente primero
 let walking = false;
+
+/** Pedido de foco al input de claude (Enter): la tab `claude` de esa sesión lo toma al estar lista. */
+export const useClaudeFocus = create<{ sid: string | null; at: number }>(() => ({ sid: null, at: 0 }));
 
 /** El buscador de ⌘K. */
 export const useSearch = create<{ open: boolean }>(() => ({ open: false }));
@@ -48,6 +52,17 @@ function typing(t: EventTarget | null): boolean {
   if (!el) return false;
   if (el.classList?.contains("xterm-helper-textarea")) return false;   // la terminal: los atajos valen
   return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || !!el.isContentEditable;
+}
+
+/** Enter enfoca claude solo si el foco no está en algo que use Enter: un campo, la terminal, un botón o
+ *  link, un diálogo abierto. */
+function focusable(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  if (document.querySelector("[role=dialog]")) return false;
+  if (!el || el === document.body || el === document.documentElement) return true;
+  if (el.classList?.contains("xterm-helper-textarea")) return false;
+  if (typing(el)) return false;
+  return !el.closest("button, a, [role=button], [role=option], [role=tab], [role=menuitem], summary, [contenteditable=true]");
 }
 
 function bySidebar(step: 1 | -1) {
@@ -93,6 +108,15 @@ export function useDevShortcuts() {
         closeSwitcher(false);
         useSearch.setState({ open: !useSearch.getState().open });
         return;
+      }
+      if (e.key === "Enter" && !e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && !e.isComposing
+          && !useSearch.getState().open && !useSwitcher.getState().open && focusable(e.target)) {
+        const { activeId, activePrUrl } = useFolders.getState();
+        if (activeId && !activePrUrl) {
+          e.preventDefault(); e.stopPropagation();
+          useClaudeFocus.setState({ sid: activeId, at: Date.now() });
+          return;
+        }
       }
       if (useSwitcher.getState().open && e.key === "Escape") { e.preventDefault(); closeSwitcher(false); return; }
       if (!e.metaKey || e.altKey || e.ctrlKey || e.shiftKey || typing(e.target)) return;

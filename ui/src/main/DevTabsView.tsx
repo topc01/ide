@@ -1,4 +1,5 @@
 // ui/src/main/DevTabsView.tsx
+import { useClaudeFocus } from "../layout/devShortcuts";
 import { useEffect, useRef, useState } from "react";
 import { Bot, Paperclip, Plus, X } from "lucide-react";
 import { useFolders } from "../state/folders";
@@ -50,6 +51,14 @@ function ClaudeTab({ session }: { session: FolderSession }) {
   // adjuntos: el archivo va a la carpeta de la sesión y su ruta se pega en el input de claude
   const fileRef = useRef<HTMLInputElement>(null);
   const [term, setTerm] = useState<Terminal | null>(null);   // para pinear mensajes con hover
+  // Enter en la página (devShortcuts): el cursor al input de claude, para escribir altiro
+  const focusReq = useClaudeFocus();
+  useEffect(() => {
+    if (focusReq.sid !== session.id || !term) return;
+    if (Date.now() - focusReq.at > 5000) { useClaudeFocus.setState({ sid: null }); return; }   // pedido viejo
+    term.focus();
+    useClaudeFocus.setState({ sid: null });
+  }, [focusReq.at, focusReq.sid, term, session.id]);
   const [drag, setDrag] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const upload = (files: FileList) => {
@@ -123,6 +132,13 @@ export function DevTabsView() {
   const [menu, setMenu] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Enter (devShortcuts): pasar a la tab `claude` de la sesión (ClaudeTab enfoca su input)
+  const focusSid = useClaudeFocus((st) => st.sid);
+  useEffect(() => {
+    if (dev?.session && focusSid === dev.session.id) open(dev.key, claudeTab(dev.session.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusSid, dev?.key]);
 
   // al elegir: la PR elegida abre/enfoca su resumen; una sesión sin tabs arranca con `claude`
   useEffect(() => {
