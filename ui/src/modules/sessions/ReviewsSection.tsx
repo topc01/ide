@@ -358,7 +358,7 @@ export function ReviewersPicker({ gh }: { gh: GithubReviews | null }) {
     const next = new Set(selected);
     if (next.has(login)) next.delete(login); else next.add(login);
     setError(null);
-    setReviewers(getWs(), [...next]).catch((e: any) => setError(e?.message ?? String(e)));
+    setReviewers(getWs(), [...next].filter((l) => members.some((m) => m.login === l)))   // los que salieron de la org, fuera.catch((e: any) => setError(e?.message ?? String(e)));
   };
   return (
     <div>
@@ -416,8 +416,10 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
   const prBySession = new Map((gh ? allPrs(gh) : []).map((p) => [p.sessionId, p]));
   const ghError = error ?? gh?.error;
   const counts = new Map((gh?.reviewers ?? []).map((r) => [r.login, r.count]));
+  // solo miembros actuales de la org: alguien que salió (y quedó elegido) no se puede desmarcar en Configuración
+  const isMember = (login: string) => !gh?.members?.length || gh.members.some((m) => m.login === login);
   const chips = gh?.selected
-    ? gh.selected.map((login) => ({ login, count: counts.get(login) ?? 0 })).sort((a, b) => b.count - a.count)
+    ? gh.selected.filter(isMember).map((login) => ({ login, count: counts.get(login) ?? 0 })).sort((a, b) => b.count - a.count)
     : gh?.reviewers ?? [];
 
   // revisión de stack: cada PR que incluye apunta a esa sesión
