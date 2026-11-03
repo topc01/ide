@@ -484,7 +484,7 @@ lo de la última guardada en la base) y la UI muestra cards en dos grupos:
 última review con veredicto es `CHANGES_REQUESTED`; las respuestas en hilos no la tapan y no te re-pidieron review). Si el PR ya tiene sesión
 (`pr-<repo>-<n>`) la card es la sesión; si no, una card del PR. Las sesiones de revisión que no
 están en esas dos listas van en **Aprobé** (PR abierta y tu última review es aprobación; si
-GitHub no lo dice, `status: approved` de `SESSION.md`), **Cerradas** (PR mergeada o cerrada) u
+GitHub no lo dice, `status: approved` de `SESSION.md`; una PR que no está en tus listas de GitHub —p. ej. una ajena que ya aprobaste— toma tu review del poller de la sesión, que lee los revisores de la PR cada `poll_interval`), **Cerradas** (PR mergeada o cerrada) u
 **Pendientes** también si la abriste tú (sin que GitHub te la pida) y todavía no publicas la review (`status: reviewing`), **Pedí cambios** si tu última review pidió cambios, u **Otras** (el resto, p.ej. solo comentaste). Bajo el título, chips `@revisor N`: cuántos PRs abiertos de
 la org tienen review pedida a cada **miembro de la org** (los pedidos a equipos y a gente de
 afuera no cuentan; pagina hasta 1000 PRs, el tope de la búsqueda de GitHub; si se pasa, se marca

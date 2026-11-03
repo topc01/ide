@@ -45,7 +45,7 @@ class PrPoller:
         try:
             async with self._sem:
                 code, out, err = await self._gh(
-                    ["pr", "view", s["prUrl"], "--json", "headRefOid,state"])
+                    ["pr", "view", s["prUrl"], "--json", "headRefOid,state,latestReviews,reviewRequests"])
             if code != 0:
                 return s["id"], {**prev, "pollError": err.strip() or f"gh exit {code}"}
             data = json.loads(out)
@@ -57,8 +57,15 @@ class PrPoller:
         except Exception as exc:  # cualquier fallo queda marcado, nunca silencioso
             msg = str(exc) or type(exc).__name__
             return s["id"], {**prev, "pollError": f"respuesta inválida de gh: {msg}"}
+        # el estado de cada revisor (para el estado de la sesión cuando la PR no está en tus listas de GitHub:
+        # p. ej. una PR ajena que ya aprobaste no sale ni en Pendientes ni en Pedí cambios)
+        reviews = {r["author"]["login"]: {"APPROVED": "approved", "CHANGES_REQUESTED": "changes"}.get(r.get("state"))
+                   for r in data.get("latestReviews") or [] if (r.get("author") or {}).get("login")}
+        for r in data.get("reviewRequests") or []:
+            if r.get("login"):
+                reviews[r["login"]] = "requested"
         ts = datetime.fromtimestamp(self._clock(), timezone.utc).isoformat(timespec="seconds")
-        return s["id"], {"prState": state, "pollError": None, "lastOk": ts}
+        return s["id"], {"prState": state, "pollError": None, "lastOk": ts, "reviewers": reviews}
 
     async def poll_once(self) -> bool:
         reviews = [s for s in list_sessions(self._root)

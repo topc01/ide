@@ -103,7 +103,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     log.exception("separar líneas paralelas")
                 # después de separar: la PR de una línea paralela no recibe número propio antes que su sesión
                 assign_indices(db, list_devs(root, db, sessions, gh_reviews.state))
-                _review_verdicts(sessions, status)
+                _review_verdicts(sessions, status, derived)
             for s in sessions:
                 if status.get(s["id"]):
                     s["status"] = status[s["id"]]
@@ -255,7 +255,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"id": sid, "pending": items}
 
-    def _review_verdicts(sessions: list[dict], status: dict) -> None:
+    def _review_verdicts(sessions: list[dict], status: dict, derived: dict | None = None) -> None:
         """El estado de una sesión de revisión sale de GitHub (tu última review en esa PR, o en las del
         stack que revisa), no de la sesión: approved / changes-requested; si te volvieron a pedir
         review, reviewing."""
@@ -268,12 +268,19 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                  for c in lst}
         for s_ in sessions:
             urls = s_.get("stackPrs") or ([s_["prUrl"]] if s_.get("prUrl") else [])
-            if s_.get("kind") != "review" or not urls or any(u not in cards for u in urls):
+            if s_.get("kind") != "review" or not urls:
                 continue
-            # tu estado en cada PR (una revisión de stack: todas); re-pedida en alguna = vuelves a revisar,
-            # cambios pedidos en alguna = cambios pedidos, aprobada solo si aprobaste todas
-            mines = [next((r["state"] for r in cards[u].get("reviewers") or [] if r.get("login") == me), None)
-                     for u in urls]
+            polled = ((derived or {}).get(s_["id"]) or {}).get("reviewers")
+            if any(u not in cards for u in urls):
+                # la PR no está en tus listas (p. ej. ajena y ya la aprobaste): tu review según el poller de la sesión
+                if len(urls) != 1 or polled is None:
+                    continue
+                mines = [polled.get(me)]
+            else:
+                # tu estado en cada PR (una revisión de stack: todas); re-pedida en alguna = vuelves a revisar,
+                # cambios pedidos en alguna = cambios pedidos, aprobada solo si aprobaste todas
+                mines = [next((r["state"] for r in cards[u].get("reviewers") or [] if r.get("login") == me), None)
+                         for u in urls]
             want = review_verdict(mines)
             if want and status.get(s_["id"]) != want:
                 try:
