@@ -30,8 +30,8 @@ export function fuzzy(q: string, text: string): number | null {
 
 type Item = { key: string; n: number | null; title: string; tag: string | null; dot: [string, string, string] | null };
 
-/** ⌘Espacio (como Spotlight): un input y abajo las sesiones que calzan, por número primero (`12`, `#12`) y
- *  después por nombre (fuzzy). ↑/↓ mueven, Enter abre, Esc o ⌘Espacio otra vez cierran. Vacío: por último
+/** ⌘K (como Spotlight): un input y abajo las sesiones que calzan, por número primero (`12`, `#12`) y
+ *  después por nombre (fuzzy). ↑/↓ mueven, Enter abre, Esc o ⌘K otra vez cierran. Vacío: por último
  *  acceso. */
 export function DevSearch() {
   const open = useSearch((s) => s.open);

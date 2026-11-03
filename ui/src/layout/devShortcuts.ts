@@ -3,7 +3,7 @@
  *  - ⌘↑ / ⌘↓: el anterior / el siguiente en el orden de la sidebar (las cards visibles).
  *  - ⌘→: abre el selector (como ⌘Tab de macOS): los desarrollos por último acceso, con el anterior marcado;
  *    con ⌘ apretado, → y ← mueven la selección; al soltar ⌘ se abre el marcado; Esc lo cierra sin cambiar.
- *  - ⌘Espacio: abre / cierra el buscador de sesiones (DevSearch), también escribiendo en un campo.
+ *  - ⌘K: abre / cierra el buscador de sesiones (DevSearch), también escribiendo en un campo.
  *  No se activan escribiendo en un campo de texto (ahí ⌘←/⌘→ mueven el cursor); en la terminal sí. */
 import { useEffect } from "react";
 import { create } from "zustand";
@@ -16,7 +16,7 @@ const keyOf = (s: { activeId: string | null; activePrUrl: string | null }): Key 
 const recent: Key[] = [];                 // orden de acceso: el más reciente primero
 let walking = false;
 
-/** El buscador de ⌘Espacio. */
+/** El buscador de ⌘K. */
 export const useSearch = create<{ open: boolean }>(() => ({ open: false }));
 
 /** Los desarrollos por último acceso (el más reciente primero). */
@@ -88,7 +88,7 @@ function closeSwitcher(pick: boolean) {
 export function useDevShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && (e.code === "Space" || e.key === " ")) {
+      if (e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && (e.code === "KeyK" || e.key.toLowerCase() === "k")) {
         e.preventDefault(); e.stopPropagation();
         closeSwitcher(false);
         useSearch.setState({ open: !useSearch.getState().open });
