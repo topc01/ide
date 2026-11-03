@@ -172,7 +172,8 @@ async def refresh_loop(db: Db, urls, stop: asyncio.Event, on_change) -> None:
             for u in list(urls()):
                 before = (cached(db, u) or {}).get("status")
                 try:
-                    info = await asyncio.to_thread(read, db, u)
+                    # fresh: el loop ya espera TTL entre vueltas (con la caché además, un cambio tardaba hasta 2×TTL)
+                    info = await asyncio.to_thread(read, db, u, fresh=True)
                 except Exception:  # noqa: BLE001
                     log.exception("Status de Notion de %s", u)
                     continue

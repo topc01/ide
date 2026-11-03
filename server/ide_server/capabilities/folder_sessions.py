@@ -1400,7 +1400,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         # fase de GitHub al ponerla a mano: la puesta gana hasta que GitHub cambie
         extra = {}
         if "gh" in p:
-            if p["gh"] is not None and p["gh"] not in (*PHASES, "merging"):
+            if p["gh"] is not None and p["gh"] not in (*PHASES, "merging", "staging-evidence"):
                 raise SessionError("bad_request", f"fase de GitHub inválida: {p['gh']!r}")
             extra["gh"] = p["gh"]
         await asyncio.to_thread(set_dev_state, root, db, key, p.get("status"), actor="ide", note=note, **extra)
