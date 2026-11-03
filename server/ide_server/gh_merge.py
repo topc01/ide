@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Callable
 from ide_server.db import Db
 from ide_server.pr_changes import stack_parent
+from ide_server import gh_reviews
 from ide_server.sessions_fs import SessionError
 from ide_server.workspace import discover_repos
 
@@ -323,16 +324,8 @@ class Merger:
     def _pr_status(self, url: str) -> dict:
         out = _run(["gh", "pr", "view", url, "--json", "state,mergeable,headRefOid,statusCheckRollup,reviewDecision"])
         data = json.loads(_check(out, "gh pr view"))
-        bad = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
         # sin ningún check todavía (recién salida de draft o recién pusheada) = el CI no partió: no es verde
-        ci = "success" if data.get("statusCheckRollup") else "pending"
-        for c in data.get("statusCheckRollup") or []:
-            concl, state = c.get("conclusion") or "", c.get("state") or ""
-            if concl in bad or state in ("FAILURE", "ERROR"):
-                ci = "failure"
-                break
-            if (c.get("__typename") == "CheckRun" and c.get("status") != "COMPLETED") or state in ("PENDING", "EXPECTED"):
-                ci = "pending"
+        ci = gh_reviews.checks_state(data.get("statusCheckRollup") or []) or "pending"
         return {**data, "ci": ci}
 
     def _merge_async(self, url: str, j: dict, head_sha: str) -> None:

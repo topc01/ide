@@ -37,7 +37,7 @@ SEARCH = """query($q: String!, $after: String) {
 # Las relevantes (tuyas, las que revisas) se refrescan por ID con el estado de cada check: así se sabe
 # si un CI que ya falló sigue corriendo (la búsqueda de toda la org no lo trae: sería muy pesada).
 _FIELDS_FULL = _FIELDS.replace("statusCheckRollup { state }", "statusCheckRollup { state contexts(first: 100) { "
-                               "nodes { __typename ... on CheckRun { status } ... on StatusContext { state } } } }")
+                               "nodes { __typename ... on CheckRun { name status conclusion detailsUrl } ... on StatusContext { context state } } } }")
 NODES = """query($ids: [ID!]!) { nodes(ids: $ids) { %s } }""" % _FIELDS_FULL
 MEMBERS = """query($org: String!) { organization(login: $org) {
   membersWithRole(first: 100) { nodes { login name } } } }"""
@@ -156,9 +156,52 @@ def _rollup(n: dict) -> dict:
     return ((commits[-1] or {}).get("commit") or {}).get("statusCheckRollup") or {}
 
 
+_RUN_RE = re.compile(r"/actions/runs/(\d+)")
+CHECK_OK = {"SUCCESS", "NEUTRAL", "SKIPPED"}
+CHECK_BAD = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
+
+
+def latest_checks(nodes: list[dict]) -> list[dict]:
+    """Un check por nombre: el de la corrida más nueva. Cuando una corrida reemplaza a otra en el mismo
+    commit (el workflow cancela la anterior al arrancar otra), GitHub deja los dos en el rollup y lo marca
+    FAILURE por el cancelado aunque el nuevo pase."""
+    best: dict[str, tuple] = {}
+    for i, c in enumerate(nodes):
+        if not c:
+            continue
+        name = c.get("name") or c.get("context")
+        if not name:
+            best[f"#{i}"] = ((0, ""), c)
+            continue
+        m = _RUN_RE.search(c.get("detailsUrl") or c.get("targetUrl") or "")
+        rank = (int(m.group(1)) if m else 0, c.get("startedAt") or "", i)
+        if name not in best or rank > best[name][0]:
+            best[name] = (rank, c)
+    return [c for _, c in best.values()]
+
+
+def checks_state(nodes: list[dict]) -> str | None:
+    """success | failure | pending | None (sin checks), contando solo el último de cada check."""
+    nodes = latest_checks(nodes)
+    if not nodes:
+        return None
+    state = "success"
+    for c in nodes:
+        concl, st = c.get("conclusion") or "", c.get("state") or ""
+        if concl in CHECK_BAD or st in ("FAILURE", "ERROR"):
+            return "failure"
+        if (c.get("__typename") == "CheckRun" and c.get("status") != "COMPLETED") or st in ("PENDING", "EXPECTED"):
+            state = "pending"
+    return state
+
+
 def ci_state(n: dict) -> str | None:
     """success | failure | pending | None (sin checks). Solo los checks: un conflicto va aparte
-    (`conflict` en la card)."""
+    (`conflict` en la card). Con el detalle de los checks (PRs refrescadas por ID) se cuenta el último de
+    cada uno; sin él, el estado que da GitHub."""
+    nodes = ((_rollup(n).get("contexts") or {}).get("nodes")) or []
+    if nodes:
+        return checks_state(nodes)
     return {"SUCCESS": "success", "FAILURE": "failure", "ERROR": "failure",
             "PENDING": "pending", "EXPECTED": "pending"}.get(_rollup(n).get("state", ""))
 
@@ -166,7 +209,7 @@ def ci_state(n: dict) -> str | None:
 def ci_running(n: dict) -> bool:
     """Quedan checks corriendo (GitHub marca FAILURE apenas falla uno, aunque otros sigan). Solo se
     sabe en las PRs refrescadas por ID (las que traen `contexts`)."""
-    nodes = ((_rollup(n).get("contexts") or {}).get("nodes")) or []
+    nodes = latest_checks(((_rollup(n).get("contexts") or {}).get("nodes")) or [])
     return any((c.get("__typename") == "CheckRun" and c.get("status") not in (None, "COMPLETED"))
                or c.get("state") in ("PENDING", "EXPECTED") for c in nodes if c)
 

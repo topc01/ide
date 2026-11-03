@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+from ide_server import gh_reviews
 from ide_server.sessions_fs import SessionError
 
 _URL_RE = re.compile(r"^https://github\.com/([^/]+)/([^/]+)/pull/(\d+)/?$")
@@ -47,7 +48,8 @@ def _check(c: dict) -> dict:
 def parse(pr: dict) -> dict:
     commit = (((pr.get("commits") or {}).get("nodes") or [{}])[-1] or {}).get("commit") or {}
     rollup = commit.get("statusCheckRollup") or {}
-    checks = [_check(c) for c in (rollup.get("contexts") or {}).get("nodes", []) if c]
+    nodes = (rollup.get("contexts") or {}).get("nodes") or []
+    checks = [_check(c) for c in gh_reviews.latest_checks(nodes)]
     reviewers: dict[str, str] = {}
     for r in pr["latestOpinionatedReviews"]["nodes"]:
         st = {"APPROVED": "approved", "CHANGES_REQUESTED": "changes"}.get(r["state"])
@@ -73,9 +75,9 @@ def parse(pr: dict) -> dict:
     return {"url": pr["url"], "title": pr["title"], "number": pr["number"], "state": pr["state"],
             "draft": pr["isDraft"], "decision": pr.get("reviewDecision"),
             "conflict": pr.get("mergeable") == "CONFLICTING", "head": pr["headRefName"],
-            "base": pr["baseRefName"], "ci": {"SUCCESS": "success", "FAILURE": "failure",
-                                              "ERROR": "failure", "PENDING": "pending",
-                                              "EXPECTED": "pending"}.get(rollup.get("state", "")),
+            "base": pr["baseRefName"], "ci": gh_reviews.checks_state(nodes) if nodes else
+            {"SUCCESS": "success", "FAILURE": "failure", "ERROR": "failure", "PENDING": "pending",
+             "EXPECTED": "pending"}.get(rollup.get("state", "")),
             "checks": checks, "reviewers": [{"login": k, "state": v} for k, v in reviewers.items()],
             "conversation": convo, "threads": threads}
 
