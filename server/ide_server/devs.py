@@ -416,8 +416,13 @@ def split_parallel(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[s
         # la línea de cada repo: la rama del worktree y todo su stack
         line: dict[str, set] = {}
         for repo, branch in repos.items():
-            sid_stack = next(((c.get("stack") or {}).get("id") for c in mine if c["repo"] == repo and c.get("head") == branch), None)
-            line[repo] = {branch} | {c.get("head") for c in mine if sid_stack and (c.get("stack") or {}).get("id") == sid_stack}
+            # los stacks de la línea: el de la PR de la rama del worktree y el de las PRs que ya son de esta
+            # sesión en ese repo (si la rama del worktree todavía no tiene PR —la sesión abre las PRs de un
+            # stack de a una—, las de abajo ya vinculadas dicen cuál es su stack)
+            stacks_ = {(c.get("stack") or {}).get("id") for c in mine if c["repo"] == repo
+                       and (c.get("head") == branch or (links.get(c["url"]) or {}).get("sid") == s["id"])} - {None}
+            line[repo] = {branch} | {c.get("head") for c in mine if c["repo"] == repo
+                                     and (c.get("stack") or {}).get("id") in stacks_}
         parallel = [c for c in mine if c["repo"] in repos and (c.get("head") or "").startswith(prefix)
                     and c.get("head") not in line[c["repo"]] and c["url"] not in links]
         stacks: dict[str, list[dict]] = {}
