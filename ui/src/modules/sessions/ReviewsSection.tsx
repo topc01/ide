@@ -4,7 +4,7 @@ import { Archive, ArrowRightLeft, Check, ChevronRight, ExternalLink, Layers, Lay
 import { Collapsible } from "radix-ui";
 import { useFolders } from "../../state/folders";
 import {
-  archiveSession, dismissMerge, fetchGithubReviews, onGithubReviews, setReviewers, startReview, startStackReview, unlinkPr, type MergeJob, type FolderSession, type GhPr, type GithubReviews,
+  archiveSession, dismissMerge, fetchGithubReviews, onGithubReviews, restartReview, setReviewers, startReview, startStackReview, unlinkPr, type MergeJob, type FolderSession, type GhPr, type GithubReviews,
 } from "../../transport/folderSessions";
 import { getWs } from "../../transport/wsClient";
 import { QueueList, QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
@@ -122,6 +122,27 @@ function ReviewButton({ pr }: { pr: GhPr }) {
         e.stopPropagation();
         setBusy(true); setError(null);
         startReview(getWs(), pr.url).then((r) => setActive(r.id))
+          .catch((err: any) => setError(err?.message ?? String(err))).finally(() => setBusy(false));
+      }}>
+      <ScanEye size={11} />
+    </QueueItemAction>
+  </>);
+}
+
+/** «Revisar de nuevo» en la card de una revisión de stack: re-review de las PRs que te volvieron a pedir. */
+function RestartReviewButton({ session, prs }: { session: FolderSession; prs: GhPr[] }) {
+  const setActive = useFolders((s) => s.setActive);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const names = prs.map((p) => `#${p.number}`).join(", ");
+  return (<>
+    {error && <span role="alert" title={error} className="text-destructive">⚠</span>}
+    <QueueItemAction aria-label={`Revisar de nuevo ${session.id}`} disabled={busy}
+      title={`Revisar de nuevo (${names}): la sesión trae los cambios, revisa lo nuevo y te pide OK para publicar`}
+      onClick={(e) => {
+        e.stopPropagation();
+        setBusy(true); setError(null);
+        restartReview(getWs(), session.id, prs.map((p) => p.url)).then((r) => setActive(r.id))
           .catch((err: any) => setError(err?.message ?? String(err))).finally(() => setBusy(false));
       }}>
       <ScanEye size={11} />
@@ -455,8 +476,10 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
     const home = s.repos[0]?.name;
     const prs = listed.map(([p]) => p).filter((p) => s.stackPrs!.includes(p.url))
       .sort((a, b) => Number(a.repo !== home) - Number(b.repo !== home) || (a.stack?.position ?? 0) - (b.stack?.position ?? 0));
+    const again = prs.filter((p) => gh?.pending?.some((q) => q.url === p.url));
     stackEntries.set(s.id, { key: s.id, pr: prs[0], session: s, status,
-      render: () => <SessionItem session={s} prs={prs} onlyActions actions={<ReviewPrsAction session={s} prs={prs} />} /> });
+      render: () => <SessionItem session={s} prs={prs} onlyActions
+        actions={<>{again.length > 0 && <RestartReviewButton session={s} prs={again} />}<ReviewPrsAction session={s} prs={prs} /></>} /> });
   }
   const entries: Entry[] = [
     ...listed.filter(([pr]) => !stackSession.has(pr.url)).map(([pr, status]) => prEntry(pr, status, status === "pending")),

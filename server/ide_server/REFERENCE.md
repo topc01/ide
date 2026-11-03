@@ -510,7 +510,7 @@ stack con 2 o más PRs que te pidieron revisar; con confirmación): una sola ses
 `stack-<repo>-<n de la de abajo>` para esas PRs, con el worktree en el head de la de arriba y el prompt
 `.ide/prompts/review-stack.md` (`{{prs}}` = la lista de abajo hacia arriba): las revisa una por una,
 cada una contra su base, deja por PR en SESSION.md `## <repo>#<n>` con `### Veredicto`, `### Hallazgos`
-y `### Review para GitHub`, y al final pide OK para publicar todas. **Mover PRs entre revisiones:** en una PR suelta de
+y `### Review para GitHub`, y al final pide OK para publicar todas. **Revisar de nuevo** (hover en la card de una revisión de stack, cuando alguna de sus PRs está pendiente de nuevo; canal `reviews.restart {id, urls}`): manda a esa sesión el prompt `.ide/prompts/rereview-stack.md` (`{{prs}}` = las PRs pendientes): trae el head nuevo de cada una, sigue los hilos, revisa solo lo que cambió y pide OK para publicar. **Mover PRs entre revisiones:** en una PR suelta de
 Revisiones, ⇄ (hover) "Mover a otra revisión…" la suma a una sesión de revisión (lo mismo que `ide dev link`);
 en la card de una revisión de varias PRs, ⇄ lista sus PRs para sacar una (queda aparte) o moverla a otra
 revisión. Las que vienen de otro repo van al final de la card. Las sesiones individuales de esas

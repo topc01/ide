@@ -194,6 +194,9 @@ export const fetchGithubReviews = (ws: WsClient): Promise<GithubReviews> => ws.r
 /** "Revisar stack": una sesión para varias PRs pendientes de un stack (archiva las individuales). */
 export const startStackReview = (ws: WsClient, urls: string[]): Promise<{ id: string; created: boolean; process: Process }> =>
   ws.request("reviews.startStack", { urls });
+/** «Revisar de nuevo» una revisión de varias PRs (stack): re-review de esas PRs en su sesión. */
+export const restartReview = (ws: WsClient, id: string, urls: string[]): Promise<{ id: string; created: boolean; process: Process }> =>
+  ws.request("reviews.restart", { id, urls });
 export const startReview = (ws: WsClient, url: string): Promise<{ id: string; created: boolean; process: Process }> =>
   ws.request("reviews.start", { url });
 export interface MergeJob {

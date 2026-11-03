@@ -1794,6 +1794,35 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"id": sid, "created": False, "process": state}
 
+    async def review_restart(p: dict) -> dict:
+        """«Revisar de nuevo» en la card de una revisión de varias PRs (stack): manda el prompt de
+        re-revisión con las PRs que se indican (las que te volvieron a pedir) a esa sesión."""
+        sid = p["id"]
+        require_plain_name(sid, "sesión")
+        s = await asyncio.to_thread(read_session, root, sid)
+        stack = s.get("stackPrs") or []
+        urls = [u for u in p.get("urls") or [] if u in stack] or stack
+        if not urls:
+            raise SessionError("bad_request", f"{sid} no es una revisión de varias PRs")
+        try:
+            text = await asyncio.to_thread(load_prompt, root, "rereview-stack")
+        except SessionError:
+            text = seeds.PROMPT_REREVIEW_STACK       # workspace sembrado antes de que existiera
+        lines = "\n".join(f"{i}. {u}" for i, u in enumerate(urls, 1))
+        text = render_template(text, {"id": sid, "prs": lines, "author": s["meta"].get("author", "")})
+        state = supervisor.state(sid)
+        if state == "queued":
+            raise SessionError("queued", f"{sid} está en cola: espera a que arranque")
+        if state == "running":
+            supervisor.send(sid, text)
+        else:
+            state = supervisor.start(sid, prompt=text)
+        if db is not None:
+            for u in urls:
+                db.event(datetime.now().isoformat(timespec="seconds"), "ide", "review-start", dev=sid, pr_url=u)
+        notify()
+        return {"id": sid, "created": False, "process": state}
+
     async def review_start_stack(p: dict) -> dict:
         """"Revisar stack": una sola sesión para las PRs de un stack que te pidieron revisar (de abajo
         hacia arriba). Archiva las sesiones de revisión individuales de esas PRs."""
@@ -1843,7 +1872,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"context": ctx, "limits": lim}
 
     for channel, handler in {
-        "reviews.github": github, "reviews.start": review_start, "reviews.startStack": review_start_stack, "reviews.setReviewers": set_reviewers,
+        "reviews.github": github, "reviews.start": review_start, "reviews.startStack": review_start_stack, "reviews.restart": review_restart, "reviews.setReviewers": set_reviewers,
         "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "pr.reviewers": pr_reviewers, "session.messages": session_messages,
         "evidence.list": evidence_list, "evidence.new": evidence_new, "evidence.save": evidence_save,
         "evidence.duplicate": evidence_duplicate, "evidence.delete": evidence_delete, "evidence.shot": evidence_shot,
