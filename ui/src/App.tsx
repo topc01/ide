@@ -33,6 +33,7 @@ import { DevSelector } from "./layout/DevSelector";
 import { HoverTips } from "./layout/HoverTips";
 import { useDevShortcuts } from "./layout/devShortcuts";
 import { DevSwitcher } from "./layout/DevSwitcher";
+import { DevSearch } from "./layout/DevSearch";
 
 export default function App() {
   useDevShortcuts();
@@ -57,6 +58,7 @@ export default function App() {
       <StatusBar />
       <HoverTips />
       <DevSwitcher />
+      <DevSearch />
       <SettingsModal />
       <NewFolderSessionModal />
     </div>

@@ -3,6 +3,7 @@
  *  - ⌘↑ / ⌘↓: el anterior / el siguiente en el orden de la sidebar (las cards visibles).
  *  - ⌘→: abre el selector (como ⌘Tab de macOS): los desarrollos por último acceso, con el anterior marcado;
  *    con ⌘ apretado, → y ← mueven la selección; al soltar ⌘ se abre el marcado; Esc lo cierra sin cambiar.
+ *  - ⌘Espacio: abre / cierra el buscador de sesiones (DevSearch), también escribiendo en un campo.
  *  No se activan escribiendo en un campo de texto (ahí ⌘←/⌘→ mueven el cursor); en la terminal sí. */
 import { useEffect } from "react";
 import { create } from "zustand";
@@ -14,6 +15,12 @@ const keyOf = (s: { activeId: string | null; activePrUrl: string | null }): Key 
 
 const recent: Key[] = [];                 // orden de acceso: el más reciente primero
 let walking = false;
+
+/** El buscador de ⌘Espacio. */
+export const useSearch = create<{ open: boolean }>(() => ({ open: false }));
+
+/** Los desarrollos por último acceso (el más reciente primero). */
+export const recentKeys = (): Key[] => recent.filter((k) => valid(k));
 
 /** El selector abierto: la lista (foto del orden de acceso al abrirlo) y el marcado. */
 export const useSwitcher = create<{ open: boolean; items: Key[]; index: number }>(() => ({ open: false, items: [], index: 0 }));
@@ -29,7 +36,7 @@ useFolders.subscribe((s, prev) => {
 });
 { const k = keyOf(useFolders.getState()); if (k) recent.push(k); }
 
-function go(k: Key) {
+export function go(k: Key) {
   const s = useFolders.getState();
   walking = true;
   if (k.startsWith("p:")) s.setActivePr(k.slice(2));
@@ -81,6 +88,12 @@ function closeSwitcher(pick: boolean) {
 export function useDevShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && (e.code === "Space" || e.key === " ")) {
+        e.preventDefault(); e.stopPropagation();
+        closeSwitcher(false);
+        useSearch.setState({ open: !useSearch.getState().open });
+        return;
+      }
       if (useSwitcher.getState().open && e.key === "Escape") { e.preventDefault(); closeSwitcher(false); return; }
       if (!e.metaKey || e.altKey || e.ctrlKey || e.shiftKey || typing(e.target)) return;
       const sw = useSwitcher.getState().open;     // con el selector abierto, solo ← y →
