@@ -624,11 +624,12 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         stack = (await asyncio.to_thread(read_session, root, sid)).get("stackPrs")
         if stack:                               # revisión de stack: la sección `## <repo>#<n>` de esta PR
             repo, number = parse_pr_url(p["url"])
-            m = re.search(rf"^## [^\n]*{re.escape(repo)}#{number}\b[^\n]*\n(.*?)(?=^## |\Z)", body, re.M | re.S)
-            body, level = (m.group(1) if m else ""), "###"
+            # la última sección de esta PR: una re-revisión agrega `## <repo>#<n> — re-revisión (...)` abajo
+            ms = re.findall(rf"^## [^\n]*{re.escape(repo)}#{number}\b[^\n]*\n(.*?)(?=^## |\Z)", body, re.M | re.S)
+            body, level = (ms[-1] if ms else ""), "###"
         def section(name: str) -> str:
-            m = re.search(rf"^{level} {name}[^\n]*\n(.*?)(?=^{level} |^## |\Z)", body, re.M | re.S)
-            return m.group(1).strip() if m else ""
+            ms = re.findall(rf"^{level} {name}[^\n]*\n(.*?)(?=^{level} |^## |\Z)", body, re.M | re.S)
+            return ms[-1].strip() if ms else ""             # la última (la de la ronda más nueva)
         v = section("Veredicto")
         first = v.splitlines()[0].strip().lower() if v else ""
         verdict = "approve" if first.startswith("aprob") else "request-changes" if "cambio" in first else None

@@ -998,7 +998,7 @@ stack, en todas sus PRs) da `approved` (aprobaste todas), `changes-requested` (p
 `reviewing` (te volvieron a pedir review en alguna, que pesa más que los cambios pedidos). En el resumen de la PR y en el módulo Desarrollo, **Tu
 revisión** muestra el veredicto y los botones **Aprobar** / **Pedir cambios** (con confirmación; pedir
 cambios exige comentario) para publicar o corregir el veredicto tú (`gh pr review`) — solo PRs que te
-pidieron revisar o con sesión de revisión. Canales `review.draft {url}`, `review.submit {url, event, body}`.
+pidieron revisar o con sesión de revisión. Canales `review.draft {url}`, `review.submit {url, event, body}`. El veredicto y el comentario salen de la **última** sección de esa PR en SESSION.md (una re-revisión que agrega su sección abajo pisa a la anterior).
 
 ## 9e. Feedback y revisión nocturna (mejora con el uso)
 
