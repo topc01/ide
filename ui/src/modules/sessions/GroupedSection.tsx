@@ -1,5 +1,5 @@
 // ui/src/modules/sessions/GroupedSection.tsx
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "../../lib/utils";
 import { ChevronRight, Settings2 } from "lucide-react";
 import { Collapsible } from "radix-ui";
@@ -11,6 +11,7 @@ import { repoShort } from "./DevCard";
 import { useSidebarConfig, type GroupBy } from "../../state/sidebarConfig";
 import { useStore } from "../../state/store";
 import { ACTIVITY } from "./activity";
+import { useFolders } from "../../state/folders";
 
 /** Junto al nombre de un grupo: cuántos claude trabajan (◐) y cuántos te esperan (●); en 0 no se muestra.
  *  Una sesión con varias PRs (stack) cuenta una vez. */
@@ -106,6 +107,25 @@ export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, 
   const [open, setOpen] = usePersistentOpen(id);
   const by = useSidebarConfig((s) => s.groupBy[id] ?? "status");
   const groups = groupsOf(entries, by, statuses, gh);
+  // el desarrollo elegido (⌘K, un atajo, una notificación): se abren la sección y el grupo de su card y se
+  // lleva la card a la vista. Solo cuando cambia la elección: después se puede volver a colapsar.
+  const activeId = useFolders((s) => s.activeId);
+  const activePrUrl = useFolders((s) => s.activePrUrl);
+  const isActive = (e: Entry) => activePrUrl ? e.pr?.url === activePrUrl : !!activeId && e.session?.id === activeId;
+  const [reveal, setReveal] = useState<{ group: string; n: number } | null>(null);
+  const hasActive = [...entries, ...hidden].some(isActive);
+  useEffect(() => {
+    if (!hasActive) return;
+    const g = hidden.some(isActive) ? "~hidden" : groups.find(([, x]) => x.items.some(isActive))?.[0];
+    if (g == null) return;
+    setOpen(true);
+    setReveal((r) => ({ group: g, n: (r?.n ?? 0) + 1 }));
+    // después de abrir: la card a la vista (si ya está visible, no se mueve)
+    const t = setTimeout(() => document.querySelector<HTMLElement>('[aria-current="true"]')
+      ?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 80);
+    return () => clearTimeout(t);
+  }, [activeId, activePrUrl, hasActive]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const revealOf = (g: string) => reveal?.group === g ? reveal.n : undefined;
   return (
     <Collapsible.Root open={open} onOpenChange={setOpen} className="group/sec mt-3 border-t border-border pt-2">
       <div className="flex items-center gap-1.5 px-2.5">
@@ -124,7 +144,7 @@ export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, 
       <Collapsible.Content>
         {beforeGroups}
         {groups.filter(([, g]) => g.items.length).map(([key, g]) => (
-          <QueueSection key={`${by}-${key}`} defaultOpen persistKey={`${id}.${by}.${key}`} className="mt-1">
+          <QueueSection key={`${by}-${key}`} defaultOpen persistKey={`${id}.${by}.${key}`} reveal={revealOf(key)} className="mt-1">
             <div className="flex items-center">
               <QueueSectionTrigger title={g.label}>
                 <QueueSectionLabel label={g.label} count={g.items.length} extra={<ActivityCounts items={g.items} />} className="min-w-0 [&>span:first-child]:truncate" />
@@ -146,7 +166,7 @@ export function GroupedSection({ id, title, entries, statuses, gh, headerExtra, 
             </QueueSectionContent>
           </QueueSection>)}
         {hidden.length > 0 && (
-          <QueueSection defaultOpen={false} persistKey={`${id}.hidden`} className="mt-1 opacity-70">
+          <QueueSection defaultOpen={false} persistKey={`${id}.hidden`} reveal={revealOf("~hidden")} className="mt-1 opacity-70">
             <QueueSectionTrigger title="Desarrollos ocultos (el ojo de cada card los vuelve a mostrar)">
               <QueueSectionLabel label="Ocultos" count={hidden.length} extra={<ActivityCounts items={hidden} />} />
             </QueueSectionTrigger>

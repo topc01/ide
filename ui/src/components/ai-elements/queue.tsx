@@ -11,9 +11,11 @@ export const Queue = ({ className, ...p }: React.ComponentProps<"div">) =>
   <div className={cn("flex flex-col gap-1", className)} {...p} />;
 
 /** `persistKey`: recuerda abierto/cerrado entre recargas (localStorage). */
-export const QueueSection = ({ defaultOpen = true, persistKey, className, ...p }:
-  React.ComponentProps<typeof Collapsible.Root> & { persistKey?: string }) => {
+/** `reveal`: cada vez que cambia a un valor no nulo, se abre (p.ej. tiene la card del desarrollo elegido). */
+export const QueueSection = ({ defaultOpen = true, persistKey, reveal, className, ...p }:
+  React.ComponentProps<typeof Collapsible.Root> & { persistKey?: string; reveal?: unknown }) => {
   const [open, setOpen] = usePersistentOpen(persistKey ?? "", defaultOpen);
+  React.useEffect(() => { if (reveal != null && persistKey) setOpen(true); }, [reveal]);   // eslint-disable-line react-hooks/exhaustive-deps
   return persistKey
     ? <Collapsible.Root open={open} onOpenChange={setOpen} className={cn("group/section", className)} {...p} />
     : <Collapsible.Root defaultOpen={defaultOpen} className={cn("group/section", className)} {...p} />;
