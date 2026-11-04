@@ -485,6 +485,8 @@ PERM_ANALYZE = {"permissions": {
         # consultas de solo lectura a prod/staging: `ide db` deja pasar solo el SQL (sin comandos de psql)
         "Bash(ide db:*)",
         "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh search prs:*)",
+        # escrituras de una sesión de revisión: `ide review` valida org, tipo de sesión y PR antes de llamar a gh
+        "Bash(ide review:*)",
         "Edit(**/SESSION.md)", "Edit(**/TICKET.md)", "Edit(**/REVIEW.md)",
         "mcp__claude_ai_Notion__notion-fetch", "mcp__claude_ai_Notion__notion-search",
         "mcp__claude_ai_Notion__notion-query-data-sources",

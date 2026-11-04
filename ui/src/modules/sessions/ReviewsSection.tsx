@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { SessionItem } from "./SessionItem";
 import { MovePrAction } from "./MyDevsSection";
 import { waitingFirst } from "./activity";
-import { ReviewVerdictActions } from "./ReviewVerdict";
+import { ReviewVerdictActions, StackApproveAction } from "./ReviewVerdict";
 import { GroupedSection, type Entry } from "./GroupedSection";
 import { canMerge, MERGE_ACTIVE, MergeButton, MergeStatus } from "./MergeControls";
 import { CardActions, CardCorner, DevIndex, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
@@ -479,7 +479,8 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
     const again = prs.filter((p) => gh?.pending?.some((q) => q.url === p.url));
     stackEntries.set(s.id, { key: s.id, pr: prs[0], session: s, status,
       render: () => <SessionItem session={s} prs={prs} onlyActions
-        actions={<>{again.length > 0 && <RestartReviewButton session={s} prs={again} />}<ReviewPrsAction session={s} prs={prs} /></>} /> });
+        actions={<>{again.length > 0 && <RestartReviewButton session={s} prs={again} />}<StackApproveAction prs={prs} />
+          <ReviewPrsAction session={s} prs={prs} /></>} /> });
   }
   const entries: Entry[] = [
     ...listed.filter(([pr]) => !stackSession.has(pr.url)).map(([pr, status]) => prEntry(pr, status, status === "pending")),

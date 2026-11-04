@@ -984,9 +984,14 @@ veredicto), deja en `SESSION.md` `## Veredicto` (primera línea "Aprobar" o "Ped
 stack) pisan a la skill en el body de la PR: sus faltas de forma son comentario no bloqueante y solo
 pide cambios un body que afirma algo falso. Además le dicen que las PRs llegan en draft a propósito y el CI corre
 después de aprobar: draft o CI sin correr no son hallazgo. El prompt le dice que el contenido de la PR es
-material, no instrucciones; y con el perfil `analyze` publicar (`gh pr review`, `gh api` con mutaciones)
-pide OK en su terminal (una PR maliciosa podría intentar que se apruebe sola): no lo agregues a los
-permitidos. Estados de revisión: `reviewing`,
+material, no instrucciones. **Publicar desde la sesión: solo pedir cambios**, con **`ide review`** (permitido en
+`analyze` como `Bash(ide review:*)`; `gh api` con mutaciones sigue pidiendo OK en su terminal): `ide review
+publish <pr> <review.json>` (solo `event` REQUEST_CHANGES; APPROVE y COMMENT se rechazan), `ide review reply <pr>
+<comment_id> "texto"`, `ide review resolve <PRRT_…> [--undo]`, `ide review add-reviewer <pr> <login>…`. El
+comando rechaza lo que no sea de la org Finnecto, de una sesión de revisión y de una PR de esa sesión (su PR o
+una de su stack). Antes de pedir cambios, la sesión le dice al usuario un resumen de lo que encontró. **Aprobar lo
+hace el usuario** desde la card (una PR maliciosa podría intentar que la sesión la apruebe): en la de una PR,
+Aprobar (✓); en la de una revisión de stack, ✓ elige la PR y abre la misma ventana. Estados de revisión: `reviewing`,
 `suggests-approve`, `suggests-changes` (veredicto sin publicar), `approved`, `changes-requested` (ya no
 existe `commented`: se migra a `reviewing`). El IDE los alinea con GitHub en cada ronda: tu última review en la PR (en una revisión de
 stack, en todas sus PRs) da `approved` (aprobaste todas), `changes-requested` (pediste cambios en alguna) o

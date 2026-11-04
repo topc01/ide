@@ -9,7 +9,7 @@ import { Button } from "../../components/ui/button";
 import { repoShort } from "./DevCard";
 import { cn } from "../../lib/utils";
 
-type Event = "approve" | "request-changes";
+export type Event = "approve" | "request-changes";
 const WORD: Record<Event, [string, string]> = {
   approve: ["Aprobar", "¿Aprobar la PR en GitHub con este comentario?"],
   "request-changes": ["Pedir cambios", "¿Pedir cambios en GitHub con este comentario?"],
@@ -30,7 +30,7 @@ export function ReviewVerdictActions({ pr }: { pr: GhPr }) {
   </>);
 }
 
-function VerdictDialog({ pr, initial, onClose }: { pr: GhPr; initial: Event; onClose: () => void }) {
+export function VerdictDialog({ pr, initial, onClose }: { pr: GhPr; initial: Event; onClose: () => void }) {
   const [event, setEvent] = useState<Event>(initial);
   const [body, setBody] = useState("");
   const [why, setWhy] = useState<string | null>(null);
@@ -222,5 +222,32 @@ export function AssignReviewersAction({ prs, gh }: { prs: GhPr[]; gh: GithubRevi
           </DialogFooter>
         </DialogContent>
       </Dialog>)}
+  </>);
+}
+
+/** Aprobar en la card de una revisión de stack: elige la PR y abre la misma ventana de Aprobar (la sesión no
+ *  aprueba sola: solo puede pedir cambios). */
+export function StackApproveAction({ prs }: { prs: GhPr[] }) {
+  const [open, setOpen] = useState(false);
+  const [pick, setPick] = useState<GhPr | null>(null);
+  return (<>
+    <QueueItemAction aria-label="Aprobar PRs del stack" title="Aprobar en GitHub una PR de esta revisión (eliges cuál; pide confirmar)"
+      onClick={(e) => { e.stopPropagation(); setOpen(true); }}><Check size={11} /></QueueItemAction>
+    {open && !pick && (
+      <Dialog open onOpenChange={(o) => { if (!o) setOpen(false); }}>
+        <DialogContent onClick={(e) => e.stopPropagation()} className="max-w-md">
+          <DialogHeader><DialogTitle className="text-sm">¿Qué PR apruebas?</DialogTitle></DialogHeader>
+          <div className="space-y-0.5">
+            {prs.map((p) => (
+              <button key={p.url} title={`Aprobar ${p.repo}#${p.number} (abre el comentario y pide confirmar)`}
+                onClick={() => setPick(p)}
+                className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-xs hover:bg-accent/50">
+                <span className="shrink-0 font-mono font-bold">{repoShort(p.repo)} #{p.number}</span>
+                <span className="min-w-0 flex-1 truncate">{p.title}</span>
+              </button>))}
+          </div>
+        </DialogContent>
+      </Dialog>)}
+    {pick && <VerdictDialog pr={pick} initial="approve" onClose={() => { setPick(null); setOpen(false); }} />}
   </>);
 }

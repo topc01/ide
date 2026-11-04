@@ -120,6 +120,16 @@ def _parser() -> argparse.ArgumentParser:
     pu.add_argument("--session")
     st = sub.add_parser("status", help="cambia el estado de la sesión (queda en la base y en el historial)")
     st.add_argument("status"); st.add_argument("-m", "--note"); st.add_argument("--session")
+    rv = sub.add_parser("review", help="publicar en GitHub desde una sesión de revisión (solo sus PRs, org Finnecto)").add_subparsers(dest="cmd", required=True)
+    rp = rv.add_parser("publish", help="publica una review que pide cambios (POST .../reviews) con el JSON: body, event REQUEST_CHANGES, commit_id, comments (aprobar lo hace el usuario desde la card)")
+    rp.add_argument("pr", help="URL de la PR o <repo>#<n>"); rp.add_argument("file", help="JSON de la review")
+    rr = rv.add_parser("reply", help="responde en un hilo existente (POST .../comments/<id>/replies)")
+    rr.add_argument("pr"); rr.add_argument("comment_id", type=int, help="id del comentario del hilo")
+    rr.add_argument("text", nargs="?"); rr.add_argument("--file", help="texto desde archivo ('-' = stdin)")
+    rs = rv.add_parser("resolve", help="resuelve un hilo de review (id del hilo, PRRT_...)")
+    rs.add_argument("thread_id"); rs.add_argument("--undo", action="store_true", help="lo reabre")
+    ra = rv.add_parser("add-reviewer", help="pide revisión a uno o más logins (gh pr edit --add-reviewer)")
+    ra.add_argument("pr"); ra.add_argument("logins", nargs="+")
     ev = sub.add_parser("evidence", help="pasos de prueba con capturas (módulo Evidencias)").add_subparsers(dest="cmd", required=True)
     es = ev.add_parser("plan", help="crea una corrida con los pasos (markdown: un ítem de lista por paso; 📸 o [captura] = lleva captura)")
     es.add_argument("--run", default="PR", help="nombre de la corrida (default: PR)"); es.add_argument("--file", default="-", help="markdown ('-' = stdin)")
@@ -873,6 +883,25 @@ def _db_query(env_name: str, sql: str, home: Path, out: TextIO, err: TextIO, *, 
 _OLD_EVIDENCE = {"set": "plan", "done": "check", "github": "publish"}
 
 
+def _review_cmd(a, root: Path, cwd: Path, out: TextIO, env: dict) -> int:
+    from ide_server import review_publish as rp
+    sid = current_session(root, env=env, cwd=cwd)
+    if a.cmd == "publish":
+        r = rp.publish(root, sid, a.pr, a.file)
+        out.write(f"review publicada: {r['state']} {r['url'] or ''}\n")
+    elif a.cmd == "reply":
+        text = (sys.stdin.read() if a.file == "-" else Path(a.file).read_text(encoding="utf-8")) if a.file else (a.text or "")
+        r = rp.reply(root, sid, a.pr, a.comment_id, text)
+        out.write(f"respuesta publicada: {r['url'] or r['id']}\n")
+    elif a.cmd == "resolve":
+        r = rp.resolve(root, sid, a.thread_id, undo=a.undo)
+        out.write(f"hilo {'resuelto' if r['resolved'] else 'abierto'}\n")
+    elif a.cmd == "add-reviewer":
+        rp.add_reviewer(root, sid, a.pr, a.logins)
+        out.write(f"revisión pedida a {', '.join(a.logins)}\n")
+    return 0
+
+
 def _legacy(argv: list[str]) -> list[str]:
     """`ide evidencias …` (el nombre de antes, en español) sigue andando: pasa a `ide evidence …` con sus
     subcomandos (set → plan, done → check, github → publish) y --label → --run."""
@@ -907,6 +936,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _later_cmd(a, url, http, out, env)
         if a.group == "evidence":
             return _evidence_cmd(a, root, url, http, out, env)
+        if a.group == "review":
+            return _review_cmd(a, root, cwd, out, env)
         if a.group == "handoff":
             return _handoff(a, root, home, out)
         if a.group == "feedback":
