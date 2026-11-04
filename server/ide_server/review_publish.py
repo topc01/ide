@@ -72,7 +72,17 @@ def publish(root: Path, sid: str, ref: str, file: str) -> dict:
                                               f"{', '.join(sorted(_COMMENT_KEYS))})")
     res = json.loads(_gh(["api", f"repos/{ORG}/{repo}/pulls/{n}/reviews", "--method", "POST", "--input", "-"],
                          json.dumps(data)) or "{}")
-    return {"id": res.get("id"), "state": res.get("state"), "url": res.get("html_url")}
+    return {"id": res.get("id"), "state": res.get("state"), "url": res.get("html_url"),
+            "body": data.get("body") or "", "sha": data.get("commit_id") or res.get("commit_id")}
+
+
+def head_sha(ref: str) -> str | None:
+    """El head actual de la PR (lo que la sesión acaba de revisar)."""
+    _, _, url = _pr(ref)
+    try:
+        return json.loads(_gh(["pr", "view", url, "--json", "headRefOid"])).get("headRefOid")
+    except (SessionError, ValueError):
+        return None
 
 
 def reply(root: Path, sid: str, ref: str, comment_id: int, body: str) -> dict:

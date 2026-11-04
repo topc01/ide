@@ -34,6 +34,7 @@ export function VerdictDialog({ pr, initial, onClose }: { pr: GhPr; initial: Eve
   const [event, setEvent] = useState<Event>(initial);
   const [body, setBody] = useState("");
   const [why, setWhy] = useState<string | null>(null);
+  const [stale, setStale] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -41,7 +42,9 @@ export function VerdictDialog({ pr, initial, onClose }: { pr: GhPr; initial: Eve
   useEffect(() => {
     reviewDraft(getWs(), pr.url).then((d) => {
       setBody(d.body);
-      setWhy(d.verdict ? `La sesión: ${d.verdict === "approve" ? "aprobar" : "pedir cambios"}${d.why ? ` — ${d.why}` : ""}` : null);
+      const when = d.at ? ` (${new Date(d.at).toLocaleString("es", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })})` : "";
+      setWhy(d.verdict ? `La sesión: ${d.verdict === "approve" ? "aprobar" : "pedir cambios"}${when}${d.why ? ` — ${d.why}` : ""}` : null);
+      setStale(d.newCommits ? `Ojo: la sesión revisó hasta ${d.sha?.slice(0, 7)} y la PR tiene commits nuevos después. Pídele que revise de nuevo antes de aprobar.` : null);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [pr.url]);
   const submit = () => {
@@ -64,6 +67,7 @@ export function VerdictDialog({ pr, initial, onClose }: { pr: GhPr; initial: Eve
               {WORD[ev][0]}</button>))}
         </div>
         {why && <p className="whitespace-pre-wrap text-xs text-muted-foreground">{why}</p>}
+        {stale && <p role="alert" className="text-xs text-amber-300">⚠ {stale}</p>}
         <textarea value={body} onChange={(e) => { setBody(e.target.value); setConfirm(false); }} spellCheck={false}
           placeholder={loading ? "cargando el review de la sesión…" : event === "request-changes"
             ? "Comentario (obligatorio para pedir cambios)" : "Comentario (opcional)"}

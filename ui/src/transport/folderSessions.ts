@@ -68,7 +68,8 @@ export const stackStatus = (ws: WsClient, url: string): Promise<{ behindParent: 
 export const restackStack = (ws: WsClient, url: string, updateBase: boolean): Promise<{ moved: string[] }> =>
   ws.request("stack.restack", { url, updateBase });
 /** El veredicto de la sesión de revisión de una PR y su review listo para publicar (de su SESSION.md). */
-export const reviewDraft = (ws: WsClient, url: string): Promise<{ id: string | null; verdict: "approve" | "request-changes" | null; why: string; body: string }> =>
+export const reviewDraft = (ws: WsClient, url: string): Promise<{ id: string | null; verdict: "approve" | "request-changes" | null; why: string; body: string;
+    at?: string; sha?: string | null; newCommits?: boolean }> =>
   ws.request("review.draft", { url });
 /** Publica TU review en GitHub (`gh pr review --approve | --request-changes`). */
 export const reviewSubmit = (ws: WsClient, url: string, event: "approve" | "request-changes", body: string): Promise<{ ok: boolean }> =>

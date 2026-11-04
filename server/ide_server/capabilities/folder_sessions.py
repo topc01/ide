@@ -613,11 +613,42 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 found = s["id"]
         return found
 
+    async def review_verdict(p: dict) -> dict:
+        """`ide review verdict` (y `ide review publish`): la sesión de revisión deja su veredicto de una PR en la
+        base. Cada ronda pisa a la anterior; la ventana de Aprobar / Pedir cambios lee de acá."""
+        from ide_server import review_publish
+        sid, verdict = p.get("id") or "", p.get("verdict")
+        require_plain_name(sid, "sesión")
+        if verdict not in ("approve", "request-changes"):
+            raise SessionError("bad_request", "veredicto: approve | request-changes")
+        body = (p.get("body") or "").strip()
+        if not body:
+            raise SessionError("bad_request", "falta el comentario para GitHub")
+        _, _, url = await asyncio.to_thread(review_publish._own_pr, root, sid, p.get("pr") or "")
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        rec = {"sid": sid, "verdict": verdict, "body": body, "why": (p.get("why") or "").strip(),
+               "sha": p.get("sha"), "at": datetime.now().isoformat(timespec="seconds")}
+        db.set(f"verdict:{url}", rec)
+        db.event(rec["at"], f"claude:{sid}", "review-verdict", dev=sid, pr_url=url, data={"verdict": verdict, "sha": rec["sha"]})
+        notify()
+        return {"ok": True, "url": url}
+
     async def review_draft(p: dict) -> dict:
-        """El veredicto de la sesión de revisión y el review listo para publicar (de su SESSION.md)."""
+        """El veredicto de la sesión de revisión y el review listo para publicar: el que dejó con `ide review
+        verdict` (base); si no hay (revisiones de antes), el de su SESSION.md."""
         sid = await asyncio.to_thread(_review_session, p["url"])
         if sid is None:
             return {"id": None, "verdict": None, "body": "", "why": ""}
+        rec = db.get(f"verdict:{p['url']}") if db is not None else None
+        if rec and rec.get("sid") == sid:
+            st = gh_reviews.state if gh_reviews else {}
+            card = next((c for v in st.values() if isinstance(v, list) for c in v
+                         if isinstance(c, dict) and c.get("url") == p["url"]), None)
+            head = (card or {}).get("headSha")
+            return {"id": sid, "verdict": rec["verdict"], "why": rec.get("why") or "", "body": rec["body"],
+                    "at": rec.get("at"), "sha": rec.get("sha"),
+                    "newCommits": bool(head and rec.get("sha") and head != rec["sha"])}
         f = session_path(root, sid) / "SESSION.md"
         _, body = parse_frontmatter(f.read_text(encoding="utf-8")) if f.is_file() else ({}, "")
         level = "##"
@@ -1873,7 +1904,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"context": ctx, "limits": lim}
 
     for channel, handler in {
-        "reviews.github": github, "reviews.start": review_start, "reviews.startStack": review_start_stack, "reviews.restart": review_restart, "reviews.setReviewers": set_reviewers,
+        "reviews.github": github, "reviews.start": review_start, "reviews.startStack": review_start_stack, "reviews.restart": review_restart, "review.verdict": review_verdict, "reviews.setReviewers": set_reviewers,
         "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "pr.reviewers": pr_reviewers, "session.messages": session_messages,
         "evidence.list": evidence_list, "evidence.new": evidence_new, "evidence.save": evidence_save,
         "evidence.duplicate": evidence_duplicate, "evidence.delete": evidence_delete, "evidence.shot": evidence_shot,

@@ -225,6 +225,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_open(sid: str):
         return await _http("sessions.open", {"id": sid})
 
+    @app.post("/api/reviews/verdict")
+    async def api_review_verdict(body: dict):
+        return await _http("review.verdict", body)
+
     @app.post("/api/reviews/stack")
     async def api_review_stack(body: dict):
         return await _http("reviews.startStack", {**body, "_http": True})
