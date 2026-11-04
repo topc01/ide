@@ -613,7 +613,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 found = s["id"]
         return found
 
-    async def review_verdict(p: dict) -> dict:
+    async def save_review_verdict(p: dict) -> dict:
         """`ide review verdict` (y `ide review publish`): la sesión de revisión deja su veredicto de una PR en la
         base. Cada ronda pisa a la anterior; la ventana de Aprobar / Pedir cambios lee de acá."""
         from ide_server import review_publish
@@ -1904,7 +1904,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"context": ctx, "limits": lim}
 
     for channel, handler in {
-        "reviews.github": github, "reviews.start": review_start, "reviews.startStack": review_start_stack, "reviews.restart": review_restart, "review.verdict": review_verdict, "reviews.setReviewers": set_reviewers,
+        "reviews.github": github, "reviews.start": review_start, "reviews.startStack": review_start_stack, "reviews.restart": review_restart, "review.verdict": save_review_verdict, "reviews.setReviewers": set_reviewers,
         "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "pr.reviewers": pr_reviewers, "session.messages": session_messages,
         "evidence.list": evidence_list, "evidence.new": evidence_new, "evidence.save": evidence_save,
         "evidence.duplicate": evidence_duplicate, "evidence.delete": evidence_delete, "evidence.shot": evidence_shot,
