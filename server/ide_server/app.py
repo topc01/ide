@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import subprocess
 import os
 import logging
 from contextlib import asynccontextmanager
@@ -224,6 +225,42 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     @app.post("/api/sessions/{sid}/open")
     async def api_open(sid: str):
         return await _http("sessions.open", {"id": sid})
+
+    # -- diagnóstico de memoria (`ide debug memory`): cuánto ocupa el server y qué crece --------------------
+    @app.get("/api/debug/memory")
+    async def api_debug_memory(top: int = 25) -> dict:
+        import gc, resource, sys, tracemalloc
+        rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1 if sys.platform == "darwin" else 1 / 1024)
+        cur = None
+        try:
+            out = subprocess.run(["ps", "-o", "rss=", "-p", str(os.getpid())], capture_output=True, text=True, timeout=5)
+            cur = int(out.stdout.strip()) * 1024
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+        res = {"pid": os.getpid(), "rssMB": round((cur or 0) / 2**20, 1), "maxRssMB": round(rss / 2**20, 1),
+               "tasks": len(asyncio.all_tasks()), "websockets": len(manager._active),
+               "gcObjects": len(gc.get_objects()), "tracemalloc": tracemalloc.is_tracing()}
+        if tracemalloc.is_tracing():
+            snap = tracemalloc.take_snapshot().filter_traces([tracemalloc.Filter(False, tracemalloc.__file__)])
+            base = getattr(app.state, "mem_base", None)
+            stats = snap.compare_to(base, "lineno") if base else snap.statistics("lineno")
+            res["top"] = [{"where": str(st.traceback[0]), "MB": round(st.size / 2**20, 2),
+                           "growMB": round(getattr(st, "size_diff", 0) / 2**20, 2), "count": st.count}
+                          for st in stats[:top]]
+        return res
+
+    @app.post("/api/debug/tracemalloc")
+    async def api_debug_tracemalloc(body: dict) -> dict:
+        """{on: true} empieza a rastrear (y toma la foto base para comparar); {on: false} lo apaga."""
+        import tracemalloc
+        if body.get("on"):
+            if not tracemalloc.is_tracing():
+                tracemalloc.start(1)
+            app.state.mem_base = tracemalloc.take_snapshot()
+        else:
+            tracemalloc.stop()
+            app.state.mem_base = None
+        return {"tracemalloc": tracemalloc.is_tracing()}
 
     @app.post("/api/reviews/verdict")
     async def api_review_verdict(body: dict):

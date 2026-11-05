@@ -1022,6 +1022,11 @@ lo marca `status: applied`. `ide feedback run` (o `POST /api/manager/nightly`, c
 `manager.nightly`) la pide ya; `ide feedback collect [--since AAAA-MM-DD[THH:MM]] [--json]`.
 
 
+**Diagnóstico de memoria del server:** `GET /api/debug/memory` da el RSS actual y el máximo, las tareas de
+asyncio pendientes, los navegadores conectados (websockets) y los objetos vivos. `POST /api/debug/tracemalloc {on: true}`
+empieza a rastrear asignaciones y toma una foto base; desde ahí `GET /api/debug/memory?top=25` agrega las líneas del
+código que más memoria tienen y cuánto crecieron desde la foto (`{on: false}` lo apaga: rastrear cuesta CPU).
+
 ## 10. Problemas comunes
 
 Cada sesión fija su conversación de `claude`: `claude_session` (nueva con `--session-id`,
