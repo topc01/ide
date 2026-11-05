@@ -150,6 +150,29 @@ function RestartReviewButton({ session, prs }: { session: FolderSession; prs: Gh
   </>);
 }
 
+/** En una revisión pendiente: qué decidió la sesión. «sugiere aprobar» (apruébala tú desde ✓), «sugiere pedir
+ *  cambios», o «sin veredicto» mientras no lo registra (`ide review verdict` / `publish`) para el commit actual. */
+function VerdictChip({ session, prs }: { session: FolderSession; prs: GhPr[] }) {
+  const verdicts = useFolders((s) => s.tree.verdicts);
+  const fresh = prs.map((p) => { const v = verdicts?.[p.url]; return v && (!p.headSha || !v.sha || v.sha === p.headSha) ? v : null; });
+  const working = session.process === "running" && session.activity?.state === "working";
+  let label: string, cls: string, tip: string;
+  if (fresh.every(Boolean)) {
+    const changes = fresh.some((v) => v!.verdict === "request-changes");
+    const ok = prs.filter((_, i) => fresh[i]!.verdict === "approve").map((p) => `#${p.number}`);
+    label = changes ? (ok.length ? `sugiere cambios · aprobar ${ok.join(", ")}` : "sugiere pedir cambios") : "sugiere aprobar";
+    cls = changes ? "border-red-400/60 text-red-300" : "border-emerald-400/60 text-emerald-300";
+    tip = changes ? "La sesión pidió cambios (ya publicados en GitHub)" + (ok.length ? `; sugiere aprobar ${ok.join(", ")}: apruébalas tú con ✓` : "")
+      : "La sesión sugiere aprobar: apruébala tú con ✓ (la ventana trae su comentario)";
+  } else {
+    label = working ? "revisando…" : "sin veredicto";
+    cls = "border-dashed border-border text-muted-foreground";
+    tip = working ? "La sesión está revisando: todavía no registra su veredicto"
+      : "La sesión no registró veredicto para el commit actual (ide review verdict / publish): pregúntale o usa Revisar de nuevo";
+  }
+  return <span title={tip} className={cn("rounded border px-1 text-[10px] font-semibold", cls)}>{label}</span>;
+}
+
 /** Estado de GitHub (revisiones + mis PRs), compartido por las secciones de la sidebar. */
 export function useGithubReviews(): { gh: GithubReviews | null; error: string | null } {
   const [gh, setGh] = useState<GithubReviews | null>(null);
@@ -459,6 +482,7 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
     return { key: pr.url, pr, session: s, status, render: () => s
       // pendientes de revisar: solo revisar y abrir en GitHub (sin parar/archivar)
       ? <SessionItem session={s} pr={pr} onlyActions={reviewable} noArchive={status === "changes"}
+          extra={status === "pending" ? <VerdictChip session={s} prs={[pr]} /> : undefined}
           actions={reviewable ? <>{!s.stackPrs && <ReviewButton pr={pr} />}{stack && <StackReviewButton prs={stack} />}<ReviewVerdictActions pr={pr} /><OpenPrButton pr={pr} /></>
             : <ReviewVerdictActions pr={pr} />} />
       : <PrCard pr={pr} reviewable={reviewable} showAuthor devKey={`p:${pr.url}`}
@@ -479,6 +503,7 @@ export function ReviewsSection({ sessions }: { sessions: FolderSession[] }) {
     const again = prs.filter((p) => gh?.pending?.some((q) => q.url === p.url));
     stackEntries.set(s.id, { key: s.id, pr: prs[0], session: s, status,
       render: () => <SessionItem session={s} prs={prs} onlyActions
+        extra={again.length > 0 ? <VerdictChip session={s} prs={again} /> : undefined}
         actions={<>{again.length > 0 && <RestartReviewButton session={s} prs={again} />}<StackApproveAction prs={prs} />
           <ReviewPrsAction session={s} prs={prs} /></>} /> });
   }

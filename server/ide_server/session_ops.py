@@ -1,6 +1,7 @@
 # server/ide_server/session_ops.py
 from __future__ import annotations
 import io
+from ide_server import seeds
 import json
 import re
 import os
@@ -205,7 +206,7 @@ def _create_review(root: Path, req: dict, permissions: str, runner: Runner) -> d
     # `prompt_file`: prompt de `.ide/prompts/` (p.ej. el botón de revisión) en vez de la plantilla
     text = (load_prompt(root, req["prompt_file"]) if req.get("prompt_file")
             else load_template(root, "review"))
-    prompt = render_template(text, variables)
+    prompt = render_template(text, variables) + seeds.REVIEW_CLOSE
     create_session_dir(root, sid=sid, kind="review", permissions=permissions, prompt=prompt,
                        meta={"title": pr["title"], "author": author, "pr_url": url})
     log = io.StringIO()
@@ -263,7 +264,7 @@ def create_stack_review(root: Path, urls: list[str], *, runner: Runner = _run) -
         text = load_prompt(root, "review-stack")
     except SessionError:                        # workspace de antes: la del IDE
         text = seeds.PROMPT_REVIEW_STACK
-    prompt = render_template(text, {"id": sid, "repo": repo, "prs": lines, "author": author})
+    prompt = render_template(text, {"id": sid, "repo": repo, "prs": lines, "author": author}) + seeds.REVIEW_CLOSE
     title = f"Stack {repo} ({len(prs)}): {prs[0]['title']}"
     create_session_dir(root, sid=sid, kind="review", permissions=_resolve_permissions(root, {}), prompt=prompt,
                        meta={"title": title, "author": author, "pr_url": top["url"]})

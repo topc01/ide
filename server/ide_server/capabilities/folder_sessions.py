@@ -129,6 +129,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "later": later_mod.items(db) if db else [],
                 "devTickets": _tickets(sessions) if db else {},
                 "devRelations": relations,
+                # el veredicto que registró cada sesión de revisión (sin el comentario): la card lo muestra
+                "verdicts": {u: {"verdict": v.get("verdict"), "at": v.get("at"), "sha": v.get("sha")}
+                             for u, v in (db.with_prefix("verdict:") if db else {}).items()},
                 "feedbackPending": pending_plans(root),
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
 
@@ -1804,7 +1807,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 return seeds.PROMPT_REREVIEW_PR       # workspace sembrado antes de que existiera
         text = render_template(await asyncio.to_thread(rereview), {
             "id": sid, "pr_url": url, "repo": repo, "number": str(number), "title": s.get("title") or "",
-            "author": s["meta"].get("author", "")})
+            "author": s["meta"].get("author", "")}) + seeds.REVIEW_CLOSE
+        _forget_verdicts([url])                 # el de la vuelta anterior ya no vale: la card dice «sin veredicto»
         state = supervisor.state(sid)
         if state == "queued":
             raise SessionError("queued", f"{sid} está en cola: espera a que arranque")
@@ -1830,7 +1834,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         except SessionError:
             text = seeds.PROMPT_REREVIEW_STACK       # workspace sembrado antes de que existiera
         lines = "\n".join(f"{i}. {u}" for i, u in enumerate(urls, 1))
-        text = render_template(text, {"id": sid, "prs": lines, "author": s["meta"].get("author", "")})
+        text = render_template(text, {"id": sid, "prs": lines, "author": s["meta"].get("author", "")}) + seeds.REVIEW_CLOSE
+        _forget_verdicts(urls)
         state = supervisor.state(sid)
         if state == "queued":
             raise SessionError("queued", f"{sid} está en cola: espera a que arranque")

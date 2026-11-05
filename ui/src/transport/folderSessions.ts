@@ -32,6 +32,7 @@ export interface SessionsTree {
   devTickets?: Record<string, { url: string | null; status: string | null; error: string | null;
     pending: { url: string; status: string | null; title: string | null }[] }>;
   // desarrollos colgados de otro (`s:<id>`): mismo ticket, PR apilada sobre una rama de otro, separado por el IDE
+  verdicts?: Record<string, { verdict: "approve" | "request-changes"; at: string | null; sha: string | null }>;
   devRelations?: Record<string, { kind: "ticket" | "stacked" | "split"; dev: string; n: number | null; pr?: string }[]>;
 }
 /** Pendiente "para después" de un desarrollo (lo deja la sesión con `ide later add` o el usuario). */
@@ -156,7 +157,7 @@ export function onSessionsChanged(ws: WsClient, cb: (t: SessionsTree) => void): 
 export interface GhPr {
   url: string; title: string; number: number; repo: string; author: string;
   draft: boolean; updatedAt: string | null; sessionId: string;
-  head: string | null; base: string | null;
+  head: string | null; base: string | null; headSha?: string | null;
   review: "approved" | "changes" | "review" | null;
   stack: { id: string; position: number; size: number; native?: boolean; inNative?: boolean } | null;
   reviewers?: { login: string; state: "requested" | "approved" | "changes" }[];
