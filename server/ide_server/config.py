@@ -45,7 +45,7 @@ def manager_config(root: Path) -> dict:
 
 
 def ui_modules(root: Path) -> list[str]:
-    return list(load_workspace_config(root).get("ui", {}).get("modules", ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "pins", "later", "evidence", "attachments", "explorer", "config"]))
+    return list(load_workspace_config(root).get("ui", {}).get("modules", ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "later", "evidence", "attachments", "explorer", "config"]))
 
 
 def ide_config(root: Path) -> dict:

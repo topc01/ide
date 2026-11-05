@@ -16,7 +16,6 @@ import "./modules/review/register";
 import "./modules/deps/register";
 import "./modules/servers/register";
 import "./modules/db/register";
-import "./modules/pins/register";
 import "./modules/later/register";
 import "./modules/evidence/register";
 import "./modules/attachments/register";

@@ -22,7 +22,6 @@ from ide_server.db import Db
 from ide_server.devs import PHASES, add_extra_worktrees, dev_relations, split_parallel, assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
 from ide_server.gh_merge import Merger
 from ide_server import pr_changes, seeds, staging_deploy
-from ide_server import pins as pins_mod
 from ide_server import later as later_mod
 from ide_server import evidence as evidence_mod
 from ide_server import activity as activity_mod
@@ -1514,32 +1513,10 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             asyncio.get_running_loop().create_task(gh_reviews.poll_once())
         return {"ok": True}
 
-    async def session_messages(p: dict) -> dict:
-        sid = require_plain_name(p["id"], "sesión")
-        return {"messages": await asyncio.to_thread(pins_mod.recent_messages, root, sid, Path.home(), int(p.get("limit") or 15))}
-
-    def _pin_key(key) -> str:
+    def _dev_key(key) -> str:
         if not isinstance(key, str) or not re.match(r"^(s|st|p):.{1,300}$", key):
             raise SessionError("bad_request", f"clave de desarrollo inválida: {key!r}")
         return key
-
-    async def pins_list(_p: dict) -> dict:
-        return {"pins": pins_mod.all_pins(db) if db else {}}
-
-    async def pins_add(p: dict) -> dict:
-        text = (p.get("text") or "").strip()
-        if not text or db is None:
-            raise SessionError("bad_request", "falta el texto")
-        pin = pins_mod.add(db, _pin_key(p.get("key")), text, p.get("source"))
-        await manager.broadcast("pins.changed", {"pins": pins_mod.all_pins(db)})
-        return {"pin": pin}
-
-    async def pins_remove(p: dict) -> dict:
-        if db is None:
-            raise SessionError("no_db", "sin base")
-        pins_mod.remove(db, _pin_key(p.get("key")), str(p.get("id")))
-        await manager.broadcast("pins.changed", {"pins": pins_mod.all_pins(db)})
-        return {"ok": True}
 
     # -- evidencias (pasos de prueba con capturas) ------------------------------------------------
     def _ev_sid(p: dict) -> str:
@@ -1621,7 +1598,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def later_add(p: dict) -> dict:
         if db is None:
             raise SessionError("no_db", "sin base")
-        key = _pin_key(p.get("key") or (f"s:{p['sid']}" if p.get("sid") else None))
+        key = _dev_key(p.get("key") or (f"s:{p['sid']}" if p.get("sid") else None))
         actor = p.get("actor") if isinstance(p.get("actor"), str) and p["actor"].startswith(("claude:", "cli")) else "usuario"
         try:
             item = later_mod.add(db, key, p.get("text") or "", p.get("context"), actor)
@@ -1915,13 +1892,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     for channel, handler in {
         "reviews.github": github, "reviews.start": review_start, "reviews.startStack": review_start_stack, "reviews.restart": review_restart, "review.verdict": save_review_verdict, "reviews.setReviewers": set_reviewers,
-        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "pr.reviewers": pr_reviewers, "session.messages": session_messages,
+        "dev.status": dev_status, "dev.rename": dev_rename, "dev.hide": dev_hide, "pr.files": pr_files, "pr.fileDiff": pr_file_diff, "stack.restack": stack_restack, "stack.status": stack_status, "pr.reviewers": pr_reviewers,
         "evidence.list": evidence_list, "evidence.new": evidence_new, "evidence.save": evidence_save,
         "evidence.duplicate": evidence_duplicate, "evidence.delete": evidence_delete, "evidence.shot": evidence_shot,
         "evidence.markdown": evidence_markdown, "evidence.github": evidence_github,
         "sessions.activity": session_activity,
         "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss, "later.resolve": later_resolve,
-        "pins.list": pins_list, "pins.add": pins_add, "pins.remove": pins_remove, "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "servers.blocks": servers_blocks, "servers.start": servers_start,
+        "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "servers.blocks": servers_blocks, "servers.start": servers_start,
         "servers.stop": servers_stop, "servers.log": servers_log, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,

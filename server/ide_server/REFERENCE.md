@@ -94,7 +94,7 @@ github_interval = 120             # segundos entre polls de revisiones en GitHub
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
 
 [ui]
-modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "pins", "later", "evidence", "attachments", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
+modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "later", "evidence", "attachments", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
 [ide]                     # opcional: la sesión "IDE", pestaña junto a la Manager
 repo = "/Users/topc/ide"  # su claude corre en ese repo (permisos default, hooks por --settings)
 resume = "<uuid>"         # la conversación de claude que retoma la primera vez (opcional)
@@ -434,15 +434,6 @@ más de 7 días). Base: `kv` `later:<id>` = `{id, key, text, context, actor, cre
 (open|answered|resolved|dismissed), answer, resolved}`; canales `later.add {key, text, context}`, `later.list
 {all}`, `later.answer {id, answer}`, `later.resolve {id, note}`, `later.dismiss {id}`; HTTP `GET/POST /api/later`, `POST /api/later/{id}/resolve`;
 `sessions.tree` trae `later` (los abiertos).
-
-**Pines** (módulo, id `pins`): mensajes de claude guardados para usar después (p.ej. un texto para
-mandar por un hilo), por desarrollo. Se pinea desde la tab `claude`: al pasar el mouse por una línea de
-un mensaje de claude aparece 📌 y pinea el mensaje completo, sacado del transcript (texto limpio en
-markdown, no lo que muestra la terminal); si la línea no se reconoce (tablas, bloques de código),
-seleccionar texto muestra "📌 Pinear selección" (pinea el mensaje que lo contiene o, si no, la
-selección). El módulo lista solo los pineados, con Copiar, ver todo y desfijar. Se guardan en la base (`kv` `pins:<clave>`).
-Canales `session.messages {id, limit}`, `pins.list`, `pins.add {key, text, source}`,
-`pins.remove {key, id}`; evento `pins.changed`.
 
 **PR sin sesión** (y stacks del desarrollo que no están en el worktree de la sesión): el primer ▶ de
 su bloque hace lo que antes era **Preparar**: crea `.ide/worktrees/wt-<repo>-<n>/<repo>` en
@@ -1023,8 +1014,7 @@ lo marca `status: applied`. `ide feedback run` (o `POST /api/manager/nightly`, c
 
 
 **Transcripts grandes:** el server nunca lee entero un transcript de claude (los de sesiones largas pesan 100+ MB):
-los mensajes para Pines leen solo la cola (2 MB, agrandándola hasta 32 MB si faltan mensajes) y se cachean mientras el
-archivo no cambie; el escaneo de artefactos y el feedback nocturno los recorren línea a línea.
+el escaneo de artefactos y el feedback nocturno los recorren línea a línea.
 
 **Diagnóstico de memoria del server:** `GET /api/debug/memory` da el RSS actual y el máximo, las tareas de
 asyncio pendientes, los navegadores conectados (websockets) y los objetos vivos. `POST /api/debug/tracemalloc {on: true}`

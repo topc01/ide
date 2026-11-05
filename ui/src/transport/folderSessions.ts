@@ -77,14 +77,6 @@ export const reviewSubmit = (ws: WsClient, url: string, event: "approve" | "requ
 /** Pedir revisión a / sacar revisores de una PR tuya (`gh pr edit`). */
 export const prReviewers = (ws: WsClient, url: string, add: string[], remove: string[] = []): Promise<{ ok: boolean }> =>
   ws.request("pr.reviewers", { url, add, remove });
-export interface Pin { id: string; text: string; source: string | null; at: string }
-/** Últimos mensajes de claude de una sesión (del transcript: texto limpio). */
-export const sessionMessages = (ws: WsClient, id: string, limit = 15): Promise<{ messages: { id: string; at: string | null; text: string }[] }> =>
-  ws.request("session.messages", { id, limit });
-export const listPins = (ws: WsClient): Promise<{ pins: Record<string, Pin[]> }> => ws.request("pins.list", {});
-export const addPin = (ws: WsClient, key: string, text: string, source: string | null): Promise<{ pin: Pin }> =>
-  ws.request("pins.add", { key, text, source });
-export const removePin = (ws: WsClient, key: string, id: string): Promise<{ ok: boolean }> => ws.request("pins.remove", { key, id });
 /** Adjuntar un archivo a la conversación de una sesión (se guarda en su carpeta y se pega su ruta). */
 /** `dir`: carpeta dentro de attachments/ donde queda (sin ella, la raíz). */
 export const attachFile = (ws: WsClient, id: string, name: string, data: string, paste = true, dir?: string): Promise<{ path: string; pasted: boolean }> =>
