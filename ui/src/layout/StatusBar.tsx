@@ -83,6 +83,7 @@ export function StatusBar() {
               <span className="text-muted-foreground">({Math.round(ctxPct)}% de {fmtK(ctx.window)})</span>
             </>) : <span className="text-muted-foreground">{activeId ? "sin conversación" : "—"}</span>}
           </span>
+          <WorkingNow />
           <WaitingForYou />
           <FeedbackPending />
           <Window label="5h" w={lim?.fiveHour ?? null} now={now} />
@@ -101,19 +102,43 @@ export function StatusBar() {
   );
 }
 
+type Listed = readonly [string, { note: string | null }];
+const SKIP_KINDS = ["main", "ide", "recursos"];
+
 /** Cuántas sesiones esperan tu input (su claude terminó el turno o pide un permiso; más las que
- *  quedaron marcadas "esperando tu input" de antes). Hover = se despliega hacia arriba la lista; con
- *  el mouse o ↑/↓ te mueves, click o Enter abre esa sesión (la lista sigue abierta). Sacar el mouse
- *  del bloque (el contador + la lista) la cierra. */
+ *  quedaron marcadas "esperando tu input" de antes). */
 function WaitingForYou() {
   const states = useFolders((s) => s.tree.devStates);
+  const sessions = useFolders((s) => s.tree.sessions);
+  const byActivity = sessions.filter((x) => !SKIP_KINDS.includes(x.kind ?? "") && isWaiting(x))
+    .map((x) => [`s:${x.id}`, { note: x.activity?.note ?? null }] as const);
+  const legacy = Object.entries(states ?? {}).filter(([k, v]) => v.block === "waiting-input" && !byActivity.some(([b]) => b === k))
+    .map(([k]) => [k, { note: null }] as const);
+  return <SessionCounter items={[...byActivity, ...legacy]} one="te espera" many="te esperan" what="te esperan"
+    tone="text-orange-300" bg="bg-orange-400/15" dot={["●", "text-orange-500"]} time={waitTime} />;
+}
+
+/** Cuántas sesiones tienen su claude trabajando ahora (a la izquierda de «te esperan», igual por dentro). */
+function WorkingNow() {
+  const sessions = useFolders((s) => s.tree.sessions);
+  const items = sessions.filter((x) => !SKIP_KINDS.includes(x.kind ?? "") && x.process === "running" && x.activity?.state === "working")
+    .map((x) => [`s:${x.id}`, { note: null }] as const);
+  const since = (s?: { activity?: { since?: string | null } | null }) => s?.activity?.since
+    ? `desde ${new Date(s.activity.since).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}` : null;
+  return <SessionCounter items={items} one="trabajando" many="trabajando" what="trabajando"
+    tone="text-sky-300" bg="bg-sky-400/15" dot={["◐", "inline-block leading-none text-sky-400 animate-spin"]} time={since} />;
+}
+
+/** Contador de la barra inferior con su lista: hover = se despliega hacia arriba; con el mouse o ↑/↓ te mueves,
+ *  click o Enter abre esa sesión (la lista sigue abierta). Sacar el mouse del bloque (contador + lista) la cierra. */
+function SessionCounter({ items, one, many, what, tone, bg, dot, time }:
+  { items: Listed[]; one: string; many: string; what: string; tone: string; bg: string; dot: [string, string];
+    time: (s?: any) => string | null }) {
   const names = useFolders((s) => s.tree.devNames);
   const sessions = useFolders((s) => s.tree.sessions);
   const activeId = useFolders((s) => s.activeId);
   const activePrUrl = useFolders((s) => s.activePrUrl);
-  const byActivity = sessions.filter((x) => x.kind !== "main" && x.kind !== "ide" && x.kind !== "recursos" && isWaiting(x)).map((x) => [`s:${x.id}`, { note: x.activity?.note ?? null }] as const);
-  const legacy = Object.entries(states ?? {}).filter(([k, v]) => v.block === "waiting-input" && !byActivity.some(([b]) => b === k));
-  const waiting = [...byActivity, ...legacy];
+  const waiting = items;
   const label = (k: string) => names?.[k] ?? (k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2))?.title ?? k.slice(2) : k.slice(2));
   const [at, setAt] = useState<DOMRect | null>(null);
   const [idx, setIdx] = useState(0);
@@ -156,19 +181,19 @@ function WaitingForYou() {
   const sel = Math.min(idx, waiting.length - 1);
   return (<>
     <button ref={trigger} onMouseEnter={show} onMouseLeave={hide} onClick={show}
-      title="Las sesiones que te esperan: pasa el mouse para verlas en lista (↑/↓ y Enter para ir)"
-      className={cn("rounded px-1 font-semibold text-orange-300", at && "bg-orange-400/15")}>
-      {waiting.length} {waiting.length === 1 ? "te espera" : "te esperan"}</button>
+      title={`Las sesiones ${what === "trabajando" ? "con su claude trabajando" : "que te esperan"}: pasa el mouse para verlas en lista (↑/↓ y Enter para ir)`}
+      className={cn("rounded px-1 font-semibold", tone, at && bg)}>
+      {waiting.length} {waiting.length === 1 ? one : many}</button>
     {at && createPortal(
-      <div role="listbox" aria-label="Sesiones que te esperan" onMouseEnter={show} onMouseLeave={hide}
+      <div role="listbox" aria-label={`Sesiones: ${what}`} onMouseEnter={show} onMouseLeave={hide}
         style={{ left: Math.max(8, Math.min(at.left, window.innerWidth - 368)), bottom: window.innerHeight - at.top }}
         className="fixed z-50 w-[360px] pb-1 font-mono text-xs">
         <div className="max-h-[60vh] overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-xl">
           <div className="px-2 pb-1 pt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-            te esperan · ↑/↓ y Enter, o click</div>
+            {what} · ↑/↓ y Enter, o click</div>
           {waiting.map(([k, v], i) => {
             const s = k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2)) : undefined;
-            const t = waitTime(s);
+            const t = time(s);
             const current = k === `s:${activeId}` || (!!activePrUrl && k === `p:${activePrUrl}`);
             return (
               <button key={k} role="option" aria-selected={i === sel} onMouseMove={() => i !== sel && setIdx(i)}
@@ -177,7 +202,7 @@ function WaitingForYou() {
                 className={cn("flex w-full flex-col items-start gap-0.5 rounded px-2 py-1.5 text-left",
                   i === sel ? "bg-accent text-foreground" : "text-muted-foreground")}>
                 <span className="flex w-full items-center gap-1.5">
-                  <span aria-hidden className="text-orange-500">●</span>
+                  <span aria-hidden className={dot[1]}>{dot[0]}</span>
                   <span className={cn("min-w-0 flex-1 truncate font-semibold", current && "text-primary")}>
                     {s && /^\d+$/.test(s.id) ? `#${s.id} ` : ""}{label(k)}</span>
                   {t && <span className="shrink-0 text-[10px] text-muted-foreground">{t}</span>}

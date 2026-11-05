@@ -709,7 +709,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             me = (gh_reviews.state or {}).get("me")
             if me:                              # el punto cambia ya (el poll lo confirma o corrige)
                 gh_reviews.optimistic(url, verdict=(me, "approved" if event == "approve" else "changes"))
+                # lo mismo en el poller de la sesión: al salir de Pendientes, el estado de la revisión sale de él, y
+                # con su dato viejo («review pedida») la volvía a poner en «revisando» al rato de aprobar
+                d = poller.derived.get(sid) if sid else None
+                if d is not None and isinstance(d.get("reviewers"), dict):
+                    d["reviewers"][me] = "approved" if event == "approve" else "changes"
             asyncio.get_running_loop().create_task(gh_reviews.poll_once())
+        asyncio.get_running_loop().create_task(poller.poll_once())   # y el de la sesión, con el dato real
         notify()
         return {"ok": True}
 
