@@ -6,6 +6,9 @@ import { useFolders } from "../state/folders";
 import { ACTIVITY, activityOf } from "../modules/sessions/activity";
 import { cn } from "../lib/utils";
 import { getWs } from "../transport/wsClient";
+import { allPrs, useGithubReviews } from "../modules/sessions/ReviewsSection";
+import { deriveMine } from "../modules/sessions/desarrollos";
+import { repoShort } from "../modules/sessions/DevCard";
 
 type Archived = { id: string; kind: string | null; n: number | null; title: string | null; archivedAt: string | null };
 
@@ -31,7 +34,9 @@ export function fuzzy(q: string, text: string): number | null {
   return total;
 }
 
-type Item = { key: string; n: number | null; title: string; tag: string | null; dot: [string, string, string] | null; archived?: boolean };
+type Item = { key: string; n: number | null; title: string; tag: string | null; dot: [string, string, string] | null; archived?: boolean;
+  /** una PR: su etiqueta (`API #5280`) y el desarrollo que se abre (su sesión, o la card de la PR) */
+  pr?: { label: string; number: number; go: string } };
 
 /** ⌘K (como Spotlight): un input y abajo las sesiones que calzan, por número primero (`12`, `#12`) y
  *  después por nombre (fuzzy). ↑/↓ mueven, Enter abre, Esc o ⌘K otra vez cierran. Vacío: por último
@@ -62,6 +67,23 @@ export function DevSearch() {
     return { key: k, n, title: tree.devNames?.[k] ?? s.title ?? tag ?? s.id, tag, dot: ACTIVITY[activityOf(s)] };
   }), [tree]);
   const live = useMemo(() => new Set(tree.sessions.map((s) => s.id)), [tree]);
+  // las PRs abiertas que conoce el IDE: abren el desarrollo que las tiene (su sesión de ticket o de revisión)
+  const { gh } = useGithubReviews();
+  const prItems: Item[] = useMemo(() => {
+    if (!gh) return [];
+    const owners = new Map<string, string>();
+    const tickets = tree.sessions.filter((s) => s.kind !== "review");
+    for (const d of deriveMine(tickets, gh, tree.devPrs)) if (d.session) for (const p of d.prs) owners.set(p.url, d.session.id);
+    for (const s of tree.sessions) if (s.kind === "review") for (const u of s.stackPrs ?? (s.prUrl ? [s.prUrl] : [])) owners.set(u, s.id);
+    const ids = new Set(tree.sessions.map((s) => s.id));
+    return allPrs(gh).map((p) => {
+      const sid = owners.get(p.url) ?? (ids.has(p.sessionId) ? p.sessionId : null);
+      const n = sid ? tree.devIndex?.[`s:${sid}`] : undefined;
+      return { key: `pr:${p.url}`, n: null, title: p.title, dot: null,
+        tag: sid ? `PR · ${n ? `#${n}` : sid}` : "PR sin sesión",
+        pr: { label: `${repoShort(p.repo)} #${p.number}`, number: p.number, go: sid ? `s:${sid}` : `p:${p.url}` } };
+    });
+  }, [gh, tree]);
   const old: Item[] = useMemo(() => archived.filter((a) => !live.has(a.id)).map((a) => ({
     key: `s:${a.id}`, n: a.n, title: a.title ?? a.id, tag: "Archivada", dot: null, archived: true })), [archived, live]);
 
@@ -87,8 +109,15 @@ export function DevSearch() {
     const oldByNumber = /^\d+$/.test(num) ? old.filter((x) => x.n !== null && String(x.n).includes(num))
       .sort((a, b) => (String(a.n) === num ? 0 : 1) - (String(b.n) === num ? 0 : 1) || a.n! - b.n!) : [];
     oldByNumber.forEach((x) => seen.add(x.key));
-    return [...byNumber, ...named(all), ...oldByNumber, ...named(old)];
-  }, [q, all, old]);
+    // PRs: por número (el exacto primero) y por repo + título
+    const prByNumber = /^\d+$/.test(num) ? prItems.filter((x) => String(x.pr!.number).includes(num))
+      .sort((a, b) => (String(a.pr!.number) === num ? 0 : 1) - (String(b.pr!.number) === num ? 0 : 1) || a.pr!.number - b.pr!.number) : [];
+    prByNumber.forEach((x) => seen.add(x.key));
+    const prNamed = prItems.filter((x) => !seen.has(x.key))
+      .map((x) => ({ x, sc: fuzzy(query, `${x.pr!.label} ${x.title}`) }))
+      .filter((r) => r.sc !== null).sort((a, b) => b.sc! - a.sc!).map((r) => r.x);
+    return [...byNumber, ...prByNumber, ...named(all), ...prNamed, ...oldByNumber, ...named(old)];
+  }, [q, all, old, prItems]);
 
   useEffect(() => { setIndex(0); setReopen(null); }, [q]);
   useEffect(() => { setReopen((r) => (r?.phase === "confirm" ? null : r)); }, [index]);
@@ -97,6 +126,7 @@ export function DevSearch() {
   const close = () => useSearch.setState({ open: false });
   const pick = (it?: Item) => {
     if (!it) return;
+    if (it.pr) { close(); go(it.pr.go); return; }
     if (!it.archived) { close(); go(it.key); return; }
     if (reopen?.key === it.key && reopen.phase === "warn") { close(); go(it.key); return; }
     if (reopen?.key !== it.key || reopen.phase === "error") { setReopen({ key: it.key, phase: "confirm" }); return; }
@@ -124,7 +154,7 @@ export function DevSearch() {
         <div className="flex items-center gap-3 px-4 py-3">
           <Search size={20} className="shrink-0 text-muted-foreground" />
           <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey}
-            placeholder="Buscar sesión por número o nombre…" aria-label="Buscar sesión"
+            placeholder="Buscar sesión o PR por número o nombre…" aria-label="Buscar sesión o PR"
             className="min-w-0 flex-1 bg-transparent text-lg text-popover-foreground outline-none placeholder:text-muted-foreground" />
         </div>
         {results.length > 0 ? (
@@ -133,14 +163,15 @@ export function DevSearch() {
               const on = i === index;
               return (
                 <button key={it.key} ref={on ? sel : undefined} role="option" aria-selected={on}
-                  title={it.archived ? `Reabrir ${it.title} (archivada): vuelven su carpeta, worktrees y rama, y se retoma su claude` : `Abrir ${it.title}`}
+                  title={it.pr ? `Abrir ${it.pr.label} (${it.pr.go.startsWith("s:") ? "su desarrollo" : "la card de la PR"})` : it.archived ? `Reabrir ${it.title} (archivada): vuelven su carpeta, worktrees y rama, y se retoma su claude` : `Abrir ${it.title}`}
                   onMouseMove={(e) => { if ((e.movementX || e.movementY) && i !== index) setIndex(i); }}
                   onClick={() => pick(it)}
                   className={cn("flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm",
                     on ? "bg-primary/20 text-foreground" : it.archived ? "text-muted-foreground" : "text-popover-foreground")}
                   style={on ? { background: "color-mix(in srgb, var(--primary) 22%, transparent)" } : undefined}>
                   {it.dot && <span aria-hidden className={cn("w-3 text-xs", it.dot[1])}>{it.dot[0]}</span>}
-                  <span className="w-12 shrink-0 font-mono font-bold text-primary">{it.n ? `#${it.n}` : ""}</span>
+                  <span className={cn("shrink-0 font-mono font-bold text-primary", it.pr ? "min-w-12 whitespace-nowrap" : "w-12")}>
+                    {it.pr ? it.pr.label : it.n ? `#${it.n}` : ""}</span>
                   <span className="min-w-0 flex-1 truncate">{it.title}</span>
                   {reopen?.key === it.key ? (
                     <span className={cn("shrink-0 text-[11px]", reopen.phase === "error" ? "text-destructive" : "text-yellow-300")}>
