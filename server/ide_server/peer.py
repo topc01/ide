@@ -69,16 +69,30 @@ def caller_is_ide(port: int | None, claude_pids: set[int] | None = None,
     return False, ""
 
 
-def from_claude(port: int | None, claude_pids: set[int]) -> bool:
-    """¿La conexión la abrió algo que cuelga del claude de una sesión? (no se sabe = no)."""
-    if not port or not claude_pids:
-        return False
+def ws_rejected(port: int | None, claude_pids: set[int]) -> str | None:
+    """Por qué se rechaza una conexión al websocket (que es solo de la UI), o None si es un navegador. Falla
+    cerrado: si no se sabe quién la abrió, se rechaza. Un navegador no cuelga del server ni de un claude y no
+    corre en una terminal del IDE; lo que lanzó una sesión, sí (o se desprendió sin poder borrar su tty)."""
+    if not port:
+        return "no sé de dónde viene la conexión"
     try:
         pid = _owner(port)
         procs = _ps()
     except (OSError, subprocess.SubprocessError, ValueError):
-        return False
-    return bool(pid and _ancestors(pid, procs) & claude_pids)
+        return "no pude ver qué proceso abrió la conexión"
+    if pid is None or pid not in procs:
+        return "no encontré el proceso que abrió la conexión"
+    server = os.getpid()
+    chain = _ancestors(pid, procs)
+    if claude_pids & chain:
+        return "la abrió el claude de una sesión"
+    if server in chain:
+        return "la abrió algo que corre dentro del IDE"
+    ide_ttys = {tty for p, (pp, tty) in procs.items()
+                if p != server and tty not in ("??", "", procs.get(server, (0, ""))[1]) and _descends(p, server, procs)}
+    if procs[pid][1] in ide_ttys:
+        return "corre en una terminal del IDE"
+    return None
 
 
 def _ancestors(pid: int, procs: dict[int, tuple[int, str]]) -> set[int]:

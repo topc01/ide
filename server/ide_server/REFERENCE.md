@@ -224,7 +224,7 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
   la conexión (`lsof` + `ps`): si cuelga del **claude de una sesión** (un `!`, algo que lanzó) la rechaza aunque
   borre `IDE_SESSION_ID`; si cuelga de una **terminal que abriste tú en el IDE** (módulo Terminal) o de tu
   terminal de afuera, pasa; y rechaza lo demás que cuelga del server (scripts), lo que corre en otra tty del IDE o
-  sin terminal. El websocket (`/ws`) es solo de la UI: una conexión que abre el claude de una sesión (o algo que lanzó, p.ej. un navegador de Playwright) se rechaza, porque podría abrir una terminal «tuya» y escribir en ella. Vale igual para las otras acciones «la manager o tu terminal»: reabrir archivadas, `ide merge`,
+  sin terminal. El websocket (`/ws`) es solo de la UI (un navegador: no cuelga del server ni corre en una terminal del IDE): se rechaza la conexión que abre el claude de una sesión o algo que corre dentro del IDE (p.ej. un navegador de Playwright que lanzó una sesión), la que corre en una tty del IDE y, por las dudas, la de un proceso que no se puede identificar; podría abrir una terminal «tuya» y escribir en ella. Límite: una sesión que maneja tu propio Chrome (extensión de Claude) no se distingue de ti. Vale igual para las otras acciones «la manager o tu terminal»: reabrir archivadas, `ide merge`,
   mover PRs entre desarrollos y `ide session review-stack`. Es una barrera más,
   no aislamiento: una sesión que puede correr cualquier comando corre con tu usuario y llega a lo
   local; esa frontera la ponen los permisos de cada sesión. El texto va por stdin (no por la shell) y
