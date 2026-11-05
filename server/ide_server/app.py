@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import contextvars
 import subprocess
 import os
 import logging
@@ -45,6 +46,9 @@ from ide_server.models.downloader import ModelDownloader
 
 log = logging.getLogger(__name__)
 LOOPBACK = {"localhost", "127.0.0.1", "::1"}
+
+
+_peer_port: contextvars.ContextVar[int | None] = contextvars.ContextVar("peer_port", default=None)
 
 
 def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | None = None,
@@ -204,6 +208,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     async def _http(channel: str, payload: dict):
         try:
+            if payload.get("_http"):                    # el puerto de origen: para saber qué proceso llama
+                payload = {**payload, "_peer": _peer_port.get()}
             return await registry.dispatch(channel, payload)
         except (SessionError, BranchOccupied) as exc:
             code = getattr(exc, "code", "branch_occupied")
@@ -465,6 +471,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.middleware("http")
     async def _same_origin(request, call_next):
+        _peer_port.set(request.client.port if request.client else None)
         if request.url.path.startswith("/api/") and not _origin_ok(request):
             log.warning("request rechazada: Origin %s", request.headers.get("origin"))
             return JSONResponse({"code": "forbidden_origin", "message": "origen no permitido"},

@@ -400,8 +400,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def unarchive(p: dict) -> dict:
         """Reabre una sesión archivada (⌘K): vuelven su carpeta, worktrees y ramas; su claude se retoma."""
         # por CLI: la manager (con su token) o el usuario desde su terminal; otra sesión, no
-        if p.get("_http") and p.get("from_session") and \
-                not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+        if p.get("_http") and _manager_or_terminal(p) is None:
             raise SessionError("forbidden", "solo la sesión manager o el usuario desde su terminal reabren sesiones archivadas")
         raw = str(p.get("id") or "").strip()
         if re.fullmatch(r"#?\d+", raw) and db is not None:   # #n: el número del desarrollo
@@ -479,6 +478,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
             return "manager"
         if p.get("_http") and not p.get("from_session"):
+            from ide_server import peer
+            inside, why = peer.caller_is_ide(p.get("_peer"))
+            if inside:                          # dice venir de tu terminal, pero corre dentro del IDE
+                log.warning("comando reservado rechazado: %s", why)
+                return None
             return "user"
         return None
 
@@ -934,8 +938,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if merger is None:
             raise SessionError("github_off", "merge desactivado")
         # por CLI, mergear es tuyo (o de la manager): una sesión no mergea
-        if p.get("_http") and p.get("from_session") and \
-                not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+        if p.get("_http") and _manager_or_terminal(p) is None:
             raise SessionError("forbidden", "mergear lo hace el usuario (o la manager), no una sesión: si sus "
                                             "migraciones chocan, arréglalas con `ide migrations renumber`")
         return await asyncio.to_thread(lambda: merger.merge(_pr_url(p.get("url") or p.get("pr")),
@@ -1227,8 +1230,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     def _move_guard(p: dict) -> None:
         """Por CLI: la manager con su token; un comando que dice venir de otra sesión, no. (Mover una
         PR solo cambia datos locales del IDE; desde la terminal del usuario va sin token.)"""
-        if p.get("_http") and p.get("from_session") and \
-                not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+        if p.get("_http") and _manager_or_terminal(p) is None:
             raise SessionError("forbidden", "solo la sesión manager o el usuario desde su terminal mueven PRs; un comando con `!` dentro de una "
                                "sesión cuenta como de esa sesión: córrelo en tu terminal o pídeselo a la manager")
 
