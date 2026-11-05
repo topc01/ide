@@ -438,6 +438,22 @@ def split_parallel(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[s
             if (base in line[prs[0]["repo"]] or base.startswith(prefix)
                     or any(_in_worktree(session_path(root, s["id"]) / c["repo"], c.get("head")) for c in prs)):
                 continue
+            # tampoco es otro trabajo (spec: hotfix + backport van en un mismo desarrollo) si:
+            # (1) va junto con una PR del desarrollo («van juntas», en cualquier sentido);
+            # (2) es el par main/develop de una PR del desarrollo en el mismo repo (hotfix y su backport);
+            # (3) su rama está en un worktree extra que armó la propia sesión (la está trabajando ella)
+            own = [c for c in mine if c["url"] not in {x["url"] for x in prs} and c["repo"] in repos
+                   and (c.get("head") in line[c["repo"]] or (links.get(c["url"]) or {}).get("sid") == s["id"])]
+            own_urls = {c["url"] for c in own}
+            cand = {c["url"] for c in prs}
+            together = any(d.get("together") and d.get("url") in own_urls for c in prs for d in c.get("deps") or []) \
+                or any(d.get("together") and d.get("url") in cand for c in own for d in c.get("deps") or [])
+            pair = any(c["repo"] == prs[0]["repo"] and {c.get("base"), base} in ({"main", "develop"}, {"master", "develop"})
+                       for c in own)
+            extra = any(e.get("name") == c["repo"] and e.get("branch") == c.get("head")
+                        for c in prs for e in s.get("extra") or [])
+            if together or pair or extra:
+                continue
             top = prs[-1]
             nums = " → ".join(f"{c['repo']}#{c['number']}" for c in prs)
             # dónde está tomada la rama (un worktree extra de la sesión de origen): se avisa en vez de fallar

@@ -787,7 +787,7 @@ de un repo que ya tiene **y que sale de la rama base del repo** (develop/main: u
 la separa sola en un **desarrollo nuevo**. No es paralela (es su stack y queda en el desarrollo) si la PR de
 abajo de esa línea está apilada sobre una rama del desarrollo (de su línea o con su prefijo), ni si alguna
 de sus ramas ya está contenida en la rama del worktree (git local: la sesión abre las PRs de un stack de a
-una y la de arriba todavía no tiene PR). Al separarla, crea la
+una y la de arriba todavía no tiene PR). Tampoco es paralela (es el mismo trabajo y queda) si **va junto con** una PR del desarrollo («van juntas», en cualquier sentido), si es el **par main/develop** de una PR del desarrollo en el mismo repo (hotfix y su backport), o si su rama está en un **worktree extra** que armó la propia sesión. Al separarla, crea la
 sesión (`d<n>-<rama>`, sin lanzar su claude), su worktree en la PR de más arriba de esa línea, le
 asigna esas PRs (pegajosas; queda en el historial de los dos) y le deja un PROMPT.md y un SESSION.md con el
 origen. Si la rama sigue tomada en un worktree extra de la sesión de origen, igual crea el desarrollo
