@@ -19,6 +19,8 @@ from ide_server.sessions_fs import SessionError, session_cwd, session_path, read
 
 log = logging.getLogger(__name__)
 
+# lo que imprime claude al interrumpir un turno (Esc / Ctrl+C)
+INTERRUPT_MARKS = (b"What should Claude do instead", b"Interrupted by user")
 SpawnFn = Callable[..., str]   # (cwd, argv, env, on_exit, *, on_output, on_input) -> tid
 KillFn = Callable[[str], None]
 
@@ -240,6 +242,7 @@ class Supervisor:
         self._queue: list[tuple[str, bool]] = []
         self._errors: dict[str, str] = {}
         self._head: dict[str, bytes] = {}           # sid -> inicio de la salida del proceso
+        self._tail: dict[str, bytes] = {}           # sid -> lo último impreso (para ver una interrupción)
         # actividad de su claude (por los hooks): {state: working|waiting, since, note, reason}
         self._activity: dict[str, dict] = {}
         self._attention: dict[str, str] = {}        # sid -> "trust"
@@ -427,7 +430,18 @@ class Supervisor:
         self._attention.pop(sid, None)
 
     def _on_output(self, sid: str, tid: str | None, data: bytes) -> None:
-        if tid is None or self._running.get(sid) != tid or sid in self._attention:
+        if tid is None or self._running.get(sid) != tid:
+            return
+        # interrumpido con Esc / Ctrl+C: claude no corre el hook Stop, así que la card se quedaba en
+        # «trabajando». Lo que imprime el TUI al cortar el turno lo pasa a «te espera».
+        # (solo en salidas chicas: un redibujo entero de la pantalla —al cambiar el tamaño— repite el texto viejo)
+        if (self._activity.get(sid) or {}).get("state") == "working" and len(data) < 4096:
+            tail = self._tail.get(sid, b"")[-64:] + data
+            self._tail[sid] = tail[-64:]
+            if any(m in tail for m in INTERRUPT_MARKS):
+                self._tail[sid] = b""
+                self.set_activity(sid, "waiting", note="Lo interrumpiste: espera qué hacer", reason="interrupt")
+        if sid in self._attention:
             return
         head = self._head.get(sid, b"")
         if len(head) >= ATTENTION_HEAD:
