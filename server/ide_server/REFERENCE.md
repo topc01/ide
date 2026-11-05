@@ -221,9 +221,10 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
   memoria, nuevo en cada arranque del server; sin archivo), o **tú desde tu terminal** (por CLI sin
   `IDE_SESSION_ID`: llega con el encabezado `[Mensaje del usuario]`); otra sesión → `forbidden` (un `!` dentro
   de una sesión cuenta como de esa sesión). **Cómo sabe que es tu terminal:** el server mira qué proceso abrió
-  la conexión (`lsof` + `ps`) y la rechaza si cuelga del server (un claude de sesión, una terminal del IDE o algo
-  que lanzaron), si corre en una tty abierta por el IDE o si no corre en ninguna terminal; borrar la marca de
-  sesión no alcanza. Vale igual para las otras acciones «la manager o tu terminal»: reabrir archivadas, `ide merge`,
+  la conexión (`lsof` + `ps`): si cuelga del **claude de una sesión** (un `!`, algo que lanzó) la rechaza aunque
+  borre `IDE_SESSION_ID`; si cuelga de una **terminal que abriste tú en el IDE** (módulo Terminal) o de tu
+  terminal de afuera, pasa; y rechaza lo demás que cuelga del server (scripts), lo que corre en otra tty del IDE o
+  sin terminal. Vale igual para las otras acciones «la manager o tu terminal»: reabrir archivadas, `ide merge`,
   mover PRs entre desarrollos y `ide session review-stack`. Es una barrera más,
   no aislamiento: una sesión que puede correr cualquier comando corre con tu usuario y llega a lo
   local; esa frontera la ponen los permisos de cada sesión. El texto va por stdin (no por la shell) y

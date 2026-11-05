@@ -22,6 +22,8 @@ class TerminalHooks:
     last_input: Callable[[], float] | None = None   # cuándo se tecleó por última vez (cualquier terminal)
     save_history: Callable[[], None] | None = None  # persiste el historial de las terminales con clave
     signal: Callable[[str, int], None] | None = None  # señal al grupo del proceso (congelar / soltar)
+    pid_of: Callable[[str], int | None] | None = None   # pid del proceso de una terminal
+    user_shells: Callable[[], set[int]] | None = None  # pids de las terminales que abrió el usuario en la UI
 
 
 def register(registry: Registry, root: Path, manager, pty: PtyManager | None = None) -> TerminalHooks:
@@ -122,7 +124,8 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
         cwd = resolve_cwd(root, payload)
         cmd = payload.get("cmd") or [os.environ.get("SHELL", "/bin/zsh")]
         tid = pty.spawn(cwd, cmd)
-        terms[tid] = {"sessionId": payload.get("sessionId"), "cmd": cmd, "cwd": str(cwd)}
+        # una terminal que abriste tú en la UI (módulo Terminal): lo que corre ahí cuenta como tuyo
+        terms[tid] = {"sessionId": payload.get("sessionId"), "cmd": cmd, "cwd": str(cwd), "user": True}
         _attach(tid)
         return {"id": tid, "cwd": str(cwd)}
 
@@ -170,4 +173,7 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
     register._manager = manager  # type: ignore[attr-defined]
     return TerminalHooks(spawn=spawn_process, kill=kill_process, write=pty.write,
                          last_input=lambda: state["last_input"], save_history=save_history,
-                         signal=pty.signal_group)
+                         signal=pty.signal_group,
+                         pid_of=lambda tid: (pty._terms.get(tid) or {}).get("pid"),
+                         user_shells=lambda: {pty._terms[t]["pid"] for t, x in terms.items()
+                                              if x.get("user") and t in pty._terms})

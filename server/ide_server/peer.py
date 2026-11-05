@@ -36,8 +36,11 @@ def _owner(port: int) -> int | None:
     return None
 
 
-def caller_is_ide(port: int | None) -> tuple[bool, str]:
-    """(True, por qué) si la llamada viene de algo que corre dentro del IDE o no se puede saber de dónde."""
+def caller_is_ide(port: int | None, claude_pids: set[int] | None = None,
+                  user_pids: set[int] | None = None) -> tuple[bool, str]:
+    """(True, por qué) si la llamada viene de algo que corre dentro del IDE o no se puede saber de dónde.
+    Lo que cuelga del claude de una sesión es de esa sesión; lo que cuelga de una terminal que el usuario abrió
+    en la UI (módulo Terminal) es del usuario, aunque esa terminal la haya abierto el IDE."""
     if not port:
         return True, "no sé de dónde viene la llamada"
     try:
@@ -48,6 +51,11 @@ def caller_is_ide(port: int | None) -> tuple[bool, str]:
     if pid is None or pid not in procs:
         return True, "no encontré el proceso que llama"
     server = os.getpid()
+    chain = _ancestors(pid, procs)
+    if claude_pids and chain & claude_pids:
+        return True, "corre dentro del claude de una sesión"
+    if user_pids and chain & user_pids:
+        return False, ""
     # las terminales que abrió el IDE (no la del propio server, que es la de la ventana donde corriste `ide run`)
     ide_ttys = {tty for p, (pp, tty) in procs.items()
                 if p != server and tty not in ("??", "", procs.get(server, (0, ""))[1]) and _descends(p, server, procs)}
@@ -59,6 +67,14 @@ def caller_is_ide(port: int | None) -> tuple[bool, str]:
     if tty in ide_ttys:
         return True, "corre en una terminal del IDE"
     return False, ""
+
+
+def _ancestors(pid: int, procs: dict[int, tuple[int, str]]) -> set[int]:
+    out = set()
+    while pid and pid not in out:
+        out.add(pid)
+        pid = procs.get(pid, (0, ""))[0]
+    return out
 
 
 def _descends(pid: int, ancestor: int, procs: dict[int, tuple[int, str]]) -> bool:

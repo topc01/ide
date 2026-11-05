@@ -289,6 +289,10 @@ class Supervisor:
         self._on_change()
         return "running"
 
+    def snapshot_tids(self) -> list[str]:
+        """Las terminales de los claude que corren (para saber si un comando viene de uno)."""
+        return list(self._running.values())
+
     def freeze(self, sid: str, on: bool) -> None:
         """Congela (SIGSTOP) o suelta (SIGCONT) el claude de la sesión y todo lo que lanzó: deja de usar CPU y
         tokens al instante y sigue exactamente donde estaba; su memoria queda ocupada."""

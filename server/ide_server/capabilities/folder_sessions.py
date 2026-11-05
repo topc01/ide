@@ -541,9 +541,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         no es de una sesión: sin `from_session`) o None (otra sesión)."""
         if secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
             return "manager"
-        if p.get("_http") and not p.get("from_session"):
+        if p.get("_http"):
+            # por proceso, no por lo que dice el comando: tu terminal (también una que abriste en el IDE) sí;
+            # el claude de una sesión o algo que lanzó, no (aunque borre IDE_SESSION_ID)
             from ide_server import peer
-            inside, why = peer.caller_is_ide(p.get("_peer"))
+            claude = {hooks.pid_of(t) for t in supervisor.snapshot_tids()} if hooks.pid_of else set()
+            users = hooks.user_shells() if hooks.user_shells else set()
+            inside, why = peer.caller_is_ide(p.get("_peer"), claude - {None}, users)
             if inside:                          # dice venir de tu terminal, pero corre dentro del IDE
                 log.warning("comando reservado rechazado: %s", why)
                 return None
