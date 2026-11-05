@@ -48,27 +48,29 @@ def scan(root: Path, home: Path, db: Db) -> int:
             size, off = t.stat().st_size, db.get(key, 0)
             if size <= off:
                 continue
-            with open(t, "rb") as fh:
+            end = off
+            with open(t, "rb") as fh:                   # línea a línea: los transcripts pesan 100+ MB
                 fh.seek(off)
-                chunk = fh.read()
-            end = chunk.rfind(b"\n") + 1               # solo líneas completas
-            for line in chunk[:end].decode("utf-8", "replace").splitlines():
-                if '"Artifact"' not in line and "Published " not in line:
-                    continue
-                try:
-                    e = json.loads(line)
-                except ValueError:
-                    continue
-                content = (e.get("message") or {}).get("content")
-                for x in content if isinstance(content, list) else []:
-                    if x.get("type") != "tool_result":
+                for raw in fh:
+                    if not raw.endswith(b"\n"):           # solo líneas completas
+                        break
+                    end += len(raw)
+                    if b'"Artifact"' not in raw and b"Published " not in raw:
                         continue
-                    text = json.dumps(x.get("content"))
-                    for src, url in _PUB.findall(text):
-                        known = _known(att) if known is None else known
-                        if url not in known:
-                            _save(att, url, src, e.get("timestamp"))
-                            known.add(url)
-                            added += 1
-            db.set(key, off + end)
+                    try:
+                        e = json.loads(raw)
+                    except ValueError:
+                        continue
+                    content = (e.get("message") or {}).get("content")
+                    for x in content if isinstance(content, list) else []:
+                        if x.get("type") != "tool_result":
+                            continue
+                        text = json.dumps(x.get("content"))
+                        for src, url in _PUB.findall(text):
+                            known = _known(att) if known is None else known
+                            if url not in known:
+                                _save(att, url, src, e.get("timestamp"))
+                                known.add(url)
+                                added += 1
+            db.set(key, end)
     return added

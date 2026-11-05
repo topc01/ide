@@ -29,36 +29,37 @@ def _text(content) -> str:
 def _messages(transcript: Path, since: datetime) -> list[dict]:
     out, last_assistant = [], ""
     try:
-        lines = transcript.read_text(encoding="utf-8", errors="replace").splitlines()
+        fh = transcript.open("rb")                  # línea a línea: los transcripts pesan 100+ MB
     except OSError:
         return out
-    for line in lines:
-        try:
-            e = json.loads(line)
-        except ValueError:
-            continue
-        msg = e.get("message") or {}
-        if e.get("type") == "assistant":
-            t = _text(msg.get("content")).strip()
-            if t:
-                last_assistant = t
-            continue
-        if e.get("type") != "user" or e.get("isMeta") or msg.get("role") != "user":
-            continue
-        content = msg.get("content")
-        if isinstance(content, list) and any(isinstance(c, dict) and c.get("type") == "tool_result" for c in content):
-            continue
-        text = _text(content).strip()
-        if not text or text.startswith(_SKIP):
-            continue
-        try:
-            at = datetime.fromisoformat((e.get("timestamp") or "").replace("Z", "+00:00")).astimezone().replace(tzinfo=None)
-        except ValueError:
-            continue
-        if at < since:
-            continue
-        out.append({"at": at.isoformat(timespec="minutes"), "user": text[:MAX_TEXT],
-                    "after": last_assistant[-300:]})
+    with fh:
+        for line in fh:
+            try:
+                e = json.loads(line)
+            except ValueError:
+                continue
+            msg = e.get("message") or {}
+            if e.get("type") == "assistant":
+                t = _text(msg.get("content")).strip()
+                if t:
+                    last_assistant = t
+                continue
+            if e.get("type") != "user" or e.get("isMeta") or msg.get("role") != "user":
+                continue
+            content = msg.get("content")
+            if isinstance(content, list) and any(isinstance(c, dict) and c.get("type") == "tool_result" for c in content):
+                continue
+            text = _text(content).strip()
+            if not text or text.startswith(_SKIP):
+                continue
+            try:
+                at = datetime.fromisoformat((e.get("timestamp") or "").replace("Z", "+00:00")).astimezone().replace(tzinfo=None)
+            except ValueError:
+                continue
+            if at < since:
+                continue
+            out.append({"at": at.isoformat(timespec="minutes"), "user": text[:MAX_TEXT],
+                        "after": last_assistant[-300:]})
     return out
 
 

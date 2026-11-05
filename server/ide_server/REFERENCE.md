@@ -1022,6 +1022,10 @@ lo marca `status: applied`. `ide feedback run` (o `POST /api/manager/nightly`, c
 `manager.nightly`) la pide ya; `ide feedback collect [--since AAAA-MM-DD[THH:MM]] [--json]`.
 
 
+**Transcripts grandes:** el server nunca lee entero un transcript de claude (los de sesiones largas pesan 100+ MB):
+los mensajes para Pines leen solo la cola (2 MB, agrandándola hasta 32 MB si faltan mensajes) y se cachean mientras el
+archivo no cambie; el escaneo de artefactos y el feedback nocturno los recorren línea a línea.
+
 **Diagnóstico de memoria del server:** `GET /api/debug/memory` da el RSS actual y el máximo, las tareas de
 asyncio pendientes, los navegadores conectados (websockets) y los objetos vivos. `POST /api/debug/tracemalloc {on: true}`
 empieza a rastrear asignaciones y toma una foto base; desde ahí `GET /api/debug/memory?top=25` agrega las líneas del

@@ -23,21 +23,51 @@ def recent_messages(root: Path, sid: str, home: Path, limit: int = 15) -> list[d
         max(d.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, default=None) if d.is_dir() else None
     if f is None:
         return []
+    st = f.stat()
+    key = (str(f), st.st_size, st.st_mtime_ns, limit)
+    if _cache.get(sid, (None,))[0] == key:          # la UI pregunta cada 8 s: sin cambios, lo mismo
+        return _cache[sid][1]
+    # solo la cola del transcript: los de sesiones largas pesan 100+ MB y leerlos enteros (y parsear cada
+    # línea) llevaba el server a cientos de MB por llamada. Se agranda la ventana si no alcanzan los mensajes.
+    out: list[dict] = []
+    tail = TAIL_START
+    while True:
+        out = _assistant_texts(f, st.st_size, tail)
+        if len(out) >= limit or tail >= min(st.st_size, TAIL_MAX):
+            break
+        tail *= 4
+    res = out[-limit:][::-1]
+    _cache[sid] = (key, res)
+    return res
+
+
+TAIL_START = 2 * 2**20
+TAIL_MAX = 32 * 2**20
+_cache: dict[str, tuple] = {}
+
+
+def _assistant_texts(f: Path, size: int, tail: int) -> list[dict]:
     out = []
-    for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            e = json.loads(line)
-        except ValueError:
-            continue
-        if e.get("type") != "assistant":
-            continue
-        content = (e.get("message") or {}).get("content")
-        text = "\n".join(c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text") \
-            if isinstance(content, list) else content if isinstance(content, str) else ""
-        text = text.strip()
-        if len(text) >= 20:                      # sin los "Ahora reviso…" de una línea corta
-            out.append({"id": e.get("uuid") or secrets.token_hex(6), "at": e.get("timestamp"), "text": text[:MAX_TEXT]})
-    return out[-limit:][::-1]
+    with f.open("rb") as fh:
+        fh.seek(max(0, size - tail))
+        if size > tail:
+            fh.readline()                            # la primera línea quedó cortada
+        for raw in fh:
+            if b'"assistant"' not in raw:            # filtro barato antes de parsear
+                continue
+            try:
+                e = json.loads(raw)
+            except ValueError:
+                continue
+            if e.get("type") != "assistant":
+                continue
+            content = (e.get("message") or {}).get("content")
+            text = "\n".join(c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text") \
+                if isinstance(content, list) else content if isinstance(content, str) else ""
+            text = text.strip()
+            if len(text) >= 20:                      # sin los "Ahora reviso…" de una línea corta
+                out.append({"id": e.get("uuid") or secrets.token_hex(6), "at": e.get("timestamp"), "text": text[:MAX_TEXT]})
+    return out
 
 
 def all_pins(db: Db) -> dict[str, list[dict]]:
