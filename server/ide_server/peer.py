@@ -69,6 +69,18 @@ def caller_is_ide(port: int | None, claude_pids: set[int] | None = None,
     return False, ""
 
 
+def from_claude(port: int | None, claude_pids: set[int]) -> bool:
+    """¿La conexión la abrió algo que cuelga del claude de una sesión? (no se sabe = no)."""
+    if not port or not claude_pids:
+        return False
+    try:
+        pid = _owner(port)
+        procs = _ps()
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return False
+    return bool(pid and _ancestors(pid, procs) & claude_pids)
+
+
 def _ancestors(pid: int, procs: dict[int, tuple[int, str]]) -> set[int]:
     out = set()
     while pid and pid not in out:

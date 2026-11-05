@@ -484,6 +484,14 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             log.warning("WebSocket rechazado: Origin %s", ws.headers.get("origin"))
             await ws.close(code=1008)
             return
+        # el websocket es de la UI (la CLI va por HTTP): una sesión no se conecta, o podría abrir una terminal
+        # «tuya» (las que abres en el módulo Terminal cuentan como tu terminal) y escribir en ella
+        from ide_server import peer
+        claude = {hooks.pid_of(t) for t in supervisor.snapshot_tids()} - {None} if hooks.pid_of else set()
+        if await asyncio.to_thread(peer.from_claude, ws.client.port if ws.client else None, claude):
+            log.warning("WebSocket rechazado: lo abrió el claude de una sesión")
+            await ws.close(code=1008)
+            return
         await manager.connect(ws)
         pending: set[asyncio.Task] = set()
 
