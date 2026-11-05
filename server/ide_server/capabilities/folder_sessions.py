@@ -1791,6 +1791,12 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         await gh_reviews.set_selection(logins)
         return gh_reviews.state
 
+    def _forget_verdicts(urls: list[str]) -> None:
+        """Al pedir una re-revisión, el veredicto de la vuelta anterior ya no vale."""
+        if db is not None:
+            for u in urls:
+                db.delete(f"verdict:{u}")
+
     async def review_start(p: dict) -> dict:
         """Botón de revisión: manda `.ide/prompts/review-pr.md` a la sesión del PR (la crea si falta)."""
         url = p["url"]
