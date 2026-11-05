@@ -6,7 +6,7 @@ import { useFolders } from "../state/folders";
 import { attachmentTab, claudeTab, docTab, fileTab, scriptTab, summaryTab, useDevTabs, type DevTab } from "../state/devTabs";
 import { resolvePath } from "./pathLinks";
 import type { FolderSession, GhPr } from "../transport/folderSessions";
-import { attachFile, newSessionForPr, openSession, refreshReview, startReview } from "../transport/folderSessions";
+import { attachFile, newSessionForPr, openSession, refreshReview, resumeSession, startReview } from "../transport/folderSessions";
 import { openTerminal } from "../transport/terminalChannel";
 import { getWs } from "../transport/wsClient";
 import { useGithubReviews } from "../modules/sessions/ReviewsSection";
@@ -35,7 +35,7 @@ function ClaudeTab({ session }: { session: FolderSession }) {
   useEffect(() => {                            // una vez por sesión: si está parada, lanzarla
     if (tried.current === session.id) return;
     tried.current = session.id;
-    if (session.process === "stopped" && !session.terminalId && !session.launchError) {
+    if (session.process === "stopped" && !session.terminalId && !session.launchError && !session.paused) {
       openSession(getWs(), session.id).catch((e: any) => setError(e?.message ?? String(e)));
     }
   }, [session.id, session.process, session.terminalId, session.launchError]);
@@ -100,7 +100,11 @@ function ClaudeTab({ session }: { session: FolderSession }) {
         {session.terminalId ? (
           <TerminalTab key={session.terminalId} id={session.terminalId} onTerm={setTerm} onPath={onPath} />) : (
           <div className="flex flex-col items-start gap-2 p-6 text-sm">
-            {session.process === "queued" ? <span className="text-muted-foreground">En cola (max_running)…</span> : (<>
+            {session.paused && session.process !== "running" ? (<>
+              <span className="text-muted-foreground">Pausada desde las {session.paused.at.slice(11, 16)}: su claude está cerrado.</span>
+              <Button title="Relanzar su claude con la misma conversación y decirle que siga"
+                onClick={() => { setError(null); act(resumeSession(getWs(), session.id)); }}>Reanudar</Button>
+            </>) : session.process === "queued" ? <span className="text-muted-foreground">En cola (max_running)…</span> : (<>
               {session.launchError && <p role="alert" className="text-xs text-destructive">{session.launchError}</p>}
               {session.launchError || error
                 ? <Button title="Volver a lanzar claude en esta sesión" onClick={() => { setError(null); act(openSession(getWs(), session.id)); }}>Reintentar</Button>

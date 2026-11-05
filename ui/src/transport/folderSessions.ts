@@ -17,6 +17,8 @@ export interface FolderSession {
   stackPrs?: string[] | null;     // revisión de un stack: sus PRs, de abajo hacia arriba
   // actividad de su claude (hooks): trabajando o esperando tu input (nota = 1ª línea de su último mensaje)
   activity?: { state: "working" | "waiting"; since: string; note: string | null; reason: string | null } | null;
+  frozen?: string | null;         // congelada (SIGSTOP) desde
+  paused?: { at: string } | null; // pausada: su claude se cerró y nada lo relanza solo
 }
 export interface ScriptInfo { name: string; executable: boolean; }
 export interface SessionsTree {
@@ -130,6 +132,11 @@ export const fetchPrBody = (ws: WsClient, url: string): Promise<{ body: string; 
 export const savePrBody = (ws: WsClient, url: string, body: string) => ws.request("pr.bodySave", { url, body });
 export const openSession = (ws: WsClient, id: string) => ws.request("sessions.open", { id });
 export const stopSession = (ws: WsClient, id: string) => ws.request("sessions.stop", { id });
+/** Congelar / soltar su claude (SIGSTOP/SIGCONT): sigue donde estaba; no libera memoria. */
+export const freezeSession = (ws: WsClient, id: string, on: boolean) => ws.request("sessions.freeze", { id, on });
+/** Pausar: corta el turno, cierra su claude (libera memoria) y nada lo relanza solo. Reanudar lo relanza. */
+export const pauseSession = (ws: WsClient, id: string) => ws.request("sessions.pause", { id });
+export const resumeSession = (ws: WsClient, id: string) => ws.request("sessions.resume", { id });
 /** Nueva conversación en la misma sesión (misma carpeta, worktrees y SESSION.md). */
 export const freshSession = (ws: WsClient, id: string): Promise<{ process: string }> => ws.request("sessions.fresh", { id });
 export const archiveSession = (ws: WsClient, id: string, force = false) =>

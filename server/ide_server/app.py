@@ -65,7 +65,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         server_url=server_url or f"http://{settings.host}:{settings.port}",
         command=claude_command or scfg["claude_command"], max_running=scfg["max_running"],
         on_change=lambda: notify_box["fn"](),
-        agents=ClaudeAgents(claude_command or scfg["claude_command"]), write=hooks.write)
+        agents=ClaudeAgents(claude_command or scfg["claude_command"]), write=hooks.write, signal=hooks.signal)
     from ide_server import devs as _devs        # el click en una notificación abre el IDE en esta URL
     _devs.NOTIFY_URL = (server_url or f"http://{settings.host}:{settings.port}").rstrip("/")
     rcfg = reviews_config(root)

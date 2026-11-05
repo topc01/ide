@@ -21,6 +21,7 @@ class TerminalHooks:
     write: Callable[[str, bytes], None] | None = None
     last_input: Callable[[], float] | None = None   # cuándo se tecleó por última vez (cualquier terminal)
     save_history: Callable[[], None] | None = None  # persiste el historial de las terminales con clave
+    signal: Callable[[str, int], None] | None = None  # señal al grupo del proceso (congelar / soltar)
 
 
 def register(registry: Registry, root: Path, manager, pty: PtyManager | None = None) -> TerminalHooks:
@@ -168,4 +169,5 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
     register._terms = terms    # type: ignore[attr-defined]
     register._manager = manager  # type: ignore[attr-defined]
     return TerminalHooks(spawn=spawn_process, kill=kill_process, write=pty.write,
-                         last_input=lambda: state["last_input"], save_history=save_history)
+                         last_input=lambda: state["last_input"], save_history=save_history,
+                         signal=pty.signal_group)

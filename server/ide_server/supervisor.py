@@ -220,7 +220,8 @@ class Supervisor:
                  home: Path | None = None, on_change: Callable[[], None] | None = None,
                  which: Callable[[str], str | None] = shutil.which,
                  agents: ClaudeAgents | None = None,
-                 write: Callable[[str, bytes], None] | None = None) -> None:
+                 write: Callable[[str, bytes], None] | None = None,
+                 signal: Callable[[str, int], None] | None = None) -> None:
         # secreto de la principal para `ide session send`: solo en memoria y en el entorno de SU claude
         # (sin archivo: cualquier sesión podría leerlo). Al reiniciar el server los claude se relanzan
         # (sus PTY mueren con él), así que la principal recibe el nuevo.
@@ -232,6 +233,8 @@ class Supervisor:
         self._which = which
         self._agents = agents            # None = no mirar sesiones de fondo (tests)
         self._write = write
+        self._signal = signal
+        self._frozen: dict[str, str] = {}           # sid -> desde cuándo está congelado (SIGSTOP)
         self._running: dict[str, str] = {}
         self._send_lock = threading.Lock()   # dos envíos a la vez no se intercalan letra a letra
         self._queue: list[tuple[str, bool]] = []
@@ -253,7 +256,8 @@ class Supervisor:
         return {sid: {"process": self.state(sid), "terminalId": self._running.get(sid),
                       "launchError": self._errors.get(sid),
                       "attention": self._attention.get(sid),
-                      "activity": self._activity.get(sid) if sid in self._running else None} for sid in sids}
+                      "activity": self._activity.get(sid) if sid in self._running else None,
+                      "frozen": self._frozen.get(sid) if sid in self._running else None} for sid in sids}
 
     def set_activity(self, sid: str, state: str, note: str | None = None, reason: str | None = None) -> str | None:
         """Devuelve el estado anterior."""
@@ -282,7 +286,35 @@ class Supervisor:
         self._on_change()
         return "running"
 
+    def freeze(self, sid: str, on: bool) -> None:
+        """Congela (SIGSTOP) o suelta (SIGCONT) el claude de la sesión y todo lo que lanzó: deja de usar CPU y
+        tokens al instante y sigue exactamente donde estaba; su memoria queda ocupada."""
+        import signal as _sig
+        tid = self._running.get(sid)
+        if tid is None or self._signal is None:
+            raise SessionError("not_running", f"la sesión {sid} no está corriendo")
+        if on:
+            self._signal(tid, _sig.SIGSTOP)
+            self._frozen[sid] = datetime.now().isoformat(timespec="seconds")
+        else:
+            self._signal(tid, _sig.SIGCONT)
+            self._frozen.pop(sid, None)
+        self._on_change()
+
+    def interrupt(self, sid: str) -> None:
+        """Esc en su claude: corta el turno en curso (como cuando lo interrumpes a mano)."""
+        tid = self._running.get(sid)
+        if tid is not None and self._write is not None:
+            if sid in self._frozen:
+                self.freeze(sid, False)
+            self._write(tid, b"\x1b")
+
     def stop(self, sid: str) -> None:
+        tid_ = self._running.get(sid)
+        if tid_ is not None and sid in self._frozen and self._signal is not None:
+            import signal as _sig               # congelado no muere con SIGTERM/SIGHUP hasta que se suelta
+            self._signal(tid_, _sig.SIGCONT)
+        self._frozen.pop(sid, None)
         self._queue = [(q, r) for q, r in self._queue if q != sid]
         self._errors.pop(sid, None)
         tid = self._running.pop(sid, None)

@@ -123,6 +123,14 @@ class PtyManager:
         except OSError:
             pass
 
+    def signal_group(self, tid: str, sig: int) -> None:
+        """Una señal a todo el grupo del proceso (pty.fork lo deja líder de su sesión: sus hijos, también)."""
+        pid = self._terms[tid]["pid"]
+        try:
+            os.killpg(pid, sig)
+        except ProcessLookupError:
+            pass
+
     def fd(self, tid: str) -> int:
         return self._terms[tid]["fd"]
 

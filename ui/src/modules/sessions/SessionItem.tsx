@@ -1,7 +1,7 @@
 // ui/src/modules/sessions/SessionItem.tsx
 import { useState, type ReactNode } from "react";
-import { Archive, ExternalLink } from "lucide-react";
-import type { FolderSession, GhPr } from "../../transport/folderSessions";
+import { Archive, ExternalLink, Pause, Play, Power } from "lucide-react";
+import { freezeSession, pauseSession, resumeSession, type FolderSession, type GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
 import { CardActions, CardCorner, DevIndex, TicketChip, RelationChips, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
@@ -55,9 +55,21 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
         selected={activeId === session.id && !activePrUrl || !!prs?.some((p) => p.url === activePrUrl)}>
         <CardCorner><DepsPause pr={pr} />{worst.ci && <CiMark pr={worst.ci} />}</CardCorner>
         <div className={cn("flex items-start gap-1.5", titlePad(pr))}>
+          {act === "working" || act === "frozen" ? (
+            // trabajando: hover = ⏸ (congelar); congelada: hover = ▶ (soltar). Sigue donde estaba.
+            <button aria-label={act === "working" ? "Congelar" : "Reanudar"}
+              title={act === "working" ? `${label}. Click: congelar (deja de gastar CPU y tokens y sigue donde estaba al reanudar; la memoria sigue ocupada)`
+                : `${label}. Click: reanudar`}
+              onClick={(e) => { e.stopPropagation(); freezeSession(getWs(), session.id, act === "working").catch((err: any) => setError(err?.message ?? String(err))); }}
+              className="group/dot grid w-3 shrink-0 place-items-center">
+              <span className={cn(dotCls, "group-hover/dot:hidden")}>{dot}</span>
+              {act === "working" ? <Pause size={11} className="hidden text-violet-400 group-hover/dot:block" />
+                : <Play size={11} className="hidden text-violet-400 group-hover/dot:block" />}
+            </button>
+          ) : (
           <span aria-label={label} title={`${label}${session.activity?.since && session.process === "running"
             ? ` (desde ${new Date(session.activity.since).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })})` : ""}${waitNote ? `\n${waitNote}` : ""}`}
-            className={dotCls}>{dot}</span>
+            className={dotCls}>{dot}</span>)}
           <DevTitle devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])}
             original={session.title ?? pr?.title ?? prLabel(session.prUrl) ?? session.id} />
           {(session.error || session.launchError) && (
@@ -66,6 +78,18 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           <CardActions>
             <RenameAction devKey={`s:${session.id}`} />
             <StateAction dev={dev} devKey={`s:${session.id}`} />
+            {session.process === "running" && !session.paused && (
+              <QueueItemAction aria-label={`Pausar ${session.id}`}
+                title="Pausar: corta el turno, cierra su claude (libera su memoria y no gasta tokens) y nada lo relanza solo; Reanudar lo vuelve a abrir con la misma conversación"
+                onClick={(e) => { e.stopPropagation(); pauseSession(getWs(), session.id).catch((err: any) => setError(err?.message ?? String(err))); }}>
+                <Power size={11} />
+              </QueueItemAction>)}
+            {session.paused && session.process !== "running" && (
+              <QueueItemAction aria-label={`Reanudar ${session.id}`}
+                title="Reanudar: relanza su claude con la misma conversación, le dice que siga y le pasa los mensajes que llegaron mientras estaba pausada"
+                onClick={(e) => { e.stopPropagation(); resumeSession(getWs(), session.id).catch((err: any) => setError(err?.message ?? String(err))); }}>
+                <Play size={11} />
+              </QueueItemAction>)}
             {actions}
             {/* toda card con PR se puede abrir en GitHub (las pendientes ya lo traen en `actions`) */}
             {!onlyActions && (pr?.url ?? session.prUrl) && (

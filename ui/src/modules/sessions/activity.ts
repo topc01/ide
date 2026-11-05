@@ -5,12 +5,14 @@
 import type { FolderSession } from "../../transport/folderSessions";
 import type { DevStateInfo } from "./devStates";
 
-export type Activity = "working" | "waiting" | "stale" | "queued" | "running" | "idle";
+export type Activity = "working" | "waiting" | "stale" | "queued" | "running" | "idle" | "frozen" | "paused";
 
 /** `done`: el desarrollo no sigue activo (mergeado, pausado, revisión publicada): parado no es stale. */
 export function activityOf(s: FolderSession, dev?: DevStateInfo | null): Activity {
   if (s.process === "queued") return "queued";
+  if (s.process === "running" && s.frozen) return "frozen";
   if (s.process === "running") return s.activity?.state ?? "running";
+  if (s.paused) return "paused";
   const done = s.kind === "main" || s.kind === "ide" || s.kind === "recursos"
     || (s.kind === "review" ? ["approved", "changes-requested"].includes(s.status ?? "") || ["merged", "closed"].includes(s.prState ?? "")
       : !!dev && (dev.state === "merged" || dev.state === "paused"));
@@ -34,6 +36,8 @@ export const ACTIVITY: Record<Activity, [string, string, string]> = {
   queued: ["◌", "text-muted-foreground", "en cola (max_running)"],
   stale: ["◯", "text-red-500", "stale: el claude no está corriendo y el desarrollo sigue activo (se abre al entrar a la sesión)"],
   idle: ["○", "text-muted-foreground", "claude parado"],
+  frozen: ["⏸", "text-violet-400", "congelada: su claude está detenido donde estaba (sin gastar CPU ni tokens; la memoria sigue ocupada)"],
+  paused: ["⏸", "text-muted-foreground", "pausada: su claude está cerrado (sin memoria ni tokens); Reanudar en las acciones de la card"],
 };
 
 /** Las que te esperan, primero (orden estable). */

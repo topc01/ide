@@ -116,7 +116,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         for s in sessions:
             p = snap.get(s["id"], {})
             s.update(process=p.get("process", "stopped"), terminalId=p.get("terminalId"),
-                     launchError=p.get("launchError"), attention=p.get("attention"), activity=p.get("activity"))
+                     launchError=p.get("launchError"), attention=p.get("attention"), activity=p.get("activity"),
+                     frozen=p.get("frozen"), paused=(db.get(f"paused:{s['id']}") if db else None))
             if s["kind"] == "review":
                 s.update({"prState": None, "pollError": None, "lastOk": None,
                           **derived.get(s["id"], {})})
@@ -358,7 +359,60 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {**res, "process": process}
 
     async def open_(p: dict) -> dict:
+        if db is not None and db.get(f"paused:{p['id']}"):
+            return {"process": "paused"}        # pausada: no se relanza sola al entrar; se reanuda con el botón
         return {"process": supervisor.start(p["id"])}
+
+    async def freeze(p: dict) -> dict:
+        """Congelar / soltar el claude de una sesión (hover en su ◐): sigue donde estaba, no libera memoria."""
+        sid = require_plain_name(p["id"], "sesión")
+        on = bool(p.get("on"))
+        supervisor.freeze(sid, on)
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), "usuario", "frozen" if on else "thawed", dev=sid)
+        notify()
+        return {"ok": True}
+
+    async def pause(p: dict) -> dict:
+        """Pausar (acción de la card): corta el turno (Esc), cierra su claude (libera su memoria y no gasta
+        tokens) y lo deja marcado para que nada lo relance solo; los mensajes que le lleguen esperan."""
+        sid = require_plain_name(p["id"], "sesión")
+        require_session(root, sid)
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        if supervisor.state(sid) == "running":
+            supervisor.interrupt(sid)
+            await asyncio.sleep(1.5)            # que claude cierre el turno antes de matarlo
+        supervisor.stop(sid)
+        db.set(f"paused:{sid}", {"at": datetime.now().isoformat(timespec="seconds")})
+        db.event(datetime.now().isoformat(timespec="seconds"), "usuario", "paused", dev=sid)
+        notify()
+        return {"ok": True}
+
+    async def resume(p: dict) -> dict:
+        """Reanudar una sesión pausada: relanza su claude con la misma conversación, le dice que siga y le pasa
+        los mensajes que llegaron mientras tanto."""
+        sid = require_plain_name(p["id"], "sesión")
+        require_session(root, sid)
+        rec = db.get(f"paused:{sid}") if db is not None else None
+        held = (db.get(f"pausedmsgs:{sid}") or []) if db is not None else []
+        if db is not None:
+            db.delete(f"paused:{sid}")
+            db.delete(f"pausedmsgs:{sid}")
+        when = (rec or {}).get("at", "")[11:16]
+        text = (f"[Aviso del IDE] El usuario te pausó{f' a las {when}' if when else ''}: se cerró tu claude y el turno que "
+                "estabas haciendo quedó cortado. Revisa en qué estabas y sigue.")
+        if held:
+            text += "\n\nMientras estabas pausada te llegaron estos mensajes:\n\n" + "\n\n---\n\n".join(held)
+        if supervisor.state(sid) == "running":
+            supervisor.send(sid, text)
+            state = "running"
+        else:
+            state = supervisor.start(sid, prompt=text)
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), "usuario", "resumed", dev=sid)
+        notify()
+        return {"process": state}
 
     async def stop(p: dict) -> dict:
         supervisor.stop(p["id"])
@@ -448,7 +502,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"id": sid, "process": state, "delivered": how}
 
     def _deliver_to(sid: str, text: str, actor: str) -> tuple[str, str]:
-        """Al claude de una sesión: a su cola si corre; si está parada, la lanza con el texto."""
+        """Al claude de una sesión: a su cola si corre; si está parada, la lanza con el texto; si está pausada,
+        el mensaje espera y le llega al reanudarla."""
+        if db is not None and db.get(f"paused:{sid}"):
+            db.set(f"pausedmsgs:{sid}", [*(db.get(f"pausedmsgs:{sid}") or []), text])
+            db.event(datetime.now().isoformat(timespec="seconds"), actor, "prompt", dev=sid,
+                     data={"text": text[:300], "held": True})
+            notify()
+            return "paused", "guardado: la sesión está pausada y le llega al reanudarla"
         state = supervisor.state(sid)
         if state == "queued":
             raise SessionError("queued", f"{sid} está en cola (max_running): espera a que arranque")
@@ -1821,6 +1882,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             "id": sid, "pr_url": url, "repo": repo, "number": str(number), "title": s.get("title") or "",
             "author": s["meta"].get("author", "")}) + seeds.REVIEW_CLOSE
         _forget_verdicts([url])                 # el de la vuelta anterior ya no vale: la card dice «sin veredicto»
+        if db is not None:
+            db.delete(f"paused:{sid}")          # pedirle una revisión a mano la reanuda
         state = supervisor.state(sid)
         if state == "queued":
             raise SessionError("queued", f"{sid} está en cola: espera a que arranque")
@@ -1848,6 +1911,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         lines = "\n".join(f"{i}. {u}" for i, u in enumerate(urls, 1))
         text = render_template(text, {"id": sid, "prs": lines, "author": s["meta"].get("author", "")}) + seeds.REVIEW_CLOSE
         _forget_verdicts(urls)
+        if db is not None:
+            db.delete(f"paused:{sid}")          # pedirle una revisión a mano la reanuda
         state = supervisor.state(sid)
         if state == "queued":
             raise SessionError("queued", f"{sid} está en cola: espera a que arranque")
@@ -1924,7 +1989,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
         "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
-        "sessions.stop": stop, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
+        "sessions.stop": stop, "sessions.freeze": freeze, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
         "attachments.rename": attachments_rename, "attachments.mkdir": attachments_mkdir, "attachments.move": attachments_move, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
         "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.archived": archived, "sessions.unarchive": unarchive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,

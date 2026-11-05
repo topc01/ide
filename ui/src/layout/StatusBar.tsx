@@ -121,7 +121,7 @@ function WaitingForYou() {
 /** Cuántas sesiones tienen su claude trabajando ahora (a la izquierda de «te esperan», igual por dentro). */
 function WorkingNow() {
   const sessions = useFolders((s) => s.tree.sessions);
-  const items = sessions.filter((x) => !SKIP_KINDS.includes(x.kind ?? "") && x.process === "running" && x.activity?.state === "working")
+  const items = sessions.filter((x) => !SKIP_KINDS.includes(x.kind ?? "") && x.process === "running" && !x.frozen && x.activity?.state === "working")
     .map((x) => [`s:${x.id}`, { note: null }] as const);
   const since = (s?: { activity?: { since?: string | null } | null }) => s?.activity?.since
     ? `desde ${new Date(s.activity.since).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}` : null;
@@ -234,7 +234,7 @@ function RestartNow() {
   const sessions = useFolders((s) => s.tree.sessions);
   const idx = useFolders((s) => s.tree.devIndex);
   const [confirm, setConfirm] = useState(false);
-  const working = sessions.filter((x) => x.process === "running" && x.activity?.state === "working");
+  const working = sessions.filter((x) => x.process === "running" && !x.frozen && x.activity?.state === "working");
   const names = working.map((x) => x.kind === "main" ? "Manager" : x.kind === "ide" ? "IDE" : x.kind === "recursos" ? "Recursos"
     : idx?.[`s:${x.id}`] ? `#${idx[`s:${x.id}`]}` : x.id);
   const restart = () => { setConfirm(false); getWs().request("server.restart", {}).catch(() => {}); };
