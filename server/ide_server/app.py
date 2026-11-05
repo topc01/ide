@@ -321,7 +321,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.post("/api/sessions/{sid}/send")
     async def api_send(sid: str, body: dict):
-        return await _http("sessions.send", {**body, "id": sid})
+        return await _http("sessions.send", {**body, "id": sid, "_http": True})
 
     def _sniff(f: Path) -> str | None:
         """Tipo por el contenido (archivos sin extensión, p.ej. renombrados a mano)."""

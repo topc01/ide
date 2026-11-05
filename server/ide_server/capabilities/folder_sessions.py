@@ -434,14 +434,15 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if not isinstance(text, str) or not text.strip():
             raise SessionError("bad_request", "falta el texto")
         sid = _resolve(p.get("id"))
-        # solo la principal rutea: lo prueba con el token que el IDE le pasa a SU claude al lanzarla
-        # (un campo "caller" lo podría omitir cualquiera)
-        if not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
-            raise SessionError("forbidden", "solo la sesión principal puede mandar prompts a otras sesiones")
-        caller = "manager"
+        # rutea la principal (lo prueba con el token que el IDE le pasa a SU claude al lanzarla) o el usuario
+        # desde su terminal (por CLI, sin sesión); otra sesión, no
+        caller = _manager_or_terminal(p)
+        if caller is None:
+            raise SessionError("forbidden", "solo la sesión manager o el usuario desde su terminal mandan prompts a otras "
+                               "sesiones; un comando con `!` dentro de una sesión cuenta como de esa sesión")
         # con encabezado: nunca empieza con "!" (claude lo correría como shell) ni con "/", y la
         # sesión sabe de quién viene
-        text = "[Mensaje de la sesión manager]\n" + text.strip()
+        text = ("[Mensaje de la sesión manager]\n" if caller == "manager" else "[Mensaje del usuario]\n") + text.strip()
         state, how = _deliver_to(sid, text, caller)
         return {"id": sid, "process": state, "delivered": how}
 
@@ -472,6 +473,15 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             sid = hit[0]
         require_session(root, sid)
         return sid
+
+    def _manager_or_terminal(p: dict) -> str | None:
+        """Quién manda un comando reservado: "manager" (con su token), "user" (por CLI desde una terminal que
+        no es de una sesión: sin `from_session`) o None (otra sesión)."""
+        if secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+            return "manager"
+        if p.get("_http") and not p.get("from_session"):
+            return "user"
+        return None
 
     def _manager_only(p: dict) -> None:
         if not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
@@ -1860,8 +1870,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         hacia arriba). Archiva las sesiones de revisión individuales de esas PRs."""
         # por HTTP (`ide session review-stack`): solo la principal, con el token que el IDE le pasa a SU
         # claude (en memoria); `_http` lo pone la ruta, no el cliente
-        if p.get("_http") and not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
-            raise SessionError("forbidden", "solo la sesión principal puede crear revisiones de stack por CLI")
+        if p.get("_http") and _manager_or_terminal(p) is None:
+            raise SessionError("forbidden", "solo la sesión manager o el usuario desde su terminal crean revisiones de stack por CLI")
         st = gh_reviews.state if gh_reviews else {}
         pending = {c["url"]: c for c in st.get("pending") or []}
         urls = [u.strip() for u in p.get("urls") or [] if isinstance(u, str)]

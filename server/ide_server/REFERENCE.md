@@ -204,8 +204,8 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 - `ide session review-stack <url> [<url>…]`: lo mismo que "Revisar stack" de la UI (ver Revisiones):
   una sesión `stack-<repo>-<n>` que revisa esas PRs de un stack (tienen que estar pendientes de tu
   review); con **una sola URL** toma todas las pendientes de su stack. Archiva las sesiones de
-  revisión individuales de esas PRs y lanza la nueva. Solo la sesión principal (manager) puede: va
-  con su token (`IDE_MANAGER_TOKEN`, como `ide session send`); a mano, usa el botón de la UI.
+  revisión individuales de esas PRs y lanza la nueva. Lo pueden la sesión principal (manager), con su
+  token (`IDE_MANAGER_TOKEN`, como `ide session send`), o tú desde tu terminal (sin sesión); otra sesión, no.
   Imprime `<id>\t<creada|existe>\t<proceso>`. HTTP `POST /api/reviews/stack {urls, token}`.
 - `ide session rm <id> [--force]`: si hay cambios sin commitear en algún repo, **se niega antes de tocar nada** (`--force` lo fuerza); si no: para el proceso, corre `archive` de cada repo, quita los worktrees y borra la carpeta. Las branches quedan.
 
@@ -216,9 +216,11 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 ### Rutear a un desarrollo (`ide session send`)
 - `ide session send <id | #n> --prompt-file - | --prompt "…"`: encola un prompt a la sesión de un
   desarrollo (id de la sesión o su número `#8`). Si su `claude` corre, entra a su cola (lo toma al
-  terminar el turno); si está parada, se lanza con él; en cola por `max_running` → `queued`. Solo la
-  **principal**: lo prueba con `IDE_MANAGER_TOKEN`, que el IDE le pasa solo a su `claude` (vive en
-  memoria, nuevo en cada arranque del server; sin archivo); sin él → `forbidden`. Es una barrera más,
+  terminar el turno); si está parada, se lanza con él; en cola por `max_running` → `queued`. Lo pueden la
+  **principal**, que lo prueba con `IDE_MANAGER_TOKEN` (el IDE se lo pasa solo a su `claude`; vive en
+  memoria, nuevo en cada arranque del server; sin archivo), o **tú desde tu terminal** (por CLI sin
+  `IDE_SESSION_ID`: llega con el encabezado `[Mensaje del usuario]`); otra sesión → `forbidden` (un `!` dentro
+  de una sesión cuenta como de esa sesión). Es una barrera más,
   no aislamiento: una sesión que puede correr cualquier comando corre con tu usuario y llega a lo
   local; esa frontera la ponen los permisos de cada sesión. El texto va por stdin (no por la shell) y
   llega con el encabezado `[Mensaje de la sesión manager]` (nunca empieza con `!`, que claude

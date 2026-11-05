@@ -1101,7 +1101,8 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
             out.write(data["log"])
         return 0
     if a.cmd == "review-stack":
-        body = {"urls": a.urls, "token": env.get("IDE_MANAGER_TOKEN", "")}   # solo la principal lo tiene
+        body = {"urls": a.urls, "token": env.get("IDE_MANAGER_TOKEN", ""),   # solo la principal lo tiene
+                "from_session": env.get("IDE_SESSION_ID")}                   # sin sesión = tu terminal
         data = _post(http, url, "/api/reviews/stack", body, timeout=600)   # gh + fetch + setup
         out.write(f"{data['id']}\t{'creada' if data['created'] else 'existe'}\t{data['process']}\n")
         return 0
@@ -1114,7 +1115,8 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
         if not text or not text.strip():
             raise SessionError("bad_request", "falta el texto: --prompt-file - (stdin) o --prompt")
         sid = a.id if a.id.lstrip("#").isdigit() else normalize_id(a.id)
-        body = {"text": text, "token": env.get("IDE_MANAGER_TOKEN", "")}   # solo la principal lo tiene
+        body = {"text": text, "token": env.get("IDE_MANAGER_TOKEN", ""),   # solo la principal lo tiene
+                "from_session": env.get("IDE_SESSION_ID")}                 # sin sesión = tu terminal
         data = _post(http, url, f"/api/sessions/{quote(sid, safe='')}/{a.cmd}", body)
         if a.cmd == "propose":
             out.write(f"{data['id']}\tpropuesto por Telegram (se manda cuando el usuario diga Sí)\n")
