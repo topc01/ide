@@ -19,6 +19,7 @@ export interface FolderSession {
   activity?: { state: "working" | "waiting"; since: string; note: string | null; reason: string | null } | null;
   frozen?: string | null;         // congelada (SIGSTOP) desde
   paused?: { at: string } | null; // pausada: su claude se cerró y nada lo relanza solo
+  consult?: { terminalId: string; at: string } | null;   // claude de consulta abierto (solo lectura)
 }
 export interface ScriptInfo { name: string; executable: boolean; }
 export interface SessionsTree {
@@ -137,6 +138,12 @@ export const freezeSession = (ws: WsClient, id: string, on: boolean) => ws.reque
 /** Pausar: corta el turno, cierra su claude (libera memoria) y nada lo relanza solo. Reanudar lo relanza. */
 export const pauseSession = (ws: WsClient, id: string) => ws.request("sessions.pause", { id });
 export const resumeSession = (ws: WsClient, id: string) => ws.request("sessions.resume", { id });
+/** Claude de consulta: bifurca la conversación de la sesión en modo plan (solo lectura). */
+export const openConsult = (ws: WsClient, id: string): Promise<{ terminalId: string }> => ws.request("sessions.consult", { id });
+export const consultLast = (ws: WsClient, id: string): Promise<{ text: string }> => ws.request("sessions.consultLast", { id });
+export const consultSend = (ws: WsClient, id: string, text: string): Promise<{ process: string; how: string }> =>
+  ws.request("sessions.consultSend", { id, text });
+export const closeConsult = (ws: WsClient, id: string) => ws.request("sessions.consultClose", { id });
 /** Nueva conversación en la misma sesión (misma carpeta, worktrees y SESSION.md). */
 export const freshSession = (ws: WsClient, id: string): Promise<{ process: string }> => ws.request("sessions.fresh", { id });
 export const archiveSession = (ws: WsClient, id: string, force = false) =>

@@ -535,7 +535,7 @@ def _hook(url: str | None, http, env: dict) -> int:
             sys.stdout.write(f"Hora local del usuario: {_time.strftime('%H:%M del %a %d-%m-%Y')} "
                              f"({_time.strftime('%Z, UTC%z')}). Los horarios de GitHub, de los logs y de las "
                              "bases suelen venir en UTC: conviértelos a esta hora antes de mencionarlos.\n")
-        if sid and url:
+        if sid and url and not env.get("IDE_CONSULT"):    # un claude de consulta no mueve la actividad de la sesión
             http.post(f"{url}/api/sessions/{quote(sid, safe='')}/activity", timeout=3, json={
                 "event": ev.get("hook_event_name"), "notification_type": ev.get("notification_type"),
                 "message": ev.get("message"), "transcript_path": ev.get("transcript_path")})

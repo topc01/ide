@@ -7,6 +7,7 @@ import io
 import logging
 import re
 import threading
+import json
 import os
 import secrets
 import subprocess
@@ -40,7 +41,7 @@ from ide_server.sessions_fs import (
     attachment_path, find_main, list_sessions, normalize_id, parse_frontmatter, write_frontmatter, read_session, read_toml, render_template, require_plain_name,
     session_path, state_file, SessionError, update_session_toml,
 )
-from ide_server.supervisor import Supervisor, clean_env
+from ide_server.supervisor import Supervisor, clean_env, encode_project_dir
 from ide_server.workspace import discover_repos
 
 log = logging.getLogger(__name__)
@@ -117,7 +118,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             p = snap.get(s["id"], {})
             s.update(process=p.get("process", "stopped"), terminalId=p.get("terminalId"),
                      launchError=p.get("launchError"), attention=p.get("attention"), activity=p.get("activity"),
-                     frozen=p.get("frozen"), paused=(db.get(f"paused:{s['id']}") if db else None))
+                     frozen=p.get("frozen"), paused=(db.get(f"paused:{s['id']}") if db else None),
+                     consult=({"terminalId": consults[s["id"]]["tid"], "at": consults[s["id"]]["at"]}
+                              if s["id"] in consults else None))
             if s["kind"] == "review":
                 s.update({"prState": None, "pollError": None, "lastOk": None,
                           **derived.get(s["id"], {})})
@@ -362,6 +365,94 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if db is not None and db.get(f"paused:{p['id']}"):
             return {"process": "paused"}        # pausada: no se relanza sola al entrar; se reanuda con el botón
         return {"process": supervisor.start(p["id"])}
+
+    # -- claude de consulta: una bifurcación de la conversación de la sesión, en modo plan (solo lectura) ----
+    consults: dict[str, dict] = {}              # sid -> {tid, fork, cwd, at}
+
+    async def consult(p: dict) -> dict:
+        """Abre (o devuelve el que ya está) un claude de consulta de la sesión: arranca con toda su conversación
+        (`--resume <id> --fork-session`), sigue por su lado y en modo plan no puede editar ni hacer cambios. No es
+        una sesión: no recibe avisos ni cuenta en la actividad (sus hooks no reportan). Cerrar la tab lo cierra."""
+        import shlex
+        import uuid as _uuid
+        from ide_server.devs import dev_env
+        from ide_server.sessions_fs import session_cwd
+        sid = require_plain_name(p["id"], "sesión")
+        require_session(root, sid)
+        if sid in consults:
+            return {"terminalId": consults[sid]["tid"]}
+        data = read_toml(session_path(root, sid) / ".session.toml")
+        cs = data.get("claude_session")
+        if not cs:
+            raise SessionError("no_conversation", "la sesión todavía no tiene conversación de claude")
+        fork = str(_uuid.uuid4())
+        cwd = session_cwd(root, sid, data)
+        argv = [*shlex.split(supervisor._command), "--resume", cs, "--fork-session", "--session-id", fork,
+                "--permission-mode", "plan", f"--add-dir={root / '.ide' / 'worktrees' / sid}"]
+        if isinstance(data.get("model"), str) and data["model"]:
+            argv += ["--model", data["model"]]
+        env = {**clean_env(dict(os.environ)), **dev_env(root, sid), "IDE_SESSION_ID": sid, "IDE_CONSULT": "1",
+               "IDE_URL": supervisor._url, "IDE_WORKSPACE": str(root)}
+
+        def gone() -> None:
+            if consults.get(sid, {}).get("tid") == holder.get("tid"):
+                consults.pop(sid, None)
+                notify()
+        holder: dict = {}
+        tid = hooks.spawn(cwd, argv, env, gone, session_id=sid)
+        holder["tid"] = tid
+        consults[sid] = {"tid": tid, "fork": fork, "cwd": str(cwd), "at": datetime.now().isoformat(timespec="seconds")}
+        if db is not None:
+            db.event(consults[sid]["at"], "usuario", "consult-open", dev=sid)
+        notify()
+        return {"terminalId": tid}
+
+    async def consult_last(p: dict) -> dict:
+        """El último mensaje de texto del claude de consulta (para «mandar a la sesión»)."""
+        sid = require_plain_name(p["id"], "sesión")
+        c = consults.get(sid)
+        if not c:
+            raise SessionError("no_consult", "no hay un claude de consulta abierto")
+        f = Path.home() / ".claude" / "projects" / encode_project_dir(Path(c["cwd"]).resolve()) / f"{c['fork']}.jsonl"
+
+        def last() -> str:
+            if not f.is_file():
+                return ""
+            with f.open("rb") as fh:            # solo la cola: hereda la conversación entera de la sesión
+                size = fh.seek(0, 2)
+                fh.seek(max(0, size - 2 * 2**20))
+                lines = fh.read().splitlines()
+            for raw in reversed(lines):
+                try:
+                    e = json.loads(raw)
+                except ValueError:
+                    continue
+                if e.get("type") != "assistant" or e.get("isSidechain"):
+                    continue
+                content = (e.get("message") or {}).get("content")
+                text = "\n".join(x.get("text", "") for x in content if isinstance(x, dict) and x.get("type") == "text") \
+                    if isinstance(content, list) else content if isinstance(content, str) else ""
+                if text.strip():
+                    return text.strip()
+            return ""
+        return {"text": await asyncio.to_thread(last)}
+
+    async def consult_send(p: dict) -> dict:
+        """Manda a la sesión lo que concluyó la consulta (el texto lo revisa y edita el usuario antes)."""
+        sid = require_plain_name(p["id"], "sesión")
+        text = (p.get("text") or "").strip()
+        if not text:
+            raise SessionError("bad_request", "falta el texto")
+        state, how = _deliver_to(sid, "[Del claude de consulta del usuario (lo revisó antes de mandarlo)]\n" + text, "usuario")
+        return {"process": state, "how": how}
+
+    async def consult_close(p: dict) -> dict:
+        sid = require_plain_name(p["id"], "sesión")
+        c = consults.pop(sid, None)
+        if c:
+            hooks.kill(c["tid"])
+            notify()
+        return {"ok": True}
 
     async def freeze(p: dict) -> dict:
         """Congelar / soltar el claude de una sesión (hover en su ◐): sigue donde estaba, no libera memoria."""
@@ -1993,7 +2084,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
         "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
-        "sessions.stop": stop, "sessions.freeze": freeze, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
+        "sessions.stop": stop, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
+        "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
         "attachments.rename": attachments_rename, "attachments.mkdir": attachments_mkdir, "attachments.move": attachments_move, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
         "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.archived": archived, "sessions.unarchive": unarchive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,

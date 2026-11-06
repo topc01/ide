@@ -4,7 +4,7 @@ import { create } from "zustand";
 /** Una tab del panel principal. Cada desarrollo tiene su propia fila de tabs. */
 export interface DevTab {
   id: string;                                   // único dentro del desarrollo
-  kind: "claude" | "doc" | "summary" | "script" | "run" | "file" | "diff" | "db" | "attachment";
+  kind: "claude" | "doc" | "summary" | "script" | "run" | "file" | "diff" | "db" | "attachment" | "consult";
   label: string;
   sid?: string;                                 // claude / doc
   url?: string;                                 // summary (PR)
@@ -68,6 +68,9 @@ export const useDevTabs = create<DevTabsState>((set) => ({
 export const claudeTab = (sid: string): DevTab => ({ id: `claude:${sid}`, kind: "claude", label: "claude", sid });
 export const docTab = (sid: string, name: string): DevTab => ({ id: `doc:${sid}`, kind: "doc", label: name, sid });
 export const summaryTab = (url: string, label: string): DevTab => ({ id: `summary:${url}`, kind: "summary", label, url });
+/** El claude de consulta de la sesión (solo lectura): `terminalId` cambia si se vuelve a abrir. */
+export const consultTab = (sid: string, terminalId: string): DevTab =>
+  ({ id: `consult:${sid}`, kind: "consult", label: "consulta", sid, terminalId });
 export const scriptTab = (terminalId: string, label: string): DevTab =>
   ({ id: `script:${terminalId}`, kind: "script", label, terminalId });
 export const runTab = (place: string, repo: string, name: string, label: string): DevTab =>
