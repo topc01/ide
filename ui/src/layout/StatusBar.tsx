@@ -198,16 +198,17 @@ function SessionCounter({ items, one, many, what, tone, bg, dot, time }:
             return (
               <button key={k} role="option" aria-selected={i === sel} onMouseMove={() => i !== sel && setIdx(i)}
                 onClick={() => { setIdx(i); go(k); }}
-                title={`Ir a ${label(k)}${v.note ? `\n${v.note}` : ""}`}
                 className={cn("flex w-full flex-col items-start gap-0.5 rounded px-2 py-1.5 text-left",
                   i === sel ? "bg-accent text-foreground" : "text-muted-foreground")}>
                 <span className="flex w-full items-center gap-1.5">
                   <span aria-hidden className={dot[1]}>{dot[0]}</span>
-                  <span className={cn("min-w-0 flex-1 truncate font-semibold", current && "text-primary")}>
+                  <span className={cn("min-w-0 flex-1 font-semibold", i === sel ? "break-words" : "truncate", current && "text-primary")}>
                     {s && /^\d+$/.test(s.id) ? `#${s.id} ` : ""}{label(k)}</span>
                   {t && <span className="shrink-0 text-[10px] text-muted-foreground">{t}</span>}
                 </span>
-                {v.note && <span className="line-clamp-2 pl-4 text-[11px] text-muted-foreground">{v.note}</span>}
+                {/* sin tooltip (tapaba las filas de abajo): la marcada muestra la nota entera */}
+                {v.note && <span className={cn("pl-4 text-[11px] text-muted-foreground",
+                  i === sel ? "max-h-40 overflow-y-auto whitespace-pre-wrap break-words" : "line-clamp-2")}>{v.note}</span>}
               </button>);
           })}
         </div>
