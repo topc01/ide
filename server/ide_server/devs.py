@@ -130,9 +130,12 @@ def sync_from_disk(root: Path, db: Db, sessions: list[dict] | None = None) -> No
         if changes:
             db.put_dev({**row, **changes, "updated": now()})
     for sid, row in known.items():
-        if sid not in seen and not row.get("archived") and _archived(root, sid):
+        if sid not in seen and not row.get("archived"):
+            # archivada (está en .ide/archive) o borrada (`ide session rm`, o la carpeta ya no existe): sale del
+            # tablero; antes una borrada quedaba en la base y `ide dev ls` / el árbol fallaban buscando su sesión
+            gone = not _archived(root, sid)
             db.put_dev({**row, "archived": 1, "updated": now()})
-            db.event(now(), "ide", "archived", dev=sid)
+            db.event(now(), "ide", "removed" if gone else "archived", dev=sid)
 
 
 def _mirror(root: Path, sid: str, kind: str | None, status: str) -> None:
@@ -624,7 +627,9 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
             merged_by_sid[links[u]["sid"]] = merged_by_sid.get(links[u]["sid"], 0) + 1
     out = []
     for row in db.devs():
-        s = by_sid.get(row["id"], {})
+        s = by_sid.get(row["id"])
+        if s is None:                           # su sesión ya no está en disco (la próxima sync la cierra)
+            continue
         if s.get("stackPrs"):                   # revisión de varias PRs (stack o movidas ahí)
             prs = [cards[u] for u in s["stackPrs"] if u in cards]
         elif row.get("prUrl"):
@@ -678,8 +683,11 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
 
 def with_index(db: Db, devs: list[dict]) -> list[dict]:
     idx = db.with_prefix("devidx:")
+    hidden = set(db.hidden_devs())
     for d in devs:
         d["index"] = idx.get(_ui_key(d)) or next((idx[k] for k in _alt_keys(d["prs"]) if k in idx), None)
+        d["key"] = _ui_key(d)
+        d["hidden"] = d["key"] in hidden
     return devs
 
 

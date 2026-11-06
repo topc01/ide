@@ -304,6 +304,14 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_sessions_archived():
         return await _http("sessions.archived", {})
 
+    @app.post("/api/sessions/archive")
+    async def api_sessions_archive(body: dict):
+        return await _http("sessions.archive", {**body, "_http": True})
+
+    @app.post("/api/devs/hide")
+    async def api_devs_hide(body: dict):
+        return await _http("dev.hide", body)
+
     @app.post("/api/sessions/unarchive")
     async def api_sessions_unarchive(body: dict):
         return await _http("sessions.unarchive", {**body, "_http": True})

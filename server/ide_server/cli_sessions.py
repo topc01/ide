@@ -67,6 +67,8 @@ def _parser() -> argparse.ArgumentParser:
     for name in ("open", "stop"):
         s.add_parser(name).add_argument("id")
     rm = s.add_parser("rm"); rm.add_argument("id"); rm.add_argument("--force", action="store_true")
+    sa = s.add_parser("archive", help="archiva una sesión (lo mismo que Archivar en la card; se reabre con unarchive); la manager o tu terminal")
+    sa.add_argument("id", help="#n o id"); sa.add_argument("--force", action="store_true", help="aunque tenga cambios sin commitear (se conservan)")
     s.add_parser("archived", help="las sesiones archivadas que se pueden reabrir").add_argument("--json", action="store_true")
     s.add_parser("unarchive", help="reabre una sesión archivada (carpeta, worktrees, rama y su claude); la manager o tu terminal").add_argument("id", help="#n o id")
     sd = s.add_parser("send", help="encola un prompt a la sesión de un desarrollo (id o #número)")
@@ -191,6 +193,9 @@ def _parser() -> argparse.ArgumentParser:
     dl.add_argument("--json", action="store_true")
     dv = sub.add_parser("dev").add_subparsers(dest="cmd", required=True)
     dls = dv.add_parser("ls"); dls.add_argument("--json", action="store_true")
+    dls.add_argument("--all", action="store_true", help="también los ocultos")
+    dh = dv.add_parser("hide", help="saca un desarrollo del tablero (va a Ocultos; no toca GitHub ni la sesión)")
+    dh.add_argument("id", help="#n"); dh.add_argument("--undo", action="store_true", help="lo vuelve a mostrar")
     dsh = dv.add_parser("show"); dsh.add_argument("id"); dsh.add_argument("--json", action="store_true")
     for name, what in (("link", "asigna PRs a un desarrollo (pisa la asignación que tuvieran)"),
                        ("unlink", "saca PRs de un desarrollo (no vuelven por rama hasta un link)")):
@@ -597,8 +602,14 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
             if m.get("warning"):
                 out.write(f"  aviso: {m['warning']}\n")
         return 0
+    if a.cmd == "hide":
+        _post(http, url, "/api/devs/hide", {"n": a.id, "hidden": not a.undo})
+        out.write(f"{a.id}\t{'visible' if a.undo else 'oculto (sale del tablero; `ide dev ls --all` lo muestra)'}\n")
+        return 0
     if a.cmd == "ls":
         devs = _get(http, url, "/api/devs")["devs"]
+        if not a.all:
+            devs = [d for d in devs if not d.get("hidden")]
         try:
             mall = {m["key"]: m for m in _get(http, url, "/api/merges")["mergeAll"]}
         except SessionError:
@@ -1141,6 +1152,11 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
                       f"{(x.get('archivedAt') or '')[:16]}\t{x.get('title') or ''}\n")
         if not items:
             out.write("no hay sesiones archivadas\n")
+        return 0
+    if a.cmd == "archive":
+        data = _post(http, url, "/api/sessions/archive", {"id": a.id, "force": a.force, "token": env.get("IDE_MANAGER_TOKEN", ""),
+                                                          "from_session": env.get("IDE_SESSION_ID")}, timeout=600)
+        out.write(f"{a.id}\tarchivada (se reabre con `ide session unarchive {a.id}` o desde ⌘K)\n")
         return 0
     if a.cmd == "unarchive":
         data = _post(http, url, "/api/sessions/unarchive", {"id": a.id, "token": env.get("IDE_MANAGER_TOKEN", ""),

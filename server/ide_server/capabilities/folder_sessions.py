@@ -520,6 +520,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"ok": True}
 
     async def archive(p: dict) -> dict:
+        # por CLI (`ide session archive <#n|id>`): la manager o tu terminal; otra sesión, no
+        if p.get("_http") and _manager_or_terminal(p) is None:
+            raise SessionError("forbidden", "solo la sesión manager o el usuario desde su terminal archivan sesiones")
+        raw = str(p.get("id") or "").strip()
+        if re.fullmatch(r"#?\d+", raw) and db is not None:   # #n: el número del desarrollo
+            n = int(raw.lstrip("#"))
+            raw = next((k[2:] for k, v in db.with_prefix("devidx:").items() if v == n and k.startswith("s:")), raw.lstrip("#"))
+        p = {**p, "id": require_plain_name(raw, "sesión")}
         require_session(root, p["id"])
         if runner is not None:                  # para sus servidores antes del `archive` de cada repo
             await asyncio.to_thread(runner.stop_place, p["id"])
@@ -1345,10 +1353,16 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"ok": True}
 
     async def dev_hide(p: dict) -> dict:
-        """Ocultar/mostrar un desarrollo en Mis desarrollos (va al grupo "Ocultos"; solo el IDE)."""
+        """Ocultar/mostrar un desarrollo en Mis desarrollos (va al grupo "Ocultos"; solo el IDE). `n` (por CLI):
+        el número del desarrollo (`ide dev hide #14`)."""
         if db is None:
             raise SessionError("no_db", "sin base")
         key = p.get("key")
+        if p.get("n") is not None:
+            n = int(str(p["n"]).lstrip("#"))
+            key = next((k for k, v in db.with_prefix("devidx:").items() if v == n), None)
+            if key is None:
+                raise SessionError("unknown_dev", f"no hay un desarrollo #{n}")
         if not isinstance(key, str) or not re.match(r"^(s|st|p):.{1,300}$", key):
             raise SessionError("bad_request", f"clave de desarrollo inválida: {key!r}")
         db.set_dev_hidden(key, bool(p.get("hidden")))
