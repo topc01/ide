@@ -50,6 +50,24 @@ def _branch_exists(repo: Path, branch: str) -> bool:
     return out.returncode == 0
 
 
+def fresh_base(repo: Path) -> str:
+    """`origin/<rama base>` (la de `origin/HEAD`; si no, develop o main) después de traerla; si no hay remoto o
+    falla la red, la que ya estaba (o HEAD)."""
+    out = _git(repo, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+    name = out.stdout.strip().removeprefix("origin/") if out.returncode == 0 else ""
+    if not name:
+        name = next((b for b in ("develop", "main", "master")
+                     if _git(repo, "rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{b}").returncode == 0), "")
+    if not name:
+        return "HEAD"
+    try:
+        subprocess.run(["git", "-C", str(repo), "fetch", "--quiet", "origin", name], capture_output=True, timeout=90)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    ok = _git(repo, "rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{name}").returncode == 0
+    return f"origin/{name}" if ok else "HEAD"
+
+
 def add_worktree(repo: Path, path: Path, branch: str, access: str,
                  base: str | None = None) -> None:
     if access not in ("rw", "ro"):
@@ -62,7 +80,9 @@ def add_worktree(repo: Path, path: Path, branch: str, access: str,
         if exists:
             args = ["worktree", "add", str(path), branch]
         else:
-            args = ["worktree", "add", "-b", branch, str(path), base or "HEAD"]
+            # rama nueva: desde la rama base de origin recién traída, no desde la copia principal del repo
+            # (que nadie actualiza y puede ir días atrás). --no-track: que no quede siguiendo a develop.
+            args = ["worktree", "add", "--no-track", "-b", branch, str(path), base or fresh_base(repo)]
     else:  # ro → detached, siempre permitido
         target = branch if exists else (base or "HEAD")
         args = ["worktree", "add", "--detach", str(path), target]

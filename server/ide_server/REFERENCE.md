@@ -211,7 +211,7 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 - `ide session rm <id> [--force]`: si hay cambios sin commitear en algún repo, **se niega antes de tocar nada** (`--force` lo fuerza); si no: para el proceso, corre `archive` de cada repo, quita los worktrees y borra la carpeta. Las branches quedan.
 
 ### Repos y scripts
-- `ide repo add <repo> [--branch b] [--session id]`: worktree en `.ide/worktrees/<id>/<repo>`, symlink en la sesión, reserva `IDE_PORT` y corre `setup` (espera y muestra la salida). Branch default = `IDE_DEV_BRANCH` (`<login>/d<n>-<nombre>`; sin número, `<id>`); si está ocupada → error que sugiere `--branch`. `setup` fallido → exit 1, el worktree queda marcado `setup failed` (reintenta con `ide script setup <repo>`).
+- `ide repo add <repo> [--branch b] [--session id]`: worktree en `.ide/worktrees/<id>/<repo>`, symlink en la sesión, reserva `IDE_PORT` y corre `setup` (espera y muestra la salida). Branch default = `IDE_DEV_BRANCH` (`<login>/d<n>-<nombre>`; sin número, `<id>`); una rama nueva sale de `origin/<rama base>` (la de `origin/HEAD`, normalmente develop) recién traída con `git fetch`, no de la copia principal del repo (que nadie actualiza), y sin seguir a develop (`--no-track`); si está ocupada → error que sugiere `--branch`. `setup` fallido → exit 1, el worktree queda marcado `setup failed` (reintenta con `ide script setup <repo>`).
 - `ide repo rm <repo> [--force]`: misma regla de cambios sin commitear; corre `archive`; quita worktree y symlink.
 
 ### Rutear a un desarrollo (`ide session send`)
