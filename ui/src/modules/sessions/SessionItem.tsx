@@ -39,7 +39,8 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
   const [error, setError] = useState<string | null>(null);
   const act = activityOf(session, dev);
   const [dot, dotCls, label] = ACTIVITY[act];
-  const waitNote = act === "waiting" ? session.activity?.note : null;
+  const waitNote = act === "waiting" || act === "outdated" ? session.activity?.note : null;
+  const outdated = act === "outdated" ? session.activity?.outdated : null;
   // varias PRs (stack o fullstack): el tono y el CI los da la peor
   const worst = many ? worstPr(prs!) : { review: pr, ci: pr };
   const tone = devTone(worst.review, undefined, { merged: session.prState === "merged", status: session.status });
@@ -132,6 +133,11 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
             <span className="line-clamp-2 basis-full text-orange-300"
               title={`Claude terminó el turno a las ${waitTime(session) ?? "?"}${waitNote ? `\nÚltimo mensaje: ${waitNote}` : ""}`}>
               › {waitTime(session) && <span className="font-mono text-orange-300/80">{waitTime(session)}</span>}{waitNote ? ` ${waitNote}` : ""}</span>)}
+          {outdated && (
+            <span className="line-clamp-2 basis-full text-muted-foreground"
+              title={`Te esperaba desde las ${waitTime(session) ?? "?"}; a las ${outdated.at} ${outdated.what}: probablemente ya no te espera.`
+                + `${waitNote ? `\nSu último mensaje: ${waitNote}` : ""}\n(vuelve a «te espera» cuando termine otro turno)`}>
+              › <span className="font-mono">{outdated.at}</span> {outdated.what} · <span className="line-through">{waitNote}</span></span>)}
           {dev && <DevStateLabel dev={dev} devKey={`s:${session.id}`} />}
           {isReview && pause?.block && (
             <span className="block basis-full" title={`La sesión de revisión está en pausa: ${STATE[pause.block as Block]?.[0] ?? pause.block}`

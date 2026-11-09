@@ -80,7 +80,8 @@ function SessionTab({ session, label, title, active, onClick }:
   const act = activityOf(session);
   const [dot, cls, what] = ACTIVITY[act];
   const note = (waitTime(session) ? ` (terminó a las ${waitTime(session)})` : "")
-    + (act === "waiting" && session.activity?.note ? `: ${session.activity.note}` : "");
+    + (act === "waiting" && session.activity?.note ? `: ${session.activity.note}` : "")
+    + (act === "outdated" && session.activity?.outdated ? ` — después ${session.activity.outdated.what} (${session.activity.outdated.at})` : "");
   return (
     // una card chica (como las de la sidebar): la elegida con el contorno de acento
     <button role="tab" aria-selected={active} title={`${title} — ${what}${note}`} onClick={onClick}

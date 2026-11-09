@@ -16,7 +16,9 @@ export interface FolderSession {
   attention?: string | null;      // "trust": claude espera que confirmes la carpeta
   stackPrs?: string[] | null;     // revisión de un stack: sus PRs, de abajo hacia arriba
   // actividad de su claude (hooks): trabajando o esperando tu input (nota = 1ª línea de su último mensaje)
-  activity?: { state: "working" | "waiting"; since: string; note: string | null; reason: string | null } | null;
+  activity?: { state: "working" | "waiting" | "outdated"; since: string; note: string | null; reason: string | null;
+    /** te esperaba, pero después pasó algo en sus PRs (aprobaste, se mergeó…): su mensaje quedó viejo */
+    outdated?: { what: string; at: string } } | null;
   frozen?: string | null;         // congelada (SIGSTOP) desde
   paused?: { at: string } | null; // pausada: su claude se cerró y nada lo relanza solo
   consult?: { terminalId: string; at: string } | null;   // claude de consulta abierto (solo lectura)

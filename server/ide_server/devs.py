@@ -612,6 +612,58 @@ def _ticket(db: Db, row: dict, open_prs: list, merged: int) -> dict | None:
                          "title": (notion.cached(db, u) or {}).get("title")} for u in notion.pending(db, row["id"])]}
 
 
+# lo que pasó en una PR después de que la sesión te dejó esperando y que deja viejo su último mensaje
+# (no cuentan los saltos automáticos de estado: van y vuelven solos varias veces por hora)
+_OUTDATING = {("ide", "review-approve"), ("github", "review"), ("github", "merged"), ("github", "closed")}
+
+
+def _local(at: str) -> datetime | None:
+    """La hora local (naive) de un evento: los de GitHub vienen en UTC (`Z`), los del IDE en hora local."""
+    try:
+        d = datetime.fromisoformat(at.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+    return d.astimezone().replace(tzinfo=None) if d.tzinfo else d
+
+
+def outdated_wait(db: Db, activity: dict | None, urls: set[str], me: str | None = None) -> dict | None:
+    """Si la sesión te espera pero después de su último mensaje aprobaste / pidieron cambios / se mergeó o
+    cerró alguna de sus PRs: {"what": qué pasó, "at": HH:MM}. Si no, None."""
+    if not activity or activity.get("state") != "waiting" or activity.get("reason") == "launch" or not urls:
+        return None
+    since = _local(str(activity.get("since") or ""))
+    if since is None:
+        return None
+    for e in db.events(pr_urls=sorted(urls), limit=60):     # el más nuevo primero
+        if (e["actor"], e["kind"]) not in _OUTDATING:
+            continue
+        at = _local(e["at"])
+        if at is None or at <= since:
+            continue
+        m = re.search(r"/([^/]+)/pull/(\d+)", e["prUrl"] or "")
+        ref = f"{m.group(1).removeprefix('finnecto-')}#{m.group(2)}" if m else "una PR"
+        d = e["data"] or {}
+        if e["kind"] == "review-approve":
+            what = f"aprobaste {ref}"
+        elif e["kind"] == "review":
+            mine = bool(me) and d.get("by") == me
+            verb = {"approved": ("aprobaste", "aprobó"), "changes": ("pediste cambios en", "pidió cambios en")}.get(
+                d.get("state"), ("revisaste", "revisó"))
+            what = f"{verb[0]} {ref}" if mine else f"{d.get('by') or 'alguien'} {verb[1]} {ref}"
+        else:
+            what = f"se {'mergeó' if e['kind'] == 'merged' else 'cerró'} {ref}"
+        return {"what": what, "at": at.strftime("%H:%M")}
+    return None
+
+
+def session_pr_urls(db: Db, s: dict, prs: list[dict] | None = None) -> set[str]:
+    """Las PRs de una sesión: la suya, las de su stack, las enlazadas (también mergeadas) y las de su card."""
+    urls = {u for u in [s.get("prUrl"), *(s.get("stackPrs") or [])] if u}
+    urls |= {u for u, l in db.dev_prs().items() if l.get("sid") == s["id"] and not l.get("out")}
+    urls |= {p["url"] for p in prs or [] if p.get("url")}
+    return urls
+
+
 def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
     """Todos los desarrollos: los de sesión (estado de la base) y los que son solo PRs."""
     cards = _cards(gh)
@@ -643,6 +695,8 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
                     and c.get("author") == f"@{me}" and c not in prs
                     and not (links.get(c["url"]) and (links[c["url"]]["sid"] != row["id"] or links[c["url"]].get("out")))]
         taken |= {c["url"] for c in prs}
+        outdated = outdated_wait(db, s.get("activity"), session_pr_urls(db, s, prs), me) \
+            if s.get("process") == "running" else None
         out.append({"id": row["id"], "kind": row["kind"], "name": _name(names, f"s:{row['id']}", prs),
                     "title": row["title"],
                     # el de la card (sale de GitHub); `stored`: el guardado en la base
@@ -652,7 +706,10 @@ def list_devs(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[dict]:
                     "notionUrl": row["notionUrl"], "ticket": _ticket(db, row, prs, merged_by_sid.get(row["id"], 0)),
                     "process": s.get("process"),
                     # trabajando / esperando al usuario (hooks de claude), con la 1ª línea de su último mensaje
-                    "activity": (s.get("activity") or {}).get("state") if s.get("process") == "running" else None,
+                    "activity": ("outdated" if outdated else (s.get("activity") or {}).get("state"))
+                    if s.get("process") == "running" else None,
+                    # te esperaba, pero después pasó algo en sus PRs (aprobada, mergeada…): su mensaje quedó viejo
+                    "activityOutdated": outdated,
                     "activityNote": (s.get("activity") or {}).get("note") if s.get("process") == "running" else None,
                     "repos": [{"name": r["name"], "branch": r.get("branch")} for r in s.get("repos", [])],
                     # una revisión de varias PRs: en su orden (el stack de abajo arriba, las movidas al final)

@@ -20,7 +20,7 @@ from ide_server.feedback import as_markdown, collect, pending_plans
 from ide_server.telegram import TelegramBridge, get_token
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
 from ide_server.db import Db
-from ide_server.devs import PHASES, add_extra_worktrees, dev_relations, split_parallel, assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk
+from ide_server.devs import PHASES, add_extra_worktrees, dev_relations, split_parallel, assign_indices, dev_states, link_prs, set_dev_state, list_devs, set_status, show_dev, sync_from_disk, outdated_wait, session_pr_urls
 from ide_server.gh_merge import Merger
 from ide_server import pr_changes, seeds, staging_deploy
 from ide_server import later as later_mod
@@ -88,6 +88,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         """Lectura de disco + git: corre en un thread (no bloquea el loop)."""
         sessions = list_sessions(root)
         relations: dict = {}
+        devs_: list[dict] = []
         if db is not None:                      # la base es la fuente de verdad del estado
             sync_from_disk(root, db, sessions)
             status = {d["id"]: d["status"] for d in db.devs()}
@@ -124,6 +125,18 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             if s["kind"] == "review":
                 s.update({"prState": None, "pollError": None, "lastOk": None,
                           **derived.get(s["id"], {})})
+        # te esperaba, pero después pasó algo en sus PRs (aprobada, mergeada…): no cuenta como «te espera»
+        prs_of = {d["id"]: d["prs"] for d in devs_}
+        me = (gh_reviews.state.get("me") if gh_reviews else None)
+        for s in sessions:
+            if db is not None and s.get("process") == "running" and (s.get("activity") or {}).get("state") == "waiting":
+                try:
+                    out = outdated_wait(db, s["activity"], session_pr_urls(db, s, prs_of.get(s["id"])), me)
+                except Exception:  # noqa: BLE001
+                    log.exception("te espera desactualizado")
+                    out = None
+                if out:
+                    s["activity"] = {**s["activity"], "state": "outdated", "outdated": out}
         repos = discover_repos(root)
         return {"sessions": sessions, "workspaceRepos": repos, "devNames": db.dev_names() if db else {},
                 "devHidden": db.hidden_devs() if db else [],

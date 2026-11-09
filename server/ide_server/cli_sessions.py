@@ -620,11 +620,13 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         for d in devs:
             title = f"{d['name']} ({d['title']})" if d.get("name") else d["title"] or ""
             n = f"#{d['index']}" if d.get("index") else "-"
-            proc = {"waiting": "TE ESPERA", "working": "trabajando"}.get(d.get("activity") or "", d["process"] or "-")
+            od = d.get("activityOutdated") or {}
+            proc = {"waiting": "TE ESPERA", "working": "trabajando",
+                    "outdated": f"desactualizado ({od.get('what')} {od.get('at')})"}.get(d.get("activity") or "", d["process"] or "-")
             t = d.get("ticket")
             tk = "-" if t is None else ("SIN TICKET" if not t.get("url") else (t.get("status") or "?") + (" ⚠" if t.get("mismatch") else ""))
             out.write(f"{n}\t{d['id']}\t{d['kind']}\t{d['status'] or '-'}\tticket: {tk}\t{proc}\t{title}\n")
-            if d.get("activity") == "waiting" and d.get("activityNote"):
+            if d.get("activity") in ("waiting", "outdated") and d.get("activityNote"):
                 out.write(f"    › {d['activityNote']}\n")
             for p in d["prs"]:
                 out.write(_pr_line(p) + "\n")

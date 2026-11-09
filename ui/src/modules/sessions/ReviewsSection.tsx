@@ -23,9 +23,11 @@ import type { DevStateInfo } from "./devStates";
 import { PersonChip } from "../../lib/people";
 import { usePersistentOpen } from "../../lib/persist";
 
-/** "Archivar todas" en el grupo Cerradas de Revisiones: archiva las sesiones de revisión de PRs ya
- *  mergeadas o cerradas (para su claude y deja su carpeta en .ide/archive). Pide confirmar. */
-function ArchiveClosed({ sessions }: { sessions: FolderSession[] }) {
+/** "Archivar todas" en un grupo de cards terminadas (Cerradas de Revisiones, Mergeado de Mis desarrollos):
+ *  archiva sus sesiones (para su claude y deja su carpeta en .ide/archive). Pide confirmar. `what`: el
+ *  nombre de lo que se archiva («revisiones cerradas»); `why`: de dónde salen; `note`: un aviso extra. */
+export function ArchiveClosed({ sessions, what = "revisiones cerradas", why = "Son de PRs ya mergeadas o cerradas.", note }:
+  { sessions: FolderSession[]; what?: string; why?: string; note?: string }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -40,16 +42,16 @@ function ArchiveClosed({ sessions }: { sessions: FolderSession[] }) {
     if (failed.length) setErr(failed.join("\n")); else setOpen(false);
   };
   return (<>
-    <button aria-label="Archivar todas las cerradas" title={`Archivar las ${sessions.length} revisiones de PRs ya cerradas o mergeadas`}
+    <button aria-label={`Archivar todas: ${what}`} title={`Archivar las ${sessions.length} ${what} (${why.replace(/\.$/, "").toLowerCase()})`}
       onClick={(e) => { e.stopPropagation(); setOpen(true); }}
       className="mr-1 grid h-5 w-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground">
       <Archive size={12} /></button>
     {open && (
       <Dialog open onOpenChange={(o) => { if (!o) setOpen(false); }}>
         <DialogContent onClick={(e) => e.stopPropagation()} className="max-w-md">
-          <DialogHeader><DialogTitle className="text-sm">¿Archivar {sessions.length} revisiones cerradas?</DialogTitle></DialogHeader>
-          <p className="text-xs text-muted-foreground">Son de PRs ya mergeadas o cerradas. Se para su claude y su carpeta pasa a
-            .ide/archive (no toca GitHub).</p>
+          <DialogHeader><DialogTitle className="text-sm">¿Archivar {sessions.length} {what}?</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">{why} Se para su claude y su carpeta pasa a
+            .ide/archive (no toca GitHub).{note ? ` ${note}` : ""}</p>
           <ul className="max-h-48 space-y-0.5 overflow-auto text-xs">
             {sessions.map((s) => <li key={s.id} className="truncate"><span className="font-mono">{s.id}</span> <span className="text-muted-foreground">{s.title}</span></li>)}
           </ul>

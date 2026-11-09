@@ -10,7 +10,7 @@ import type { FolderSession, GhPr, MergeJob } from "../../transport/folderSessio
 import { QueueItem, QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
 import { CardActions, CardCorner, DevIndex, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, HideToggle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { worstPr } from "./desarrollos";
-import { CiMark, PrCard, SyncWarning, useGithubReviews } from "./ReviewsSection";
+import { ArchiveClosed, CiMark, PrCard, SyncWarning, useGithubReviews } from "./ReviewsSection";
 import { canMerge, MERGE_ACTIVE, MergeAllAction, MergeAllStatus, MergeButton, MergeStatus } from "./MergeControls";
 import { SessionItem } from "./SessionItem";
 import { waitingFirst } from "./activity";
@@ -167,9 +167,17 @@ export function MyDevsSection({ tickets }: { tickets: FolderSession[] }) {
           job: d.job ?? gh?.merges?.[d.prs[0].url],
           above: d.prs[0].stack ? d.prs[0].stack.size - d.prs[0].stack.position : 0 }} />,
   }; });
+  const shown = all.filter((e) => !e.hidden);
+  // los mergeados ya terminaron: no inflan el número de la sección
+  const merged = shown.filter((e) => e.status === "merged");
   return (
-    <GroupedSection id="mine" title="Mis desarrollos" entries={waitingFirst(all.filter((e) => !e.hidden))}
+    <GroupedSection id="mine" title="Mis desarrollos" entries={waitingFirst(shown)}
       hidden={all.filter((e) => e.hidden)} gh={gh}
+      count={shown.length - merged.length}
+      countTitle={`desarrollos abiertos (sin los ${merged.length} mergeados ni los ocultos)`}
+      groupActions={{ merged: <ArchiveClosed sessions={merged.filter((e) => e.session).map((e) => e.session!)}
+        what="desarrollos mergeados" why="Todas sus PRs ya están mergeadas."
+        note={merged.some((e) => !e.session) ? "Los que son solo PRs (sin sesión) no se archivan: salen solos al día de mergearse." : undefined} /> }}
       statuses={statusesFor(new Set(all.filter((e) => !e.hidden).map((e) => e.status)))}
       status={<>
         {ghError && <span role="alert" className="truncate text-[10px] text-destructive"

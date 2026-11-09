@@ -5,7 +5,7 @@
 import type { FolderSession } from "../../transport/folderSessions";
 import type { DevStateInfo } from "./devStates";
 
-export type Activity = "working" | "waiting" | "stale" | "queued" | "running" | "idle" | "frozen" | "paused";
+export type Activity = "working" | "waiting" | "outdated" | "stale" | "queued" | "running" | "idle" | "frozen" | "paused";
 
 /** `done`: el desarrollo no sigue activo (mergeado, pausado, revisión publicada): parado no es stale. */
 export function activityOf(s: FolderSession, dev?: DevStateInfo | null): Activity {
@@ -20,7 +20,7 @@ export function activityOf(s: FolderSession, dev?: DevStateInfo | null): Activit
 }
 
 /** La hora (HH:MM, local) en que claude terminó el turno, si te espera. */
-export const waitTime = (s?: FolderSession) => s?.activity?.state === "waiting" && s.activity.since
+export const waitTime = (s?: FolderSession) => (s?.activity?.state === "waiting" || s?.activity?.state === "outdated") && s.activity.since
   && s.activity.reason !== "launch"     // recién lanzada: no terminó ningún turno
   ? new Date(s.activity.since).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }) : null;
 
@@ -31,6 +31,8 @@ export const ACTIVITY: Record<Activity, [string, string, string]> = {
   // trabajando gira y es de otro color: no se confunde con el punto fijo de "espera tu input"
   working: ["◐", "inline-block leading-none text-sky-400 animate-spin", "claude está trabajando"],
   waiting: ["●", "text-orange-500", "claude terminó: espera tu input"],
+  // te esperaba, pero después pasó algo en sus PRs: no cuenta en «te esperan»
+  outdated: ["●", "text-muted-foreground", "te esperaba, pero después pasó algo en sus PRs: probablemente ya no te espera"],
   // sin relleno: lo que no es "trabaja" ni "te espera" (no se sabe todavía, o no está corriendo)
   running: ["◯", "text-primary", "claude corriendo (todavía no se sabe si trabaja o te espera)"],
   queued: ["◌", "text-muted-foreground", "en cola (max_running)"],
