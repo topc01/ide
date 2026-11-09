@@ -130,6 +130,31 @@ def login(root: Path, name: str, url: str | None = None) -> int:
     return rc
 
 
+def _keep_own_site(state: Path, url: str) -> None:
+    """Deja en `state.json` solo la sesión del sitio exacto del perfil: fuera las cookies de otros
+    dominios y las del dominio padre (`.finnecto.com` serviría en `acme.finnecto.com`, el prod de un
+    cliente) y el localStorage de otros orígenes. Así un perfil sin permisos que navegue a otro sitio
+    llega sin sesión. Las cookies no distinguen puerto: en local vale cualquier `localhost` (y sus
+    subdominios, p.ej. `demo-cl.localhost`)."""
+    host = (urlparse(url).hostname or "").lower()
+    local = bool(LOCAL.match(url)) and host != "tech.finnecto.com"
+
+    def ok(h: str) -> bool:
+        h = h.lstrip(".").lower()
+        if local:
+            return h in ("localhost", "127.0.0.1", "::1", "[::1]") or h.endswith(".localhost")
+        return h == host
+    try:
+        data = json.loads(state.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    # la cookie del dominio padre trae el punto adelante (`.finnecto.com`): solo vale el host exacto, sin punto
+    data["cookies"] = [c for c in data.get("cookies") or []
+                       if ok(str(c.get("domain") or "")) and (local or str(c.get("domain") or "") == host)]
+    data["origins"] = [o for o in data.get("origins") or [] if ok(urlparse(str(o.get("origin") or "")).hostname or "")]
+    state.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
 def _shared_local(root: Path) -> tuple[Path, Path]:
     """La sesión local compartida para browser-local: (storage con sus cookies —en localhost valen para
     cualquier puerto—, script que en cada página de localhost —o un subdominio suyo— copia su localStorage —que es por origen, y
