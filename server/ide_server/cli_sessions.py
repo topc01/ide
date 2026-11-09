@@ -1012,8 +1012,12 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _notion_cmd(a, env, out)
         if a.group == "ticket":
             dev, link = (a.args[0], a.args[1]) if len(a.args) > 1 else (env.get("IDE_SESSION_ID"), a.args[0])
-            if not dev:
-                raise SessionError("no_session", "¿de qué desarrollo? `ide ticket set '#n' <url>`")
+            if not dev:                         # tu terminal: la sesión de la carpeta donde estás
+                try:
+                    dev = current_session(root, env=env, cwd=cwd)
+                except SessionError:
+                    raise SessionError("no_session", "¿de qué desarrollo? `ide ticket set <n> <url>` (el número del "
+                                                     "desarrollo, con o sin #), o córrelo dentro de la carpeta de su sesión")
             from urllib.parse import quote
             actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
             path = "ticket" if a.cmd == "set" else "pending-ticket"
