@@ -156,7 +156,10 @@ en el chat, ciérralo: `ide later ls --mine` y `ide later done <id> -m "<cómo>"
   cuando se mergea la madre del stack: en el IDE lo hace el IDE.
 - **Tests de la api:** córrelos con `make test` (o `make test <ruta>` para algo puntual) dentro de su
   contenedor; **nunca con `-n` mayor a 2** (cada proceso usa ~750 MB, y con varias sesiones a la vez la Mac
-  se queda sin memoria). El IDE ya limita `-n auto` a 2 procesos y cada contenedor de api a 4 núcleos.
+  se queda sin memoria). El IDE limita cualquier `-n` a 2 procesos y cada contenedor de api a 4 núcleos.
+  **No uses `make test-fresh`** para correr un archivo o un test: rearma la base de pruebas desde cero
+  (`--create-db`, carga la base compartida) y corre la suite entera; es solo para después de un pull con
+  cambios de modelos, y aun así pregúntale al usuario. Para lo demás, `make test <ruta>`, que reusa la base.
 - **Servidores para probar:** los scripts por repo están en `.ide/scripts/<repo>/` (api: `build`,
   `run`; embed y admin: `install`, `run`, `point-api`, `build`, `preview`). Los servidores corren aparte del IDE
   (sobreviven a un reinicio) y se manejan **por bloque**, igual desde el módulo **Servidores** que

@@ -352,7 +352,7 @@ mensajes al IDE real).
 
 **Base de datos de la api de cada worktree:** el `run` de la api (`.ide/scripts/finnecto-api/.lib/api-lib.sh`, `choose_db`) le da a cada worktree **siempre su propia base** (`finnecto_dev_<slug>`, clon de `finnecto_dev` la primera vez, ~65 MB y unos segundos), aunque la rama no tenga migraciones: antes usaba la compartida hasta que la rama tuviera migraciones, y las que una sesión agregaba después se corrían sobre `finnecto_dev` y rompían a las demás.
 
-**Tests de la api y memoria:** el override de compose de las apis de los worktrees (`.ide/scripts/finnecto-api/.lib/api-compose.override.yml`) limita `pytest -n auto` a 2 procesos (`PYTEST_XDIST_AUTO_NUM_WORKERS`) y cada contenedor de api a 4 núcleos (`cpus`); las sesiones corren `make test` y nunca `-n` mayor a 2 (cada proceso ~750 MB: con varias sesiones OrbStack llega a su tope y la Mac hace swap).
+**Tests de la api y memoria:** el override de compose de las apis de los worktrees (`.ide/scripts/finnecto-api/.lib/api-compose.override.yml`) limita pytest a 2 procesos para cualquier `-n`: `-n auto` con `PYTEST_XDIST_AUTO_NUM_WORKERS` y un `-n` fijo (el `-n 4` de `make test-fresh` / `test-ci`) con el plugin `.lib/pytest/ide_pytest_cap.py` (montado en `/opt/ide-pytest`, cargado con `PYTEST_PLUGINS`; tope `IDE_PYTEST_MAX_WORKERS`), y cada contenedor de api a 4 núcleos (`cpus`); vale desde que el contenedor se vuelve a levantar (`run`). Las sesiones corren `make test` (o `make test <ruta>`), nunca `test-fresh` para un archivo suelto (rearma la base de pruebas y corre la suite entera), y nunca `-n` mayor a 2 (cada proceso ~750 MB: con varias sesiones OrbStack llega a su tope y la Mac hace swap).
 
 ## 8b. Servidores y Archivos (UI)
 
