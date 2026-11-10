@@ -162,7 +162,7 @@ def _parser() -> argparse.ArgumentParser:
     eg = ev.add_parser("publish", help="publica la guía (pasos + capturas) como comentario en una PR y verifica que subieron todas")
     eg.add_argument("pr", help="URL o repo#n de una PR tuya")
     for x in (ea, ee, eh, ed, er, eg):
-        x.add_argument("--run", help="corrida por su nombre (default: la última)"); x.add_argument("--session")
+        x.add_argument("--run", help="corrida: su identificador (ide evidence ls) o su nombre (default: la última)"); x.add_argument("--session")
     sub.add_parser("hook", help="(lo llaman los hooks de claude) le avisa al IDE si la sesión trabaja o te espera")
     lt = sub.add_parser("later", help="pendientes para después (preguntas/temas que el usuario verá otro día)").add_subparsers(dest="cmd", required=True)
     la = lt.add_parser("add", help="deja un pendiente en el desarrollo de la sesión")
@@ -315,6 +315,25 @@ def _pr_line(p: dict) -> str:
             + (f"  [{who}]" if who else ""))
 
 
+def _pick_run(runs: list[dict], sel: str | None) -> dict:
+    """La corrida de `--run`: su identificador (el de `ide evidence ls`) o su nombre; sin `--run`, la última.
+    Un nombre repetido no elige en silencio: pide el identificador."""
+    if not runs:
+        raise SessionError("not_found", "no hay evidencias: ide evidence plan")
+    if not sel:
+        return runs[-1]
+    if hit := next((r for r in runs if r["id"] == sel), None):
+        return hit
+    same = [r for r in runs if r["label"].lower() == sel.lower()]
+    if len(same) == 1:
+        return same[0]
+    if same:
+        raise SessionError("ambiguous_run", f"hay {len(same)} corridas «{sel}»: usa su identificador en --run ("
+                           + ", ".join(f"{r['id']} del {str(r.get('created', ''))[:16].replace('T', ' ')}" for r in same) + ")")
+    raise SessionError("not_found", f"no hay corrida {sel!r} (hay: "
+                       + ", ".join(f"{r['id']} «{r['label']}»" for r in runs) + ")")
+
+
 def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) -> int:
     from urllib.parse import quote
     sid = a.session or env.get("IDE_SESSION_ID")
@@ -326,8 +345,13 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
             md = sys.stdin.read() if a.file == "-" else Path(a.file).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             raise SessionError("bad_file", f"no se pudo leer --file: {exc}")
+        same = [r["id"] for r in _get(http, url, path)["runs"] if r["label"].lower() == a.run.lower()]
         run = _post(http, url, path, {"label": a.run, "markdown": md})["run"]
         out.write(f"{run['id']}\t{run['label']}\t{len(run['steps'])} pasos\n")
+        if same:
+            out.write(f"aviso: ya había {'una corrida' if len(same) == 1 else f'{len(same)} corridas'} «{a.run}» "
+                      f"({', '.join(same)}): para las otras usa su identificador en --run (`ide evidence ls`); "
+                      f"si sobra, `ide evidence rm --run <identificador>`\n")
         if not run["steps"]:
             out.write("aviso: no encontré pasos (un ítem de lista por paso: '1. …' o '- …')\n")
         return 0
@@ -342,18 +366,14 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
                 f.unlink()
 
     if a.cmd == "publish":
-        pick = [r for r in runs if not a.run or r["label"].lower() == a.run.lower()]
-        if not pick:
-            raise SessionError("not_found", f"no hay corrida {a.run!r}" if a.run else "no hay evidencias: ide evidence plan")
+        pick = [_pick_run(runs, a.run)]
         res = _post(http, url, path + "/github", {"url": a.pr, "run": pick[-1]["id"],
                                                     "actor": f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"},
                     timeout=600)
         out.write(f"{pick[-1]['label']}\tpublicada: {res['comment']}\t{res['attachments']} imágenes subidas de {res['shots']}\n")
         return 0
     if a.cmd == "rm":
-        pick = [r for r in runs if not a.run or r["label"].lower() == a.run.lower()]
-        if not pick:
-            raise SessionError("not_found", f"no hay corrida {a.run!r}" if a.run else "no hay evidencias")
+        pick = [_pick_run(runs, a.run)]
         run = pick[-1]
         if a.step is None:
             if a.shot:
@@ -382,9 +402,7 @@ def _evidence_cmd(a, root: Path, url: str | None, http, out: TextIO, env: dict) 
         out.write(f"{run['label']}	paso {a.step}	captura {name} sacada\n")
         return 0
     if a.cmd in ("shot", "check", "add", "edit"):
-        pick = [r for r in runs if not a.run or r["label"].lower() == a.run.lower()]
-        if not pick:
-            raise SessionError("not_found", f"no hay corrida {a.run!r}" if a.run else "no hay evidencias: ide evidence plan")
+        pick = [_pick_run(runs, a.run)]
         run = pick[-1]
         if a.cmd == "add":
             at = len(run["steps"]) if a.after is None else a.after
