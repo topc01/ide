@@ -40,6 +40,12 @@ def _run(argv: list[str], cwd: Path | None = None) -> subprocess.CompletedProces
     return subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=600)
 
 
+def _native_only(msg: str) -> bool:
+    """GitHub rechaza `gh pr merge` porque la PR es de un stack nativo: solo se mergea con merge-async."""
+    m = msg.lower()
+    return "part of a stack" in m or "asynchronous merge" in m
+
+
 def _check(out: subprocess.CompletedProcess, what: str, code: str = "merge_failed") -> str:
     if out.returncode != 0:
         raise SessionError(code, f"{what}: {(out.stderr or out.stdout).strip() or out.returncode}")
@@ -280,6 +286,11 @@ class Merger:
                 self._update(url, state="waiting", auto=True)
                 return
             last = (out.stderr or out.stdout).strip()
+            if _native_only(last):
+                # GitHub la tiene en un stack suyo aunque el IDE no lo vio (p.ej. sus compañeras ya se
+                # mergearon): solo acepta merge-async; lo hace el IDE (espera CI y aprobación)
+                self._update(url, state="waiting_ci", auto=False, native=True)
+                return
             if "auto merge is not allowed" in last.lower() or "auto-merge is not allowed" in last.lower() \
                     or "not supported for stacked pull requests" in last.lower():
                 # el repo no tiene habilitado el auto-merge, o la PR es de un stack de GitHub (ahí no se
@@ -292,6 +303,9 @@ class Merger:
                     self._merged(url)
                     return
                 last = (now.stderr or now.stdout).strip()
+                if _native_only(last):
+                    self._update(url, state="waiting_ci", auto=False, native=True)
+                    return
             time.sleep(5 * (attempt + 1))
         self._update(url, state="error", error=f"no pude armar el auto-merge en GitHub: {last}")
 

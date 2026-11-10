@@ -556,6 +556,8 @@ mergeada (24 h, en el grupo **Merges** de Mis desarrollos cuando ya no está abi
    calcula si es mergeable: reintenta unas veces) y el IDE vigila (cada 30 s) hasta que GitHub la
    mergea. En stacks nativos: el IDE espera a que el CI pase, la PR sea mergeable y esté aprobada, y
    pide `PUT /repos/{o}/{r}/pulls/{n}/merge-async` (squash), el único endpoint que GitHub acepta ahí.
+   Si GitHub rechaza el auto-merge o el merge directo porque la PR «es parte de un stack» aunque el IDE
+   no la vea en uno (p.ej. sus compañeras ya se mergearon), sigue por este mismo camino (merge-async).
    Si el CI falla o hay conflicto, error.
 3. Ya mergeada: si la PR está en un **stack nativo** (trae `stack`), GitHub rebasea y re-apunta
    solo las de arriba. Si no, el IDE restackea las de arriba en orden: cada una `git rebase --onto
