@@ -60,4 +60,7 @@ class ConnectionManager:
     async def broadcast(self, channel: str, payload: dict) -> None:
         msg = json.dumps({"type": "event", "id": None, "channel": channel, "payload": payload})
         for ws in list(self._active):
-            await ws.send_text(msg)
+            try:
+                await ws.send_text(msg)
+            except Exception:  # noqa: BLE001 — pestaña cerrada a mitad del envío: se descarta y se sigue con las demás
+                self.disconnect(ws)
