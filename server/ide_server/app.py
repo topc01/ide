@@ -23,7 +23,7 @@ from ide_server.sessions_fs import SessionError
 from ide_server.supervisor import ClaudeAgents, Supervisor
 from ide_server.watcher import watch_workspace
 from ide_server.worktrees import BranchOccupied
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from ide_server.config import Settings
 from ide_server.plugins import Registry
@@ -347,6 +347,22 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         sid = require_plain_name(str(body.get("id") or ""), "sesión")
         ui_focus.update(id=sid, at=_t.time())
         await manager.broadcast("ui.focus", {"id": sid})
+        return {"ok": True}
+
+    @app.post("/api/ui/open")
+    async def api_ui_open(request: Request, body: dict):
+        """Abre un link en tu navegador (`open` de macOS). Lo usa la app instalada (PWA), donde abrir una
+        pestaña abre otra ventana de la app. Solo desde la UI (con Origin: el chequeo de origen ya lo exige
+        igual al del IDE) y solo http(s)."""
+        from urllib.parse import urlparse
+        url = str(body.get("url") or "")
+        if not request.headers.get("origin"):
+            return JSONResponse({"code": "forbidden", "message": "solo desde la UI"}, status_code=403)
+        if urlparse(url).scheme not in ("http", "https") or any(ord(c) < 33 for c in url) or len(url) > 4000:
+            return JSONResponse({"code": "bad_request", "message": "link inválido"}, status_code=400)
+        out = await asyncio.to_thread(subprocess.run, ["open", url], capture_output=True, text=True, timeout=15)
+        if out.returncode != 0:
+            return JSONResponse({"code": "open_failed", "message": out.stderr.strip() or "open falló"}, status_code=500)
         return {"ok": True}
 
     @app.get("/api/ui/focus")

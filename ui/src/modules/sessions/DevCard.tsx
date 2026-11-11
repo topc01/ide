@@ -11,6 +11,7 @@ import { devIndexOf, devKeys, devName, isHidden } from "./desarrollos";
 import { useStore } from "../../state/store";
 import { ago, STATE, type DevStateInfo, type Phase } from "./devStates";
 import { useSidebarConfig } from "../../state/sidebarConfig";
+import { openExternal } from "../../lib/openExternal";
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
 export interface Tone {
@@ -455,7 +456,7 @@ export function TicketChip({ devKey }: { devKey: string }) {
   // solo links https (el server ya los valida; esto es por si la base trae otra cosa)
   const open = (u: string) => (e: React.MouseEvent) => {
     e.stopPropagation();
-    try { if (new URL(u).protocol === "https:") window.open(u, "_blank", "noopener,noreferrer"); } catch { /* link inválido */ }
+    try { if (new URL(u).protocol === "https:") openExternal(u); } catch { /* link inválido */ }
   };
   return (<>
     <button title={`Abrir el ticket en Notion${t.status ? ` (Status: ${t.status})` : ""}${t.error ? `\n⚠ ${t.error}` : ""}`}

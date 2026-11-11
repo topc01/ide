@@ -9,6 +9,7 @@ import { addLinkAttachment, attachFile, attachmentUrl, deleteAttachment, isHtml,
   moveAttachment, renameAttachment, type Attachment } from "../../transport/folderSessions";
 import { usePersistentOpen } from "../../lib/persist";
 import { cn } from "../../lib/utils";
+import { openExternal } from "../../lib/openExternal";
 
 const size = (n: number) => n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 export const shortName = (n: string) => (n.split("/").pop() ?? n).replace(/^\d{8}-\d{6}-/, "").replace(/\.url$/i, "");
@@ -216,7 +217,7 @@ function FileRow({ ctx, f, depth }: { ctx: Ctx; f: Attachment; depth: number }) 
           className="min-w-0 flex-1 rounded border border-primary bg-background px-1 py-0.5 font-mono text-[11px] outline-none" />
       ) : (
         <button title={f.url ? `Abrir ${f.url}` : isHtml(f.name) ? `Abrir ${f.name} en el navegador (como página)` : `Abrir ${f.name}`}
-          onClick={() => f.url ? window.open(f.url, "_blank", "noopener,noreferrer")
+          onClick={() => f.url ? openExternal(f.url)
             : isHtml(f.name) ? openHtmlAttachment(ctx.sid, f.name) : open(ctx.devKey, attachmentTab(ctx.sid, f.name))}
           className="min-w-0 flex-1 text-left">
           <span className="flex items-center gap-1 truncate font-mono text-[11px]">

@@ -10,6 +10,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { useFolders } from "../state/folders";
+import { openExternal } from "../lib/openExternal";
 
 type Key = string;                       // "s:<id>" (sesión) | "p:<url>" (PR sin sesión)
 const keyOf = (s: { activeId: string | null; activePrUrl: string | null }): Key | null =>
@@ -114,7 +115,7 @@ export function useDevShortcuts() {
         const { activeId, activePrUrl, tree } = useFolders.getState();
         const url = activeId && !activePrUrl ? tree.devTickets?.[`s:${activeId}`]?.url : null;
         e.preventDefault(); e.stopPropagation();       // sin ticket tampoco: el ⌘O del navegador abre un archivo
-        if (url) window.open(url, "_blank", "noopener");
+        if (url) openExternal(url);
         return;
       }
       if (e.key === "Enter" && !e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && !e.isComposing

@@ -677,6 +677,8 @@ próxima apertura recarga).
 `claude` los lee sin pedir permiso; máx. 10 MB c/u) y, si `claude` corre, su ruta se pega en el input
 como un paste de terminal (sin Enter): las imágenes entran como `[Image #n]`, igual que arrastrarlas a
 una terminal. Canal `sessions.attach {id, name, data(base64), paste}` → `{path, pasted}`.
+**Links que abren algo nuevo** (GitHub, Notion, servidores, adjuntos `.html`, ⌘O): en la app instalada (PWA) `window.open` y `target=_blank` abren otra ventana de la app; ahí la UI le pide al server que lo abra en tu navegador (`POST /api/ui/open {url}` → `open <url>` de macOS; solo http(s) y solo desde la UI, con Origin). En una pestaña normal del navegador, se abren como siempre.
+
 **Módulo Adjuntos** (id `attachments`): un **`.html`** (desde el módulo o desde una ruta `attachments/…` que menciona claude) se abre en una **pestaña del navegador** como página (`?view=html`: corre su JS, pero en sandbox sin `allow-same-origin`, con un origen aparte del IDE: no lee su almacenamiento ni puede usar su API ni su websocket); en la tab del IDE se sigue viendo como texto. Los adjuntos de la sesión del desarrollo, con **carpetas** ("carpeta"
 en el encabezado o 📁+ en una carpeta para una dentro de otra; se pliegan, se renombran, se borran con todo
 lo que tienen —pide confirmar con la cantidad— y se mueven), ordenados por fecha de **creación** (default),
