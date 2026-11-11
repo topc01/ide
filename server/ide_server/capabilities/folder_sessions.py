@@ -1835,6 +1835,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         mine = {u for u, l in (db.dev_prs() if db else {}).items() if l.get("sid") == sid and not l.get("out")}
         sess = read_session(root, sid)
         mine |= set(sess.get("stackPrs") or []) | ({sess["prUrl"]} if sess.get("prUrl") else set())
+        if url not in mine and db is not None:     # las que la card muestra (por rama o por stack)
+            devs = await asyncio.to_thread(list_devs, root, db, await _sessions_now(),
+                                           gh_reviews.state if gh_reviews else {})
+            dev = next((d for d in devs if d["id"] == sid), None)
+            mine |= {pr["url"] for pr in (dev or {}).get("prs", []) if pr.get("url")}
         if url not in mine:
             raise SessionError("forbidden", f"{url} no es una PR de este desarrollo: la guía solo se publica en las suyas")
         text, files = await asyncio.to_thread(evidence_mod.markdown, root, sid, str(p.get("run")))
