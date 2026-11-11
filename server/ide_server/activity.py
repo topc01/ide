@@ -51,6 +51,7 @@ def last_note(transcript: str | None, home: Path) -> str | None:
 _ASYNC = "Async agent launched"
 _NOTIF = re.compile(r"<tool-use-id>(toolu_[\w-]+)</tool-use-id>")
 MAX_BACKGROUND_S = 3 * 3600         # uno más viejo se da por muerto (p.ej. claude se reinició sin avisar)
+MAX_SILENT_S = 20 * 60              # uno que no escribe en su conversación hace 20 min, también
 
 
 def pending_agents(transcript: str | None, home: Path) -> int:
@@ -90,6 +91,25 @@ def pending_agents(transcript: str | None, home: Path) -> int:
                             launched[c["tool_use_id"]] = asked[c["tool_use_id"]]
     except OSError:
         return 0
+    # los subagentes dejan su conversación en <transcript>/subagents/agent-*.jsonl (+ .meta.json con su
+    # toolUseId): uno cortado con Esc no avisa (`stoppedByUser`), y uno que ya no escribe hace rato murió
+    import time
+    sub = f.with_suffix("") / "subagents"
+    for meta in sub.glob("agent-*.meta.json") if sub.is_dir() else []:
+        try:
+            m = json.loads(meta.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        tid = m.get("toolUseId")
+        if tid not in launched or tid in done:
+            continue
+        log = meta.with_name(meta.name.replace(".meta.json", ".jsonl"))
+        try:
+            idle = time.time() - log.stat().st_mtime
+        except OSError:
+            idle = 0
+        if m.get("stoppedByUser") or idle > MAX_SILENT_S:
+            done.add(tid)
     now = datetime.now(timezone.utc)
     n = 0
     for tid, ts in launched.items():
