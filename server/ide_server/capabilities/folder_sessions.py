@@ -1091,6 +1091,32 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"session": s}
 
+    _refresh_failed: dict[str, str | None] = {}     # sesión → head con el que ya falló (no se reintenta en cada poll)
+
+    async def auto_refresh(sid: str, head: str | None) -> None:
+        """La PR de una revisión tiene commits nuevos: mueve su worktree al head nuevo (lo mismo que Refrescar),
+        salvo que su claude esté trabajando (espera a que termine el turno) o tenga cambios sin commitear."""
+        if (supervisor.snapshot().get(sid, {}).get("activity") or {}).get("state") == "working":
+            return
+        if head and _refresh_failed.get(sid) == head:
+            return
+        try:
+            await asyncio.to_thread(refresh_review, root, sid)
+        except SessionError as exc:
+            _refresh_failed[sid] = head
+            log.warning("refresco automático de %s: %s", sid, exc)
+            if db is not None:
+                db.event(datetime.now().isoformat(timespec="seconds"), "ide", "review-refresh-failed", dev=sid,
+                         data={"error": str(exc)[:300], "sha": head})
+            return
+        _refresh_failed.pop(sid, None)
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), "ide", "review-refreshed", dev=sid, data={"sha": head})
+        await poller.poll_once()
+        notify()
+
+    poller.on_stale = auto_refresh
+
     async def repo_rm(p: dict) -> dict:
         if runner is not None:
             await asyncio.to_thread(runner.stop_place, require_plain_name(p["id"], "sesión"), p["repo"])

@@ -149,7 +149,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
             </span>)}
           {!many && pr?.stack && <span title="posición en el stack (1 = la de abajo)">◫ {pr.stack.position}/{pr.stack.size}</span>}
           {session.prState === "stale" && <span className="text-sky-400"
-            title="El PR tiene commits nuevos desde tu revisión: abre la sesión y toca Refrescar">⟳ commits nuevos desde tu revisión</span>}
+            title="El PR tiene commits nuevos desde tu revisión. El IDE mueve solo la sesión al head nuevo cuando su claude no está trabajando; si sigue este aviso, tiene cambios sin commitear: abre la sesión y toca Refrescar">⟳ commits nuevos desde tu revisión</span>}
           {session.prState === "closed" && <span>PR cerrada</span>}
           {session.pollError && <span className="text-destructive"
             title={`${session.pollError} (último OK: ${session.lastOk ?? "nunca"})`}>⚠ no se pudo consultar el PR</span>}

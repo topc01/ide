@@ -474,7 +474,11 @@ notion_url: https://www.notion.so/...
 - Ticket: las fases y pausas del estado del desarrollo (`investigating` · `developing` · … · `blocked` · `paused`; ver "Estado del desarrollo"; los nombres viejos se migran).
 - Review: `reviewing` · `commented` · `approved` · `changes-requested`.
 - Derivados por el server (no se escriben): proceso `running` / `queued` / `stopped`;
-  revisiones `stale` (el PR tiene commits nuevos; "Refrescar" en la UI) / `merged` / `closed`;
+  revisiones `stale` (el PR tiene commits nuevos) / `merged` / `closed`. Una revisión `stale` se **refresca sola**
+  (en el poll: su worktree pasa al head nuevo, lo mismo que "Refrescar"; evento `review-refreshed`) cuando su
+  claude no está trabajando (si está en un turno, espera a que termine). Si no se puede (cambios sin commitear),
+  queda el aviso "commits nuevos" con **Refrescar** en la sesión (evento `review-refresh-failed`; no se reintenta
+  hasta otro head). No le dice nada a la sesión ni la hace revisar de nuevo: eso sigue siendo "Revisar de nuevo";
   `attention: "trust"` (ver §10).
 
 ## 9b. Revisiones de GitHub y barra de usage (UI)

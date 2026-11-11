@@ -39,6 +39,8 @@ class PrPoller:
         self._sem = asyncio.Semaphore(concurrency)
         self._failures = 0
         self.derived: dict[str, dict] = {}
+        # la PR de una revisión tiene commits nuevos (`prState` stale): quien lo atiende (mover el worktree)
+        self.on_stale: Callable[[str, str | None], Awaitable[None]] | None = None
 
     async def _poll(self, s: dict) -> tuple[str, dict]:
         prev = self.derived.get(s["id"], {"prState": None, "pollError": None, "lastOk": None})
@@ -65,7 +67,8 @@ class PrPoller:
             if r.get("login"):
                 reviews[r["login"]] = "requested"
         ts = datetime.fromtimestamp(self._clock(), timezone.utc).isoformat(timespec="seconds")
-        return s["id"], {"prState": state, "pollError": None, "lastOk": ts, "reviewers": reviews}
+        return s["id"], {"prState": state, "pollError": None, "lastOk": ts, "reviewers": reviews,
+                         "headSha": data.get("headRefOid")}
 
     async def poll_once(self) -> bool:
         reviews = [s for s in list_sessions(self._root)
@@ -92,6 +95,10 @@ class PrPoller:
             try:
                 if await self.poll_once():
                     self._on_change()
+                if self.on_stale is not None:
+                    for sid, d in list(self.derived.items()):
+                        if d.get("prState") == "stale":
+                            await self.on_stale(sid, d.get("headSha"))
             except Exception:
                 log.exception("el poller de PRs falló en un ciclo; sigue en el próximo")
             try:
