@@ -84,7 +84,9 @@ class Merger:
         # a la sesión del desarrollo (lo conecta folder_sessions)
         self.on_problem: Callable[[dict, str], None] = lambda _job, _msg: None
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._locks: dict[str, threading.Lock] = {}
+        # reentrante: `_start` (con el lock tomado) llama a `_merged` → `_restack`, que lo vuelve a tomar si la
+        # PR ya estaba mergeada; con un Lock simple ese thread se bloqueaba solo y con él todo merge del repo
+        self._locks: dict[str, threading.RLock] = {}
         self._jobs_lock = threading.RLock()     # los trabajos se tocan desde varios threads
         self.jobs: dict[str, dict] = self._load()
         for url, j in list(self.jobs.items()):  # un rebase que corría cuando se cortó el server
@@ -115,8 +117,8 @@ class Merger:
         return {u: {**{k: j.get(k) for k in keys}, "url": u} for u, j in self.jobs.items()}
 
     # -- git ---------------------------------------------------------------------------------
-    def _lock(self, repo: str) -> threading.Lock:
-        return self._locks.setdefault(repo, threading.Lock())
+    def _lock(self, repo: str) -> threading.RLock:
+        return self._locks.setdefault(repo, threading.RLock())
 
     def _wt(self, repo: str, full_repo: str | None) -> Path:
         if repo not in {r["id"] for r in discover_repos(self._root)}:
