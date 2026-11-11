@@ -1377,12 +1377,19 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     db.event(datetime.now().isoformat(timespec="seconds"), "ide", "prompt", dev=sid,
                              data={"text": NUDGE[:300], "note": "turno sin respuesta"})
                 return {"ok": True}
+            # cerró el turno pero dejó subagentes corriendo: sigue trabajando (al terminar, su aviso abre otro turno)
+            n = await asyncio.to_thread(activity_mod.pending_agents, p.get("transcript_path"), Path.home())
+            if n:
+                supervisor.set_activity(sid, "working", f"esperando {n} subagente{'s' if n > 1 else ''}", "agents")
+                return {"ok": True}
             prev = supervisor.set_activity(sid, "waiting", note, "turn")
         elif ev == "Notification":
             kind = p.get("notification_type") or ""
             msg = activity_mod.first_line(str(p.get("message") or "")) or None
             if kind == "permission_prompt" or "permission" in (msg or "").lower():
                 prev = supervisor.set_activity(sid, "waiting", msg, "permission")
+            elif (supervisor.snapshot().get(sid, {}).get("activity") or {}).get("reason") == "agents":
+                return {"ok": True}             # «inactivo» mientras espera a sus subagentes: sigue trabajando
             elif (supervisor.snapshot().get(sid, {}).get("activity") or {}).get("state") != "waiting":
                 prev = supervisor.set_activity(sid, "waiting", msg, "idle")
             else:
