@@ -1052,12 +1052,12 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return 0
         if a.group == "procs":
             return _procs(a, root, env, out)
-        sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
-        if a.group == "merge":
+        if a.group == "merge":                  # no necesita sesión: la PR dice cuál es
             data = _post(http, url, "/api/merge", {"pr": a.pr, "renumber": a.renumber, "token": env.get("IDE_MANAGER_TOKEN", ""),
                                                    "from_session": bool(env.get("IDE_SESSION_ID"))})
             out.write(f"{a.pr}: merge armado ({data.get('state')}); el avance se ve en la card\n")
             return 0
+        sid = current_session(root, env=env, cwd=cwd, explicit=getattr(a, "session", None))
         if a.group in ("migrations", "update"):
             # una sesión solo toca sus ramas (como `ide push`)
             caller = env.get("IDE_SESSION_ID")
