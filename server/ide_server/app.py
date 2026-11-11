@@ -351,16 +351,35 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.post("/api/ui/open")
     async def api_ui_open(request: Request, body: dict):
-        """Abre un link en tu navegador (`open` de macOS). Lo usa la app instalada (PWA), donde abrir una
-        pestaña abre otra ventana de la app. Solo desde la UI (con Origin: el chequeo de origen ya lo exige
-        igual al del IDE) y solo http(s)."""
+        """Abre en Chrome (o tu navegador) un link `{url}` o un adjunto `{sid, name}`. Lo usa la app instalada
+        (PWA), donde abrir una pestaña abre otra ventana de la app; y los .html adjuntos siempre. Chrome manda a
+        la app todo lo que esté en su origen: un link del propio IDE se abre por el otro nombre del host
+        (localhost ↔ 127.0.0.1) y un adjunto como archivo (file://: otro origen, que el chequeo de Origin
+        rechaza en la API y el websocket). Solo desde la UI (con Origin) y solo http(s)."""
         from urllib.parse import urlparse
-        url = str(body.get("url") or "")
+        from ide_server.sessions_fs import attachment_path, require_plain_name, session_path
         if not request.headers.get("origin"):
             return JSONResponse({"code": "forbidden", "message": "solo desde la UI"}, status_code=403)
-        if urlparse(url).scheme not in ("http", "https") or any(ord(c) < 33 for c in url) or len(url) > 4000:
-            return JSONResponse({"code": "bad_request", "message": "link inválido"}, status_code=400)
-        out = await asyncio.to_thread(subprocess.run, ["open", url], capture_output=True, text=True, timeout=15)
+        if body.get("sid"):
+            try:
+                target = str(attachment_path(session_path(root, require_plain_name(str(body["sid"]), "sesión"))
+                                             / "attachments", str(body.get("name") or "")))
+            except Exception:
+                return JSONResponse({"code": "bad_request", "message": "adjunto inválido"}, status_code=400)
+            if not Path(target).is_file():
+                return JSONResponse({"code": "not_found", "message": "no existe"}, status_code=404)
+        else:
+            target = str(body.get("url") or "")
+            u = urlparse(target)
+            if u.scheme not in ("http", "https") or any(ord(c) < 33 for c in target) or len(target) > 4000:
+                return JSONResponse({"code": "bad_request", "message": "link inválido"}, status_code=400)
+            if u.netloc == request.headers.get("host"):
+                other = {"127.0.0.1": "localhost", "localhost": "127.0.0.1"}.get(u.hostname or "")
+                if other:
+                    target = u._replace(netloc=f"{other}:{u.port}" if u.port else other).geturl()
+        chrome = Path("/Applications/Google Chrome.app").exists()
+        out = await asyncio.to_thread(subprocess.run, ["open", *(["-a", "Google Chrome"] if chrome else []), "--", target],
+                                      capture_output=True, text=True, timeout=15)
         if out.returncode != 0:
             return JSONResponse({"code": "open_failed", "message": out.stderr.strip() or "open falló"}, status_code=500)
         return {"ok": True}
@@ -401,9 +420,9 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         return "image/webp" if head[:4] == b"RIFF" and head[8:12] == b"WEBP" else None
 
     @app.get("/api/sessions/{sid}/attachments/{name:path}")
-    async def api_attachment(sid: str, name: str, download: int = 0, view: str = ""):
+    async def api_attachment(sid: str, name: str, download: int = 0):
         """Un adjunto de la sesión (vista previa o descarga; `name` puede tener carpetas). /api: mismos
-        chequeos de origen. `view=html`: un .html como página (en el navegador), aislado del IDE."""
+        chequeos de origen."""
         from fastapi.responses import FileResponse
         from ide_server.sessions_fs import attachment_path, require_plain_name, session_path
         try:
@@ -418,11 +437,6 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         mime = mimetypes.guess_type(f.name)[0] or _sniff(f) or "application/octet-stream"
         safe = mime == "application/pdf" or (mime.startswith("image/") and mime != "image/svg+xml")
         headers = {"X-Content-Type-Options": "nosniff"}
-        if view == "html" and mime == "text/html" and not download:
-            # se ve como página (corre su JS), pero en sandbox sin allow-same-origin: su origen es opaco, no
-            # el del IDE (no lee su almacenamiento y el chequeo de Origin le rechaza la API y el websocket)
-            headers["Content-Security-Policy"] = "sandbox allow-scripts allow-forms allow-popups allow-modals"
-            return FileResponse(f, media_type="text/html", content_disposition_type="inline", headers=headers)
         if not safe:
             headers["Content-Security-Policy"] = "sandbox; default-src 'none'; style-src 'unsafe-inline'"
         return FileResponse(f, filename=f.name if download else None, media_type=mime if safe or download else "text/plain",

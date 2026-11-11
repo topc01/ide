@@ -1,4 +1,4 @@
-import { openExternal } from "../lib/openExternal";
+import { openAttachmentFile } from "../lib/openExternal";
 import type { WsClient } from "./ws";
 import type { Repo } from "./envelope";
 
@@ -106,7 +106,7 @@ export const deleteAttachment = (ws: WsClient, id: string, name: string): Promis
   ws.request("attachments.delete", { id, name });
 /** Un .html adjunto se abre en una pestaña del navegador (como página, aislada del IDE) en vez de una tab. */
 export const isHtml = (name: string) => /\.html?$/i.test(name);
-export const openHtmlAttachment = (sid: string, name: string) => openExternal(`${attachmentUrl(sid, name)}?view=html`);
+export const openHtmlAttachment = (sid: string, name: string) => openAttachmentFile(sid, name);
 export const attachmentUrl = (sid: string, name: string, download = false) =>
   `/api/sessions/${encodeURIComponent(sid)}/attachments/${name.split("/").map(encodeURIComponent).join("/")}${download ? "?download=1" : ""}`;
 export type PrLinks = Record<string, { sid: string; out?: boolean }>;

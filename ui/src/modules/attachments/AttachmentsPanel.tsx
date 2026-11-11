@@ -218,7 +218,7 @@ function FileRow({ ctx, f, depth }: { ctx: Ctx; f: Attachment; depth: number }) 
       ) : (
         <button title={f.url ? `Abrir ${f.url}` : isHtml(f.name) ? `Abrir ${f.name} en el navegador (como página)` : `Abrir ${f.name}`}
           onClick={() => f.url ? openExternal(f.url)
-            : isHtml(f.name) ? openHtmlAttachment(ctx.sid, f.name) : open(ctx.devKey, attachmentTab(ctx.sid, f.name))}
+            : isHtml(f.name) ? ctx.act(openHtmlAttachment(ctx.sid, f.name)) : open(ctx.devKey, attachmentTab(ctx.sid, f.name))}
           className="min-w-0 flex-1 text-left">
           <span className="flex items-center gap-1 truncate font-mono text-[11px]">
             {f.url && <Link2 size={11} className="shrink-0 text-primary" />}{shortName(f.name)}</span>

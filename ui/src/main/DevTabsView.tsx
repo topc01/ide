@@ -46,7 +46,7 @@ function ClaudeTab({ session }: { session: FolderSession }) {
   const openTab = useDevTabs((s) => s.open);
   const onPath = (raw: string) => {
     const t = dev ? resolvePath(raw, session) : null;
-    if (t?.kind === "attachment" && isHtml(t.name)) return () => { openHtmlAttachment(session.id, t.name); };
+    if (t?.kind === "attachment" && isHtml(t.name)) return () => { act(openHtmlAttachment(session.id, t.name)); };
     return t && dev ? () => openTab(dev.key, t.kind === "attachment" ? attachmentTab(session.id, t.name) : fileTab(session.id, t.repo, t.path)) : null;
   };
   // adjuntos: el archivo va a la carpeta de la sesión y su ruta se pega en el input de claude

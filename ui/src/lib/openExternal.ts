@@ -15,6 +15,12 @@ export function openExternal(url: string): void {
     .catch(() => window.open(abs, "_blank", "noopener,noreferrer"));   // sin server: al menos se abre
 }
 
+/** Un adjunto (p.ej. un .html) se abre como archivo en Chrome: fuera de la app y con su propio origen. */
+export function openAttachmentFile(sid: string, name: string): Promise<void> {
+  return fetch("/api/ui/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sid, name }) })
+    .then(async (r) => { if (!r.ok) throw new Error((await r.json().catch(() => null))?.message ?? String(r.status)); });
+}
+
 /** Los `<a target="_blank">` de toda la UI pasan por `openExternal` (en fase de captura: también los que
  *  cortan la propagación del click). Solo en la app instalada. */
 export function interceptBlankLinks(): void {
