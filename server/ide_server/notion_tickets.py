@@ -25,6 +25,9 @@ API = "https://api.notion.com/v1"
 VERSION = "2022-06-28"
 TTL = 10 * 60                      # cada cuánto se vuelve a leer el Status de un ticket
 LIVE_STAGING = "Live Staging"
+PR_REVIEW = "PR Review"
+# los Status de antes de la revisión: de ahí pasa a PR Review al mandarlo a revisión
+BEFORE_REVIEW = ("Backlog", "To Do", "In progress", "Returned")
 _ID_RE = re.compile(r"([0-9a-f]{32})(?:[?#/]|$)")
 
 

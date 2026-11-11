@@ -211,6 +211,38 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 db.set(f"stagingnotice:{s_['id']}", {"prs": prs, "since": datetime.now().isoformat(timespec="seconds")})
             db.set(f"notionlive:{s_['id']}", True)
 
+    def pr_review() -> None:
+        """Cuando un desarrollo se manda a revisión (una PR suya fuera de draft con revisores pedidos y su review
+        pendiente), su ticket pasa a «PR Review» si estaba antes en el flujo (Backlog, To Do, In progress o
+        Returned). Una vez por pedido (PR + revisores): si lo mueves a mano, no lo pisa hasta un pedido nuevo."""
+        from ide_server import notion_tickets as notion
+        if db is None or gh_reviews is None or not notion.get_token():
+            return
+        sessions = list_sessions(root)
+        devs_ = {d["id"]: d for d in list_devs(root, db, sessions, gh_reviews.state)}
+        for s_ in sessions:
+            url = (s_.get("meta") or {}).get("notion_url")
+            d = devs_.get(s_["id"])
+            if s_.get("kind") != "ticket" or not url or d is None:
+                continue
+            asked = sorted(f"{p['url']}:{r['login']}" for p in d["prs"] if not p.get("draft")
+                           for r in p.get("reviewers") or [] if r.get("state") == "requested")
+            if not asked:
+                continue
+            seen = set(db.get(f"notionreview:{s_['id']}") or [])
+            if set(asked) <= seen:
+                continue
+            status = (notion.read(db, url, fresh=True) or {}).get("status")
+            if status in notion.BEFORE_REVIEW:
+                try:
+                    notion.set_status(db, url, notion.PR_REVIEW)
+                except SessionError:
+                    log.exception("PR Review de %s", s_["id"])
+                    continue
+                db.event(datetime.now().isoformat(timespec="seconds"), "ide", "ticket-status", dev=s_["id"],
+                         data={"from": status, "to": notion.PR_REVIEW, "note": "se mandó a revisión"})
+            db.set(f"notionreview:{s_['id']}", sorted(seen | set(asked)))
+
     def staging_notices() -> None:
         """Avisa a cada desarrollo que pasó a Live Staging cuando sus merges ya están en staging (o, si no se
         puede ver, a la hora del release + holgura). Lo pendiente vive en la base: sobrevive a un reinicio."""
@@ -2136,6 +2168,16 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     await asyncio.wait_for(stop.wait(), notion.TTL)
                 except asyncio.TimeoutError:
                     pass
+        async def tick_review() -> None:          # cada minuto: el pedido de revisión se nota enseguida
+            while not stop.is_set():
+                try:
+                    await asyncio.to_thread(pr_review)
+                except Exception:  # noqa: BLE001
+                    log.exception("PR Review")
+                try:
+                    await asyncio.wait_for(stop.wait(), 60)
+                except asyncio.TimeoutError:
+                    pass
         async def tick_staging() -> None:
             while not stop.is_set():
                 try:
@@ -2146,7 +2188,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     await asyncio.wait_for(stop.wait(), 180)
                 except asyncio.TimeoutError:
                     pass
-        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live(), tick_staging())
+        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live(), tick_staging(), tick_review())
 
     notify.notion_loop = notion_loop        # type: ignore[attr-defined]
     notify.telegram = bridge                # type: ignore[attr-defined]
