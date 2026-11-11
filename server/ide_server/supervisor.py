@@ -164,6 +164,10 @@ def install_hooks(session_dir: Path) -> None:
         groups = [g for g in hooks.get(ev) or []
                   if not any(h.get("command") == "ide hook" for h in g.get("hooks") or [])]
         hooks[ev] = groups + [{"hooks": [ours]}]
+    # tests solo con permiso del usuario (ver test_guard): solo para Bash, sin pasar por el server
+    groups = [g for g in hooks.get("PreToolUse") or []
+              if not any(h.get("command") == "ide hook" for h in g.get("hooks") or [])]
+    hooks["PreToolUse"] = groups + [{"matcher": "Bash", "hooks": [ours]}]
     if hooks != data.get("hooks"):
         f.parent.mkdir(exist_ok=True)
         f.write_text(json.dumps({**data, "hooks": hooks}, indent=2) + "\n", encoding="utf-8")

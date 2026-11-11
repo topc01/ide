@@ -551,6 +551,13 @@ def _hook(url: str | None, http, env: dict) -> int:
     try:
         sid = env.get("IDE_SESSION_ID")
         ev = json.loads(sys.stdin.read() or "{}")
+        if ev.get("hook_event_name") == "PreToolUse":
+            from ide_server.test_guard import ASK_REASON, is_test_command
+            if ev.get("tool_name") == "Bash" and is_test_command(str((ev.get("tool_input") or {}).get("command") or "")):
+                sys.stdout.write(json.dumps({"hookSpecificOutput": {
+                    "hookEventName": "PreToolUse", "permissionDecision": "ask",
+                    "permissionDecisionReason": ASK_REASON}}) + "\n")
+            return 0
         if ev.get("hook_event_name") == "UserPromptSubmit":
             # lo que imprime este hook le llega a claude como contexto: Claude Code le da la fecha pero
             # no la hora, y la adivina de lo que lee (GitHub y los logs vienen en UTC)
