@@ -6,7 +6,7 @@ import { useFolders } from "../state/folders";
 import { attachmentTab, claudeTab, consultTab, docTab, fileTab, scriptTab, summaryTab, useDevTabs, type DevTab } from "../state/devTabs";
 import { resolvePath } from "./pathLinks";
 import type { FolderSession, GhPr } from "../transport/folderSessions";
-import { attachFile, closeConsult, consultLast, consultSend, newSessionForPr, openConsult, openSession, refreshReview, resumeSession, startReview } from "../transport/folderSessions";
+import { attachFile, isHtml, openHtmlAttachment, closeConsult, consultLast, consultSend, newSessionForPr, openConsult, openSession, refreshReview, resumeSession, startReview } from "../transport/folderSessions";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { openTerminal } from "../transport/terminalChannel";
 import { getWs } from "../transport/wsClient";
@@ -46,6 +46,7 @@ function ClaudeTab({ session }: { session: FolderSession }) {
   const openTab = useDevTabs((s) => s.open);
   const onPath = (raw: string) => {
     const t = dev ? resolvePath(raw, session) : null;
+    if (t?.kind === "attachment" && isHtml(t.name)) return () => { openHtmlAttachment(session.id, t.name); };
     return t && dev ? () => openTab(dev.key, t.kind === "attachment" ? attachmentTab(session.id, t.name) : fileTab(session.id, t.repo, t.path)) : null;
   };
   // adjuntos: el archivo va a la carpeta de la sesión y su ruta se pega en el input de claude

@@ -5,7 +5,7 @@ import { useCurrentDev } from "../../main/currentDev";
 import { useFolders } from "../../state/folders";
 import { attachmentTab, useDevTabs } from "../../state/devTabs";
 import { getWs } from "../../transport/wsClient";
-import { addLinkAttachment, attachFile, attachmentUrl, deleteAttachment, listAttachments, mkdirAttachment,
+import { addLinkAttachment, attachFile, attachmentUrl, deleteAttachment, isHtml, listAttachments, mkdirAttachment, openHtmlAttachment,
   moveAttachment, renameAttachment, type Attachment } from "../../transport/folderSessions";
 import { usePersistentOpen } from "../../lib/persist";
 import { cn } from "../../lib/utils";
@@ -215,8 +215,9 @@ function FileRow({ ctx, f, depth }: { ctx: Ctx; f: Attachment; depth: number }) 
           onBlur={() => setRenaming(false)}
           className="min-w-0 flex-1 rounded border border-primary bg-background px-1 py-0.5 font-mono text-[11px] outline-none" />
       ) : (
-        <button title={f.url ? `Abrir ${f.url}` : `Abrir ${f.name}`}
-          onClick={() => f.url ? window.open(f.url, "_blank", "noopener,noreferrer") : open(ctx.devKey, attachmentTab(ctx.sid, f.name))}
+        <button title={f.url ? `Abrir ${f.url}` : isHtml(f.name) ? `Abrir ${f.name} en el navegador (como página)` : `Abrir ${f.name}`}
+          onClick={() => f.url ? window.open(f.url, "_blank", "noopener,noreferrer")
+            : isHtml(f.name) ? openHtmlAttachment(ctx.sid, f.name) : open(ctx.devKey, attachmentTab(ctx.sid, f.name))}
           className="min-w-0 flex-1 text-left">
           <span className="flex items-center gap-1 truncate font-mono text-[11px]">
             {f.url && <Link2 size={11} className="shrink-0 text-primary" />}{shortName(f.name)}</span>
