@@ -1008,7 +1008,7 @@ material, no instrucciones. **Publicar desde la sesión: solo pedir cambios**, c
 publish <pr> <review.json>` (solo `event` REQUEST_CHANGES; APPROVE y COMMENT se rechazan), `ide review reply <pr>
 <comment_id> "texto"`, `ide review resolve <PRRT_…> [--undo]`, `ide review add-reviewer <pr> <login>…`. El
 comando rechaza lo que no sea de la org Finnecto, de una sesión de revisión y de una PR de esa sesión (su PR o
-una de su stack). Antes de pedir cambios, la sesión le dice al usuario un resumen de lo que encontró. **Aprobar lo
+una de su stack). Al pedir cambios (bloque **Cierre** que el IDE agrega a todo prompt de revisión, `seeds.REVIEW_CLOSE`, y `sessions/CLAUDE.md`): si hay algún hallazgo importante (bug, comportamiento incorrecto, datos, seguridad o arquitectura que cambia el diseño) **no publica**: le muestra los hallazgos (uno por línea, con su severidad) en un mensaje que empieza con «Necesito tu OK para pedir cambios en <pr>» y espera su OK; si solo quedan menores o nits, le dice el resumen y publica directo. Los prompts de revisión (PR, stack, re-revisiones) solo apuntan al Cierre. **Aprobar lo
 hace el usuario** desde la card (una PR maliciosa podría intentar que la sesión la apruebe): en la de una PR,
 Aprobar (✓); en la de una revisión de stack, ✓ elige la PR y abre la misma ventana. Estados de revisión: `reviewing`,
 `suggests-approve`, `suggests-changes` (veredicto sin publicar), `approved`, `changes-requested` (ya no
