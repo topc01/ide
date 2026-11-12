@@ -1,6 +1,6 @@
 // ui/src/modules/sessions/MainSidebar.tsx
 import { useEffect, useRef, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Gauge, Puzzle, type LucideIcon } from "lucide-react";
 import type { FolderSession } from "../../transport/folderSessions";
 import { ACTIVITY, activityOf, waitTime } from "./activity";
 import { useFolders } from "../../state/folders";
@@ -56,10 +56,10 @@ export function MainSidebar() {
             </>)}
           {ide && <SessionTab session={ide} label="IDE" title="Claude en el repo del IDE (para trabajar en el IDE)"
             active={activeId === ide.id && !activePrUrl} onClick={() => setActive(ide.id)} />}
-          {recursos && <SessionTab session={recursos} label="Recursos"
+          {recursos && <SessionTab session={recursos} label="Recursos" icon={Gauge}
             title="Claude que mira qué consume el computador (batería, CPU) y corta lo abandonado"
             active={activeId === recursos.id && !activePrUrl} onClick={() => setActive(recursos.id)} />}
-          {plugins && <SessionTab session={plugins} label="Plugins"
+          {plugins && <SessionTab session={plugins} label="Plugins" icon={Puzzle}
             title="Claude que evalúa herramientas (plugins, skills, MCP, hooks) y aplica cambios de configuración con tu OK"
             active={activeId === plugins.id && !activePrUrl} onClick={() => setActive(plugins.id)} />}
           <div className="ml-auto">
@@ -79,8 +79,9 @@ export function MainSidebar() {
 }
 
 /** Pestaña de una sesión fija (Manager, IDE): la elegida destacada; el punto es su actividad. */
-function SessionTab({ session, label, title, active, onClick }:
-  { session: FolderSession; label: string; title: string; active: boolean; onClick: () => void }) {
+/** `icon`: una card cuadrada con el ícono en vez del nombre (las de soporte: Recursos, Plugins). */
+function SessionTab({ session, label, title, active, onClick, icon: Icon }:
+  { session: FolderSession; label: string; title: string; active: boolean; onClick: () => void; icon?: LucideIcon }) {
   const act = activityOf(session);
   const [dot, cls, what] = ACTIVITY[act];
   const note = (waitTime(session) ? ` (terminó a las ${waitTime(session)})` : "")
@@ -88,11 +89,12 @@ function SessionTab({ session, label, title, active, onClick }:
     + (act === "outdated" && session.activity?.outdated ? ` — después ${session.activity.outdated.what} (${session.activity.outdated.at})` : "");
   return (
     // una card chica (como las de la sidebar): la elegida con el contorno de acento
-    <button role="tab" aria-selected={active} title={`${title} — ${what}${note}`} onClick={onClick}
-      className={cn("flex items-center gap-1.5 rounded-md border bg-card px-3 py-1.5 text-xs font-semibold transition-colors",
+    <button role="tab" aria-selected={active} aria-label={label} title={`${label}: ${title} — ${what}${note}`} onClick={onClick}
+      className={cn("flex items-center gap-1.5 rounded-md border bg-card py-1.5 text-xs font-semibold transition-colors",
+        Icon ? "px-2" : "px-3",
         active ? "border-primary text-foreground ring-1 ring-primary"
           : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground")}>
-      {label}
+      {Icon ? <Icon aria-hidden className="h-3.5 w-3.5" /> : label}
       <span aria-hidden className={cn("text-[9px]", cls)}>{dot}</span>
     </button>);
 }
