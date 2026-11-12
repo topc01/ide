@@ -672,14 +672,14 @@ batería baja 10 puntos en media hora (a lo más una vez cada 2 h por culpable) 
 
 La sesión **Plugins** (kind e id `plugins`, cuarta pestaña) se crea sola al arrancar el server: la dueña de la
 configuración de Claude y de las herramientas del flujo. Evalúa lo que le mandas (links de GitHub, posts): lo lee
-en la web y en GitHub y dice si **sirve**, si **ya lo cubre el IDE** o si **no sirve**, y lo anota en
-`EVALUADOS.md` (su carpeta); aplica cambios de configuración solo con tu OK, después de mostrarte el diff. Escribe
+en la web y en GitHub y dice si **sirve**, si **ya lo cubre el IDE** o si **no sirve**, y lo anota en el
+**registro de herramientas** (`ide tools`, ver abajo); aplica cambios de configuración solo con tu OK, después de mostrarte el diff. Escribe
 `~/.claude/`, `~/.claude.json` (MCP), `.ide/permissions/`, `.ide/skills/` y `[reviews] plugins` de `config.toml`; el
 código del IDE y las instrucciones de las sesiones (`sessions/CLAUDE.md`, `manager.md`, `.ide/prompts/`) son de la
 sesión IDE (#93), y lo que necesita código se lo deriva con `ide session send ide`. Permisos (su
 `.claude/settings.json`, se suman en cada arranque): **sin preguntar** WebFetch, WebSearch, `gh repo view`,
 `gh search`, `gh release view/list`, leer `~/.claude/` (salvo lo de abajo), `ide docs`, `ide reply`, `claude mcp
-list/get`, `claude plugin list` y editar su `EVALUADOS.md`; **pide permiso en su terminal** (también en auto mode)
+list/get`, `claude plugin list` e `ide tools`; **pide permiso en su terminal** (también en auto mode)
 para `ide session send` (lee contenido de terceros: un pedido a #93 pasa por ti), leer `~/.claude/settings*.json`, editar `~/.claude/`, `~/.claude.json`, `.ide/permissions/`, `.ide/skills/`, `.ide/config.toml` y para `claude mcp
 add/remove` y `claude plugin install/uninstall/enable/disable/marketplace`; **prohibido** leer las conversaciones de las sesiones (`~/.claude/projects/`) y claves (`~/.claude/.credentials.json`, `~/.claude.json`, `~/.ssh`, `~/.aws`, `~/.config/gh`, `~/.netrc`), `gh auth`, `security`, `gh api`, publicar en GitHub
 (`gh pr create/comment/review/merge`, `gh issue create/comment`), `git push` y editar las instrucciones de #93. Lleva
@@ -688,7 +688,15 @@ IDE (a otra, `forbidden`; el mensaje llega con «[Mensaje de la sesión Plugins]
 Telegram con «[Plugins]» adelante. **Telegram:** un mensaje que empieza con «plugin:» le llega directo a ella (sin
 pasar por la manager); la manager le manda los demás links de herramientas con `ide session send plugins` sin pedir
 aprobación (permitido en `permissions/main.json`). Responde una línea por herramienta. Tampoco cuenta como
-desarrollo ni en los contadores de la barra. Lo permitido sin preguntar se escribe solo al crear su `settings.json` (si sacas una regla, no vuelve); lo que pide permiso o se prohíbe se suma en cada arranque. Dentro de cualquier sesión, `ide reply` e `ide session send|propose` solo toman el texto del argumento o de stdin (`--prompt-file -`), nunca de un archivo (`bad_prompt_file`; también si traen la clave de la manager o de Plugins). `ide reply` rechaza un texto que parece tener una clave (llave privada, token de GitHub, AWS, Anthropic, Slack o Notion): `secret`. Pendiente: una segunda cuenta de Notion solo para ella (servidor MCP
+desarrollo ni en los contadores de la barra. Lo permitido sin preguntar se escribe solo al crear su `settings.json` (si sacas una regla, no vuelve); lo que pide permiso o se prohíbe se suma en cada arranque. Dentro de cualquier sesión, `ide reply` e `ide session send|propose` solo toman el texto del argumento o de stdin (`--prompt-file -`), nunca de un archivo (`bad_prompt_file`; también si traen la clave de la manager o de Plugins). `ide reply` rechaza un texto que parece tener una clave (llave privada, token de GitHub, AWS, Anthropic, Slack o Notion): `secret`. **Registro de herramientas** (tablas `tools` y `tools_history` de la base; antes `EVALUADOS.md`, que quedó como
+`EVALUADOS-historico.md`): una fila por herramienta (nombre, link, estado, motivo, fechas) y el historial de cada cambio de
+estado con su motivo y quién lo hizo. Estados: `por-evaluar`, `cubierta` (ya la cubre el IDE), `descartada`,
+`a-implementar`, `en-uso`, `retirada`. CLI: `ide tools add <nombre> --link <url> --state <estado> -m "<motivo>"`,
+`ide tools set <nombre> <estado> -m "<motivo>" [--link <url>]`, `ide tools ls [-q <texto>] [--state <estado>] [--json]`
+(una línea por herramienta, el motivo cortado), `ide tools show <nombre> [--json]` (detalle e historial). Escriben la
+sesión Plugins (su clave), tú desde tu terminal o la UI; otra sesión, `forbidden`; leer, cualquiera. En la UI:
+Configuración → **Herramientas evaluadas** (búsqueda, filtro por estado; click en una = motivo, link e historial).
+Canales `tools.add`, `tools.set`, `tools.list {q, state}`, `tools.show {name}`. Pendiente: una segunda cuenta de Notion solo para ella (servidor MCP
 `notion-otra`, scope local en su carpeta).
 
 **Tab `claude`**: va siempre primera y destacada (ícono, fondo de acento y el punto de actividad de

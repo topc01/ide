@@ -383,8 +383,15 @@ servidores MCP, plugins y herramientas). Conoces lo que el IDE ya hace (`ide doc
   una página (un post, un README, una página de producto) lanza el agente `web-fetch` con la URL y lo que quieres
   saber. No evalúes solo con búsquedas, y no digas «no pude abrirlo» sin haberlo intentado con `web-fetch`. Para un
   repo de GitHub también sirve `gh repo view <owner>/<repo>` (README) y `gh release list`.
-- **Llevar registro** en `EVALUADOS.md` (en tu carpeta): una fila por herramienta con fecha, link, veredicto
-  (adoptado / descartado / pendiente) y por qué. Antes de evaluar algo, mira si ya está ahí.
+- **Llevar registro** con `ide tools` (en la base del IDE; el usuario lo ve en Configuración → Herramientas):
+  - antes de evaluar algo, búscalo: `ide tools ls -q <nombre>` (también `--state <estado>`, `--json`);
+  - al cerrar, `ide tools add <nombre> --link <url> --state <estado> -m "<motivo>"` o, si ya estaba,
+    `ide tools set <nombre> <estado> -m "<motivo>"` (queda en su historial); `ide tools show <nombre>` muestra el
+    detalle y el historial;
+  - estados: `por-evaluar` (llegó, sin revisar), `cubierta` (ya la cubre el IDE), `descartada` (no sirve o no
+    interesa), `a-implementar` (sirve; espera OK o instalación), `en-uso` (instalada y andando), `retirada`
+    (estuvo en uso y se sacó).
+  `EVALUADOS-historico.md` (tu carpeta) es el registro viejo, ya cargado en la base: no lo sigas.
 - **Aplicar cambios de configuración** (instalar un plugin o un MCP, crear o ajustar una skill, un hook, un
   agente, una instrucción) **solo con el OK explícito del usuario**: primero le muestras en el chat el diff
   exacto (o el comando, p. ej. `claude mcp add …`), esperas su OK y recién ahí lo aplicas. El IDE además te
@@ -406,7 +413,7 @@ servidores MCP, plugins y herramientas). Conoces lo que el IDE ya hace (`ide doc
 Lo que el usuario manda por Telegram sobre herramientas te llega directo (con «plugin:» o derivado por la
 manager). Respóndele con `ide reply "…"` (le llega con «[Plugins]» adelante): **una línea por herramienta**,
 corta y sin tablas: «repomix: no sirve, el IDE ya junta el contexto de cada repo». El detalle va en
-`EVALUADOS.md`.
+el registro (`ide tools`).
 
 ## Notion de la otra cuenta (pendiente)
 
@@ -434,15 +441,12 @@ def ensure_plugins_session(root: Path) -> str:
                                             "created": datetime.now().isoformat(timespec="seconds")})
     if not (path / "CLAUDE.md").is_file():
         (path / "CLAUDE.md").write_text(PLUGINS_MD, encoding="utf-8")
-    if not (path / "EVALUADOS.md").is_file():
-        (path / "EVALUADOS.md").write_text("# Herramientas evaluadas\n\n| Fecha | Herramienta | Link | Veredicto | Por qué |\n"
-                                           "|---|---|---|---|---|\n", encoding="utf-8")
     ide = "/" + str((root / ".ide").resolve())            # `//ruta` = ruta absoluta en las reglas de Claude Code
     rules = {
         "allow": ["WebFetch", "WebSearch", "Bash(gh repo view:*)", "Bash(gh search:*)", "Bash(gh release view:*)",
                   "Bash(gh release list:*)", "Read(~/.claude/**)", "Bash(ide docs:*)", "Bash(ide session ls:*)",
                   "Bash(ide reply:*)", "Bash(claude mcp list:*)",
-                  "Bash(claude mcp get:*)", "Bash(claude plugin list:*)", "Edit(./EVALUADOS.md)"],
+                  "Bash(claude mcp get:*)", "Bash(claude plugin list:*)", "Bash(ide tools:*)"],
         # configuración: siempre te pregunta en su terminal (vale también en auto mode)
         # lee contenido de terceros (webs, repos): lo que pueda tener claves o llegar a código pasa por ti
         "ask": ["Bash(ide session send:*)", "Read(~/.claude/settings.json)", "Read(~/.claude/settings.local.json)",
@@ -463,6 +467,13 @@ def ensure_plugins_session(root: Path) -> str:
     perms = data.setdefault("permissions", {})
     # reglas que se sacaron (versiones anteriores las daban sin preguntar)
     perms["allow"] = [r for r in perms.get("allow", []) if r not in ("Bash(ide session send ide:*)",)]
+    perms["allow"] = [r for r in perms["allow"] if r != "Edit(./EVALUADOS.md)"]   # el registro pasó a `ide tools`
+    marker = path / ".claude" / ".ide-tools-rule"          # `ide tools` es posterior a su creación: se suma una vez
+    if not first and not marker.is_file():
+        if "Bash(ide tools:*)" not in perms["allow"]:
+            perms["allow"].append("Bash(ide tools:*)")
+        marker.parent.mkdir(exist_ok=True)
+        marker.write_text("", encoding="utf-8")
     # lo que se permite sin preguntar se escribe solo al crearla (si el usuario saca una regla, no vuelve);
     # lo que pide permiso o se prohíbe se suma siempre (solo restringe)
     if not first and "allow" in rules and perms.get("allow"):

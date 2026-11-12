@@ -1985,6 +1985,51 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                      pr_url=url, data={"run": p.get("run"), "shots": len(files), "comment": res["comment"]})
         return {"ok": True, **res}
 
+    # -- registro de herramientas (sesión Plugins) --------------------------------------------------
+    def _tools_writer(p: dict) -> str:
+        """Escriben la sesión Plugins (su clave), tu terminal o la UI; otra sesión, no."""
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        if not p.get("_http"):
+            return "usuario"
+        if _is_plugins(p):
+            return "claude:plugins"
+        if _manager_or_terminal(p) == "user":
+            return "usuario"
+        raise SessionError("forbidden", "el registro de herramientas lo escriben la sesión Plugins o tú desde tu terminal")
+
+    async def tools_add(p: dict) -> dict:
+        from ide_server import tools as tools_mod
+        actor = _tools_writer(p)
+        item = await asyncio.to_thread(tools_mod.add, db, str(p.get("name") or ""), p.get("link"), str(p.get("state") or ""),
+                                       p.get("reason"), actor)
+        notify()
+        return {"tool": item}
+
+    async def tools_set(p: dict) -> dict:
+        from ide_server import tools as tools_mod
+        actor = _tools_writer(p)
+        item = await asyncio.to_thread(tools_mod.set_state, db, str(p.get("name") or ""), str(p.get("state") or ""),
+                                       p.get("reason"), actor, p.get("link"))
+        notify()
+        return {"tool": item}
+
+    async def tools_list(p: dict) -> dict:
+        from ide_server import tools as tools_mod
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        return {"tools": await asyncio.to_thread(tools_mod.listing, db, p.get("q"), p.get("state")),
+                "states": list(tools_mod.STATES)}
+
+    async def tools_show(p: dict) -> dict:
+        from ide_server import tools as tools_mod
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        item = await asyncio.to_thread(tools_mod.get, db, str(p.get("name") or ""))
+        if item is None:
+            raise SessionError("not_found", f"{p.get('name')} no está en el registro")
+        return {"tool": item, "history": await asyncio.to_thread(tools_mod.history, db, item["name"])}
+
     # -- pendientes "para después" ----------------------------------------------------------------
     async def later_add(p: dict) -> dict:
         if db is None:
@@ -2301,6 +2346,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "evidence.markdown": evidence_markdown, "evidence.github": evidence_github,
         "sessions.activity": session_activity, "sessions.attention": session_attention,
         "sessions.attentionReply": session_attention_reply,
+        "tools.add": tools_add, "tools.set": tools_set, "tools.list": tools_list, "tools.show": tools_show,
         "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss, "later.resolve": later_resolve,
         "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "servers.blocks": servers_blocks, "servers.start": servers_start,
         "servers.stop": servers_stop, "servers.log": servers_log, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,

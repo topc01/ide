@@ -397,6 +397,22 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_later_resolve(item_id: str, body: dict):
         return await _http("later.resolve", {**body, "id": item_id})
 
+    @app.get("/api/tools")
+    async def api_tools(q: str | None = None, state: str | None = None):
+        return await _http("tools.list", {"q": q, "state": state})
+
+    @app.get("/api/tools/{name}")
+    async def api_tool(name: str):
+        return await _http("tools.show", {"name": name})
+
+    @app.post("/api/tools")
+    async def api_tools_add(body: dict):
+        return await _http("tools.add", {**body, "_http": True})
+
+    @app.post("/api/tools/{name}/state")
+    async def api_tools_set(name: str, body: dict):
+        return await _http("tools.set", {**body, "name": name, "_http": True})
+
     @app.post("/api/later")
     async def api_later_add(body: dict):
         return await _http("later.add", body)

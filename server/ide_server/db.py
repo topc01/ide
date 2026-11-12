@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 log = logging.getLogger(__name__)
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS prs (          -- PRs abiertas: nodo GraphQL completo
   url TEXT PRIMARY KEY, id TEXT, node TEXT NOT NULL, updated_at TEXT, fetched_at TEXT);
@@ -39,6 +39,16 @@ CREATE INDEX IF NOT EXISTS events_dev ON events (dev, id);
 CREATE INDEX IF NOT EXISTS events_pr ON events (pr_url, id);
 CREATE TABLE IF NOT EXISTS pr_snaps (     -- última foto de cada PR relevante (para el historial)
   url TEXT PRIMARY KEY, snap TEXT NOT NULL);
+"""
+
+
+SCHEMA_V3 = """
+CREATE TABLE IF NOT EXISTS tools (        -- herramientas evaluadas por la sesión Plugins (`ide tools`)
+  name TEXT PRIMARY KEY COLLATE NOCASE, link TEXT, state TEXT NOT NULL, reason TEXT, created TEXT, updated TEXT);
+CREATE TABLE IF NOT EXISTS tools_history ( -- cada cambio de estado, con su motivo
+  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL COLLATE NOCASE, at TEXT NOT NULL,
+  from_state TEXT, to_state TEXT NOT NULL, reason TEXT, actor TEXT);
+CREATE INDEX IF NOT EXISTS tools_history_name ON tools_history (name, id);
 """
 
 
@@ -81,6 +91,7 @@ class Db:
             return
         conn.executescript(SCHEMA)
         conn.executescript(SCHEMA_V2)
+        conn.executescript(SCHEMA_V3)
         if version == 0:
             self._import_json(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")

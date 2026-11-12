@@ -164,6 +164,19 @@ def _parser() -> argparse.ArgumentParser:
     for x in (ea, ee, eh, ed, er, eg):
         x.add_argument("--run", help="corrida: su identificador (ide evidence ls) o su nombre (default: la última)"); x.add_argument("--session")
     sub.add_parser("hook", help="(lo llaman los hooks de claude) le avisa al IDE si la sesión trabaja o te espera")
+    tl = sub.add_parser("tools", help="registro de herramientas evaluadas (plugins, skills, MCP, apps): lo lleva la sesión Plugins").add_subparsers(dest="cmd", required=True)
+    ta = tl.add_parser("add", help="suma una herramienta al registro")
+    ta.add_argument("name"); ta.add_argument("--link"); ta.add_argument("--state", required=True,
+        help="por-evaluar | cubierta | descartada | a-implementar | en-uso | retirada")
+    ta.add_argument("-m", "--reason", help="por qué")
+    ts = tl.add_parser("set", help="cambia su estado (queda en su historial)")
+    ts.add_argument("name"); ts.add_argument("state"); ts.add_argument("-m", "--reason", help="por qué")
+    ts.add_argument("--link", help="cambia también su link")
+    tls = tl.add_parser("ls", help="busca en el registro (sin volcarlo entero)")
+    tls.add_argument("-q", "--query", help="texto en el nombre, el motivo o el link"); tls.add_argument("--state")
+    tls.add_argument("--json", action="store_true")
+    tsh = tl.add_parser("show", help="detalle e historial de una herramienta"); tsh.add_argument("name")
+    tsh.add_argument("--json", action="store_true")
     lt = sub.add_parser("later", help="pendientes para después (preguntas/temas que el usuario verá otro día)").add_subparsers(dest="cmd", required=True)
     la = lt.add_parser("add", help="deja un pendiente en el desarrollo de la sesión")
     la.add_argument("text"); la.add_argument("-m", "--context", help="contexto: qué se necesita y por qué")
@@ -584,6 +597,41 @@ def _hook(url: str | None, http, env: dict) -> int:
     return 0
 
 
+def _tools_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
+    from urllib.parse import quote, urlencode
+    auth = {"ptoken": env.get("IDE_PLUGINS_TOKEN", ""), "from_session": env.get("IDE_SESSION_ID")}
+    if a.cmd == "add":
+        t = _post(http, url, "/api/tools", {"name": a.name, "link": a.link, "state": a.state, "reason": a.reason, **auth})["tool"]
+        out.write(f"{t['name']}\t{t['state']}\n")
+        return 0
+    if a.cmd == "set":
+        t = _post(http, url, f"/api/tools/{quote(a.name, safe='')}/state",
+                  {"state": a.state, "reason": a.reason, "link": a.link, **auth})["tool"]
+        out.write(f"{t['name']}\t{t['state']}\n")
+        return 0
+    if a.cmd == "show":
+        data = _get(http, url, f"/api/tools/{quote(a.name, safe='')}")
+        if a.json:
+            out.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+            return 0
+        t = data["tool"]
+        out.write(f"{t['name']}\t{t['state']}\t{t.get('link') or ''}\n{t.get('reason') or ''}\n\nhistorial:\n")
+        for h in data["history"]:
+            out.write(f"  {h['at'][:16]}\t{h['from'] or '—'} → {h['to']}\t{h.get('actor') or ''}\t{h.get('reason') or ''}\n")
+        return 0
+    params = {k: v for k, v in {"q": a.query, "state": a.state}.items() if v}
+    items = _get(http, url, "/api/tools" + (f"?{urlencode(params)}" if params else ""))["tools"]
+    if a.json:
+        out.write(json.dumps(items, ensure_ascii=False, indent=2) + "\n")
+        return 0
+    for t in items:
+        reason = (t.get("reason") or "").replace("\n", " ")
+        out.write(f"{t['name']}\t{t['state']}\t{t['updated'][:10]}\t{reason[:120]}{'…' if len(reason) > 120 else ''}\n")
+    if not items:
+        out.write("(ninguna)\n")
+    return 0
+
+
 def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
     if a.cmd == "add":
         sid = a.session or env.get("IDE_SESSION_ID")
@@ -998,6 +1046,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return _hook(url, http, env)
         if a.group == "later":
             return _later_cmd(a, url, http, out, env)
+        if a.group == "tools":
+            return _tools_cmd(a, url, http, out, env)
         if a.group == "evidence":
             return _evidence_cmd(a, root, url, http, out, env)
         if a.group == "review":

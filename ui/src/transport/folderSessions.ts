@@ -300,3 +300,11 @@ export const replyAttention = (ws: WsClient, p: {
   id: string; action: "text" | "approve" | "deny" | "answer"; text?: string; answers?: Record<string, string>;
   since?: string; pending?: string | null;
 }): Promise<{ ok: boolean; done: string }> => ws.request("sessions.attentionReply", p);
+
+/** Registro de herramientas evaluadas (lo lleva la sesión Plugins con `ide tools`). */
+export interface ToolEntry { name: string; link: string | null; state: string; reason: string | null; created: string; updated: string }
+export interface ToolHistory { at: string; from: string | null; to: string; reason: string | null; actor: string | null }
+export const fetchTools = (ws: WsClient, q?: string, state?: string): Promise<{ tools: ToolEntry[]; states: string[] }> =>
+  ws.request("tools.list", { q: q || null, state: state || null });
+export const fetchTool = (ws: WsClient, name: string): Promise<{ tool: ToolEntry; history: ToolHistory[] }> =>
+  ws.request("tools.show", { name });
