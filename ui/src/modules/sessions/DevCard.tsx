@@ -61,8 +61,10 @@ export function CardShell({ tone, selected, dashed, onClick, children, dev }:
   const bg = dev ? STATE[dev.state][1] : tone.bg && BG[tone.bg];
   return (
     <div data-card onClick={onClick} title={tone.label} aria-current={selected || undefined}
-      className={cn("cursor-pointer rounded-md p-[2px] transition-[margin,filter] duration-150 ease-out",
-        // inactivas más angostas (se ensanchan en hover); la activa ocupa todo el ancho
+      className={cn("group/card cursor-pointer rounded-md p-[2px] transition-[margin,filter] duration-150 ease-out",
+        // inactivas más angostas (se ensanchan en hover); la activa ocupa todo el ancho. El relleno crece lo mismo
+        // que la card: el contenido no cambia de ancho (si no, el título y los chips se reacomodaban, la card cambiaba
+        // de alto, el mouse quedaba sobre otra card y vibraban)
         selected ? "mx-0" : "mx-2 hover:mx-0 hover:brightness-110",
         dashed ? "" : "bg-border",
         // ring (box-shadow) y no outline: tailwind-merge descartaba `outline` junto a `outline-2`
@@ -71,7 +73,8 @@ export function CardShell({ tone, selected, dashed, onClick, children, dev }:
       {selected && <span aria-hidden className="absolute -left-[9px] top-1/2 h-7 w-1 -translate-y-1/2 rounded-full bg-primary" />}
       <div className={cn("rounded-[4px] bg-card text-xs", dashed
         && "border-2 border-dashed border-border")}>
-        <div className={cn("relative rounded-[4px] px-2 py-1.5", bg, dev?.state === "paused" && "opacity-70")}>
+        <div className={cn("relative rounded-[4px] px-2 py-1.5 transition-[padding] duration-150 ease-out",
+          !selected && "group-hover/card:px-4", bg, dev?.state === "paused" && "opacity-70")}>
           {children}
         </div>
       </div>
