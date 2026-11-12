@@ -478,12 +478,13 @@ const openTicket = (u: string) => (e: React.MouseEvent) => {
 
 /** Los colores del Status en la base Desarrollo de Notion (los mismos de Notion). */
 const TICKET_COLOR: Record<string, string> = {
-  "Backlog": "bg-red-400/20 text-red-300", "To Do": "bg-purple-400/20 text-purple-300",
-  "In progress": "bg-sky-400/20 text-sky-300", "PR Review": "bg-yellow-400/20 text-yellow-200",
-  "Returned": "bg-orange-400/20 text-orange-300", "Live Staging": "bg-amber-800/40 text-amber-200",
-  "Completed Staging": "bg-emerald-400/20 text-emerald-300", "Completed Prod": "bg-emerald-400/20 text-emerald-300",
+  // solo tonos con versión para el tema claro (index.css: --red-400, --purple-300…): los otros no se leen en claro
+  "Backlog": "bg-red-400/15 text-red-400", "To Do": "bg-purple-400/15 text-purple-300",
+  "In progress": "bg-sky-400/15 text-sky-300", "PR Review": "bg-yellow-400/20 text-yellow-300",
+  "Returned": "bg-orange-400/15 text-orange-300", "Live Staging": "bg-amber-700/20 text-amber-300",
+  "Completed Staging": "bg-emerald-400/15 text-emerald-300", "Completed Prod": "bg-emerald-400/15 text-emerald-300",
 };
-const ticketColor = (status: string | null) => (status && TICKET_COLOR[status]) || "bg-zinc-400/20 text-zinc-300";
+const ticketColor = (status: string | null) => (status && TICKET_COLOR[status]) || "bg-zinc-400/15 text-zinc-300";
 
 /** Un ticket de Notion: las primeras letras de su título, del color de su Status. Click: lo abre en Notion. */
 function TicketBlock({ url, title, status, error, what }:
