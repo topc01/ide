@@ -442,17 +442,16 @@ def ensure_plugins_session(root: Path) -> str:
         # configuración: siempre te pregunta en su terminal (vale también en auto mode)
         # lee contenido de terceros (webs, repos): lo que pueda tener claves o llegar a código pasa por ti
         "ask": ["Bash(ide session send:*)", "Read(~/.claude/settings.json)", "Read(~/.claude/settings.local.json)",
-                "Edit(~/.claude/**)", "Write(~/.claude/**)", "Edit(~/.claude.json)", "Write(~/.claude.json)",
-                f"Edit({ide}/permissions/**)", f"Write({ide}/permissions/**)", f"Edit({ide}/skills/**)",
-                f"Write({ide}/skills/**)", f"Edit({ide}/config.toml)", "Bash(claude mcp add:*)",
+                "Edit(~/.claude/**)", "Edit(~/.claude.json)", f"Edit({ide}/permissions/**)", f"Edit({ide}/skills/**)",
+                f"Edit({ide}/config.toml)", "Bash(claude mcp add:*)",
                 "Bash(claude mcp remove:*)", "Bash(claude plugin install:*)", "Bash(claude plugin uninstall:*)",
                 "Bash(claude plugin enable:*)", "Bash(claude plugin disable:*)", "Bash(claude plugin marketplace:*)"],
         # publicar en GitHub y lo de la sesión IDE (#93), no
         "deny": ["Read(~/.claude/projects/**)", "Read(~/.claude/.credentials.json)", "Read(~/.claude.json)", "Read(~/.ssh/**)", "Read(~/.aws/**)",
                  "Read(~/.config/gh/**)", "Read(~/.netrc)", "Bash(gh auth:*)", "Bash(security:*)", "Bash(gh api:*)", "Bash(gh pr create:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)",
                  "Bash(gh pr merge:*)", "Bash(gh issue create:*)", "Bash(gh issue comment:*)", "Bash(git push:*)",
-                 f"Edit({ide}/sessions/CLAUDE.md)", f"Write({ide}/sessions/CLAUDE.md)", f"Edit({ide}/manager.md)",
-                 f"Write({ide}/manager.md)", f"Edit({ide}/prompts/**)", f"Write({ide}/prompts/**)"],
+                 f"Edit({ide}/sessions/CLAUDE.md)", f"Edit({ide}/manager.md)",
+                 f"Edit({ide}/prompts/**)"],
     }
     settings = path / ".claude" / "settings.json"
     first = not settings.is_file()
