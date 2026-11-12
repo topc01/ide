@@ -164,6 +164,7 @@ function SessionCounter({ items, one, many, what }:
     dot?: [string, string]; time?: (s?: any) => string | null }) {
   const names = useFolders((s) => s.tree.devNames);
   const sessions = useFolders((s) => s.tree.sessions);
+  const devStates = useFolders((s) => s.tree.devStates);
   const activeId = useFolders((s) => s.activeId);
   const activePrUrl = useFolders((s) => s.activePrUrl);
   const waiting = items;
@@ -247,7 +248,10 @@ function SessionCounter({ items, one, many, what }:
               {what}{persistent ? " · fija: Esc cierra" : ""} · ↑/↓, click fija el detalle, Enter abre</div>
             <div className="flex flex-col gap-1">
               {waiting.map(([k, v], i) => {
-                const why = !working ? WAIT_REASON[v.reason ?? ""] ?? null : null;
+                // terminó y su PR espera a los revisores: eso es lo que la frena, no «terminó»
+                const inReview = !working && !BLOCKED.includes(v.reason ?? "") && devStates?.[k]?.phase === "in-review";
+                const why = working ? null : inReview ? ["esperando revisión", "border-sky-400/60 text-sky-300"] as [string, string]
+                  : WAIT_REASON[v.reason ?? ""] ?? null;
                 const s = k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2)) : undefined;
                 const current = k === `s:${activeId}` || (!!activePrUrl && k === `p:${activePrUrl}`);
                 const isShown = k === shown;

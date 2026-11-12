@@ -443,7 +443,27 @@ class Supervisor:
         # hasta el primer hook: con prompt trabaja; sin prompt queda en el input
         self._activity[sid] = {"state": "working" if prompt else "waiting", "note": None, "reason": "launch",
                                "since": datetime.now().isoformat(timespec="seconds")}
+        if resume and not prompt:
+            # retomada (p.ej. al reiniciar el IDE) sin nada que hacer: te esperaba desde su último mensaje, no
+            # «recién abierta». El motivo y la nota salen de ese mensaje.
+            try:
+                self._activity[sid] = self._resumed_activity(cwd, cs) or self._activity[sid]
+            except Exception:  # noqa: BLE001 — si no se puede leer, queda «recién abierta»
+                log.exception("actividad al retomar %s", sid)
         self._errors.pop(sid, None)
+
+    def _resumed_activity(self, cwd: Path, cs: str) -> dict | None:
+        from ide_server import activity as activity_mod
+        f = self._home / ".claude" / "projects" / encode_project_dir(cwd.resolve()) / f"{cs}.jsonl"
+        det = activity_mod.detail(str(f), self._home, 0)
+        if not det.get("message"):
+            return None
+        since = datetime.now()
+        if det.get("messageAt"):
+            since = datetime.fromisoformat(det["messageAt"].replace("Z", "+00:00")).astimezone().replace(tzinfo=None)
+        asks = bool(activity_mod.questions_in(det["message"]))
+        return {"state": "waiting", "note": activity_mod.first_line(det["message"]),
+                "reason": "question" if asks else "turn", "since": since.isoformat(timespec="seconds")}
 
     def _forget(self, sid: str) -> None:
         self._head.pop(sid, None)
