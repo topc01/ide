@@ -688,7 +688,7 @@ IDE (a otra, `forbidden`; el mensaje llega con «[Mensaje de la sesión Plugins]
 Telegram con «[Plugins]» adelante. **Telegram:** un mensaje que empieza con «plugin:» le llega directo a ella (sin
 pasar por la manager); la manager le manda los demás links de herramientas con `ide session send plugins` sin pedir
 aprobación (permitido en `permissions/main.json`). Responde una línea por herramienta. Tampoco cuenta como
-desarrollo ni en los contadores de la barra. Lo permitido sin preguntar se escribe solo al crear su `settings.json` (si sacas una regla, no vuelve); lo que pide permiso o se prohíbe se suma en cada arranque. Dentro de cualquier sesión, `ide reply` e `ide session send|propose` solo toman el texto del argumento o de stdin (`--prompt-file -`), nunca de un archivo (`bad_prompt_file`). Pendiente: una segunda cuenta de Notion solo para ella (servidor MCP
+desarrollo ni en los contadores de la barra. Lo permitido sin preguntar se escribe solo al crear su `settings.json` (si sacas una regla, no vuelve); lo que pide permiso o se prohíbe se suma en cada arranque. Dentro de cualquier sesión, `ide reply` e `ide session send|propose` solo toman el texto del argumento o de stdin (`--prompt-file -`), nunca de un archivo (`bad_prompt_file`; también si traen la clave de la manager o de Plugins). `ide reply` rechaza un texto que parece tener una clave (llave privada, token de GitHub, AWS, Anthropic, Slack o Notion): `secret`. Pendiente: una segunda cuenta de Notion solo para ella (servidor MCP
 `notion-otra`, scope local en su carpeta).
 
 **Tab `claude`**: va siempre primera y destacada (ícono, fondo de acento y el punto de actividad de

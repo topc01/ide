@@ -548,7 +548,8 @@ def _stdin_only(prompt_file: str | None, env: dict) -> None:
     """Dentro de una sesión, `ide reply` / `ide session send|propose` toman el texto de stdin (`--prompt-file -`) o
     del argumento, nunca de un archivo: esos comandos se permiten sin preguntar, y un `--prompt-file ~/.ssh/…`
     mandaría ese archivo a Telegram o a otra sesión sin pasar por los permisos de lectura de claude."""
-    if prompt_file and prompt_file != "-" and env.get("IDE_SESSION_ID"):
+    # por la clave que da el privilegio, no solo por la sesión (sacar IDE_SESSION_ID no lo salta)
+    if prompt_file and prompt_file != "-" and any(env.get(k) for k in ("IDE_SESSION_ID", "IDE_MANAGER_TOKEN", "IDE_PLUGINS_TOKEN")):
         raise SessionError("bad_prompt_file", "dentro de una sesión, --prompt-file solo acepta - (stdin): "
                                               "usa `--prompt-file - <<'EOF' … EOF`")
 

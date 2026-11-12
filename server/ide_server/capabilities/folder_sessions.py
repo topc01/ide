@@ -709,6 +709,10 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             return "user"
         return None
 
+    _SECRET_RE = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----|\bAKIA[0-9A-Z]{16}\b|\bgh[pousr]_[A-Za-z0-9]{30,}|"
+                            r"\bgithub_pat_[A-Za-z0-9_]{40,}|\bsk-ant-[A-Za-z0-9_-]{20,}|\bxox[abposr]-[A-Za-z0-9-]{10,}|"
+                            r"\bsecret_[A-Za-z0-9]{40,}|\bntn_[A-Za-z0-9]{40,}")
+
     def _is_plugins(p: dict) -> bool:
         return bool(p.get("ptoken")) and secrets.compare_digest(str(p.get("ptoken")), supervisor.plugins_token)
 
@@ -746,6 +750,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         text = (p.get("text") or "").strip()
         if not text:
             raise SessionError("bad_request", "falta el texto")
+        # nunca una clave por Telegram (un texto armado desde un archivo o una página): se rechaza entero
+        if _SECRET_RE.search(text):
+            raise SessionError("secret", "el mensaje parece tener una clave (llave privada, token): no lo mando por Telegram")
         if plugins:
             text = "[Plugins] " + text
         try:
