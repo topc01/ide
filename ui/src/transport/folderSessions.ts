@@ -279,3 +279,24 @@ export const evidenceShot = (ws: WsClient, id: string, run: string, step: string
 export const evidenceMarkdown = (ws: WsClient, id: string, run: string): Promise<{ markdown: string }> => ws.request("evidence.markdown", { id, run });
 export const evidenceGithub = (ws: WsClient, id: string, run: string, url: string): Promise<{ ok: boolean; comment: string }> =>
   ws.request("evidence.github", { id, run, url });
+
+/** Detalle de una sesión para la lista de la barra inferior: por qué te espera (último mensaje, el permiso o la
+ *  pregunta con opciones que tiene abiertos) o qué está haciendo (lo último que hizo). */
+export interface AttentionQuestion {
+  question: string | null; header: string | null; multiSelect: boolean;
+  options: { label: string | null; description: string | null }[];
+}
+export interface Attention {
+  id: string; process: string;
+  activity: { state?: string; since?: string; note?: string | null; reason?: string | null };
+  message: string | null; messageAt: string | null;
+  pending: { id: string; tool: string; summary: string; at: string; command?: string; description?: string | null;
+    questions?: AttentionQuestion[] } | null;
+  recent: { tool: string; summary: string; at: string }[];
+}
+export const fetchAttention = (ws: WsClient, id: string): Promise<Attention> => ws.request("sessions.attention", { id });
+/** `since` y `pending`: lo que el usuario está viendo (si la sesión cambió de pregunta, el server lo rechaza). */
+export const replyAttention = (ws: WsClient, p: {
+  id: string; action: "text" | "approve" | "deny" | "answer"; text?: string; answers?: Record<string, string>;
+  since?: string; pending?: string | null;
+}): Promise<{ ok: boolean; done: string }> => ws.request("sessions.attentionReply", p);

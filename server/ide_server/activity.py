@@ -122,3 +122,78 @@ def pending_agents(transcript: str | None, home: Path) -> int:
         if age < MAX_BACKGROUND_S:
             n += 1
     return n
+
+
+MAX_MESSAGE = 12_000
+
+
+def _summary(name: str, inp: dict) -> str:
+    """Una línea de lo que hace una herramienta: el comando, el archivo, la búsqueda…"""
+    if name == "Bash" and isinstance(inp.get("description"), str) and inp["description"].strip():
+        return f"{name}: {inp['description'].strip()[:300]}"
+    for k in ("command", "file_path", "pattern", "url", "query", "description", "prompt", "path"):
+        v = inp.get(k)
+        if isinstance(v, str) and v.strip():
+            return f"{name}: {v.strip().splitlines()[0][:300]}"
+    return name
+
+
+def _resolve(transcript: str | None, home: Path) -> Path | None:
+    if not transcript:
+        return None
+    f = Path(transcript).expanduser().resolve()
+    if f.suffix != ".jsonl" or not f.is_relative_to((home / ".claude" / "projects").resolve()) or not f.is_file():
+        return None
+    return f
+
+
+def detail(transcript: str | None, home: Path, recent: int = 8) -> dict:
+    """Para el detalle de «te esperan» / «trabajando»: el último mensaje de claude (entero), la herramienta que
+    pidió y todavía no tiene resultado (un permiso o una pregunta con opciones) y lo último que hizo."""
+    out: dict = {"message": None, "messageAt": None, "pending": None, "recent": []}
+    f = _resolve(transcript, home)
+    if f is None:
+        return out
+    try:
+        with open(f, "rb") as fh:
+            fh.seek(0, 2)
+            fh.seek(max(0, fh.tell() - 1_500_000))
+            lines = fh.read().decode("utf-8", errors="replace").splitlines()
+    except OSError:
+        return out
+    uses: list[tuple[str, str, dict, str]] = []      # (id, nombre, input, hora)
+    results: set[str] = set()
+    for line in lines:
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if e.get("isSidechain"):
+            continue
+        content = (e.get("message") or {}).get("content")
+        if not isinstance(content, list):
+            continue
+        for c in content:
+            if not isinstance(c, dict):
+                continue
+            if e.get("type") == "assistant" and c.get("type") == "text" and c.get("text", "").strip():
+                out["message"], out["messageAt"] = c["text"].strip()[:MAX_MESSAGE], e.get("timestamp")
+            elif e.get("type") == "assistant" and c.get("type") == "tool_use":
+                uses.append((c.get("id") or "", c.get("name") or "?", c.get("input") or {}, e.get("timestamp") or ""))
+            elif c.get("type") == "tool_result":
+                results.add(c.get("tool_use_id") or "")
+    out["recent"] = [{"tool": n, "summary": _summary(n, i), "at": t} for _, n, i, t in uses[-recent:]][::-1]
+    if uses and uses[-1][0] not in results:
+        tid, name, inp, at = uses[-1]
+        p: dict = {"id": tid, "tool": name, "summary": _summary(name, inp), "at": at}
+        if name == "AskUserQuestion":
+            p["questions"] = [{"question": q.get("question"), "header": q.get("header"),
+                               "multiSelect": bool(q.get("multiSelect")),
+                               "options": [{"label": o.get("label"), "description": o.get("description")}
+                                           for o in q.get("options") or [] if isinstance(o, dict)]}
+                              for q in inp.get("questions") or [] if isinstance(q, dict)]
+        elif name == "Bash":
+            p["command"] = str(inp.get("command") or "")[:4000]
+            p["description"] = inp.get("description")
+        out["pending"] = p
+    return out

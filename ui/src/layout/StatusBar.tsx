@@ -6,6 +6,7 @@ import { isWaiting, waitTime } from "../modules/sessions/activity";
 import { fetchUsage, type Usage, type UsageWindow } from "../transport/folderSessions";
 import { getWs } from "../transport/wsClient";
 import { cn } from "../lib/utils";
+import { AttentionDetail } from "./AttentionDetail";
 
 const POLL_MS = 5000;   // solo lee estado del server (sin tokens); el server consulta límites cada 60 s
 
@@ -129,27 +130,38 @@ function WorkingNow() {
     tone="text-sky-300" bg="bg-sky-400/15" dot={["◐", "inline-block leading-none text-sky-400 animate-spin"]} time={since} />;
 }
 
-/** Contador de la barra inferior con su lista: hover = se despliega hacia arriba; con el mouse o ↑/↓ te mueves,
- *  click o Enter abre esa sesión (la lista sigue abierta). Sacar el mouse del bloque (contador + lista) la cierra. */
-function SessionCounter({ items, one, many, what, tone, bg, dot, time }:
-  { items: Listed[]; one: string; many: string; what: string; tone: string; bg: string; dot: [string, string];
-    time: (s?: any) => string | null }) {
+/** Contador de la barra inferior con su lista de cards (número y nombre). Hover = se despliega hacia arriba;
+ *  click en el contador = queda fija hasta Esc. Hover en una card = su detalle al lado mientras el mouse está ahí;
+ *  click = el detalle queda fijo y ↑/↓ lo cambia a la sesión de arriba/abajo. Enter (o «ir a la sesión») abre la
+ *  sesión. Esc cierra todo (dentro del campo para responder, primero sale del campo). */
+function SessionCounter({ items, one, many, what }:
+  { items: Listed[]; one: string; many: string; what: "te esperan" | "trabajando"; tone?: string; bg?: string;
+    dot?: [string, string]; time?: (s?: any) => string | null }) {
   const names = useFolders((s) => s.tree.devNames);
   const sessions = useFolders((s) => s.tree.sessions);
   const activeId = useFolders((s) => s.activeId);
   const activePrUrl = useFolders((s) => s.activePrUrl);
   const waiting = items;
+  const working = what === "trabajando";
+  const tone = working ? "text-sky-300" : "text-orange-300";
+  const bg = working ? "bg-sky-400/15" : "bg-orange-400/15";
   const label = (k: string) => names?.[k] ?? (k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2))?.title ?? k.slice(2) : k.slice(2));
   const [at, setAt] = useState<DOMRect | null>(null);
+  const [pinned, setPinned] = useState(false);            // la lista, fija (click en el contador)
+  const [detailPinned, setDetailPinned] = useState(false); // el detalle, fijo (click en una card)
+  const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [idx, setIdx] = useState(0);
   const idxRef = useRef(0); idxRef.current = idx;
   const trigger = useRef<HTMLButtonElement>(null);
   const closing = useRef<number | undefined>(undefined);
+  const hoverOff = useRef<number | undefined>(undefined);
   const keys = waiting.map(([k]) => k);
+  const persistent = pinned || detailPinned;
   const go = (k: string) => {
     if (k.startsWith("s:")) useFolders.getState().setActive(k.slice(2));
     else if (k.startsWith("p:")) useFolders.getState().setActivePr(k.slice(2));
   };
+  const closeAll = () => { setAt(null); setPinned(false); setDetailPinned(false); setHoverKey(null); };
   const show = () => {
     window.clearTimeout(closing.current);
     if (at || !trigger.current) return;
@@ -157,61 +169,86 @@ function SessionCounter({ items, one, many, what, tone, bg, dot, time }:
     const cur = keys.findIndex((k) => k === `s:${activeId}` || (!!activePrUrl && k === `p:${activePrUrl}`));
     setIdx(cur >= 0 ? cur : 0);
   };
-  // el puntero cruza del contador a la lista: un respiro antes de cerrar
-  const hide = () => { window.clearTimeout(closing.current); closing.current = window.setTimeout(() => setAt(null), 150); };
-  useEffect(() => () => window.clearTimeout(closing.current), []);
-  useEffect(() => { if (at && !waiting.length) setAt(null); }, [at, waiting.length]);
+  // el puntero cruza del contador a la lista (o al detalle): un respiro antes de cerrar
+  const hide = () => {
+    if (persistent) return;
+    window.clearTimeout(closing.current);
+    closing.current = window.setTimeout(() => { setAt(null); setHoverKey(null); }, 150);
+  };
+  const hoverIn = (k: string) => { window.clearTimeout(hoverOff.current); setHoverKey(k); };
+  const hoverOut = () => { window.clearTimeout(hoverOff.current); hoverOff.current = window.setTimeout(() => setHoverKey(null), 120); };
+  useEffect(() => () => { window.clearTimeout(closing.current); window.clearTimeout(hoverOff.current); }, []);
+  useEffect(() => { if (at && !waiting.length) closeAll(); }, [at, waiting.length]);
   useEffect(() => {
     if (!at) return;
-    // en captura: si el foco está en una terminal, las flechas igual mueven la lista (y no le llegan)
+    // en captura: si el foco está en una terminal, las flechas igual mueven la lista (y no le llegan).
+    // En el campo para responder del detalle, las teclas son del campo.
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT") && t.closest("[data-attention]")) return;
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault(); e.stopPropagation();
         setIdx((i) => (i + (e.key === "ArrowDown" ? 1 : -1) + keys.length) % keys.length);
       } else if (e.key === "Enter") {
         e.preventDefault(); e.stopPropagation();
         const k = keys[Math.min(idxRef.current, keys.length - 1)]; if (k) go(k);
-      } else if (e.key === "Escape") { e.stopPropagation(); setAt(null); }
+      } else if (e.key === "Escape") { e.stopPropagation(); closeAll(); }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [at, keys.join("|")]);
   if (!waiting.length) return null;
   const sel = Math.min(idx, waiting.length - 1);
+  const shown = detailPinned ? keys[sel] : hoverKey;
+  const listLeft = at ? Math.max(8, Math.min(at.left, window.innerWidth - 368)) : 0;
+  const detailW = 500;
+  const rightRoom = window.innerWidth - (listLeft + 368) - 8;
+  const detailLeft = rightRoom >= detailW ? listLeft + 368 : Math.max(8, listLeft - detailW - 8);
+  const shownSid = shown?.startsWith("s:") ? shown.slice(2) : null;
   return (<>
-    <button ref={trigger} onMouseEnter={show} onMouseLeave={hide} onClick={show}
-      title={`Las sesiones ${what === "trabajando" ? "con su claude trabajando" : "que te esperan"}: pasa el mouse para verlas en lista (↑/↓ y Enter para ir)`}
-      className={cn("rounded px-1 font-semibold", tone, at && bg)}>
+    <button ref={trigger} onMouseEnter={show} onMouseLeave={hide}
+      onClick={() => { show(); setPinned(true); }}
+      title={`Las sesiones ${working ? "con su claude trabajando" : "que te esperan"}: pasa el mouse para verlas; click = la lista queda abierta hasta Esc. En la lista: hover en una sesión = su detalle; click = el detalle queda fijo (↑/↓ cambia de sesión); Enter abre la sesión`}
+      className={cn("rounded px-1 font-semibold", tone, (at || pinned) && bg)}>
       {waiting.length} {waiting.length === 1 ? one : many}</button>
     {at && createPortal(
-      <div role="listbox" aria-label={`Sesiones: ${what}`} onMouseEnter={show} onMouseLeave={hide}
-        style={{ left: Math.max(8, Math.min(at.left, window.innerWidth - 368)), bottom: window.innerHeight - at.top }}
-        className="fixed z-50 w-[360px] pb-1 font-mono text-xs">
-        <div className="max-h-[60vh] overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-xl">
-          <div className="px-2 pb-1 pt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-            {what} · ↑/↓ y Enter, o click</div>
-          {waiting.map(([k, v], i) => {
-            const s = k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2)) : undefined;
-            const t = time(s);
-            const current = k === `s:${activeId}` || (!!activePrUrl && k === `p:${activePrUrl}`);
-            return (
-              <button key={k} role="option" aria-selected={i === sel} onMouseMove={() => i !== sel && setIdx(i)}
-                onClick={() => { setIdx(i); go(k); }}
-                className={cn("flex w-full flex-col items-start gap-0.5 rounded px-2 py-1.5 text-left",
-                  i === sel ? "bg-accent text-foreground" : "text-muted-foreground")}>
-                <span className="flex w-full items-center gap-1.5">
-                  <span aria-hidden className={dot[1]}>{dot[0]}</span>
-                  <span className={cn("min-w-0 flex-1 font-semibold", i === sel ? "break-words" : "truncate", current && "text-primary")}>
-                    {s && /^\d+$/.test(s.id) ? `#${s.id} ` : ""}{label(k)}</span>
-                  {t && <span className="shrink-0 text-[10px] text-muted-foreground">{t}</span>}
-                </span>
-                {/* sin tooltip (tapaba las filas de abajo): la marcada muestra la nota entera */}
-                {v.note && <span className={cn("pl-4 text-[11px] text-muted-foreground",
-                  i === sel ? "max-h-40 overflow-y-auto whitespace-pre-wrap break-words" : "line-clamp-2")}>{v.note}</span>}
-              </button>);
-          })}
+      <div data-attention onMouseEnter={show} onMouseLeave={hide}>
+        <div role="listbox" aria-label={`Sesiones: ${what}`}
+          style={{ left: listLeft, bottom: window.innerHeight - at.top }}
+          className="fixed z-50 w-[360px] pb-1 font-mono text-xs">
+          <div className="max-h-[70vh] overflow-y-auto rounded-md border border-border bg-popover p-1.5 shadow-xl">
+            <div className="px-1 pb-1.5 pt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+              {what}{persistent ? " · fija: Esc cierra" : ""} · ↑/↓, click fija el detalle, Enter abre</div>
+            <div className="flex flex-col gap-1">
+              {waiting.map(([k], i) => {
+                const s = k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2)) : undefined;
+                const current = k === `s:${activeId}` || (!!activePrUrl && k === `p:${activePrUrl}`);
+                const isShown = k === shown;
+                return (
+                  <button key={k} role="option" aria-selected={i === sel}
+                    onMouseEnter={() => hoverIn(k)} onMouseLeave={hoverOut}
+                    onMouseMove={() => i !== sel && !detailPinned && setIdx(i)}
+                    onClick={() => { setIdx(i); setPinned(true); setDetailPinned(true); }}
+                    title={`${s && /^\d+$/.test(s.id) ? `#${s.id} ` : ""}${label(k)}: click fija su detalle; Enter abre la sesión`}
+                    className={cn("flex w-full items-start gap-2 rounded border px-2 py-1.5 text-left",
+                      i === sel ? "border-primary/60 bg-accent text-foreground" : "border-border bg-background/40 text-muted-foreground hover:text-foreground",
+                      isShown && detailPinned && "ring-1 ring-primary")}>
+                    {s && /^\d+$/.test(s.id) && <span className={cn("shrink-0 font-semibold", tone)}>#{s.id}</span>}
+                    <span className={cn("min-w-0 flex-1 font-semibold leading-snug line-clamp-2", current && "text-primary")}>{label(k)}</span>
+                  </button>);
+              })}
+            </div>
+          </div>
         </div>
+        {shownSid && (
+          <div onMouseEnter={() => shown && hoverIn(shown)} onMouseLeave={hoverOut}
+            style={{ left: detailLeft, bottom: window.innerHeight - at.top, width: detailW }}
+            className="fixed z-50 pb-1">
+            <AttentionDetail sid={shownSid} title={label(shown!)} mode={working ? "working" : "waiting"}
+              pinned={detailPinned} onGo={() => go(shown!)} />
+          </div>
+        )}
       </div>, document.body)}
   </>);
 }

@@ -344,8 +344,17 @@ class Supervisor:
             for a in self._agents.background(path):
                 self._agents.stop(a["id"])
 
-    def send(self, sid: str, text: str) -> None:
-        """Escribe `text` en el input del `claude` que corre y lo envía (Enter)."""
+    def press(self, sid: str, key: bytes) -> None:
+        """Una tecla en la terminal del `claude` que corre (Enter = aceptar el permiso, Esc = rechazarlo)."""
+        tid = self._running.get(sid)
+        if tid is None or self._write is None:
+            raise SessionError("not_running", f"la sesión {sid} no está corriendo")
+        with self._send_lock:
+            self._write(tid, key)
+
+    def send(self, sid: str, text: str, *, escape_first: bool = False) -> None:
+        """Escribe `text` en el input del `claude` que corre y lo envía (Enter). `escape_first`: antes aprieta
+        Esc (cierra un permiso o una pregunta con opciones pendientes) y espera a que vuelva el input."""
         tid = self._running.get(sid)
         if tid is None or self._write is None:
             raise SessionError("not_running", f"la sesión {sid} no está corriendo")
@@ -360,6 +369,9 @@ class Supervisor:
 
         def type_it() -> None:
             with self._send_lock:
+                if escape_first:
+                    self._write(tid, b"\x1b")
+                    time.sleep(1.0)
                 for c in chunks:
                     if self._running.get(sid) != tid:
                         return

@@ -1354,6 +1354,90 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"ok": True}
 
     _nudged: dict[str, float] = {}
+    _transcript_of: dict[str, str] = {}         # sid → transcript de su claude (lo trae cada hook)
+
+    def _transcript(sid: str) -> str | None:
+        """El transcript del claude de la sesión: el del último hook; si no, el de su `claude_session` o el más nuevo."""
+        if sid in _transcript_of:
+            return _transcript_of[sid]
+        from ide_server.sessions_fs import session_cwd
+        data = read_toml(session_path(root, sid) / ".session.toml")
+        d = Path.home() / ".claude" / "projects" / encode_project_dir(session_cwd(root, sid, data).resolve())
+        cs = data.get("claude_session")
+        if cs and (d / f"{cs}.jsonl").is_file():
+            return str(d / f"{cs}.jsonl")
+        files = sorted(d.glob("*.jsonl"), key=lambda f: f.stat().st_mtime) if d.is_dir() else []
+        return str(files[-1]) if files else None
+
+    def _attention_of(sid: str) -> dict:
+        act = (supervisor.snapshot().get(sid, {}) or {}).get("activity") or {}
+        det = activity_mod.detail(_transcript(sid), Path.home())
+        # una herramienta sin resultado solo es algo que responder si claude te espera
+        if act.get("state") != "waiting":
+            det["pending"] = None
+        return {"id": sid, "process": supervisor.state(sid), "activity": act, **det}
+
+    async def session_attention(p: dict) -> dict:
+        """Detalle de por qué te espera (o qué está haciendo) una sesión: lo pide la lista de la barra inferior."""
+        sid = require_plain_name(p["id"], "sesión")
+        require_session(root, sid)
+        return await asyncio.to_thread(_attention_of, sid)
+
+    async def session_attention_reply(p: dict) -> dict:
+        """Responderle desde el detalle: `text` (le escribe), `approve` / `deny` (el permiso que pide) o `answer`
+        (su pregunta con opciones). Solo desde la UI (websocket): nunca por HTTP, o una sesión podría autorizarse
+        sola. Un permiso o una pregunta se responden solo si siguen siendo los que el usuario vio (`since` de la
+        actividad y `pending` = la herramienta)."""
+        if p.get("_http"):
+            raise SessionError("forbidden", "responder desde el detalle solo se puede desde la UI")
+        sid = require_plain_name(p["id"], "sesión")
+        if supervisor.state(sid) != "running":
+            raise SessionError("not_running", f"la sesión {sid} no está corriendo")
+        action = p.get("action")
+        cur = await asyncio.to_thread(_attention_of, sid)
+        act, pend = cur["activity"], cur.get("pending")
+        same = act.get("since") == p.get("since") and (pend or {}).get("id") == p.get("pending")
+        text = str(p.get("text") or "").strip()
+        if action in ("approve", "deny", "answer"):
+            if not same or act.get("state") != "waiting":
+                raise SessionError("changed", "la sesión ya no está en esa pregunta: mira el detalle de nuevo")
+        if action == "approve":
+            if act.get("reason") != "permission":
+                raise SessionError("changed", "la sesión no está pidiendo un permiso")
+            supervisor.press(sid, b"\r")       # la opción marcada por defecto: «Yes» (una vez)
+            supervisor.set_activity(sid, "working")
+            what = "autorizado"
+        elif action == "deny":
+            if act.get("reason") != "permission":
+                raise SessionError("changed", "la sesión no está pidiendo un permiso")
+            if text:
+                supervisor.send(sid, f"[Rechacé tu permiso desde el IDE] {text}", escape_first=True)
+            else:
+                supervisor.press(sid, b"\x1b")
+            what = "rechazado"
+        elif action == "answer":
+            if (pend or {}).get("tool") != "AskUserQuestion":
+                raise SessionError("changed", "la sesión no está haciendo una pregunta con opciones")
+            answers = p.get("answers") or {}
+            lines = [f"- {q.get('question')}: {answers.get(str(i)) or '(sin respuesta)'}"
+                     for i, q in enumerate(pend.get("questions") or [])]
+            body = "[Respuesta del usuario a tu pregunta (desde el IDE)]\n" + "\n".join(lines) + (f"\n\n{text}" if text else "")
+            supervisor.send(sid, body, escape_first=True)
+            what = "respondido"
+        elif action == "text":
+            if not text:
+                raise SessionError("bad_request", "falta el mensaje")
+            # con un permiso o una pregunta abiertos, el texto no entra al input: Esc primero (= «no, haz esto»)
+            blocked = act.get("state") == "waiting" and (act.get("reason") == "permission" or (pend or {}).get("tool") == "AskUserQuestion")
+            supervisor.send(sid, text, escape_first=blocked)
+            what = "enviado"
+        else:
+            raise SessionError("bad_request", f"acción desconocida: {action!r}")
+        if db is not None:
+            db.event(datetime.now().isoformat(timespec="seconds"), "usuario", "attention-reply", dev=sid,
+                     data={"action": action, "text": text[:300] or None, "pending": (pend or {}).get("summary")})
+        notify()
+        return {"ok": True, "done": what}
 
     async def session_activity(p: dict) -> dict:
         """Hooks de claude (`ide hook`): UserPromptSubmit = trabajando; Stop / Notification (permiso,
@@ -1362,6 +1446,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if supervisor.state(sid) != "running":
             return {"ok": False}
         ev = p.get("event")
+        if p.get("transcript_path"):
+            _transcript_of[sid] = str(p["transcript_path"])
         if ev == "UserPromptSubmit":
             supervisor.set_activity(sid, "working")
             return {"ok": True}
@@ -2172,7 +2258,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "evidence.list": evidence_list, "evidence.new": evidence_new, "evidence.save": evidence_save,
         "evidence.duplicate": evidence_duplicate, "evidence.delete": evidence_delete, "evidence.shot": evidence_shot,
         "evidence.markdown": evidence_markdown, "evidence.github": evidence_github,
-        "sessions.activity": session_activity,
+        "sessions.activity": session_activity, "sessions.attention": session_attention,
+        "sessions.attentionReply": session_attention_reply,
         "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss, "later.resolve": later_resolve,
         "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "servers.blocks": servers_blocks, "servers.start": servers_start,
         "servers.stop": servers_stop, "servers.log": servers_log, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
