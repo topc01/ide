@@ -217,7 +217,7 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 ### Rutear a un desarrollo (`ide session send`)
 - `ide session send <id | #n> --prompt-file - | --prompt "…"`: encola un prompt a la sesión de un
   desarrollo (id de la sesión o su número `#8`). Si su `claude` corre, entra a su cola (lo toma al
-  terminar el turno); si está parada, se lanza con él; en cola por `max_running` → `queued`. Lo pueden la
+  terminar el turno; si se acaba de lanzar, espera unos segundos a que muestre su input, y si está preguntando si confías en la carpeta, a que respondas, hasta 10 min: tipeado antes se perdía); si está parada, se lanza con él; en cola por `max_running` → `queued`. Lo pueden la
   **principal**, que lo prueba con `IDE_MANAGER_TOKEN` (el IDE se lo pasa solo a su `claude`; vive en
   memoria, nuevo en cada arranque del server; sin archivo), o **tú desde tu terminal** (por CLI sin
   `IDE_SESSION_ID`: llega con el encabezado `[Mensaje del usuario]`); otra sesión → `forbidden` (un `!` dentro

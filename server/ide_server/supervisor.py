@@ -244,6 +244,7 @@ class Supervisor:
         self._signal = signal
         self._frozen: dict[str, str] = {}           # sid -> desde cuándo está congelado (SIGSTOP)
         self._running: dict[str, str] = {}
+        self._launched_at: dict[str, float] = {}   # cuándo se lanzó su claude (send espera a que arranque)
         self._send_lock = threading.Lock()   # dos envíos a la vez no se intercalan letra a letra
         self._queue: list[tuple[str, bool]] = []
         self._errors: dict[str, str] = {}
@@ -370,6 +371,14 @@ class Supervisor:
         chunks = ["".join(tokens[i:i + 64]) for i in range(0, len(tokens), 64)]
 
         def type_it() -> None:
+            # recién lanzado: claude todavía no muestra su input (o pregunta si confías en la carpeta, en una
+            # sesión nueva). Lo tipeado ahí se pierde o responde el diálogo: se espera a que esté listo (hasta 10 min)
+            start = time.time()
+            while time.time() - start < 600 and self._running.get(sid) == tid:
+                launched = self._launched_at.get(sid, 0)
+                if sid not in self._attention and time.time() - launched >= 6:
+                    break
+                time.sleep(0.5)
             with self._send_lock:
                 if escape_first:
                     self._write(tid, b"\x1b")
@@ -441,6 +450,7 @@ class Supervisor:
                           on_input=lambda: self._on_input(sid, holder.get("tid")),
                           persist_key=f"claude-{sid}")   # su pantalla sobrevive a un reinicio del server
         holder["tid"] = tid
+        self._launched_at[sid] = time.time()
         self._forget(sid)
         self._running[sid] = tid
         # hasta el primer hook: con prompt trabaja; sin prompt queda en el input
