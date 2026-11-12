@@ -222,22 +222,30 @@ def rm_sub(db: Db, sid: str, url: str) -> None:
 
 
 async def refresh_loop(db: Db, urls, stop: asyncio.Event, on_change) -> None:
-    """Cada TTL relee el Status de los tickets de los desarrollos abiertos (`urls()`); sin token, nada."""
+    """Relee el Status de los tickets de los desarrollos abiertos (`urls()`) cada TTL; los que todavía no tienen
+    caché (un ticket recién asociado, una hija nueva de la relación «Tickets»), en el minuto. Sin token, nada."""
+    last_full = 0.0
     while not stop.is_set():
         if get_token():
             changed = False
+            full = time.time() - last_full >= TTL
             for u in list(urls()):
-                before = (cached(db, u) or {}).get("status")
+                prev = cached(db, u)
+                if not full and prev and prev.get("ts"):
+                    continue                        # entre vueltas completas, solo los que nunca se leyeron
+                before = (prev or {}).get("status")
                 try:
                     # fresh: el loop ya espera TTL entre vueltas (con la caché además, un cambio tardaba hasta 2×TTL)
                     info = await asyncio.to_thread(read, db, u, fresh=True)
                 except Exception:  # noqa: BLE001
                     log.exception("Status de Notion de %s", u)
                     continue
-                changed |= info.get("status") != before
+                changed |= info.get("status") != before or prev is None
+            if full:
+                last_full = time.time()
             if changed:
                 on_change()
         try:
-            await asyncio.wait_for(stop.wait(), TTL)
+            await asyncio.wait_for(stop.wait(), 60)
         except asyncio.TimeoutError:
             pass

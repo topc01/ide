@@ -485,13 +485,12 @@ const TICKET_COLOR: Record<string, string> = {
 };
 const ticketColor = (status: string | null) => (status && TICKET_COLOR[status]) || "bg-zinc-400/20 text-zinc-300";
 
-/** Un ticket de Notion: las primeras letras de su título, del color de su Status (el Status y el título enteros,
- *  en el tooltip). Click: lo abre en Notion. */
+/** Un ticket de Notion: las primeras letras de su título, del color de su Status. Click: lo abre en Notion. */
 function TicketBlock({ url, title, status, error, what }:
   { url: string; title: string | null; status: string | null; error?: string | null; what: string }) {
   return (
-    <button onClick={openTicket(url)}
-      title={`Abrir ${what} en Notion: ${title ?? url}\nStatus: ${status ?? "?"}${error ? `\n⚠ ${error}` : ""}`}
+    // sin tooltip (eran demasiadas cosas encima de la card): el color dice el Status; click abre la tarjeta
+    <button onClick={openTicket(url)} aria-label={`Abrir ${what} en Notion: ${title ?? url} (${status ?? "?"})${error ? ` ⚠ ${error}` : ""}`}
       className={cn("inline-flex max-w-[10rem] shrink-0 items-center rounded px-1 text-[10px] font-semibold hover:brightness-125",
         error ? "bg-destructive/15 text-destructive" : ticketColor(status))}>
       <span className="truncate">{title ?? status ?? "Notion"}</span></button>);
@@ -503,7 +502,7 @@ function SubTickets({ devKey, subs }: { devKey: string; subs: { url: string; sta
   const [show, setShow] = usePersistentOpen(`subtickets.${devKey}`, false);
   return (<>
     <button aria-expanded={show} onClick={(e) => { e.stopPropagation(); setShow(!show); }}
-      title={show ? `Esconder los ${subs.length} subtickets` : `Mostrar los ${subs.length} subtickets`}
+      aria-label={show ? `Esconder los ${subs.length} subtickets` : `Mostrar los ${subs.length} subtickets`}
       className={cn("rounded border px-1 font-mono text-[10px] font-bold text-muted-foreground hover:bg-accent",
         show ? "border-border bg-accent/40" : "border-dashed border-border")}>
       ◫ {subs.length}</button>
