@@ -37,7 +37,8 @@ SEARCH = """query($q: String!, $after: String) {
 # Las relevantes (tuyas, las que revisas) se refrescan por ID con el estado de cada check: así se sabe
 # si un CI que ya falló sigue corriendo (la búsqueda de toda la org no lo trae: sería muy pesada).
 _FIELDS_FULL = _FIELDS.replace("statusCheckRollup { state }", "statusCheckRollup { state contexts(first: 100) { "
-                               "nodes { __typename ... on CheckRun { name status conclusion detailsUrl } ... on StatusContext { context state } } } }")
+                               "nodes { __typename ... on CheckRun { name status conclusion detailsUrl "
+                               "checkSuite { workflowRun { workflow { name } } } } ... on StatusContext { context state } } } }")
 NODES = """query($ids: [ID!]!) { nodes(ids: $ids) { %s } }""" % _FIELDS_FULL
 MEMBERS = """query($org: String!) { organization(login: $org) {
   membersWithRole(first: 100) { nodes { login name } } } }"""
@@ -162,20 +163,33 @@ CHECK_BAD = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "S
 
 
 def latest_checks(nodes: list[dict]) -> list[dict]:
-    """Saca solo los CheckRun CANCELADOS que tienen una corrida más nueva del mismo check (mismo nombre,
-    run id mayor en su link). Cuando una corrida reemplaza a otra en el mismo commit (el workflow cancela la
-    anterior al arrancar otra), GitHub deja las dos en el rollup y lo marca FAILURE por la cancelada aunque
-    la nueva pase. Un fallo real (FAILURE, ERROR, ...) o un status externo nunca se descartan."""
+    """Solo lo vigente: cuando una corrida de un workflow reemplaza a otra en el mismo commit (el workflow cancela la
+    anterior al arrancar otra), GitHub deja las dos en el rollup y lo marca FAILURE por la vieja aunque la nueva siga
+    corriendo o pase. Se descartan los CheckRun de una corrida (run id del link) más vieja que la más nueva **del mismo
+    workflow** (aunque la vieja dejara pasos en FAILURE que la nueva todavía no corre, como un «CI Gate» final); sin
+    el nombre del workflow, solo los CANCELADOS con una corrida más nueva del mismo check. Un status externo nunca
+    se descarta."""
     def run(c: dict) -> int:
         m = _RUN_RE.search(c.get("detailsUrl") or "")
         return int(m.group(1)) if m else 0
+    def wf(c: dict) -> str | None:
+        # GraphQL (checkSuite) o `gh pr view --json statusCheckRollup` (workflowName)
+        return c.get("workflowName") or ((((c.get("checkSuite") or {}).get("workflowRun") or {}).get("workflow") or {}).get("name"))
     newest: dict[str, int] = {}
+    newest_wf: dict[str, int] = {}
     for c in nodes:
-        if c and c.get("__typename") == "CheckRun" and c.get("name"):
-            newest[c["name"]] = max(newest.get(c["name"], 0), run(c))
-    return [c for c in nodes if c and not (
-        c.get("__typename") == "CheckRun" and c.get("conclusion") == "CANCELLED"
-        and 0 < run(c) < newest.get(c.get("name") or "", 0))]
+        if c and c.get("__typename") == "CheckRun":
+            if c.get("name"):
+                newest[c["name"]] = max(newest.get(c["name"], 0), run(c))
+            if wf(c):
+                newest_wf[wf(c)] = max(newest_wf.get(wf(c), 0), run(c))
+    def stale(c: dict) -> bool:
+        if c.get("__typename") != "CheckRun" or not run(c):
+            return False
+        if wf(c) and run(c) < newest_wf.get(wf(c), 0):
+            return True
+        return c.get("conclusion") == "CANCELLED" and run(c) < newest.get(c.get("name") or "", 0)
+    return [c for c in nodes if c and not stale(c)]
 
 
 def checks_state(nodes: list[dict]) -> str | None:

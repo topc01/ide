@@ -14,7 +14,7 @@ QUERY = """query($owner: String!, $name: String!, $number: Int!) {
     url title number state isDraft reviewDecision mergeable headRefName baseRefName %(a)s
     commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 60) { nodes {
       __typename
-      ... on CheckRun { name conclusion status detailsUrl }
+      ... on CheckRun { name conclusion status detailsUrl checkSuite { workflowRun { workflow { name } } } }
       ... on StatusContext { context state targetUrl } } } } } } }
     reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }
     latestOpinionatedReviews(first: 20) { nodes { state %(a)s } }
