@@ -155,12 +155,11 @@ def create_session(root: Path, req: dict, *, runner: Runner = _run) -> dict:
         variables.setdefault("notion_url", notion)
     prompt = (render_template(load_template(root, req["template"]), variables)
               if req.get("template") else req.get("prompt") or "")
-    # sin ticket no hay desarrollo: solo nacen sin él las que crea otra sesión (hotfix, línea paralela) y los
-    # traspasos; esas le piden a su claude el borrador del ticket en el primer turno
-    if kind == "ticket" and not variables.get("notion_url"):
-        if not (req.get("caller") or req.get("handoff")):
-            raise SessionError("no_ticket", "falta el ticket de Notion del desarrollo (--notion <url>): sin ticket no hay "
-                                            "desarrollo. (Una sesión que separa algo propio puede crearla con --title.)")
+    if req.get("template") and (req.get("prompt") or "").strip():   # la plantilla + lo que escribió el usuario
+        prompt += "\n\n[Lo que te pide el usuario al crear la sesión]\n" + req["prompt"].strip()
+    # el ticket es bueno tenerlo pero no se exige: una sesión sin ticket hace lo que dice su prompt. Las que crea
+    # otra sesión (hotfix, línea paralela) y los traspasos le piden a su claude el borrador del ticket.
+    if kind == "ticket" and not variables.get("notion_url") and (req.get("caller") or req.get("handoff")):
         prompt = (prompt + "\n\n" if prompt else "") + NO_TICKET_PROMPT
     meta = None
     if kind == "ticket":

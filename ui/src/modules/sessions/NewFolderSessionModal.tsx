@@ -11,11 +11,26 @@ const field = "flex min-w-0 flex-col gap-1";
 const area = "min-h-[80px] rounded-md border border-border bg-background p-2 text-xs";
 const select = "h-8 w-full min-w-0 truncate rounded-md border border-border bg-background px-2 text-xs";
 
+const NOTION_RE = /https?:\/\/(?:www\.|app\.)?notion\.(?:so|com)\/[^\s)>\]]+/i;
+const PR_RE = /^\s*(https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+)\/?\s*$/i;
+
+/** Lo que se crea con el texto del modal: solo el link de una PR = una revisión; con un link de Notion = la sesión
+ *  de ese ticket (plantilla `ticket` + lo que escribiste); si no, una sesión que hace lo que dice el texto. */
+function fromText(text: string): NewSessionReq {
+  const pr = text.match(PR_RE);
+  if (pr) return { review: pr[1] };
+  const notion = text.match(NOTION_RE)?.[0];
+  const rest = notion ? text.replace(notion, "").trim() : text.trim();
+  if (notion) return { notion, template: "ticket", title: "", vars: { title: "", notion_url: notion, body: rest },
+    ...(rest ? { prompt: rest } : {}) };
+  const first = rest.split("\n").find((l) => l.trim())?.trim() ?? "";
+  return { title: first.length > 80 ? first.slice(0, 79) + "…" : first, prompt: rest };
+}
+
 export function NewFolderSessionModal() {
   const { modal, closeModal, setActive } = useFolders();
-  const [id, setId] = useState(""); const [title, setTitle] = useState("");
-  const [notionUrl, setNotionUrl] = useState(""); const [body, setBody] = useState("");
-  const [template, setTemplate] = useState<"ticket" | "none">("ticket");
+  const [body, setBody] = useState("");
+  const [more, setMore] = useState(false);
   const [permissions, setPermissions] = useState<"" | "analyze" | "full" | "default">("");
   const [model, setModel] = useState("");
   const [prUrl, setPrUrl] = useState(""); const [error, setError] = useState<string | null>(null);
@@ -36,17 +51,8 @@ export function NewFolderSessionModal() {
 
   const payload = (): NewSessionReq => {
     if (modal === "review") return { review: prUrl.trim(), ...(model ? { model } : {}) };
-    const base: NewSessionReq = {};
-    if (id.trim()) base.id = id.trim();
-    else if (template === "ticket" && notionUrl.trim()) base.notion = notionUrl.trim();
-    if (template === "ticket") {
-      Object.assign(base, { template: "ticket", title,
-        vars: { title, notion_url: notionUrl, body } });
-    } else {
-      if (title) base.title = title;
-      base.prompt = body;
-    }
-    if (permissions) base.permissions = permissions;
+    const base = fromText(body);
+    if (permissions && !base.review) base.permissions = permissions;
     if (model) base.model = model;
     return base;
   };
@@ -56,7 +62,7 @@ export function NewFolderSessionModal() {
     try {
       const res: any = await newSession(getWs(), payload());
       setActive(res.session.id);
-      closeModal();
+      setBody(""); closeModal();
     } catch (e: any) { setError(e?.message ?? String(e)); }
     finally { setBusy(false); }
   };
@@ -87,40 +93,34 @@ export function NewFolderSessionModal() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            <div className={field}><Label htmlFor="sid">Id</Label>
-              <Input id="sid" placeholder="vacío = el número del desarrollo (#n)" value={id} onChange={(e) => setId(e.target.value)} /></div>
-            <div className={field}><Label htmlFor="tpl">Plantilla</Label>
-              <select id="tpl" className={select} value={template}
-                onChange={(e) => setTemplate(e.target.value as any)}>
-                <option value="ticket">ticket</option><option value="none">Sin plantilla</option>
-              </select></div>
-            <div className={field}><Label htmlFor="title">Título</Label>
-              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
-            {template === "ticket" && (
-              <div className={field}><Label htmlFor="nurl">URL de Notion</Label>
-                <Input id="nurl" value={notionUrl} onChange={(e) => setNotionUrl(e.target.value)} /></div>)}
-            <div className={field}><Label htmlFor="body">{template === "ticket" ? "Detalle" : "Prompt"}</Label>
-              <textarea id="body" className={area} value={body} onChange={(e) => setBody(e.target.value)} /></div>
-            <div className={field}><Label htmlFor="perm">Permisos</Label>
-              <select id="perm" className={select} value={permissions}
-                onChange={(e) => setPermissions(e.target.value as any)}>
-                <option value="">Default del workspace</option>
-                <option value="analyze">analyze</option><option value="full">full</option>
-                <option value="default">default</option>
-              </select></div>
+            <div className={field}><Label htmlFor="body">¿Qué tiene que hacer?</Label>
+              <textarea id="body" autoFocus className={area + " min-h-[140px]"} value={body} onChange={(e) => setBody(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && body.trim() && !busy) { e.preventDefault(); submit(); } }}
+                placeholder={"El prompt inicial. Con el link de un ticket de Notion, queda asociada a ese ticket; solo el link de una PR, es una revisión.\n⌘Enter crea."} /></div>
+            <button type="button" onClick={() => setMore((m) => !m)} title="Permisos y modelo de la sesión (si no, los de siempre)"
+              className="self-start text-[11px] text-muted-foreground hover:text-foreground">{more ? "▾" : "▸"} más opciones</button>
+            {more && (<>
+              <div className={field}><Label htmlFor="perm">Permisos</Label>
+                <select id="perm" className={select} value={permissions}
+                  onChange={(e) => setPermissions(e.target.value as any)}>
+                  <option value="">Default del workspace</option>
+                  <option value="analyze">analyze</option><option value="full">full</option>
+                  <option value="default">default</option>
+                </select></div>
+              <div className={field}><Label htmlFor="model">Modelo</Label>
+                <select id="model" className={select} value={model} title="El modelo de claude de la sesión (se mantiene al retomarla)"
+                  onChange={(e) => setModel(e.target.value)}>
+                  <option value="">El de siempre</option>
+                  <option value="opus">opus</option><option value="sonnet">sonnet (más barato)</option>
+                  <option value="haiku">haiku (el más barato, para lo muy simple)</option>
+                </select></div>
+            </>)}
           </div>
         )}
-        <div className={field}><Label htmlFor="model">Modelo</Label>
-          <select id="model" className={select} value={model} title="El modelo de claude de la sesión (se mantiene al retomarla)"
-            onChange={(e) => setModel(e.target.value)}>
-            <option value="">El de siempre</option>
-            <option value="opus">opus</option><option value="sonnet">sonnet (más barato)</option>
-            <option value="haiku">haiku (el más barato, para lo muy simple)</option>
-          </select></div>
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
         <DialogFooter>
           <Button title="Cerrar sin crear" variant="ghost" onClick={closeModal}>Cancelar</Button>
-          <Button title="Crear la sesión y lanzar claude" onClick={submit} disabled={busy || (modal === "review" && !prUrl.trim())}>Crear</Button>
+          <Button title="Crear la sesión y lanzar claude" onClick={submit} disabled={busy || (modal === "review" ? !prUrl.trim() : !body.trim())}>Crear</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
