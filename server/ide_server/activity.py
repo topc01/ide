@@ -127,6 +127,16 @@ def pending_agents(transcript: str | None, home: Path) -> int:
 MAX_MESSAGE = 12_000
 
 
+def questions_in(text: str | None) -> list[str]:
+    """Las preguntas de un mensaje: líneas que terminan en «?» (sin viñetas ni negritas)."""
+    out = []
+    for line in (text or "").splitlines():
+        line = re.sub(r"^[\s>*\-•\d.)]+", "", line).replace("**", "").strip()
+        if line.endswith("?") and len(line) > 3:
+            out.append(line)
+    return out[-4:]
+
+
 def _summary(name: str, inp: dict) -> str:
     """Una línea de lo que hace una herramienta: el comando, el archivo, la búsqueda…"""
     if name == "Bash" and isinstance(inp.get("description"), str) and inp["description"].strip():
@@ -183,7 +193,7 @@ def detail(transcript: str | None, home: Path, recent: int = 8) -> dict:
             elif c.get("type") == "tool_result":
                 results.add(c.get("tool_use_id") or "")
     out["unresolved"] = sum(1 for u in uses if u[0] not in results and u[0])
-    out["recent"] = [{"tool": n, "summary": _summary(n, i), "at": t} for _, n, i, t in uses[-recent:]][::-1]
+    out["recent"] = [{"tool": n, "summary": _summary(n, i), "at": t} for _, n, i, t in uses[-recent:]][::-1] if recent else []
     if uses and uses[-1][0] not in results:
         tid, name, inp, at = uses[-1]
         p: dict = {"id": tid, "tool": name, "summary": _summary(name, inp), "at": at}

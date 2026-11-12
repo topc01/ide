@@ -1469,11 +1469,20 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             if n:
                 supervisor.set_activity(sid, "working", f"esperando {n} subagente{'s' if n > 1 else ''}", "agents")
                 return {"ok": True}
-            prev = supervisor.set_activity(sid, "waiting", note, "turn")
+            # terminó el turno con una pregunta para ti (una línea que termina en «?»): «pregunta», no «terminó»
+            det = await asyncio.to_thread(activity_mod.detail, _transcript(sid), Path.home(), 0)
+            asks = bool(activity_mod.questions_in(det.get("message")))
+            prev = supervisor.set_activity(sid, "waiting", note, "question" if asks else "turn")
         elif ev == "Notification":
             kind = p.get("notification_type") or ""
             msg = activity_mod.first_line(str(p.get("message") or "")) or None
-            if kind == "permission_prompt" or "permission" in (msg or "").lower():
+            # una pregunta con opciones (AskUserQuestion) también avisa: es «pregunta», no un permiso
+            det = await asyncio.to_thread(activity_mod.detail, _transcript(sid), Path.home(), 0)
+            pend = det.get("pending") or {}
+            if pend.get("tool") == "AskUserQuestion":
+                q = ((pend.get("questions") or [{}])[0] or {}).get("question")
+                prev = supervisor.set_activity(sid, "waiting", activity_mod.first_line(q or "") or msg, "question")
+            elif kind == "permission_prompt" or "permission" in (msg or "").lower():
                 prev = supervisor.set_activity(sid, "waiting", msg, "permission")
             elif (supervisor.snapshot().get(sid, {}).get("activity") or {}).get("reason") == "agents":
                 return {"ok": True}             # «inactivo» mientras espera a sus subagentes: sigue trabajando

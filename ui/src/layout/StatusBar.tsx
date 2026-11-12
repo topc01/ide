@@ -103,7 +103,17 @@ export function StatusBar() {
   );
 }
 
-type Listed = readonly [string, { note: string | null }];
+type Listed = readonly [string, { note: string | null; reason?: string | null }];
+
+/** Por qué te espera, en la card de la lista (el detalle dice el resto). */
+const WAIT_REASON: Record<string, [string, string]> = {
+  permission: ["permiso", "border-red-400/70 text-red-300"],
+  question: ["pregunta", "border-amber-400/70 text-amber-300"],
+  turn: ["terminó", "border-border text-muted-foreground"],
+  interrupt: ["interrumpida", "border-violet-400/60 text-violet-300"],
+  idle: ["inactiva", "border-border text-muted-foreground"],
+  launch: ["recién abierta", "border-border text-muted-foreground"],
+};
 const SKIP_KINDS = ["main", "ide", "recursos"];
 
 /** Cuántas sesiones esperan tu input (su claude terminó el turno o pide un permiso; más las que
@@ -112,7 +122,7 @@ function WaitingForYou() {
   const states = useFolders((s) => s.tree.devStates);
   const sessions = useFolders((s) => s.tree.sessions);
   const byActivity = sessions.filter((x) => !SKIP_KINDS.includes(x.kind ?? "") && isWaiting(x))
-    .map((x) => [`s:${x.id}`, { note: x.activity?.note ?? null }] as const);
+    .map((x) => [`s:${x.id}`, { note: x.activity?.note ?? null, reason: x.activity?.reason ?? null }] as const);
   const legacy = Object.entries(states ?? {}).filter(([k, v]) => v.block === "waiting-input" && !byActivity.some(([b]) => b === k))
     .map(([k]) => [k, { note: null }] as const);
   return <SessionCounter items={[...byActivity, ...legacy]} one="te espera" many="te esperan" what="te esperan"
@@ -221,7 +231,8 @@ function SessionCounter({ items, one, many, what }:
             <div className="px-1 pb-1.5 pt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
               {what}{persistent ? " · fija: Esc cierra" : ""} · ↑/↓, click fija el detalle, Enter abre</div>
             <div className="flex flex-col gap-1">
-              {waiting.map(([k], i) => {
+              {waiting.map(([k, v], i) => {
+                const why = !working ? WAIT_REASON[v.reason ?? ""] ?? null : null;
                 const s = k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2)) : undefined;
                 const current = k === `s:${activeId}` || (!!activePrUrl && k === `p:${activePrUrl}`);
                 const isShown = k === shown;
@@ -236,6 +247,7 @@ function SessionCounter({ items, one, many, what }:
                       isShown && detailPinned && "ring-1 ring-primary")}>
                     {s && /^\d+$/.test(s.id) && <span className={cn("shrink-0 font-semibold", tone)}>#{s.id}</span>}
                     <span className={cn("min-w-0 flex-1 font-semibold leading-snug line-clamp-2", current && "text-primary")}>{label(k)}</span>
+                    {why && <span title={`Por qué te espera: ${why[0]}`} className={cn("shrink-0 rounded border px-1 text-[10px] leading-4", why[1])}>{why[0]}</span>}
                   </button>);
               })}
             </div>

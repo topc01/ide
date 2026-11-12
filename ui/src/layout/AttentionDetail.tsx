@@ -11,7 +11,7 @@ import { cn } from "../lib/utils";
 const hhmm = (iso?: string | null) => iso ? new Date(iso).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }) : "";
 
 const REASON: Record<string, string> = {
-  turn: "terminó su turno", permission: "pide un permiso", idle: "lleva rato inactiva",
+  turn: "terminó su turno", permission: "pide un permiso", question: "te hizo una pregunta", idle: "lleva rato inactiva",
   interrupt: "la interrumpiste", launch: "recién abierta",
 };
 
