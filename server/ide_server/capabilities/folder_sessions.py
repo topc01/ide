@@ -1354,12 +1354,10 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"ok": True}
 
     _nudged: dict[str, float] = {}
-    _transcript_of: dict[str, str] = {}         # sid → transcript de su claude (lo trae cada hook)
-
     def _transcript(sid: str) -> str | None:
-        """El transcript del claude de la sesión: el del último hook; si no, el de su `claude_session` o el más nuevo."""
-        if sid in _transcript_of:
-            return _transcript_of[sid]
+        """El transcript del claude de la sesión: el de su `claude_session` (lo fija el IDE al lanzarla) en la carpeta
+        de proyecto de su cwd; si no, el más nuevo de esa carpeta. Nunca una ruta que diga un hook: cualquiera puede
+        llamar a la API de actividad, y un transcript ajeno mostraría en el detalle un permiso distinto al real."""
         from ide_server.sessions_fs import session_cwd
         data = read_toml(session_path(root, sid) / ".session.toml")
         d = Path.home() / ".claude" / "projects" / encode_project_dir(session_cwd(root, sid, data).resolve())
@@ -1404,6 +1402,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if action == "approve":
             if act.get("reason") != "permission":
                 raise SessionError("changed", "la sesión no está pidiendo un permiso")
+            # solo si se sabe sin dudas qué se autoriza: una sola herramienta sin resultado, y la misma que nombra
+            # el aviso de permiso de claude («…permission to use Bash»)
+            named = re.search(r"permission to use (\w+)", act.get("note") or "")
+            if not pend or cur.get("unresolved") != 1 or (named and named.group(1) != pend.get("tool")):
+                raise SessionError("ambiguous", "no puedo saber con certeza qué pide: respóndelo en su terminal")
             supervisor.press(sid, b"\r")       # la opción marcada por defecto: «Yes» (una vez)
             supervisor.set_activity(sid, "working")
             what = "autorizado"
@@ -1446,8 +1449,6 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if supervisor.state(sid) != "running":
             return {"ok": False}
         ev = p.get("event")
-        if p.get("transcript_path"):
-            _transcript_of[sid] = str(p["transcript_path"])
         if ev == "UserPromptSubmit":
             supervisor.set_activity(sid, "working")
             return {"ok": True}

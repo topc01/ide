@@ -150,7 +150,7 @@ def _resolve(transcript: str | None, home: Path) -> Path | None:
 def detail(transcript: str | None, home: Path, recent: int = 8) -> dict:
     """Para el detalle de «te esperan» / «trabajando»: el último mensaje de claude (entero), la herramienta que
     pidió y todavía no tiene resultado (un permiso o una pregunta con opciones) y lo último que hizo."""
-    out: dict = {"message": None, "messageAt": None, "pending": None, "recent": []}
+    out: dict = {"message": None, "messageAt": None, "pending": None, "recent": [], "unresolved": 0}
     f = _resolve(transcript, home)
     if f is None:
         return out
@@ -182,6 +182,7 @@ def detail(transcript: str | None, home: Path, recent: int = 8) -> dict:
                 uses.append((c.get("id") or "", c.get("name") or "?", c.get("input") or {}, e.get("timestamp") or ""))
             elif c.get("type") == "tool_result":
                 results.add(c.get("tool_use_id") or "")
+    out["unresolved"] = sum(1 for u in uses if u[0] not in results and u[0])
     out["recent"] = [{"tool": n, "summary": _summary(n, i), "at": t} for _, n, i, t in uses[-recent:]][::-1]
     if uses and uses[-1][0] not in results:
         tid, name, inp, at = uses[-1]
