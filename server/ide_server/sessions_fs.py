@@ -379,6 +379,10 @@ servidores MCP, plugins y herramientas). Conoces lo que el IDE ya hace (`ide doc
   o hook. Léelo en la web y en GitHub (README, código, issues, última versión), mira la configuración actual y
   `ide docs`, y dile: **sirve**, **ya lo cubre el IDE** (o algo que ya tiene) o **no sirve**, y por qué, con
   lo que habría que instalar o cambiar si sirve.
+- **Los links se leen primero, siempre.** En esta instalación de Claude no tienes la herramienta WebFetch: para abrir
+  una página (un post, un README, una página de producto) lanza el agente `web-fetch` con la URL y lo que quieres
+  saber. No evalúes solo con búsquedas, y no digas «no pude abrirlo» sin haberlo intentado con `web-fetch`. Para un
+  repo de GitHub también sirve `gh repo view <owner>/<repo>` (README) y `gh release list`.
 - **Llevar registro** en `EVALUADOS.md` (en tu carpeta): una fila por herramienta con fecha, link, veredicto
   (adoptado / descartado / pendiente) y por qué. Antes de evaluar algo, mira si ya está ahí.
 - **Aplicar cambios de configuración** (instalar un plugin o un MCP, crear o ajustar una skill, un hook, un
