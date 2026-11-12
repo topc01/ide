@@ -58,8 +58,16 @@ export function HoverTips() {
       { left: cx, top: a.bottom + GAP }, { left: cx, top: a.top - GAP - h },
       { left: a.right + GAP, top: cy }, { left: a.left - GAP - w, top: cy },
     ];
-    const obstacles = [...document.querySelectorAll(FLOATING)].map((n) => n.getBoundingClientRect())
-      .filter((r) => r.width > 0 && r.height > 0);
+    // lo marcado como flotante y todo lo que se abre en un portal (hijos directos de <body> fuera de la app, y sus
+    // hijos: los menús de la card, la lista de la barra…), si se ve
+    const app = document.getElementById("root");
+    const portals = [...document.body.children].filter((n) => n !== app && n !== box.current && n.tagName !== "SCRIPT");
+    const nodes = new Set<Element>([...document.querySelectorAll(FLOATING), ...portals,
+      ...portals.flatMap((n) => [...n.children])]);
+    const obstacles = [...nodes].filter((n) => {
+      const cs = getComputedStyle(n);
+      return cs.visibility !== "hidden" && cs.display !== "none" && Number(cs.opacity) > 0.05;
+    }).map((n) => n.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
     const ok = tries.find((t) => {
       const r = { left: t.left, top: t.top, right: t.left + w, bottom: t.top + h };
       return r.left >= MARGIN - 0.5 && r.top >= MARGIN - 0.5 && r.right <= W - MARGIN + 0.5 && r.bottom <= H - MARGIN + 0.5
