@@ -169,8 +169,10 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             info = notion.cached(db, url) or {}
             out[f"s:{s_['id']}"] = {"url": url, "status": info.get("status"), "error": info.get("error"), "title": info.get("title"),
                                    "subs": [{"url": u, "status": (notion.cached(db, u) or {}).get("status"),
-                                             "title": (notion.cached(db, u) or {}).get("title")}
-                                            for u in notion.subs(db, s_["id"], url)],
+                                             "title": (notion.cached(db, u) or {}).get("title"),
+                                             "card": notion.page_id(u) not in hidden}
+                                            for u in notion.subs(db, s_["id"], url)
+                                            for hidden in [notion.card_hidden(db, s_["id"])]],
                                    "pending": [{"url": u, "status": (notion.cached(db, u) or {}).get("status"),
                                                 "title": (notion.cached(db, u) or {}).get("title")}
                                                for u in notion.pending(db, s_["id"])]}
@@ -329,6 +331,25 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             await asyncio.to_thread(notion.read, db, p["url"], fresh=True)
         notify()
         return {"id": sid, "pending": items}
+
+    async def notion_page(p: dict) -> dict:
+        """El contenido de una tarjeta de Notion como Markdown, para verla en una tab del IDE (solo lectura)."""
+        from ide_server import notion_tickets as notion
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        res = await asyncio.to_thread(notion.page_markdown, db, str(p.get("url") or ""))
+        notify()                                # el Status/título frescos llegan también a la card
+        return res
+
+    async def ticket_sub_card(p: dict) -> dict:
+        """El interruptor del módulo Notion: un subticket se muestra (o no) en la card. Solo desde la UI."""
+        from ide_server import notion_tickets as notion
+        if p.get("_http") or db is None:
+            raise SessionError("forbidden", "se cambia desde el módulo Notion")
+        sid = require_plain_name(p["id"], "sesión")
+        await asyncio.to_thread(notion.set_card, db, sid, str(p.get("url") or ""), bool(p.get("show")))
+        notify()
+        return {"ok": True}
 
     async def ticket_sub(p: dict) -> dict:
         """Subticket del desarrollo (`add`: suma una tarjeta; `rm`: la saca o esconde una hija de la relación)."""
@@ -2375,7 +2396,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
-        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "usage.get": usage,
+        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "notion.page": notion_page, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,

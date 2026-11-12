@@ -13,6 +13,7 @@ import { ago, STATE, type DevStateInfo, type Phase } from "./devStates";
 import { useSidebarConfig } from "../../state/sidebarConfig";
 import { openExternal } from "../../lib/openExternal";
 import { usePersistentOpen } from "../../lib/persist";
+import { notionTab, useDevTabs } from "../../state/devTabs";
 
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
@@ -458,9 +459,9 @@ export function TicketChip({ devKey }: { devKey: string }) {
   if (!t.url) return <span title="Este desarrollo no tiene ticket de Notion: la sesión arma el borrador y lo asocia con `ide ticket set`"
     className="inline-flex shrink-0 items-center rounded border border-dashed border-destructive/60 px-1 text-[10px] font-semibold text-destructive">
     sin ticket</span>;
-  const subs = t.subs ?? [];
+  const subs = (t.subs ?? []).filter((x) => x.card !== false);   // los que el módulo Notion deja en la card
   return (<>
-    <TicketBlock url={t.url} title={t.title ?? null} status={t.status} error={t.error} what="el ticket" />
+    <TicketBlock devKey={devKey} url={t.url} title={t.title ?? null} status={t.status} error={t.error} what="el ticket" />
     {t.pending.length > 0 && (
       <button title={"Tickets de pendientes (lo que quedó fuera):\n" + t.pending.map((x) => `· ${x.title ?? x.url} (${x.status ?? "?"})`).join("\n")}
         onClick={openTicket(t.pending[0].url)}
@@ -487,12 +488,25 @@ const TICKET_COLOR: Record<string, string> = {
 };
 const ticketColor = (status: string | null) => (status && TICKET_COLOR[status]) || "border-zinc-300/60 bg-zinc-300/[0.07]";
 
-/** Un ticket de Notion: las primeras letras de su título, del color de su Status. Click: lo abre en Notion. */
-function TicketBlock({ url, title, status, error, what }:
-  { url: string; title: string | null; status: string | null; error?: string | null; what: string }) {
+/** Abre la tarjeta en una tab del desarrollo (la lee el IDE; desde ahí, «Abrir en Notion»). */
+export function openTicketTab(devKey: string, url: string, title: string | null) {
+  if (devKey.startsWith("s:")) useFolders.getState().setActive(devKey.slice(2));
+  useDevTabs.getState().open(devKey, notionTab(url, title));
+}
+
+/** El Status de una tarjeta como bloque (el color en el borde y un fondo pálido). */
+export function TicketStatus({ status }: { status: string | null }) {
+  return <span className={cn("inline-flex items-center rounded border px-1.5 text-[11px] font-semibold text-foreground", ticketColor(status))}>
+    {status ?? "sin Status"}</span>;
+}
+
+/** Un ticket de Notion: las primeras letras de su título, del color de su Status. Click: lo abre en una tab del IDE. */
+function TicketBlock({ devKey, url, title, status, error, what }:
+  { devKey: string; url: string; title: string | null; status: string | null; error?: string | null; what: string }) {
   return (
     // sin tooltip (eran demasiadas cosas encima de la card): el color dice el Status; click abre la tarjeta
-    <button onClick={openTicket(url)} aria-label={`Abrir ${what} en Notion: ${title ?? url} (${status ?? "?"})${error ? ` ⚠ ${error}` : ""}`}
+    <button onClick={(e) => { e.stopPropagation(); openTicketTab(devKey, url, title); }}
+      aria-label={`Abrir ${what} en el IDE: ${title ?? url} (${status ?? "?"})${error ? ` ⚠ ${error}` : ""}`}
       className={cn("inline-flex max-w-[10rem] shrink-0 items-center rounded border px-1 text-[10px] font-semibold text-foreground hover:brightness-110",
         error ? "border-destructive/70 bg-destructive/[0.07]" : ticketColor(status))}>
       <span className="truncate">{title ?? status ?? "Notion"}</span></button>);
@@ -508,6 +522,6 @@ function SubTickets({ devKey, subs }: { devKey: string; subs: { url: string; sta
       className={cn("rounded border px-1 font-mono text-[10px] font-bold text-foreground hover:bg-accent",
         show ? "border-border bg-accent/40" : "border-dashed border-border")}>
       ◫ {subs.length}</button>
-    {show && subs.map((x) => <TicketBlock key={x.url} url={x.url} title={x.title} status={x.status} what="el subticket" />)}
+    {show && subs.map((x) => <TicketBlock key={x.url} devKey={devKey} url={x.url} title={x.title} status={x.status} what="el subticket" />)}
   </>);
 }

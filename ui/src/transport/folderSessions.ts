@@ -37,7 +37,7 @@ export interface SessionsTree {
   // ticket de Notion de cada desarrollo de ticket (`s:<id>`): url (null = sin ticket), Status de la caché, pendientes
   devTickets?: Record<string, { url: string | null; status: string | null; error: string | null; title?: string | null;
     pending: { url: string; status: string | null; title: string | null }[];
-    subs?: { url: string; status: string | null; title: string | null }[] }>;
+    subs?: { url: string; status: string | null; title: string | null; card?: boolean }[] }>;
   // desarrollos colgados de otro (`s:<id>`): mismo ticket, PR apilada sobre una rama de otro, separado por el IDE
   verdicts?: Record<string, { verdict: "approve" | "request-changes"; at: string | null; sha: string | null }>;
   devRelations?: Record<string, { kind: "ticket" | "stacked" | "split"; dev: string; n: number | null; pr?: string }[]>;
@@ -309,3 +309,10 @@ export const fetchTools = (ws: WsClient, q?: string, state?: string): Promise<{ 
   ws.request("tools.list", { q: q || null, state: state || null });
 export const fetchTool = (ws: WsClient, name: string): Promise<{ tool: ToolEntry; history: ToolHistory[] }> =>
   ws.request("tools.show", { name });
+
+/** Una tarjeta de Notion como Markdown (tab «Notion» del IDE). */
+export const fetchNotionPage = (ws: WsClient, url: string): Promise<{ url: string; title: string | null; status: string | null; markdown: string; notionUrl?: string }> =>
+  ws.request("notion.page", { url });
+/** El interruptor del módulo Notion: el subticket se muestra (o no) en la card. */
+export const setSubTicketCard = (ws: WsClient, id: string, url: string, show: boolean): Promise<{ ok: boolean }> =>
+  ws.request("dev.ticketSubCard", { id, url, show });

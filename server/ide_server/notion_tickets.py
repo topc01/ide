@@ -212,6 +212,18 @@ def add_sub(db: Db, sid: str, url: str) -> None:
         db.set(f"devsubs:{sid}", items + [url])
 
 
+def card_hidden(db: Db, sid: str) -> set[str]:
+    """Los subtickets que no se muestran en la card (el interruptor del módulo Notion); siguen siendo subtickets."""
+    return set(db.get(f"devsubscard:{sid}") or [])
+
+
+def set_card(db: Db, sid: str, url: str, show: bool) -> None:
+    pid = page_id(url)
+    hidden = card_hidden(db, sid)
+    hidden = hidden - {pid} if show else hidden | {pid}
+    db.set(f"devsubscard:{sid}", sorted(hidden))
+
+
 def rm_sub(db: Db, sid: str, url: str) -> None:
     """Saca uno sumado a mano y esconde una hija de la relación (no toca Notion)."""
     pid = page_id(url)
@@ -249,3 +261,121 @@ async def refresh_loop(db: Db, urls, stop: asyncio.Event, on_change) -> None:
             await asyncio.wait_for(stop.wait(), 60)
         except asyncio.TimeoutError:
             pass
+
+
+# -- la tarjeta en el IDE (tab «Notion» del panel principal): su contenido como Markdown ------------------------------
+MAX_BLOCKS = 600
+
+
+def _rich(rt: list[dict]) -> str:
+    out = []
+    for t in rt or []:
+        txt = t.get("plain_text", "")
+        if not txt:
+            continue
+        a = t.get("annotations") or {}
+        if a.get("code"):
+            txt = f"`{txt}`"
+        if a.get("bold"):
+            txt = f"**{txt.strip()}** " if txt.endswith(" ") else f"**{txt}**"
+        if a.get("italic"):
+            txt = f"*{txt}*"
+        if a.get("strikethrough"):
+            txt = f"~~{txt}~~"
+        href = t.get("href")
+        if href and href.startswith(("http://", "https://")):
+            txt = f"[{txt}]({href})"
+        out.append(txt)
+    return "".join(out)
+
+
+def _children_of(bid: str) -> list[dict]:
+    out, cursor = [], None
+    while True:
+        q = f"/blocks/{bid}/children?page_size=100" + (f"&start_cursor={cursor}" if cursor else "")
+        r = _call("GET", q)
+        out += r.get("results") or []
+        if not r.get("has_more") or len(out) >= MAX_BLOCKS:
+            return out
+        cursor = r.get("next_cursor")
+
+
+def _blocks_md(blocks: list[dict], depth: int, count: list[int]) -> list[str]:
+    lines: list[str] = []
+    ind = "  " * depth
+    n = 0
+    for b in blocks:
+        count[0] += 1
+        if count[0] > MAX_BLOCKS:
+            lines.append(f"{ind}*(… la tarjeta sigue: ábrela en Notion)*")
+            break
+        t = b.get("type")
+        d = b.get(t) or {}
+        txt = _rich(d.get("rich_text") or [])
+        if t != "numbered_list_item":
+            n = 0
+        if t == "paragraph":
+            lines.append(f"{ind}{txt}" if txt else "")
+        elif t in ("heading_1", "heading_2", "heading_3"):
+            lines += ["", f"{'#' * int(t[-1]) } {txt}", ""]
+        elif t == "bulleted_list_item":
+            lines.append(f"{ind}- {txt}")
+        elif t == "numbered_list_item":
+            n += 1
+            lines.append(f"{ind}{n}. {txt}")
+        elif t == "to_do":
+            lines.append(f"{ind}- [{'x' if d.get('checked') else ' '}] {txt}")
+        elif t == "toggle":
+            lines.append(f"{ind}- ▸ {txt}")
+        elif t == "quote":
+            lines.append(f"{ind}> {txt}")
+        elif t == "callout":
+            icon = (d.get("icon") or {}).get("emoji") or "💡"
+            lines.append(f"{ind}> {icon} {txt}")
+        elif t == "code":
+            lines += [f"{ind}```{d.get('language') or ''}", *[ind + x for x in "".join(r.get("plain_text", "") for r in d.get("rich_text") or []).splitlines()], f"{ind}```"]
+        elif t == "divider":
+            lines.append(f"{ind}---")
+        elif t in ("image", "file", "pdf", "video"):
+            src = (d.get("file") or d.get("external") or {}).get("url") or ""
+            cap = _rich(d.get("caption") or []) or t
+            if src.startswith("https://"):
+                lines.append(f"{ind}![{cap}]({src})" if t == "image" else f"{ind}[📎 {cap}]({src})")
+        elif t == "bookmark" or t == "embed" or t == "link_preview":
+            u = d.get("url") or ""
+            if u.startswith(("http://", "https://")):
+                lines.append(f"{ind}[🔗 {_rich(d.get('caption') or []) or u}]({u})")
+        elif t == "child_page":
+            lines.append(f"{ind}📄 {d.get('title') or 'subpágina'}")
+        elif t == "child_database":
+            lines.append(f"{ind}🗃 {d.get('title') or 'base de datos'}")
+        elif t == "table_row":
+            lines.append(f"{ind}| " + " | ".join(_rich(c) for c in d.get("cells") or []) + " |")
+        elif txt:
+            lines.append(f"{ind}{txt}")
+        # hijos: sublistas, el contenido de un toggle, las filas de una tabla, columnas
+        if b.get("has_children") and depth < 4 and t not in ("child_page", "child_database"):
+            kids = _children_of(b["id"])
+            if t == "table":
+                rows = _blocks_md(kids, depth, count)
+                if rows:
+                    cols = rows[0].count("|") - 1
+                    lines += ["", rows[0], "|" + "---|" * max(cols, 1), *rows[1:], ""]
+            else:
+                lines += _blocks_md(kids, depth + (1 if t in ("bulleted_list_item", "numbered_list_item", "to_do", "toggle") else 0), count)
+    return lines
+
+
+def page_markdown(db: Db, url: str) -> dict:
+    """{url, title, status, markdown} de una tarjeta (para la tab «Notion» del IDE). Actualiza la caché del Status."""
+    url = check_url(url)
+    pid = page_id(url)
+    page = _call("GET", f"/pages/{pid}")
+    _, _, status = _status_prop(page)
+    title = _title(page)
+    md = "\n".join(_blocks_md(_children_of(pid), 0, [0]))
+    md = re.sub(r"\n{3,}", "\n\n", md).strip()
+    cur = db.get(f"notion:{pid}") or {}
+    db.set(f"notion:{pid}", {**cur, "status": status, "title": title, "children": _children(page), "ts": time.time(),
+                             "at": datetime.now().isoformat(timespec="minutes"), "error": None})
+    return {"url": url, "title": title, "status": status, "markdown": md, "notionUrl": page.get("url")}

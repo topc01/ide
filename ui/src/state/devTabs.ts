@@ -4,7 +4,7 @@ import { create } from "zustand";
 /** Una tab del panel principal. Cada desarrollo tiene su propia fila de tabs. */
 export interface DevTab {
   id: string;                                   // único dentro del desarrollo
-  kind: "claude" | "doc" | "summary" | "script" | "run" | "file" | "diff" | "db" | "attachment" | "consult";
+  kind: "claude" | "doc" | "summary" | "script" | "run" | "file" | "diff" | "db" | "attachment" | "consult" | "notion";
   label: string;
   sid?: string;                                 // claude / doc
   url?: string;                                 // summary (PR)
@@ -80,5 +80,8 @@ export const fileTab = (place: string, repo: string, path: string): DevTab =>
 export const diffTab = (url: string, path: string, oldPath: string | null): DevTab =>
   ({ id: `diff:${url}:${path}`, kind: "diff", label: `Δ ${path.split("/").pop() || path}`, url, path, oldPath });
 export const dbTab = (url: string, name: string): DevTab => ({ id: `db:${name}`, kind: "db", label: `DB ${name}`, url });
+/** Una tarjeta de Notion (ticket o subticket), leída en el IDE. */
+export const notionTab = (url: string, title: string | null): DevTab =>
+  ({ id: `notion:${url}`, kind: "notion", label: `▤ ${(title ?? "Notion").slice(0, 28)}${(title?.length ?? 0) > 28 ? "…" : ""}`, url });
 export const attachmentTab = (sid: string, name: string): DevTab =>
   ({ id: `att:${sid}/${name}`, kind: "attachment", label: `📎 ${(name.split("/").pop() ?? name).replace(/^\d{8}-\d{6}-/, "")}`, sid, name });

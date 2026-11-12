@@ -3,6 +3,7 @@ import { useClaudeFocus } from "../layout/devShortcuts";
 import { useEffect, useRef, useState } from "react";
 import { Bot, Paperclip, Plus, X } from "lucide-react";
 import { useFolders } from "../state/folders";
+import { NotionTab } from "./NotionTab";
 import { attachmentTab, claudeTab, consultTab, docTab, fileTab, scriptTab, summaryTab, useDevTabs, type DevTab } from "../state/devTabs";
 import { resolvePath } from "./pathLinks";
 import type { FolderSession, GhPr } from "../transport/folderSessions";
@@ -299,6 +300,7 @@ export function DevTabsView() {
         {active?.kind === "run" && active.place && active.repo && active.name &&
           <RunLogTab key={active.id} place={active.place} repo={active.repo} name={active.name} />}
         {active?.kind === "attachment" && active.sid && active.name && <AttachmentTab key={active.id} sid={active.sid} name={active.name} />}
+        {active?.kind === "notion" && active.url && <NotionTab key={active.id} devKey={dev.key} url={active.url} />}
         {active?.kind === "db" && active.url &&
           <iframe key={active.id} src={active.url} title={active.label} className="h-full w-full border-0 bg-white" />}
         {active?.kind === "diff" && active.url && active.path &&
