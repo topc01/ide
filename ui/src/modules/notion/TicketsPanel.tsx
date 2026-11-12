@@ -24,7 +24,7 @@ function Row({ devKey, t, toggle }: { devKey: string; t: T; toggle?: (show: bool
         <button role="switch" aria-checked={t.card !== false} onClick={() => toggle(t.card === false)}
           title={t.card !== false ? "Se muestra en la card: click para esconderlo ahí (sigue siendo subticket)" : "No se muestra en la card: click para mostrarlo"}
           className={cn("mt-0.5 h-4 w-7 shrink-0 rounded-full border p-[1px] transition-colors",
-            t.card !== false ? "border-primary bg-primary/80" : "border-border bg-muted")}>
+            t.card !== false ? "border-primary bg-primary" : "border-border bg-muted")}>
           <span className={cn("block h-3 w-3 rounded-full bg-background transition-transform", t.card !== false && "translate-x-3")} />
         </button>)}
     </div>);

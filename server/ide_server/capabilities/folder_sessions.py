@@ -2396,7 +2396,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
-        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "notion.page": notion_page, "usage.get": usage,
+        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.notionPage": notion_page, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,

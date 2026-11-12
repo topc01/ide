@@ -312,7 +312,7 @@ export const fetchTool = (ws: WsClient, name: string): Promise<{ tool: ToolEntry
 
 /** Una tarjeta de Notion como Markdown (tab «Notion» del IDE). */
 export const fetchNotionPage = (ws: WsClient, url: string): Promise<{ url: string; title: string | null; status: string | null; markdown: string; notionUrl?: string }> =>
-  ws.request("notion.page", { url });
+  ws.request("dev.notionPage", { url });
 /** El interruptor del módulo Notion: el subticket se muestra (o no) en la card. */
 export const setSubTicketCard = (ws: WsClient, id: string, url: string, show: boolean): Promise<{ ok: boolean }> =>
   ws.request("dev.ticketSubCard", { id, url, show });
