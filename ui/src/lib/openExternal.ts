@@ -8,7 +8,9 @@ const standalone = () => {
 };
 
 export function openExternal(url: string): void {
-  const abs = new URL(url, location.href).href;
+  const parsed = new URL(url, location.href);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return;   // nunca javascript:, data:, file:…
+  const abs = parsed.href;
   if (!standalone()) { window.open(abs, "_blank", "noopener,noreferrer"); return; }
   fetch("/api/ui/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: abs }) })
     .then((r) => { if (!r.ok) throw new Error(String(r.status)); })

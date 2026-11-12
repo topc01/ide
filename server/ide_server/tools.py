@@ -22,6 +22,14 @@ def _state(s: str | None) -> str:
     return s
 
 
+def _link(link: str | None) -> str | None:
+    """Solo http(s): el link se abre desde la UI (un `javascript:` correría en el IDE)."""
+    link = (link or "").strip()
+    if link and not link.lower().startswith(("http://", "https://")):
+        raise SessionError("bad_link", f"el link tiene que ser http(s): {link[:80]!r}")
+    return link[:2000] or None
+
+
 def _row(r) -> dict:
     return {"name": r[0], "link": r[1], "state": r[2], "reason": r[3], "created": r[4], "updated": r[5]}
 
@@ -42,7 +50,7 @@ def add(db: Db, name: str, link: str | None, state: str, reason: str | None, act
     st, at = _state(state), at or _now()
     reason = (reason or "").strip()[:MAX] or None
     with db._lock:
-        db._conn.execute("INSERT INTO tools VALUES (?, ?, ?, ?, ?, ?)", (name, (link or "").strip() or None, st, reason, at, at))
+        db._conn.execute("INSERT INTO tools VALUES (?, ?, ?, ?, ?, ?)", (name, _link(link), st, reason, at, at))
         db._conn.execute("INSERT INTO tools_history (name, at, from_state, to_state, reason, actor) VALUES (?, ?, ?, ?, ?, ?)",
                          (name, at, None, st, reason, actor))
     return get(db, name)
@@ -56,7 +64,7 @@ def set_state(db: Db, name: str, state: str, reason: str | None, actor: str, lin
     reason = (reason or "").strip()[:MAX] or None
     with db._lock:
         db._conn.execute("UPDATE tools SET state = ?, reason = COALESCE(?, reason), link = COALESCE(?, link), updated = ? "
-                         "WHERE name = ?", (st, reason, (link or "").strip() or None, at, cur["name"]))
+                         "WHERE name = ?", (st, reason, _link(link), at, cur["name"]))
         db._conn.execute("INSERT INTO tools_history (name, at, from_state, to_state, reason, actor) VALUES (?, ?, ?, ?, ?, ?)",
                          (cur["name"], at, cur["state"], st, reason, actor))
     return get(db, cur["name"])

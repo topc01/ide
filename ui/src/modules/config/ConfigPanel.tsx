@@ -57,7 +57,7 @@ function ToolsRegistry() {
           </button>
           {open === t.name && (
             <div className="border-t border-border px-1.5 py-1 text-[11px]">
-              {t.link && <button onClick={() => openExternal(t.link!)} title="Abrir el link en el navegador"
+              {t.link && /^https?:\/\//i.test(t.link) && <button onClick={() => openExternal(t.link!)} title="Abrir el link en el navegador"
                 className="mb-1 block max-w-full truncate text-left text-primary hover:underline">{t.link}</button>}
               {t.reason && <div className="mb-1 whitespace-pre-wrap text-muted-foreground">{t.reason}</div>}
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">historial</div>
