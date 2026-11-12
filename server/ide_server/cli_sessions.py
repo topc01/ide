@@ -1000,7 +1000,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             text = sys.stdin.read() if a.prompt_file == "-" else (Path(a.prompt_file).read_text(encoding="utf-8") if a.prompt_file else a.text)
             if not text or not text.strip():
                 raise SessionError("bad_request", "falta el texto (argumento o --prompt-file -)")
-            _post(http, url, "/api/telegram/reply", {"text": text, "token": env.get("IDE_MANAGER_TOKEN", "")})
+            _post(http, url, "/api/telegram/reply", {"text": text, "token": env.get("IDE_MANAGER_TOKEN", ""),
+                                                      "ptoken": env.get("IDE_PLUGINS_TOKEN", "")})
             out.write("enviado por Telegram\n")
             return 0
         if a.group == "telegram":
@@ -1158,6 +1159,7 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
             raise SessionError("bad_request", "falta el texto: --prompt-file - (stdin) o --prompt")
         sid = a.id if a.id.lstrip("#").isdigit() else normalize_id(a.id)
         body = {"text": text, "token": env.get("IDE_MANAGER_TOKEN", ""),   # solo la principal lo tiene
+                "ptoken": env.get("IDE_PLUGINS_TOKEN", ""),                # la sesión Plugins (solo a #93)
                 "from_session": env.get("IDE_SESSION_ID")}                 # sin sesión = tu terminal
         data = _post(http, url, f"/api/sessions/{quote(sid, safe='')}/{a.cmd}", body)
         if a.cmd == "propose":

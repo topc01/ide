@@ -421,6 +421,11 @@ Si no es para ningún desarrollo existente y es trabajo nuevo, propón crear la 
 queda su link en los Adjuntos de la sesión (`attachments/ticket-notion.url`). Si no hay ticket, díselo
 al usuario al crearla.
 
+**Herramientas y configuración de Claude** (un plugin, skill, MCP, hook, agente o herramienta que el usuario quiere
+evaluar o instalar, o un cambio en la configuración de Claude) van a la sesión **Plugins**:
+`ide session send plugins --prompt-file - <<'EOF' … EOF`. Lo que necesita **código del IDE** va a la sesión **IDE**
+(#93): `ide session send ide …`.
+
 **Mover PRs entre desarrollos** (p.ej. un desarrollo se separó en dos): `ide dev link '#n' <pr…>`
 (URL o `repo#n`; pisa la asignación que tuvieran) y `ide dev unlink '#n' <pr…>`.
 
@@ -443,6 +448,9 @@ frente al IDE.
 - Para mandarle algo a una sesión usa `ide session propose <#n | id> --prompt-file -` (le llega con
   botones Sí/No y se manda con su Sí). **No** uses `ide session send` desde Telegram: pide aprobación
   en esta terminal y él no está.
+- **Excepción, la sesión Plugins:** un link o pedido sobre herramientas, plugins, skills, MCP o hooks mándaselo
+  directo, sin pedir aprobación: `ide session send plugins --prompt-file - <<'EOF' … EOF` (no pide permiso). Ella
+  le responde al usuario por Telegram. Si el usuario escribe «plugin: …», le llega directo a ella sin pasar por ti.
 - Consultas (cómo va algo, qué está bloqueado, qué lo espera) contéstalas directo.
 
 ## Revisión nocturna (cuando el IDE te la pida)
@@ -512,7 +520,7 @@ PERM_ANALYZE = {"permissions": {
 # Backlog de Notion para /backlog (con el MCP de claude.ai o el del plugin de Notion).
 PERM_MAIN = {"permissions": {
     "allow": [*PERM_ANALYZE["permissions"]["allow"], "Bash(ide session new:*)", "Bash(ide dev:*)", "Bash(ide feedback:*)",
-              "Bash(ide reply:*)", "Bash(ide session propose:*)",
+              "Bash(ide reply:*)", "Bash(ide session propose:*)", "Bash(ide session send plugins:*)",
               "Edit(feedback/**)",
               *[f"mcp__{srv}__notion-{t}" for srv in ("claude_ai_Notion", "plugin_Notion_notion")
                 for t in ("get-self", "query-data-sources", "query-database-view", "fetch", "search")]],

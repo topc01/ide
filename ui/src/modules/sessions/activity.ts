@@ -13,7 +13,7 @@ export function activityOf(s: FolderSession, dev?: DevStateInfo | null): Activit
   if (s.process === "running" && s.frozen) return "frozen";
   if (s.process === "running") return s.activity?.state ?? "running";
   if (s.paused) return "paused";
-  const done = s.kind === "main" || s.kind === "ide" || s.kind === "recursos"
+  const done = s.kind === "main" || s.kind === "ide" || s.kind === "recursos" || s.kind === "plugins"
     || (s.kind === "review" ? ["approved", "changes-requested"].includes(s.status ?? "") || ["merged", "closed"].includes(s.prState ?? "")
       : !!dev && (dev.state === "merged" || dev.state === "paused"));
   return done ? "idle" : "stale";

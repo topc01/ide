@@ -39,7 +39,7 @@ from ide_server.session_ops import (
 )
 from ide_server.sessions_fs import (
     attachment_path, find_main, list_sessions, normalize_id, parse_frontmatter, write_frontmatter, read_session, read_toml, render_template, require_plain_name,
-    session_path, state_file, SessionError, update_session_toml,
+    session_path, state_file, SessionError, update_session_toml, PLUGINS,
 )
 from ide_server.supervisor import Supervisor, clean_env, encode_project_dir
 from ide_server.workspace import discover_repos
@@ -77,6 +77,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         ensure_recursos_session(root)
     except Exception:  # noqa: BLE001
         log.exception("no pude preparar la sesión Recursos")
+    try:                                        # la sesión "Plugins" (herramientas y configuración de Claude)
+        from ide_server.sessions_fs import ensure_plugins_session
+        ensure_plugins_session(root)
+    except Exception:  # noqa: BLE001
+        log.exception("no pude preparar la sesión Plugins")
 
     _migrating = threading.Lock()   # la migración de ids y el refresco del árbol no se cruzan
 
@@ -636,12 +641,18 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         # rutea la principal (lo prueba con el token que el IDE le pasa a SU claude al lanzarla) o el usuario
         # desde su terminal (por CLI, sin sesión); otra sesión, no
         caller = _manager_or_terminal(p)
+        if caller is None and _is_plugins(p):
+            # la sesión Plugins le deriva a la IDE (#93) lo que necesita código del IDE; a ninguna otra
+            if sid != "ide":
+                raise SessionError("forbidden", "la sesión Plugins solo le escribe a la sesión IDE (#93)")
+            caller = "plugins"
         if caller is None:
             raise SessionError("forbidden", "solo la sesión manager o el usuario desde su terminal mandan prompts a otras "
                                "sesiones; un comando con `!` dentro de una sesión cuenta como de esa sesión")
         # con encabezado: nunca empieza con "!" (claude lo correría como shell) ni con "/", y la
         # sesión sabe de quién viene
-        text = ("[Mensaje de la sesión manager]\n" if caller == "manager" else "[Mensaje del usuario]\n") + text.strip()
+        text = {"manager": "[Mensaje de la sesión manager]\n", "plugins": "[Mensaje de la sesión Plugins]\n"}.get(
+            caller, "[Mensaje del usuario]\n") + text.strip()
         state, how = _deliver_to(sid, text, caller)
         return {"id": sid, "process": state, "delivered": how}
 
@@ -698,12 +709,21 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             return "user"
         return None
 
+    def _is_plugins(p: dict) -> bool:
+        return bool(p.get("ptoken")) and secrets.compare_digest(str(p.get("ptoken")), supervisor.plugins_token)
+
     def _manager_only(p: dict) -> None:
         if not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
             raise SessionError("forbidden", "solo la sesión principal")
 
     # -- Telegram (ver telegram.py) ------------------------------------------------------------------
     async def _tg_deliver(text: str) -> str:
+        # «plugin: …»: directo a la sesión Plugins (herramientas, plugins, skills, MCP, hooks), sin pasar por la manager
+        m = re.match(r"\s*plugins?\s*:\s*", text, re.IGNORECASE)
+        if m and session_path(root, PLUGINS).is_dir():
+            _, how = _deliver_to(PLUGINS, "[Mensaje de Telegram del usuario] (respóndele con `ide reply`: una línea por "
+                                 "herramienta)\n" + text[m.end():], "telegram")
+            return how
         main = await asyncio.to_thread(find_main, root)
         if main is None:
             raise SessionError("no_main", "no hay sesión principal")
@@ -718,12 +738,16 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     bridge = TelegramBridge(db, deliver=_tg_deliver, propose_ok=_tg_propose_ok) if db is not None else None
 
     async def tg_reply(p: dict) -> dict:
-        _manager_only(p)
+        plugins = _is_plugins(p)
+        if not plugins:
+            _manager_only(p)
         if bridge is None:
             raise SessionError("no_db", "sin base")
         text = (p.get("text") or "").strip()
         if not text:
             raise SessionError("bad_request", "falta el texto")
+        if plugins:
+            text = "[Plugins] " + text
         try:
             await bridge.send(text)
         except RuntimeError as exc:

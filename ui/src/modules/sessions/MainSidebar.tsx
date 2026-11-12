@@ -30,7 +30,8 @@ export function MainSidebar() {
   const main = tree.sessions.find((s) => s.kind === "main");
   const ide = tree.sessions.find((s) => s.kind === "ide");
   const recursos = tree.sessions.find((s) => s.kind === "recursos");
-  const tickets = tree.sessions.filter((s) => s.kind !== "main" && s.kind !== "review" && s.kind !== "ide" && s.kind !== "recursos");
+  const plugins = tree.sessions.find((s) => s.kind === "plugins");
+  const tickets = tree.sessions.filter((s) => s.kind !== "main" && s.kind !== "review" && s.kind !== "ide" && s.kind !== "recursos" && s.kind !== "plugins");
   const reviews = tree.sessions.filter((s) => s.kind === "review");
 
   return (
@@ -42,7 +43,7 @@ export function MainSidebar() {
         </div>
       )}
       <div className={connected ? "" : "opacity-50"}>
-        {/* pestañas de las sesiones de siempre: la manager, la del IDE y Recursos */}
+        {/* pestañas de las sesiones de siempre: la manager, la del IDE, Recursos y Plugins */}
         <div className="flex items-center gap-1.5 px-2.5 pt-2.5">
           {main ? <SessionTab session={main} label="Manager" title={`La sesión manager: coordina los desarrollos (${main.id})`}
               active={activeId === main.id && !activePrUrl} onClick={() => setActive(main.id)} />
@@ -58,6 +59,9 @@ export function MainSidebar() {
           {recursos && <SessionTab session={recursos} label="Recursos"
             title="Claude que mira qué consume el computador (batería, CPU) y corta lo abandonado"
             active={activeId === recursos.id && !activePrUrl} onClick={() => setActive(recursos.id)} />}
+          {plugins && <SessionTab session={plugins} label="Plugins"
+            title="Claude que evalúa herramientas (plugins, skills, MCP, hooks) y aplica cambios de configuración con tu OK"
+            active={activeId === plugins.id && !activePrUrl} onClick={() => setActive(plugins.id)} />}
           <div className="ml-auto">
             <button aria-label="Nueva sesión" title="Nueva sesión" onClick={() => openModal("session")}
               className="grid h-5 w-5 place-items-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><Plus size={13} /></button>

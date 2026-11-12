@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Callable
 from ide_server.sessions_fs import list_sessions, read_toml, session_path, write_toml
 
-KEEP = {"ide", "recursos", "manager"}
+KEEP = {"ide", "recursos", "manager", "plugins"}
 
 
 def _enc(path: Path) -> str:

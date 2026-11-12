@@ -133,7 +133,7 @@ def snapshot(root: Path, *, home: Path | None = None, with_docker: bool = True) 
             return "su sesión ya no existe"
         if i["status"] in DONE:
             return f"el desarrollo está {i['status']}"
-        if i["kind"] in ("main", "ide", "recursos"):
+        if i["kind"] in ("main", "ide", "recursos", "plugins"):
             return None
         uses = [t for t in last_use if t]
         if uses and time.time() - max(uses) > cfg["idle_hours"] * 3600:

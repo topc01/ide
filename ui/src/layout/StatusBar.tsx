@@ -115,7 +115,7 @@ const WAIT_REASON: Record<string, [string, string]> = {
   idle: ["inactiva", "border-border text-muted-foreground"],
   launch: ["recién abierta", "border-border text-muted-foreground"],
 };
-const SKIP_KINDS = ["main", "ide", "recursos"];
+const SKIP_KINDS = ["main", "ide", "recursos", "plugins"];
 
 /** Lo que necesita tu respuesta para seguir: pide un permiso o te hizo una pregunta. */
 const BLOCKED = ["permission", "question"];
@@ -304,7 +304,7 @@ function RestartNow() {
   const idx = useFolders((s) => s.tree.devIndex);
   const [confirm, setConfirm] = useState(false);
   const working = sessions.filter((x) => x.process === "running" && !x.frozen && x.activity?.state === "working");
-  const names = working.map((x) => x.kind === "main" ? "Manager" : x.kind === "ide" ? "IDE" : x.kind === "recursos" ? "Recursos"
+  const names = working.map((x) => x.kind === "main" ? "Manager" : x.kind === "ide" ? "IDE" : x.kind === "recursos" ? "Recursos" : x.kind === "plugins" ? "Plugins"
     : idx?.[`s:${x.id}`] ? `#${idx[`s:${x.id}`]}` : x.id);
   const restart = () => { setConfirm(false); getWs().request("server.restart", {}).catch(() => {}); };
   if (!working.length)

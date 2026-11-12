@@ -61,7 +61,7 @@ export function DevSearch() {
 
   const all: Item[] = useMemo(() => tree.sessions.map((s) => {
     const k = `s:${s.id}`;
-    const tag = s.kind === "main" ? "Manager" : s.kind === "ide" ? "IDE" : s.kind === "recursos" ? "Recursos"
+    const tag = s.kind === "main" ? "Manager" : s.kind === "ide" ? "IDE" : s.kind === "recursos" ? "Recursos" : s.kind === "plugins" ? "Plugins"
       : s.kind === "review" ? "Revisión" : null;
     const n = tree.devIndex?.[k] ?? (/^\d+$/.test(s.id) ? Number(s.id) : null);
     return { key: k, n, title: tree.devNames?.[k] ?? s.title ?? tag ?? s.id, tag, dot: ACTIVITY[activityOf(s)] };

@@ -232,6 +232,8 @@ class Supervisor:
         # (sin archivo: cualquier sesión podría leerlo). Al reiniciar el server los claude se relanzan
         # (sus PTY mueren con él), así que la principal recibe el nuevo.
         self.manager_token = secrets.token_urlsafe(32)
+        # la sesión Plugins: responde por Telegram (`ide reply`) y le escribe solo a la sesión IDE (#93)
+        self.plugins_token = secrets.token_urlsafe(32)
         self._root, self._spawn, self._kill = root, spawn, kill
         self._url, self._command, self._max = server_url, command, max_running
         self._home = home or Path.home()
@@ -430,6 +432,7 @@ class Supervisor:
         env = {**clean_env(dict(os.environ)), **dev_env(self._root, sid), "IDE_SESSION_ID": sid, "IDE_URL": self._url,
                # solo la principal: con esto `ide session send` prueba que es ella (ver sessions.send)
                **({"IDE_MANAGER_TOKEN": self.manager_token} if data.get("kind") == "main" else {}),
+               **({"IDE_PLUGINS_TOKEN": self.plugins_token} if data.get("kind") == "plugins" else {}),
                "IDE_WORKSPACE": str(self._root)}
         holder: dict[str, str] = {}
         tid = self._spawn(cwd, argv, env,

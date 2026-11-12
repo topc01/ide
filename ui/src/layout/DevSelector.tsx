@@ -40,7 +40,7 @@ export function desarrollos(sessions: FolderSession[], gh: GithubReviews | null,
 
 const GROUPS = ["Sesiones", "Mis desarrollos", "Revisiones"];
 const original = (d: Desarrollo) => d.kind === "session"
-  ? (d.session.kind === "main" ? "Manager" : d.session.kind === "ide" ? "IDE" : d.session.kind === "recursos" ? "Recursos" : d.session.title ?? d.session.id) : d.pr.title;
+  ? (d.session.kind === "main" ? "Manager" : d.session.kind === "ide" ? "IDE" : d.session.kind === "recursos" ? "Recursos" : d.session.kind === "plugins" ? "Plugins" : d.session.title ?? d.session.id) : d.pr.title;
 const prsOf = (d: Desarrollo) => d.kind === "session" ? d.prs : [d.pr];
 
 function DevLine({ d, names }: { d: Desarrollo; names?: Record<string, string> }) {
@@ -61,7 +61,7 @@ function DevLine({ d, names }: { d: Desarrollo; names?: Record<string, string> }
         {pr && <CiMark pr={pr} />}
       </div>
       <div className="flex items-center gap-1.5 pl-4 font-mono text-[10px] text-muted-foreground">
-        <span className="truncate">{d.kind === "session" ? (d.session.kind === "main" ? "sesión principal" : d.session.kind === "ide" ? "repo del IDE" : d.session.kind === "recursos" ? "batería y CPU"
+        <span className="truncate">{d.kind === "session" ? (d.session.kind === "main" ? "sesión principal" : d.session.kind === "ide" ? "repo del IDE" : d.session.kind === "recursos" ? "batería y CPU" : d.session.kind === "plugins" ? "herramientas y configuración"
           : /^\d+$/.test(d.session.id) ? d.session.repos.map((r) => r.name.replace(/^finnecto-/, "")).join(" · ") || "sin repos" : d.session.id) : `${d.pr.repo}#${d.pr.number}`}</span>
         {repos.length > 1 && <RepoChips repos={repos} />}
         {pr && (d.kind === "pr" || d.prs.length === 1) && <StackBadge pr={pr} />}

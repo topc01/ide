@@ -19,7 +19,7 @@ export function DevSwitcher() {
       return { n: null, title: m ? `${m[1].replace(/^finnecto-/, "")}#${m[2]}` : k.slice(2), tag: "PR", dot: null };
     }
     const s = tree.sessions.find((x) => x.id === k.slice(2));
-    const tag = s?.kind === "main" ? "Manager" : s?.kind === "ide" ? "IDE" : s?.kind === "recursos" ? "Recursos"
+    const tag = s?.kind === "main" ? "Manager" : s?.kind === "ide" ? "IDE" : s?.kind === "recursos" ? "Recursos" : s?.kind === "plugins" ? "Plugins"
       : s?.kind === "review" ? "Revisión" : null;
     const n = tree.devIndex?.[k] ?? (s && /^\d+$/.test(s.id) ? Number(s.id) : null);
     return { n, title: tree.devNames?.[k] ?? s?.title ?? tag ?? k.slice(2), tag, dot: s ? ACTIVITY[activityOf(s)] : null };
