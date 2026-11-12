@@ -35,7 +35,7 @@ export function MainSidebar() {
   const reviews = tree.sessions.filter((s) => s.kind === "review");
 
   return (
-    <aside ref={scrollRef} className="flex w-[300px] flex-col overflow-auto border-r border-border bg-card">
+    <aside ref={scrollRef} className="flex w-[300px] flex-col overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] border-r border-border bg-card">
       <OffscreenMarker where={offscreen} side="above" container={scrollRef} />
       {!connected && (
         <div role="status" className="bg-destructive/15 px-2.5 py-1 text-[11px] text-destructive">
