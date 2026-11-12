@@ -86,6 +86,7 @@ export function StatusBar() {
           </span>
           <WorkingNow />
           <WaitingForYou />
+          <FinishedNow />
           <FeedbackPending />
           <Window label="5h" w={lim?.fiveHour ?? null} now={now} />
           <Window label="semana" w={lim?.weekly ?? null} now={now} />
@@ -116,17 +117,31 @@ const WAIT_REASON: Record<string, [string, string]> = {
 };
 const SKIP_KINDS = ["main", "ide", "recursos"];
 
-/** Cuántas sesiones esperan tu input (su claude terminó el turno o pide un permiso; más las que
- *  quedaron marcadas "esperando tu input" de antes). */
-function WaitingForYou() {
+/** Lo que necesita tu respuesta para seguir: pide un permiso o te hizo una pregunta. */
+const BLOCKED = ["permission", "question"];
+
+/** Las sesiones paradas esperando algo de ti: «te esperan» = bloqueadas (permiso o pregunta; más las marcadas
+ *  "esperando tu input" de antes); «terminaron» = el resto (terminó el turno, la interrumpiste, inactiva, recién
+ *  abierta). */
+function useWaiting() {
   const states = useFolders((s) => s.tree.devStates);
   const sessions = useFolders((s) => s.tree.sessions);
-  const byActivity = sessions.filter((x) => !SKIP_KINDS.includes(x.kind ?? "") && isWaiting(x))
+  const all = sessions.filter((x) => !SKIP_KINDS.includes(x.kind ?? "") && isWaiting(x))
     .map((x) => [`s:${x.id}`, { note: x.activity?.note ?? null, reason: x.activity?.reason ?? null }] as const);
-  const legacy = Object.entries(states ?? {}).filter(([k, v]) => v.block === "waiting-input" && !byActivity.some(([b]) => b === k))
-    .map(([k]) => [k, { note: null }] as const);
-  return <SessionCounter items={[...byActivity, ...legacy]} one="te espera" many="te esperan" what="te esperan"
-    tone="text-orange-300" bg="bg-orange-400/15" dot={["●", "text-orange-500"]} time={waitTime} />;
+  const legacy = Object.entries(states ?? {}).filter(([k, v]) => v.block === "waiting-input" && !all.some(([b]) => b === k))
+    .map(([k]) => [k, { note: null, reason: null }] as const);
+  return {
+    blocked: [...all.filter(([, v]) => BLOCKED.includes(v.reason ?? "")), ...legacy],
+    finished: all.filter(([, v]) => !BLOCKED.includes(v.reason ?? "")),
+  };
+}
+
+function WaitingForYou() {
+  return <SessionCounter items={useWaiting().blocked} one="te espera" many="te esperan" what="te esperan" />;
+}
+
+function FinishedNow() {
+  return <SessionCounter items={useWaiting().finished} one="terminó" many="terminaron" what="terminaron" />;
 }
 
 /** Cuántas sesiones tienen su claude trabajando ahora (a la izquierda de «te esperan», igual por dentro). */
@@ -145,7 +160,7 @@ function WorkingNow() {
  *  click = el detalle queda fijo y ↑/↓ lo cambia a la sesión de arriba/abajo. Enter (o «ir a la sesión») abre la
  *  sesión. Esc cierra todo (dentro del campo para responder, primero sale del campo). */
 function SessionCounter({ items, one, many, what }:
-  { items: Listed[]; one: string; many: string; what: "te esperan" | "trabajando"; tone?: string; bg?: string;
+  { items: Listed[]; one: string; many: string; what: "te esperan" | "trabajando" | "terminaron"; tone?: string; bg?: string;
     dot?: [string, string]; time?: (s?: any) => string | null }) {
   const names = useFolders((s) => s.tree.devNames);
   const sessions = useFolders((s) => s.tree.sessions);
@@ -153,8 +168,8 @@ function SessionCounter({ items, one, many, what }:
   const activePrUrl = useFolders((s) => s.activePrUrl);
   const waiting = items;
   const working = what === "trabajando";
-  const tone = working ? "text-sky-300" : "text-orange-300";
-  const bg = working ? "bg-sky-400/15" : "bg-orange-400/15";
+  const tone = working ? "text-sky-300" : what === "terminaron" ? "text-muted-foreground" : "text-orange-300";
+  const bg = working ? "bg-sky-400/15" : what === "terminaron" ? "bg-muted" : "bg-orange-400/15";
   const label = (k: string) => names?.[k] ?? (k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2))?.title ?? k.slice(2) : k.slice(2));
   const [at, setAt] = useState<DOMRect | null>(null);
   const [pinned, setPinned] = useState(false);            // la lista, fija (click en el contador)
@@ -219,7 +234,7 @@ function SessionCounter({ items, one, many, what }:
   return (<>
     <button ref={trigger} onMouseEnter={show} onMouseLeave={hide}
       onClick={() => { show(); setPinned(true); }}
-      title={`Las sesiones ${working ? "con su claude trabajando" : "que te esperan"}: pasa el mouse para verlas; click = la lista queda abierta hasta Esc. En la lista: hover en una sesión = su detalle; click = el detalle queda fijo (↑/↓ cambia de sesión); Enter abre la sesión`}
+      title={`Las sesiones ${working ? "con su claude trabajando" : what === "terminaron" ? "que terminaron (sin pregunta ni permiso pendiente)" : "que necesitan tu respuesta (un permiso o una pregunta)"}: pasa el mouse para verlas; click = la lista queda abierta hasta Esc. En la lista: hover en una sesión = su detalle; click = el detalle queda fijo (↑/↓ cambia de sesión); Enter abre la sesión`}
       className={cn("rounded px-1 font-semibold", tone, (at || pinned) && bg)}>
       {waiting.length} {waiting.length === 1 ? one : many}</button>
     {at && createPortal(
