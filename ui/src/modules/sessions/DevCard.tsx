@@ -464,7 +464,7 @@ export function TicketChip({ devKey }: { devKey: string }) {
     {t.pending.length > 0 && (
       <button title={"Tickets de pendientes (lo que quedó fuera):\n" + t.pending.map((x) => `· ${x.title ?? x.url} (${x.status ?? "?"})`).join("\n")}
         onClick={openTicket(t.pending[0].url)}
-        className="inline-flex shrink-0 items-center rounded border border-border px-1 text-[10px] text-muted-foreground hover:border-primary">
+        className="inline-flex shrink-0 items-center rounded border border-border px-1 text-[10px] text-foreground hover:border-primary">
         +{t.pending.length} pendiente{t.pending.length > 1 ? "s" : ""}</button>)}
     {subs.length > 0 && <SubTickets devKey={devKey} subs={subs} />}
   </>);
@@ -478,13 +478,14 @@ const openTicket = (u: string) => (e: React.MouseEvent) => {
 
 /** Los colores del Status en la base Desarrollo de Notion (los mismos de Notion). */
 const TICKET_COLOR: Record<string, string> = {
-  // solo tonos con versión para el tema claro (index.css: --red-400, --purple-300…): los otros no se leen en claro
-  "Backlog": "bg-red-400/15 text-red-400", "To Do": "bg-purple-400/15 text-purple-300",
-  "In progress": "bg-sky-400/15 text-sky-300", "PR Review": "bg-yellow-400/20 text-yellow-300",
-  "Returned": "bg-orange-400/15 text-orange-300", "Live Staging": "bg-amber-700/20 text-amber-300",
-  "Completed Staging": "bg-emerald-400/15 text-emerald-300", "Completed Prod": "bg-emerald-400/15 text-emerald-300",
+  // el color del Status va en el borde y en un fondo muy pálido; la letra, la normal. Solo tonos con versión para el
+  // tema claro (index.css: --red-400, --purple-400…)
+  "Backlog": "border-red-400/70 bg-red-400/[0.07]", "To Do": "border-purple-400/70 bg-purple-400/[0.07]",
+  "In progress": "border-sky-400/70 bg-sky-400/[0.07]", "PR Review": "border-yellow-300/80 bg-yellow-300/[0.08]",
+  "Returned": "border-orange-300/80 bg-orange-300/[0.08]", "Live Staging": "border-amber-300/80 bg-amber-300/[0.07]",
+  "Completed Staging": "border-emerald-400/70 bg-emerald-400/[0.07]", "Completed Prod": "border-emerald-400/70 bg-emerald-400/[0.07]",
 };
-const ticketColor = (status: string | null) => (status && TICKET_COLOR[status]) || "bg-zinc-400/15 text-zinc-300";
+const ticketColor = (status: string | null) => (status && TICKET_COLOR[status]) || "border-zinc-300/60 bg-zinc-300/[0.07]";
 
 /** Un ticket de Notion: las primeras letras de su título, del color de su Status. Click: lo abre en Notion. */
 function TicketBlock({ url, title, status, error, what }:
@@ -492,8 +493,8 @@ function TicketBlock({ url, title, status, error, what }:
   return (
     // sin tooltip (eran demasiadas cosas encima de la card): el color dice el Status; click abre la tarjeta
     <button onClick={openTicket(url)} aria-label={`Abrir ${what} en Notion: ${title ?? url} (${status ?? "?"})${error ? ` ⚠ ${error}` : ""}`}
-      className={cn("inline-flex max-w-[10rem] shrink-0 items-center rounded px-1 text-[10px] font-semibold hover:brightness-125",
-        error ? "bg-destructive/15 text-destructive" : ticketColor(status))}>
+      className={cn("inline-flex max-w-[10rem] shrink-0 items-center rounded border px-1 text-[10px] font-semibold text-foreground hover:brightness-110",
+        error ? "border-destructive/70 bg-destructive/[0.07]" : ticketColor(status))}>
       <span className="truncate">{title ?? status ?? "Notion"}</span></button>);
 }
 
@@ -504,7 +505,7 @@ function SubTickets({ devKey, subs }: { devKey: string; subs: { url: string; sta
   return (<>
     <button aria-expanded={show} onClick={(e) => { e.stopPropagation(); setShow(!show); }}
       aria-label={show ? `Esconder los ${subs.length} subtickets` : `Mostrar los ${subs.length} subtickets`}
-      className={cn("rounded border px-1 font-mono text-[10px] font-bold text-muted-foreground hover:bg-accent",
+      className={cn("rounded border px-1 font-mono text-[10px] font-bold text-foreground hover:bg-accent",
         show ? "border-border bg-accent/40" : "border-dashed border-border")}>
       ◫ {subs.length}</button>
     {show && subs.map((x) => <TicketBlock key={x.url} url={x.url} title={x.title} status={x.status} what="el subticket" />)}
