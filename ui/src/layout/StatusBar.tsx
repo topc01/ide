@@ -269,7 +269,7 @@ function SessionCounter({ items, one, many, what }:
           </div>
         </div>
         {shownSid && (
-          <div onMouseEnter={() => shown && hoverIn(shown)} onMouseLeave={hoverOut}
+          <div data-float onMouseEnter={() => shown && hoverIn(shown)} onMouseLeave={hoverOut}
             style={{ left: detailLeft, bottom: window.innerHeight - at.top, width: detailW }}
             className="fixed z-50 pb-1">
             <AttentionDetail sid={shownSid} title={label(shown!)} mode={working ? "working" : "waiting"}
