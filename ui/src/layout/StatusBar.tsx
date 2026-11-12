@@ -256,13 +256,13 @@ function SessionCounter({ items, one, many, what }:
                     onMouseEnter={() => hoverIn(k)} onMouseLeave={hoverOut}
                     onMouseMove={() => i !== sel && !detailPinned && setIdx(i)}
                     onClick={() => { setIdx(i); setPinned(true); setDetailPinned(true); }}
-                    title={`${s && /^\d+$/.test(s.id) ? `#${s.id} ` : ""}${label(k)}: click fija su detalle; Enter abre la sesión`}
+                    // sin title: el tooltip tapaba las cards de abajo (el encabezado de la lista ya explica)
                     className={cn("flex w-full items-start gap-2 rounded border px-2 py-1.5 text-left",
                       i === sel ? "border-primary/60 bg-accent text-foreground" : "border-border bg-background/40 text-muted-foreground hover:text-foreground",
                       isShown && detailPinned && "ring-1 ring-primary")}>
                     {s && /^\d+$/.test(s.id) && <span className={cn("shrink-0 font-semibold", tone)}>#{s.id}</span>}
                     <span className={cn("min-w-0 flex-1 font-semibold leading-snug line-clamp-2", current && "text-primary")}>{label(k)}</span>
-                    {why && <span title={`Por qué te espera: ${why[0]}`} className={cn("shrink-0 rounded border px-1 text-[10px] leading-4", why[1])}>{why[0]}</span>}
+                    {why && <span className={cn("shrink-0 rounded border px-1 text-[10px] leading-4", why[1])}>{why[0]}</span>}
                   </button>);
               })}
             </div>
