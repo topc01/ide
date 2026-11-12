@@ -36,7 +36,8 @@ export interface SessionsTree {
   later?: LaterItem[];                  // pendientes para después, abiertos
   // ticket de Notion de cada desarrollo de ticket (`s:<id>`): url (null = sin ticket), Status de la caché, pendientes
   devTickets?: Record<string, { url: string | null; status: string | null; error: string | null;
-    pending: { url: string; status: string | null; title: string | null }[] }>;
+    pending: { url: string; status: string | null; title: string | null }[];
+    subs?: { url: string; status: string | null; title: string | null }[] }>;
   // desarrollos colgados de otro (`s:<id>`): mismo ticket, PR apilada sobre una rama de otro, separado por el IDE
   verdicts?: Record<string, { verdict: "approve" | "request-changes"; at: string | null; sha: string | null }>;
   devRelations?: Record<string, { kind: "ticket" | "stacked" | "split"; dev: string; n: number | null; pr?: string }[]>;

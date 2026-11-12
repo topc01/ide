@@ -320,6 +320,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_ticket(sid: str, body: dict):
         return await _http("dev.ticketSet", {**body, "id": sid})
 
+    @app.post("/api/devs/{sid}/sub-ticket")
+    async def api_sub_ticket(sid: str, body: dict):
+        return await _http("dev.ticketSub", {**body, "id": sid})
+
     @app.post("/api/devs/{sid}/pending-ticket")
     async def api_pending_ticket(sid: str, body: dict):
         return await _http("dev.ticketPending", {**body, "id": sid})

@@ -99,7 +99,9 @@ def _parser() -> argparse.ArgumentParser:
     nt.add_parser("token", help="guarda el token de la integración interna en el llavero (lo pide sin mostrarlo)")
     nt.add_parser("status", help="dice si hay token y si responde")
     tk = sub.add_parser("ticket", help="el ticket de Notion del desarrollo").add_subparsers(dest="cmd", required=True)
-    for c, h in (("set", "asocia (o cambia) el ticket del desarrollo"), ("add-pending", "suma un ticket de pendientes (lo que quedó fuera)")):
+    for c, h in (("set", "asocia (o cambia) el ticket del desarrollo"), ("add-pending", "suma un ticket de pendientes (lo que quedó fuera)"),
+                 ("add-sub", "suma un subticket (una tarjeta que es parte del desarrollo; las hijas del ticket en Notion, relación «Tickets», ya salen solas)"),
+                 ("rm-sub", "saca un subticket (o esconde una hija del ticket; no toca Notion)")):
         x = tk.add_parser(c, help=h); x.add_argument("args", nargs="+", metavar="[#n] url")
     mid = sub.add_parser("migrate-ids", help="(una vez) las sesiones de ticket pasan a llamarse por su número y la manager a `manager`")
     mid.add_argument("--dry-run", action="store_true")
@@ -728,6 +730,8 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
                   else "ticket: SIN TICKET (asócialo con `ide ticket set`)\n")
         if t.get("mismatch"):
             out.write(f"  ⚠ no calza: {t['mismatch']}\n")
+        for x in t.get("subs") or []:
+            out.write(f"  subticket: {x.get('title') or x['url']}  ({x.get('status') or '?'})  {x['url']}\n")
         for x in t.get("pending") or []:
             out.write(f"  pendiente: {x.get('title') or x['url']}  ({x.get('status') or '?'})  {x['url']}\n")
     elif d.get("notionUrl"):
@@ -1109,15 +1113,18 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
                                                      "desarrollo, con o sin #), o córrelo dentro de la carpeta de su sesión")
             from urllib.parse import quote
             actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
-            path = "ticket" if a.cmd == "set" else "pending-ticket"
+            path = {"set": "ticket", "add-pending": "pending-ticket"}.get(a.cmd, "sub-ticket")
             data = _post(http, url, f"/api/devs/{quote(dev, safe='')}/{path}",
-                         {"url": link, "actor": actor, "token": env.get("IDE_MANAGER_TOKEN", "")})
+                         {"url": link, "actor": actor, "token": env.get("IDE_MANAGER_TOKEN", ""),
+                          "op": "rm" if a.cmd == "rm-sub" else "add"})
             if a.cmd == "set":
                 out.write(f"{data['id']}\tticket {data['url']}\t{data.get('status') or data.get('error') or '(sin token de Notion: no leo el Status)'}\n")
                 if data.get("warning"):
                     out.write(f"aviso: {data['warning']}\n")
-            else:
+            elif a.cmd == "add-pending":
                 out.write(f"{data['id']}\t{len(data['pending'])} tickets de pendientes\n")
+            else:
+                out.write(f"{data['id']}\t{len(data['subs'])} subtickets\n")
             return 0
         if a.group == "procs":
             return _procs(a, root, env, out)

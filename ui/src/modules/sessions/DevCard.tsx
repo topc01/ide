@@ -12,6 +12,10 @@ import { useStore } from "../../state/store";
 import { ago, STATE, type DevStateInfo, type Phase } from "./devStates";
 import { useSidebarConfig } from "../../state/sidebarConfig";
 import { openExternal } from "../../lib/openExternal";
+import { usePersistentOpen } from "../../lib/persist";
+
+/** Un Status de Notion que ya no está abierto (la tarjeta se terminó, se descartó o ya está en staging/prod). */
+const CLOSED_STATUS = /done|complet|cerrad|terminad|listo|live|archiv|cancel|descart|resuelt/i;
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
 export interface Tone {
@@ -472,5 +476,30 @@ export function TicketChip({ devKey }: { devKey: string }) {
         onClick={open(t.pending[0].url)}
         className="inline-flex shrink-0 items-center rounded border border-border px-1 text-[10px] text-muted-foreground hover:border-primary">
         +{t.pending.length} pendiente{t.pending.length > 1 ? "s" : ""}</button>)}
+    {(t.subs?.length ?? 0) > 0 && <SubTickets devKey={devKey} subs={t.subs!} open={open} />}
+  </>);
+}
+
+/** Subtickets del desarrollo (las hijas del ticket en Notion y las sumadas con `ide ticket add-sub`): un chip
+ *  «◫ abiertos/total» que los despliega (recordado por card), cada uno con su Status; los cerrados, tachados. */
+function SubTickets({ devKey, subs, open }:
+  { devKey: string; subs: { url: string; status: string | null; title: string | null }[];
+    open: (u: string) => (e: React.MouseEvent) => void }) {
+  const [show, setShow] = usePersistentOpen(`subtickets.${devKey}`, false);
+  const closed = (s: string | null) => !!s && CLOSED_STATUS.test(s);
+  const nOpen = subs.filter((x) => !closed(x.status)).length;
+  return (<>
+    <button aria-expanded={show} onClick={(e) => { e.stopPropagation(); setShow(!show); }}
+      title={`${show ? "Esconder" : "Mostrar"} los ${subs.length} subtickets (${nOpen} abiertos):\n`
+        + subs.map((x) => `· ${x.title ?? x.url} (${x.status ?? "?"})`).join("\n")}
+      className={cn("inline-flex shrink-0 items-center rounded border px-1 text-[10px] font-semibold text-muted-foreground hover:border-primary",
+        show ? "border-border bg-accent/40" : "border-dashed border-border")}>
+      ◫ {nOpen}/{subs.length}</button>
+    {show && subs.map((x) => (
+      <button key={x.url} onClick={open(x.url)} title={`Abrir en Notion: ${x.title ?? x.url} (Status: ${x.status ?? "?"})`}
+        className={cn("inline-flex max-w-full shrink items-center gap-1 rounded border border-border px-1 text-[10px] hover:border-primary",
+          closed(x.status) ? "text-muted-foreground/60 line-through" : "text-muted-foreground")}>
+        <span className="shrink-0 font-semibold">{x.status ?? "?"}</span>
+        <span className="min-w-0 truncate">{x.title ?? "sin título"}</span></button>))}
   </>);
 }

@@ -117,6 +117,18 @@ def _title(page: dict) -> str | None:
     return None
 
 
+def _children(page: dict) -> list[str]:
+    """Las tarjetas hijas: la relación «Tickets» (se llena sola cuando la hija apunta a la madre en «Historia»)."""
+    for name, prop in (page.get("properties") or {}).items():
+        if name.lower() == "tickets" and prop.get("type") == "relation":
+            return [r["id"].replace("-", "") for r in prop.get("relation") or [] if r.get("id")]
+    return []
+
+
+def page_url(pid: str) -> str:
+    return f"https://app.notion.com/p/{pid.replace('-', '')}"
+
+
 def read(db: Db, url: str, *, fresh: bool = False) -> dict:
     """{status, title, at, error} del ticket (de la caché si tiene menos de TTL)."""
     pid = page_id(url)
@@ -126,7 +138,7 @@ def read(db: Db, url: str, *, fresh: bool = False) -> dict:
     try:
         page = _call("GET", f"/pages/{pid}")
         _, _, status = _status_prop(page)
-        info = {"status": status, "title": _title(page), "ts": time.time(),
+        info = {"status": status, "title": _title(page), "children": _children(page), "ts": time.time(),
                 "at": datetime.now().isoformat(timespec="minutes"), "error": None}
     except SessionError as exc:
         info = {**cached, "ts": time.time(), "error": str(exc)}
@@ -165,6 +177,48 @@ def add_pending(db: Db, sid: str, url: str) -> list[str]:
         items.append(url)
     db.set(f"devtickets:{sid}", items)
     return items
+
+
+def subs(db: Db, sid: str, main_url: str | None) -> list[str]:
+    """Los subtickets del desarrollo: las hijas del ticket (relación «Tickets» de la caché) + las sumadas a mano
+    (`ide ticket add-sub`), sin las sacadas (`rm-sub`) ni el ticket mismo."""
+    main = cached(db, main_url) or {}
+    hidden = set(db.get(f"devsubshide:{sid}") or [])
+    out: list[str] = []
+    for u in [page_url(c) for c in main.get("children") or []] + list(db.get(f"devsubs:{sid}") or []):
+        try:
+            pid = page_id(u)
+        except SessionError:
+            continue
+        if pid in hidden or (main_url and _same(u, main_url)) or any(_same(u, x) for x in out):
+            continue
+        out.append(u)
+    return out
+
+
+def _same(a: str, b: str) -> bool:
+    try:
+        return page_id(a) == page_id(b)
+    except SessionError:
+        return False
+
+
+def add_sub(db: Db, sid: str, url: str) -> None:
+    url = check_url(url)
+    pid = page_id(url)
+    db.set(f"devsubshide:{sid}", [x for x in db.get(f"devsubshide:{sid}") or [] if x != pid])
+    items = list(db.get(f"devsubs:{sid}") or [])
+    if not any(_same(url, x) for x in items):
+        db.set(f"devsubs:{sid}", items + [url])
+
+
+def rm_sub(db: Db, sid: str, url: str) -> None:
+    """Saca uno sumado a mano y esconde una hija de la relación (no toca Notion)."""
+    pid = page_id(url)
+    db.set(f"devsubs:{sid}", [x for x in db.get(f"devsubs:{sid}") or [] if not _same(url, x)])
+    hidden = list(db.get(f"devsubshide:{sid}") or [])
+    if pid not in hidden:
+        db.set(f"devsubshide:{sid}", hidden + [pid])
 
 
 async def refresh_loop(db: Db, urls, stop: asyncio.Event, on_change) -> None:

@@ -168,6 +168,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             url = (s_.get("meta") or {}).get("notion_url")
             info = notion.cached(db, url) or {}
             out[f"s:{s_['id']}"] = {"url": url, "status": info.get("status"), "error": info.get("error"),
+                                   "subs": [{"url": u, "status": (notion.cached(db, u) or {}).get("status"),
+                                             "title": (notion.cached(db, u) or {}).get("title")}
+                                            for u in notion.subs(db, s_["id"], url)],
                                    "pending": [{"url": u, "status": (notion.cached(db, u) or {}).get("status"),
                                                 "title": (notion.cached(db, u) or {}).get("title")}
                                                for u in notion.pending(db, s_["id"])]}
@@ -179,7 +182,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         urls = []
         for s_ in list_sessions(root):
             if s_.get("kind") == "ticket":
-                urls += [u for u in [(s_.get("meta") or {}).get("notion_url")] if u] + notion.pending(db, s_["id"])
+                main = (s_.get("meta") or {}).get("notion_url")
+                urls += [u for u in [main] if u] + notion.pending(db, s_["id"]) + notion.subs(db, s_["id"], main)
         return urls
 
     def live_staging() -> None:
@@ -325,6 +329,24 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             await asyncio.to_thread(notion.read, db, p["url"], fresh=True)
         notify()
         return {"id": sid, "pending": items}
+
+    async def ticket_sub(p: dict) -> dict:
+        """Subticket del desarrollo (`add`: suma una tarjeta; `rm`: la saca o esconde una hija de la relación)."""
+        from ide_server import notion_tickets as notion
+        sid = _resolve(p["id"])
+        _ticket_guard(p, sid)
+        url = str(p.get("url") or "").strip()
+        if p.get("op") == "rm":
+            await asyncio.to_thread(notion.rm_sub, db, sid, url)
+        else:
+            await asyncio.to_thread(notion.add_sub, db, sid, url)
+            if notion.get_token():
+                await asyncio.to_thread(notion.read, db, url, fresh=True)
+        db.event(datetime.now().isoformat(timespec="seconds"), p.get("actor") or "ide", f"ticket-sub-{p.get('op') or 'add'}",
+                 dev=sid, data={"url": url})
+        main = (read_session(root, sid).get("meta") or {}).get("notion_url")
+        notify()
+        return {"id": sid, "subs": notion.subs(db, sid, main)}
 
     def _review_verdicts(sessions: list[dict], status: dict, derived: dict | None = None) -> None:
         """El estado de una sesión de revisión sale de GitHub (tu última review en esa PR, o en las del
@@ -2353,7 +2375,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
-        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "usage.get": usage,
+        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
