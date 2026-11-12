@@ -437,16 +437,19 @@ def ensure_plugins_session(root: Path) -> str:
     rules = {
         "allow": ["WebFetch", "WebSearch", "Bash(gh repo view:*)", "Bash(gh search:*)", "Bash(gh release view:*)",
                   "Bash(gh release list:*)", "Read(~/.claude/**)", "Bash(ide docs:*)", "Bash(ide session ls:*)",
-                  "Bash(ide reply:*)", "Bash(ide session send ide:*)", "Bash(claude mcp list:*)",
+                  "Bash(ide reply:*)", "Bash(claude mcp list:*)",
                   "Bash(claude mcp get:*)", "Bash(claude plugin list:*)", "Edit(./EVALUADOS.md)"],
         # configuración: siempre te pregunta en su terminal (vale también en auto mode)
-        "ask": ["Edit(~/.claude/**)", "Write(~/.claude/**)", "Edit(~/.claude.json)", "Write(~/.claude.json)",
+        # lee contenido de terceros (webs, repos): lo que pueda tener claves o llegar a código pasa por ti
+        "ask": ["Bash(ide session send:*)", "Read(~/.claude/settings.json)", "Read(~/.claude/settings.local.json)",
+                "Edit(~/.claude/**)", "Write(~/.claude/**)", "Edit(~/.claude.json)", "Write(~/.claude.json)",
                 f"Edit({ide}/permissions/**)", f"Write({ide}/permissions/**)", f"Edit({ide}/skills/**)",
                 f"Write({ide}/skills/**)", f"Edit({ide}/config.toml)", "Bash(claude mcp add:*)",
                 "Bash(claude mcp remove:*)", "Bash(claude plugin install:*)", "Bash(claude plugin uninstall:*)",
                 "Bash(claude plugin enable:*)", "Bash(claude plugin disable:*)", "Bash(claude plugin marketplace:*)"],
         # publicar en GitHub y lo de la sesión IDE (#93), no
-        "deny": ["Bash(gh api:*)", "Bash(gh pr create:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)",
+        "deny": ["Read(~/.claude/.credentials.json)", "Read(~/.claude.json)", "Read(~/.ssh/**)", "Read(~/.aws/**)",
+                 "Read(~/.config/gh/**)", "Read(~/.netrc)", "Bash(gh auth:*)", "Bash(security:*)", "Bash(gh api:*)", "Bash(gh pr create:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)",
                  "Bash(gh pr merge:*)", "Bash(gh issue create:*)", "Bash(gh issue comment:*)", "Bash(git push:*)",
                  f"Edit({ide}/sessions/CLAUDE.md)", f"Write({ide}/sessions/CLAUDE.md)", f"Edit({ide}/manager.md)",
                  f"Write({ide}/manager.md)", f"Edit({ide}/prompts/**)", f"Write({ide}/prompts/**)"],
@@ -454,6 +457,8 @@ def ensure_plugins_session(root: Path) -> str:
     settings = path / ".claude" / "settings.json"
     data = json.loads(settings.read_text(encoding="utf-8")) if settings.is_file() else {}
     perms = data.setdefault("permissions", {})
+    # reglas que se sacaron (versiones anteriores las daban sin preguntar)
+    perms["allow"] = [r for r in perms.get("allow", []) if r not in ("Bash(ide session send ide:*)",)]
     for k, vals in rules.items():
         lst = perms.setdefault(k, [])
         lst += [v for v in vals if v not in lst]

@@ -678,10 +678,10 @@ en la web y en GitHub y dice si **sirve**, si **ya lo cubre el IDE** o si **no s
 código del IDE y las instrucciones de las sesiones (`sessions/CLAUDE.md`, `manager.md`, `.ide/prompts/`) son de la
 sesión IDE (#93), y lo que necesita código se lo deriva con `ide session send ide`. Permisos (su
 `.claude/settings.json`, se suman en cada arranque): **sin preguntar** WebFetch, WebSearch, `gh repo view`,
-`gh search`, `gh release view/list`, leer `~/.claude/`, `ide docs`, `ide reply`, `ide session send ide`, `claude mcp
+`gh search`, `gh release view/list`, leer `~/.claude/` (salvo lo de abajo), `ide docs`, `ide reply`, `claude mcp
 list/get`, `claude plugin list` y editar su `EVALUADOS.md`; **pide permiso en su terminal** (también en auto mode)
-para editar `~/.claude/`, `~/.claude.json`, `.ide/permissions/`, `.ide/skills/`, `.ide/config.toml` y para `claude mcp
-add/remove` y `claude plugin install/uninstall/enable/disable/marketplace`; **prohibido** `gh api`, publicar en GitHub
+para `ide session send` (lee contenido de terceros: un pedido a #93 pasa por ti), leer `~/.claude/settings*.json`, editar `~/.claude/`, `~/.claude.json`, `.ide/permissions/`, `.ide/skills/`, `.ide/config.toml` y para `claude mcp
+add/remove` y `claude plugin install/uninstall/enable/disable/marketplace`; **prohibido** leer claves (`~/.claude/.credentials.json`, `~/.claude.json`, `~/.ssh`, `~/.aws`, `~/.config/gh`, `~/.netrc`), `gh auth`, `security`, `gh api`, publicar en GitHub
 (`gh pr create/comment/review/merge`, `gh issue create/comment`), `git push` y editar las instrucciones de #93. Lleva
 su propia clave (`IDE_PLUGINS_TOKEN`, como la de la manager): con ella `ide session send` solo le llega a la sesión
 IDE (a otra, `forbidden`; el mensaje llega con «[Mensaje de la sesión Plugins]») y `ide reply` te responde por
