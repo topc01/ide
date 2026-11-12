@@ -448,17 +448,22 @@ def ensure_plugins_session(root: Path) -> str:
                 "Bash(claude mcp remove:*)", "Bash(claude plugin install:*)", "Bash(claude plugin uninstall:*)",
                 "Bash(claude plugin enable:*)", "Bash(claude plugin disable:*)", "Bash(claude plugin marketplace:*)"],
         # publicar en GitHub y lo de la sesión IDE (#93), no
-        "deny": ["Read(~/.claude/.credentials.json)", "Read(~/.claude.json)", "Read(~/.ssh/**)", "Read(~/.aws/**)",
+        "deny": ["Read(~/.claude/projects/**)", "Read(~/.claude/.credentials.json)", "Read(~/.claude.json)", "Read(~/.ssh/**)", "Read(~/.aws/**)",
                  "Read(~/.config/gh/**)", "Read(~/.netrc)", "Bash(gh auth:*)", "Bash(security:*)", "Bash(gh api:*)", "Bash(gh pr create:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)",
                  "Bash(gh pr merge:*)", "Bash(gh issue create:*)", "Bash(gh issue comment:*)", "Bash(git push:*)",
                  f"Edit({ide}/sessions/CLAUDE.md)", f"Write({ide}/sessions/CLAUDE.md)", f"Edit({ide}/manager.md)",
                  f"Write({ide}/manager.md)", f"Edit({ide}/prompts/**)", f"Write({ide}/prompts/**)"],
     }
     settings = path / ".claude" / "settings.json"
-    data = json.loads(settings.read_text(encoding="utf-8")) if settings.is_file() else {}
+    first = not settings.is_file()
+    data = {} if first else json.loads(settings.read_text(encoding="utf-8"))
     perms = data.setdefault("permissions", {})
     # reglas que se sacaron (versiones anteriores las daban sin preguntar)
     perms["allow"] = [r for r in perms.get("allow", []) if r not in ("Bash(ide session send ide:*)",)]
+    # lo que se permite sin preguntar se escribe solo al crearla (si el usuario saca una regla, no vuelve);
+    # lo que pide permiso o se prohíbe se suma siempre (solo restringe)
+    if not first and "allow" in rules and perms.get("allow"):
+        rules = {k: v for k, v in rules.items() if k != "allow"}
     for k, vals in rules.items():
         lst = perms.setdefault(k, [])
         lst += [v for v in vals if v not in lst]

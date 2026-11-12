@@ -681,14 +681,14 @@ sesión IDE (#93), y lo que necesita código se lo deriva con `ide session send 
 `gh search`, `gh release view/list`, leer `~/.claude/` (salvo lo de abajo), `ide docs`, `ide reply`, `claude mcp
 list/get`, `claude plugin list` y editar su `EVALUADOS.md`; **pide permiso en su terminal** (también en auto mode)
 para `ide session send` (lee contenido de terceros: un pedido a #93 pasa por ti), leer `~/.claude/settings*.json`, editar `~/.claude/`, `~/.claude.json`, `.ide/permissions/`, `.ide/skills/`, `.ide/config.toml` y para `claude mcp
-add/remove` y `claude plugin install/uninstall/enable/disable/marketplace`; **prohibido** leer claves (`~/.claude/.credentials.json`, `~/.claude.json`, `~/.ssh`, `~/.aws`, `~/.config/gh`, `~/.netrc`), `gh auth`, `security`, `gh api`, publicar en GitHub
+add/remove` y `claude plugin install/uninstall/enable/disable/marketplace`; **prohibido** leer las conversaciones de las sesiones (`~/.claude/projects/`) y claves (`~/.claude/.credentials.json`, `~/.claude.json`, `~/.ssh`, `~/.aws`, `~/.config/gh`, `~/.netrc`), `gh auth`, `security`, `gh api`, publicar en GitHub
 (`gh pr create/comment/review/merge`, `gh issue create/comment`), `git push` y editar las instrucciones de #93. Lleva
 su propia clave (`IDE_PLUGINS_TOKEN`, como la de la manager): con ella `ide session send` solo le llega a la sesión
 IDE (a otra, `forbidden`; el mensaje llega con «[Mensaje de la sesión Plugins]») y `ide reply` te responde por
 Telegram con «[Plugins]» adelante. **Telegram:** un mensaje que empieza con «plugin:» le llega directo a ella (sin
 pasar por la manager); la manager le manda los demás links de herramientas con `ide session send plugins` sin pedir
 aprobación (permitido en `permissions/main.json`). Responde una línea por herramienta. Tampoco cuenta como
-desarrollo ni en los contadores de la barra. Pendiente: una segunda cuenta de Notion solo para ella (servidor MCP
+desarrollo ni en los contadores de la barra. Lo permitido sin preguntar se escribe solo al crear su `settings.json` (si sacas una regla, no vuelve); lo que pide permiso o se prohíbe se suma en cada arranque. Dentro de cualquier sesión, `ide reply` e `ide session send|propose` solo toman el texto del argumento o de stdin (`--prompt-file -`), nunca de un archivo (`bad_prompt_file`). Pendiente: una segunda cuenta de Notion solo para ella (servidor MCP
 `notion-otra`, scope local en su carpeta).
 
 **Tab `claude`**: va siempre primera y destacada (ícono, fondo de acento y el punto de actividad de

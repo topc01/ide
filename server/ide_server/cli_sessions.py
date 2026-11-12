@@ -544,6 +544,15 @@ def a_urls(d: dict, raw: list[str]) -> list[str]:
     return out
 
 
+def _stdin_only(prompt_file: str | None, env: dict) -> None:
+    """Dentro de una sesión, `ide reply` / `ide session send|propose` toman el texto de stdin (`--prompt-file -`) o
+    del argumento, nunca de un archivo: esos comandos se permiten sin preguntar, y un `--prompt-file ~/.ssh/…`
+    mandaría ese archivo a Telegram o a otra sesión sin pasar por los permisos de lectura de claude."""
+    if prompt_file and prompt_file != "-" and env.get("IDE_SESSION_ID"):
+        raise SessionError("bad_prompt_file", "dentro de una sesión, --prompt-file solo acepta - (stdin): "
+                                              "usa `--prompt-file - <<'EOF' … EOF`")
+
+
 def _hook(url: str | None, http, env: dict) -> int:
     """Hook de Claude Code: lee el evento por stdin y se lo pasa al IDE. Nunca falla (exit 0): un hook
     que falla molesta a claude."""
@@ -997,6 +1006,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "feedback":
             return _feedback(a, root, home, url, http, out)
         if a.group == "reply":
+            _stdin_only(a.prompt_file, env)
             text = sys.stdin.read() if a.prompt_file == "-" else (Path(a.prompt_file).read_text(encoding="utf-8") if a.prompt_file else a.text)
             if not text or not text.strip():
                 raise SessionError("bad_request", "falta el texto (argumento o --prompt-file -)")
@@ -1151,6 +1161,7 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
         return 0
     if a.cmd in ("send", "propose"):
         try:
+            _stdin_only(a.prompt_file, env)
             text = (sys.stdin.read() if a.prompt_file == "-" else Path(a.prompt_file).read_text(encoding="utf-8")) \
                 if a.prompt_file else a.prompt
         except (OSError, UnicodeDecodeError) as exc:
