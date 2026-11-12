@@ -167,7 +167,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 continue
             url = (s_.get("meta") or {}).get("notion_url")
             info = notion.cached(db, url) or {}
-            out[f"s:{s_['id']}"] = {"url": url, "status": info.get("status"), "error": info.get("error"),
+            out[f"s:{s_['id']}"] = {"url": url, "status": info.get("status"), "error": info.get("error"), "title": info.get("title"),
                                    "subs": [{"url": u, "status": (notion.cached(db, u) or {}).get("status"),
                                              "title": (notion.cached(db, u) or {}).get("title")}
                                             for u in notion.subs(db, s_["id"], url)],

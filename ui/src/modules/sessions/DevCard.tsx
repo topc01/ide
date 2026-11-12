@@ -14,8 +14,6 @@ import { useSidebarConfig } from "../../state/sidebarConfig";
 import { openExternal } from "../../lib/openExternal";
 import { usePersistentOpen } from "../../lib/persist";
 
-/** Un Status de Notion que ya no está abierto (la tarjeta se terminó, se descartó o ya está en staging/prod). */
-const CLOSED_STATUS = /done|complet|cerrad|terminad|listo|live|archiv|cancel|descart|resuelt/i;
 
 /** Estado visual de un desarrollo: el fondo dice la review, el borde el CI / el merge. */
 export interface Tone {
@@ -460,46 +458,55 @@ export function TicketChip({ devKey }: { devKey: string }) {
   if (!t.url) return <span title="Este desarrollo no tiene ticket de Notion: la sesión arma el borrador y lo asocia con `ide ticket set`"
     className="inline-flex shrink-0 items-center rounded border border-dashed border-destructive/60 px-1 text-[10px] font-semibold text-destructive">
     sin ticket</span>;
-  // solo links https (el server ya los valida; esto es por si la base trae otra cosa)
-  const open = (u: string) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try { if (new URL(u).protocol === "https:") openExternal(u); } catch { /* link inválido */ }
-  };
+  const subs = t.subs ?? [];
   return (<>
-    <button title={`Abrir el ticket en Notion${t.status ? ` (Status: ${t.status})` : ""}${t.error ? `\n⚠ ${t.error}` : ""}`}
-      onClick={open(t.url)}
-      className={cn("inline-flex shrink-0 items-center gap-0.5 rounded border px-1 text-[10px] font-semibold hover:border-primary",
-        t.error ? "border-destructive/50 text-destructive" : "border-border text-muted-foreground")}>
-      ▤ {t.status ?? "Notion"}</button>
+    <TicketBlock url={t.url} title={t.title ?? null} status={t.status} error={t.error} what="el ticket" />
     {t.pending.length > 0 && (
       <button title={"Tickets de pendientes (lo que quedó fuera):\n" + t.pending.map((x) => `· ${x.title ?? x.url} (${x.status ?? "?"})`).join("\n")}
-        onClick={open(t.pending[0].url)}
+        onClick={openTicket(t.pending[0].url)}
         className="inline-flex shrink-0 items-center rounded border border-border px-1 text-[10px] text-muted-foreground hover:border-primary">
         +{t.pending.length} pendiente{t.pending.length > 1 ? "s" : ""}</button>)}
-    {(t.subs?.length ?? 0) > 0 && <SubTickets devKey={devKey} subs={t.subs!} open={open} />}
+    {subs.length > 0 && <SubTickets devKey={devKey} subs={subs} />}
   </>);
 }
 
-/** Subtickets del desarrollo (las hijas del ticket en Notion y las sumadas con `ide ticket add-sub`): un chip
- *  «◫ abiertos/total» que los despliega (recordado por card), cada uno con su Status; los cerrados, tachados. */
-function SubTickets({ devKey, subs, open }:
-  { devKey: string; subs: { url: string; status: string | null; title: string | null }[];
-    open: (u: string) => (e: React.MouseEvent) => void }) {
+// solo links https (el server ya los valida; esto es por si la base trae otra cosa)
+const openTicket = (u: string) => (e: React.MouseEvent) => {
+  e.stopPropagation();
+  try { if (new URL(u).protocol === "https:") openExternal(u); } catch { /* link inválido */ }
+};
+
+/** Los colores del Status en la base Desarrollo de Notion (los mismos de Notion). */
+const TICKET_COLOR: Record<string, string> = {
+  "Backlog": "bg-red-400/20 text-red-300", "To Do": "bg-purple-400/20 text-purple-300",
+  "In progress": "bg-sky-400/20 text-sky-300", "PR Review": "bg-yellow-400/20 text-yellow-200",
+  "Returned": "bg-orange-400/20 text-orange-300", "Live Staging": "bg-amber-800/40 text-amber-200",
+  "Completed Staging": "bg-emerald-400/20 text-emerald-300", "Completed Prod": "bg-emerald-400/20 text-emerald-300",
+};
+const ticketColor = (status: string | null) => (status && TICKET_COLOR[status]) || "bg-zinc-400/20 text-zinc-300";
+
+/** Un ticket de Notion: las primeras letras de su título, del color de su Status (el Status y el título enteros,
+ *  en el tooltip). Click: lo abre en Notion. */
+function TicketBlock({ url, title, status, error, what }:
+  { url: string; title: string | null; status: string | null; error?: string | null; what: string }) {
+  return (
+    <button onClick={openTicket(url)}
+      title={`Abrir ${what} en Notion: ${title ?? url}\nStatus: ${status ?? "?"}${error ? `\n⚠ ${error}` : ""}`}
+      className={cn("inline-flex max-w-[10rem] shrink-0 items-center rounded px-1 text-[10px] font-semibold hover:brightness-125",
+        error ? "bg-destructive/15 text-destructive" : ticketColor(status))}>
+      <span className="truncate">{title ?? status ?? "Notion"}</span></button>);
+}
+
+/** Subtickets (las hijas del ticket en Notion y las sumadas con `ide ticket add-sub`): un «◫ N» que los despliega
+ *  o esconde (recordado por card), como las PRs mergeadas. */
+function SubTickets({ devKey, subs }: { devKey: string; subs: { url: string; status: string | null; title: string | null }[] }) {
   const [show, setShow] = usePersistentOpen(`subtickets.${devKey}`, false);
-  const closed = (s: string | null) => !!s && CLOSED_STATUS.test(s);
-  const nOpen = subs.filter((x) => !closed(x.status)).length;
   return (<>
     <button aria-expanded={show} onClick={(e) => { e.stopPropagation(); setShow(!show); }}
-      title={`${show ? "Esconder" : "Mostrar"} los ${subs.length} subtickets (${nOpen} abiertos):\n`
-        + subs.map((x) => `· ${x.title ?? x.url} (${x.status ?? "?"})`).join("\n")}
-      className={cn("inline-flex shrink-0 items-center rounded border px-1 text-[10px] font-semibold text-muted-foreground hover:border-primary",
+      title={show ? `Esconder los ${subs.length} subtickets` : `Mostrar los ${subs.length} subtickets`}
+      className={cn("rounded border px-1 font-mono text-[10px] font-bold text-muted-foreground hover:bg-accent",
         show ? "border-border bg-accent/40" : "border-dashed border-border")}>
-      ◫ {nOpen}/{subs.length}</button>
-    {show && subs.map((x) => (
-      <button key={x.url} onClick={open(x.url)} title={`Abrir en Notion: ${x.title ?? x.url} (Status: ${x.status ?? "?"})`}
-        className={cn("inline-flex max-w-full shrink items-center gap-1 rounded border border-border px-1 text-[10px] hover:border-primary",
-          closed(x.status) ? "text-muted-foreground/60 line-through" : "text-muted-foreground")}>
-        <span className="shrink-0 font-semibold">{x.status ?? "?"}</span>
-        <span className="min-w-0 truncate">{x.title ?? "sin título"}</span></button>))}
+      ◫ {subs.length}</button>
+    {show && subs.map((x) => <TicketBlock key={x.url} url={x.url} title={x.title} status={x.status} what="el subticket" />)}
   </>);
 }
