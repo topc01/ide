@@ -9,6 +9,8 @@ import { getWs } from "../../transport/wsClient";
 import { setSubTicketCard } from "../../transport/folderSessions";
 import { openTicketTab, TicketStatus } from "../sessions/DevCard";
 import { cn } from "../../lib/utils";
+import { ExternalLink } from "lucide-react";
+import { openExternal } from "../../lib/openExternal";
 
 type T = { url: string; status: string | null; title: string | null; card?: boolean };
 
@@ -20,6 +22,9 @@ function Row({ devKey, t, toggle }: { devKey: string; t: T; toggle?: (show: bool
         <span className="line-clamp-2 text-xs font-semibold leading-snug">{t.title ?? "(sin leer todavía)"}</span>
         <TicketStatus status={t.status} />
       </button>
+      <button onClick={() => openExternal(t.url)} title="Abrir en Notion, en una pestaña nueva del navegador"
+        className="mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground">
+        <ExternalLink size={12} /></button>
       {toggle && (
         <button role="switch" aria-checked={t.card !== false} onClick={() => toggle(t.card === false)}
           title={t.card !== false ? "Se muestra en la card: click para esconderlo ahí (sigue siendo subticket)" : "No se muestra en la card: click para mostrarlo"}
