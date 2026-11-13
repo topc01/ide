@@ -582,6 +582,15 @@ def _hook(url: str | None, http, env: dict) -> int:
                 sys.stdout.write(json.dumps({"hookSpecificOutput": {
                     "hookEventName": "PreToolUse", "permissionDecision": "ask",
                     "permissionDecisionReason": ASK_REASON}}) + "\n")
+                sid = env.get("IDE_SESSION_ID")
+                if sid and url and not env.get("IDE_CONSULT"):
+                    # claude no avisa (Notification) cuando el permiso lo pide un hook: la card pasaría por «trabajando»
+                    try:
+                        http.post(f"{url}/api/sessions/{quote(sid, safe='')}/activity", timeout=3, json={
+                            "event": "Notification", "notification_type": "permission_prompt",
+                            "message": "Pide permiso para correr tests"})
+                    except Exception:  # noqa: BLE001
+                        pass
             return 0
         if ev.get("hook_event_name") == "UserPromptSubmit":
             # lo que imprime este hook le llega a claude como contexto: Claude Code le da la fecha pero
