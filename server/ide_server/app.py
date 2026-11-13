@@ -353,6 +353,44 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         await manager.broadcast("ui.focus", {"id": sid})
         return {"ok": True}
 
+    @app.post("/api/sessions/{sid}/attachments/upload")
+    async def api_attachment_upload(sid: str, request: Request, name: str = "archivo", dir: str = ""):
+        """Sube un archivo a `attachments/` de la sesión como cuerpo crudo (sin base64 ni websocket: el websocket
+        corta los mensajes de más de ~16 MB y la UI lo veía como una caída del server). Hasta 1 GB, escrito por
+        partes. Solo desde la UI (con Origin)."""
+        import re as _re
+        from datetime import datetime as _dt
+        from ide_server.sessions_fs import attachment_path, require_plain_name, session_path
+        if not request.headers.get("origin"):
+            return JSONResponse({"code": "forbidden", "message": "solo desde la UI"}, status_code=403)
+        limit = 1024 * 1024 * 1024
+        try:
+            base = session_path(root, require_plain_name(sid, "sesión")) / "attachments"
+            if not base.parent.is_dir():
+                raise ValueError("no existe la sesión")
+            d = attachment_path(base, dir) if dir else base
+        except Exception as exc:  # noqa: BLE001
+            return JSONResponse({"code": "bad_request", "message": f"destino inválido: {exc}"}, status_code=400)
+        clean = _re.sub(r"[^A-Za-z0-9._-]+", "-", Path(name).name).strip("-.") or "archivo"
+        d.mkdir(parents=True, exist_ok=True)
+        f = d / f"{_dt.now().strftime('%Y%m%d-%H%M%S')}-{clean[-80:]}"
+        tmp = f.with_name(f".{f.name}.part")
+        size = 0
+        try:
+            with open(tmp, "wb") as out:
+                async for chunk in request.stream():
+                    size += len(chunk)
+                    if size > limit:
+                        raise ValueError("el archivo pesa más de 1 GB")
+                    await asyncio.to_thread(out.write, chunk)
+            if not size:
+                raise ValueError("el archivo está vacío")
+            tmp.rename(f)
+        except Exception as exc:  # noqa: BLE001
+            tmp.unlink(missing_ok=True)
+            return JSONResponse({"code": "upload_failed", "message": str(exc)}, status_code=400)
+        return {"path": str(f), "name": f.relative_to(base).as_posix(), "size": size}
+
     @app.post("/api/ui/open")
     async def api_ui_open(request: Request, body: dict):
         """Abre en Chrome (o tu navegador) un link `{url}` o un adjunto `{sid, name}`. Lo usa la app instalada

@@ -5,8 +5,8 @@ import { useCurrentDev } from "../../main/currentDev";
 import { useFolders } from "../../state/folders";
 import { attachmentTab, useDevTabs } from "../../state/devTabs";
 import { getWs } from "../../transport/wsClient";
-import { addLinkAttachment, attachFile, attachmentUrl, deleteAttachment, isHtml, listAttachments, mkdirAttachment, openHtmlAttachment,
-  moveAttachment, renameAttachment, type Attachment } from "../../transport/folderSessions";
+import { addLinkAttachment, attachmentUrl, deleteAttachment, isHtml, listAttachments, mkdirAttachment, openHtmlAttachment,
+  moveAttachment, renameAttachment, uploadAttachment, type Attachment } from "../../transport/folderSessions";
 import { usePersistentOpen } from "../../lib/persist";
 import { cn } from "../../lib/utils";
 import { openExternal } from "../../lib/openExternal";
@@ -52,11 +52,7 @@ export function AttachmentsPanel() {
     act(addLinkAttachment(getWs(), sid!, url.trim(), name.trim()));
   };
   const upload = (list: FileList, dir = "") => {
-    for (const f of Array.from(list)) {
-      const r = new FileReader();
-      r.onload = () => act(attachFile(getWs(), sid!, f.name, String(r.result).split(",", 2)[1] ?? "", false, dir));
-      r.readAsDataURL(f);
-    }
+    for (const f of Array.from(list)) act(uploadAttachment(sid!, f, dir));   // por HTTP: sirve también para archivos grandes
   };
   /** Soltar sobre una carpeta (o la raíz, ""): un adjunto se mueve; archivos del computador se suben ahí. */
   const drop = (e: DragEvent, dir: string) => {

@@ -316,3 +316,13 @@ export const fetchNotionPage = (ws: WsClient, url: string): Promise<{ url: strin
 /** El interruptor del módulo Notion: el subticket se muestra (o no) en la card. */
 export const setSubTicketCard = (ws: WsClient, id: string, url: string, show: boolean): Promise<{ ok: boolean }> =>
   ws.request("dev.ticketSubCard", { id, url, show });
+
+/** Sube un archivo a `attachments/` de la sesión por HTTP (crudo, hasta 1 GB): por el websocket un archivo grande
+ *  cortaba la conexión y la UI lo veía como una caída del server. */
+export async function uploadAttachment(id: string, file: File, dir = ""): Promise<{ path: string; name: string; size: number }> {
+  const q = new URLSearchParams({ name: file.name || "archivo", ...(dir ? { dir } : {}) });
+  const r = await fetch(`/api/sessions/${encodeURIComponent(id)}/attachments/upload?${q}`, { method: "POST", body: file });
+  const data = await r.json().catch(() => null);
+  if (!r.ok) throw new Error(data?.message ?? `no se pudo subir ${file.name} (${r.status})`);
+  return data;
+}
