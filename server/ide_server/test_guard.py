@@ -13,7 +13,12 @@ _RUNNERS = {"pytest", "py.test", "vitest", "jest", "mocha", "ava", "tap", "karma
 _PKG = {"npm", "pnpm", "yarn", "bun"}
 
 
+_HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n\s*\2\s*(?=\n|$)", re.S)
+
+
 def _segments(command: str) -> list[list[str]]:
+    # el cuerpo de un heredoc es texto (un body de PR, un script), no comandos: «make test» ahí no corre nada
+    command = _HEREDOC.sub("", command)
     out = []
     for part in re.split(r"&&|\|\||[;|&\n(){}`]|\$\(", command):
         try:

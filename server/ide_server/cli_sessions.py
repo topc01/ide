@@ -579,8 +579,9 @@ def _hook(url: str | None, http, env: dict) -> int:
         if ev.get("hook_event_name") == "PreToolUse":
             from ide_server.test_guard import ASK_FULL, ASK_REASON, full_suite, is_test_command
             cmd = str((ev.get("tool_input") or {}).get("command") or "")
-            if ev.get("tool_name") == "Bash" and is_test_command(cmd):
-                whole = full_suite(cmd)
+            # solo la suite entera pide permiso (los puntuales corren sin preguntar: pedirlo en cada uno cansaba)
+            whole = ev.get("tool_name") == "Bash" and is_test_command(cmd) and full_suite(cmd)
+            if whole:
                 sys.stdout.write(json.dumps({"hookSpecificOutput": {
                     "hookEventName": "PreToolUse", "permissionDecision": "ask",
                     "permissionDecisionReason": (ASK_FULL if whole else "") + ASK_REASON}}) + "\n")
