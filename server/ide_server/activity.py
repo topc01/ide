@@ -50,6 +50,8 @@ def last_note(transcript: str | None, home: Path) -> str | None:
 
 _ASYNC = "Async agent launched"
 _NOTIF = re.compile(r"<tool-use-id>(toolu_[\w-]+)</tool-use-id>")
+_TASK = re.compile(r"<task-id>([\w-]+)</task-id>")       # a veces el aviso trae solo el id del agente
+_AGENT_ID = re.compile(r"agentId: ([\w-]+)")
 MAX_BACKGROUND_S = 3 * 3600         # uno más viejo se da por muerto (p.ej. claude se reinició sin avisar)
 MAX_SILENT_S = 20 * 60              # uno que no escribe en su conversación hace 20 min, también
 
@@ -67,9 +69,12 @@ def pending_agents(transcript: str | None, home: Path) -> int:
     launched: dict[str, str] = {}       # tool_use_id → hora
     asked: dict[str, str] = {}          # Agent/Task lanzados (aún sin saber si en segundo plano)
     done: set[str] = set()
+    tasks_done: set[str] = set()
+    agent_of: dict[str, str] = {}       # tool_use_id → agentId (del resultado «Async agent launched … agentId: …»)
     try:
         with open(f, encoding="utf-8", errors="replace") as fh:
             for line in fh:
+                tasks_done |= set(_TASK.findall(line))
                 if "toolu_" not in line:
                     continue
                 done |= set(_NOTIF.findall(line))       # <task-notification> (completado, fallido o detenido)
@@ -89,6 +94,8 @@ def pending_agents(transcript: str | None, home: Path) -> int:
                         body = json.dumps(c.get("content"))
                         if _ASYNC in body:
                             launched[c["tool_use_id"]] = asked[c["tool_use_id"]]
+                            if (m := _AGENT_ID.search(body)):
+                                agent_of[c["tool_use_id"]] = m.group(1)
     except OSError:
         return 0
     # los subagentes dejan su conversación en <transcript>/subagents/agent-*.jsonl (+ .meta.json con su
@@ -110,6 +117,7 @@ def pending_agents(transcript: str | None, home: Path) -> int:
             idle = 0
         if m.get("stoppedByUser") or idle > MAX_SILENT_S:
             done.add(tid)
+    done |= {tid for tid, aid in agent_of.items() if aid in tasks_done}
     now = datetime.now(timezone.utc)
     n = 0
     for tid, ts in launched.items():

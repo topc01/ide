@@ -935,7 +935,7 @@ draft sus PRs (`gh pr ready`; solo las tuyas).
 avisa al IDE por `POST /api/sessions/{id}/activity`; canal `sessions.activity`; en cada mensaje tuyo
 además le pasa a claude la hora local y la zona, porque Claude Code solo le da la fecha y los horarios de
 GitHub y de los logs vienen en UTC). Estados:
-**trabajando** (empezó un turno; también si lo cerró dejando subagentes en segundo plano: sigue trabajando, nota «esperando N subagentes», hasta que llegue el aviso de que terminaron; uno cortado con Esc, uno que no escribe hace 20 min o uno de hace más de 3 h ya no cuenta), **esperando tu input** (terminó el turno o pide un permiso; nota =
+**trabajando** (empezó un turno; también si lo cerró dejando subagentes en segundo plano: sigue trabajando, nota «esperando N subagentes», hasta que llegue el aviso de que terminaron —con el id de la llamada o solo con el del agente—; uno cortado con Esc, uno que no escribe hace 20 min o uno de hace más de 3 h ya no cuenta; cada minuto el IDE revisa las que esperan subagentes y, si ya no les queda ninguno, las pasa a «te espera» con su último mensaje), **esperando tu input** (terminó el turno o pide un permiso; nota =
 primera línea de su último mensaje, o el texto del permiso; si el turno terminó en «No response
 requested.», el IDE no lo marca como esperándote: le pide a la sesión que cierre con un resumen para ti,
 una vez cada 2 min a lo más) y **stale** (el claude no corre y el

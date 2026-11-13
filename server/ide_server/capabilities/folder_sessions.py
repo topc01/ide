@@ -2422,6 +2422,28 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     await asyncio.wait_for(stop.wait(), notion.TTL)
                 except asyncio.TimeoutError:
                     pass
+        async def tick_agents() -> None:
+            """Cada minuto: una sesión «trabajando» solo porque esperaba subagentes vuelve a «te espera» cuando ya no
+            le queda ninguno (su aviso de término no abre turno si llega con la sesión ya cerrada, o no se reconoció)."""
+            while not stop.is_set():
+                try:
+                    for sid_, snap in list(supervisor.snapshot().items()):
+                        act = snap.get("activity") or {}
+                        if act.get("state") != "working" or act.get("reason") != "agents":
+                            continue
+                        tr = await asyncio.to_thread(_transcript, sid_)
+                        if await asyncio.to_thread(activity_mod.pending_agents, tr, Path.home()):
+                            continue
+                        det = await asyncio.to_thread(activity_mod.detail, tr, Path.home(), 0)
+                        asks = bool(activity_mod.questions_in(det.get("message")))
+                        supervisor.set_activity(sid_, "waiting", activity_mod.first_line(det.get("message") or ""),
+                                                "question" if asks else "turn")
+                except Exception:  # noqa: BLE001
+                    log.exception("subagentes")
+                try:
+                    await asyncio.wait_for(stop.wait(), 60)
+                except asyncio.TimeoutError:
+                    pass
         async def tick_review() -> None:          # cada minuto: el pedido de revisión se nota enseguida
             while not stop.is_set():
                 try:
@@ -2442,7 +2464,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     await asyncio.wait_for(stop.wait(), 180)
                 except asyncio.TimeoutError:
                     pass
-        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live(), tick_staging(), tick_review())
+        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live(), tick_staging(), tick_review(), tick_agents())
 
     notify.notion_loop = notion_loop        # type: ignore[attr-defined]
     notify.telegram = bridge                # type: ignore[attr-defined]
