@@ -577,18 +577,21 @@ def _hook(url: str | None, http, env: dict) -> int:
         sid = env.get("IDE_SESSION_ID")
         ev = json.loads(sys.stdin.read() or "{}")
         if ev.get("hook_event_name") == "PreToolUse":
-            from ide_server.test_guard import ASK_REASON, is_test_command
-            if ev.get("tool_name") == "Bash" and is_test_command(str((ev.get("tool_input") or {}).get("command") or "")):
+            from ide_server.test_guard import ASK_FULL, ASK_REASON, full_suite, is_test_command
+            cmd = str((ev.get("tool_input") or {}).get("command") or "")
+            if ev.get("tool_name") == "Bash" and is_test_command(cmd):
+                whole = full_suite(cmd)
                 sys.stdout.write(json.dumps({"hookSpecificOutput": {
                     "hookEventName": "PreToolUse", "permissionDecision": "ask",
-                    "permissionDecisionReason": ASK_REASON}}) + "\n")
+                    "permissionDecisionReason": (ASK_FULL if whole else "") + ASK_REASON}}) + "\n")
                 sid = env.get("IDE_SESSION_ID")
                 if sid and url and not env.get("IDE_CONSULT"):
                     # claude no avisa (Notification) cuando el permiso lo pide un hook: la card pasaría por «trabajando»
                     try:
                         http.post(f"{url}/api/sessions/{quote(sid, safe='')}/activity", timeout=3, json={
                             "event": "Notification", "notification_type": "permission_prompt",
-                            "message": "Pide permiso para correr tests"})
+                            "message": "Pide permiso para correr la SUITE ENTERA de tests" if whole
+                            else "Pide permiso para correr tests"})
                     except Exception:  # noqa: BLE001
                         pass
             return 0

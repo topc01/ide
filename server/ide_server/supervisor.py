@@ -442,7 +442,9 @@ class Supervisor:
                # solo la principal: con esto `ide session send` prueba que es ella (ver sessions.send)
                **({"IDE_MANAGER_TOKEN": self.manager_token} if data.get("kind") == "main" else {}),
                **({"IDE_PLUGINS_TOKEN": self.plugins_token} if data.get("kind") == "plugins" else {}),
-               "IDE_WORKSPACE": str(self._root)}
+               "IDE_WORKSPACE": str(self._root),
+               # vitest usa un proceso por núcleo (11 en esta Mac, ~2,7 GB): como pytest, a lo más 2 (manda sobre la config)
+               "VITEST_MAX_WORKERS": "2"}
         holder: dict[str, str] = {}
         tid = self._spawn(cwd, argv, env,
                           lambda: self._on_exit(sid, holder.get("tid")),
