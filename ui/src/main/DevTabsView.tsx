@@ -78,6 +78,13 @@ function ClaudeTab({ session }: { session: FolderSession }) {
     }
   };
   useEffect(() => { if (!note) return; const t = setTimeout(() => setNote(null), 6000); return () => clearTimeout(t); }, [note]);
+  // soltado o cancelado en otra parte: el aviso no queda pegado
+  useEffect(() => {
+    if (!drag) return;
+    const off = () => setDrag(false);
+    window.addEventListener("drop", off); window.addEventListener("dragend", off);
+    return () => { window.removeEventListener("drop", off); window.removeEventListener("dragend", off); };
+  }, [drag]);
   return (
     <div className="flex h-full flex-col">
       {session.prState === "stale" && (
@@ -87,8 +94,9 @@ function ClaudeTab({ session }: { session: FolderSession }) {
         </div>)}
       {error && <p role="alert" className="px-3 py-1 text-xs text-destructive">{error}</p>}
       <div className="relative min-h-0 flex-1" onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDrag(true); } }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={(e) => { if (e.dataTransfer.files.length) { e.preventDefault(); setDrag(false); upload(e.dataTransfer.files); } }}
+        // salir de verdad (no pasar sobre un hijo, como el aviso o la terminal)
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrag(false); }}
+        onDrop={(e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files.length) upload(e.dataTransfer.files); }}
         onPasteCapture={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); e.stopPropagation(); upload(e.clipboardData.files); } }}>
         {session.terminalId && (
           <div className="absolute right-3 top-2 z-10 flex items-center gap-2">
