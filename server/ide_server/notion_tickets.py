@@ -185,7 +185,8 @@ def subs(db: Db, sid: str, main_url: str | None) -> list[str]:
     main = cached(db, main_url) or {}
     hidden = set(db.get(f"devsubshide:{sid}") or [])
     out: list[str] = []
-    for u in [page_url(c) for c in main.get("children") or []] + list(db.get(f"devsubs:{sid}") or []):
+    # los «pendientes» de antes (`add-pending`, `devtickets:`) también son subtickets
+    for u in [page_url(c) for c in main.get("children") or []] + list(db.get(f"devsubs:{sid}") or []) + pending(db, sid):
         try:
             pid = page_id(u)
         except SessionError:
@@ -204,6 +205,7 @@ def _same(a: str, b: str) -> bool:
 
 
 def add_sub(db: Db, sid: str, url: str) -> None:
+    """`ide ticket add-sub` (y `add-pending`, que quedó como sinónimo)."""
     url = check_url(url)
     pid = page_id(url)
     db.set(f"devsubshide:{sid}", [x for x in db.get(f"devsubshide:{sid}") or [] if x != pid])
@@ -228,6 +230,7 @@ def rm_sub(db: Db, sid: str, url: str) -> None:
     """Saca uno sumado a mano y esconde una hija de la relación (no toca Notion)."""
     pid = page_id(url)
     db.set(f"devsubs:{sid}", [x for x in db.get(f"devsubs:{sid}") or [] if not _same(url, x)])
+    db.set(f"devtickets:{sid}", [x for x in pending(db, sid) if not _same(url, x)])
     hidden = list(db.get(f"devsubshide:{sid}") or [])
     if pid not in hidden:
         db.set(f"devsubshide:{sid}", hidden + [pid])

@@ -462,20 +462,10 @@ export function TicketChip({ devKey }: { devKey: string }) {
   const subs = (t.subs ?? []).filter((x) => x.card !== false);   // los que el módulo Notion deja en la card
   return (<>
     <TicketBlock devKey={devKey} url={t.url} title={t.title ?? null} status={t.status} error={t.error} what="el ticket" />
-    {t.pending.length > 0 && (
-      <button title={"Tickets de pendientes (lo que quedó fuera):\n" + t.pending.map((x) => `· ${x.title ?? x.url} (${x.status ?? "?"})`).join("\n")}
-        onClick={openTicket(t.pending[0].url)}
-        className="inline-flex shrink-0 items-center rounded border border-border px-1 text-[10px] text-foreground hover:border-primary">
-        +{t.pending.length} pendiente{t.pending.length > 1 ? "s" : ""}</button>)}
     {subs.length > 0 && <SubTickets devKey={devKey} subs={subs} />}
   </>);
 }
 
-// solo links https (el server ya los valida; esto es por si la base trae otra cosa)
-const openTicket = (u: string) => (e: React.MouseEvent) => {
-  e.stopPropagation();
-  try { if (new URL(u).protocol === "https:") openExternal(u); } catch { /* link inválido */ }
-};
 
 /** Los colores del Status en la base Desarrollo de Notion (los mismos de Notion). */
 const TICKET_COLOR: Record<string, string> = {

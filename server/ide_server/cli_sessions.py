@@ -99,7 +99,7 @@ def _parser() -> argparse.ArgumentParser:
     nt.add_parser("token", help="guarda el token de la integración interna en el llavero (lo pide sin mostrarlo)")
     nt.add_parser("status", help="dice si hay token y si responde")
     tk = sub.add_parser("ticket", help="el ticket de Notion del desarrollo").add_subparsers(dest="cmd", required=True)
-    for c, h in (("set", "asocia (o cambia) el ticket del desarrollo"), ("add-pending", "suma un ticket de pendientes (lo que quedó fuera)"),
+    for c, h in (("set", "asocia (o cambia) el ticket del desarrollo"), ("add-pending", "lo mismo que add-sub (antes, ticket de pendientes)"),
                  ("add-sub", "suma un subticket (una tarjeta que es parte del desarrollo; las hijas del ticket en Notion, relación «Tickets», ya salen solas)"),
                  ("rm-sub", "saca un subticket (o esconde una hija del ticket; no toca Notion)")):
         x = tk.add_parser(c, help=h); x.add_argument("args", nargs="+", metavar="[#n] url")
@@ -1122,7 +1122,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
                 if data.get("warning"):
                     out.write(f"aviso: {data['warning']}\n")
             elif a.cmd == "add-pending":
-                out.write(f"{data['id']}\t{len(data['pending'])} tickets de pendientes\n")
+                out.write(f"{data['id']}\t{len(data['pending'])} subtickets\n")
             else:
                 out.write(f"{data['id']}\t{len(data['subs'])} subtickets\n")
             return 0

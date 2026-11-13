@@ -1,7 +1,7 @@
 // ui/src/modules/notion/TicketsPanel.tsx
 /** Módulo Notion: los tickets del desarrollo elegido. Primero el de la sesión, después sus subtickets (las hijas
  *  del ticket en Notion y las sumadas con `ide ticket add-sub`), cada uno con un interruptor para mostrarlo o no en
- *  la card, y al final los de pendientes. Click en uno: lo abre en una tab del IDE. */
+ *  la card (los «pendientes» de antes también son subtickets). Click en uno: lo abre en una tab del IDE. */
 import { useState } from "react";
 import { useCurrentDev } from "../../main/currentDev";
 import { useFolders } from "../../state/folders";
@@ -54,10 +54,6 @@ export function TicketsPanel() {
       {head(`Subtickets (${subs.length})`)}
       {!subs.length && <div className="px-1 text-xs text-muted-foreground">Ninguno: las hijas del ticket en Notion (relación «Tickets») salen aquí solas.</div>}
       {subs.map((x) => <Row key={x.url} devKey={dev.key} t={x} toggle={toggle(x.url)} />)}
-      {t.pending.length > 0 && (<>
-        {head(`Pendientes, fuera del desarrollo (${t.pending.length})`)}
-        {t.pending.map((x) => <Row key={x.url} devKey={dev.key} t={x} />)}
-      </>)}
       {err && <div className="mt-2 px-1 text-xs text-destructive">{err}</div>}
     </div>
   );

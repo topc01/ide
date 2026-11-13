@@ -608,8 +608,7 @@ def _ticket(db: Db, row: dict, open_prs: list, merged: int) -> dict | None:
     elif st == "Backlog" and open_prs:
         mismatch = "tiene PRs abiertas y el ticket sigue en «Backlog»"
     return {"url": row.get("notionUrl"), "status": st, "error": info.get("error"), "mismatch": mismatch,
-            "pending": [{"url": u, "status": (notion.cached(db, u) or {}).get("status"),
-                         "title": (notion.cached(db, u) or {}).get("title")} for u in notion.pending(db, row["id"])],
+            "pending": [],                      # los de pendientes ahora son subtickets
             "subs": [{"url": u, "status": (notion.cached(db, u) or {}).get("status"),
                       "title": (notion.cached(db, u) or {}).get("title")}
                      for u in notion.subs(db, row["id"], row.get("notionUrl"))]}

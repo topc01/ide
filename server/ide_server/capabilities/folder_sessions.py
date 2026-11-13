@@ -173,9 +173,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                                              "card": notion.page_id(u) not in hidden}
                                             for u in notion.subs(db, s_["id"], url)
                                             for hidden in [notion.card_hidden(db, s_["id"])]],
-                                   "pending": [{"url": u, "status": (notion.cached(db, u) or {}).get("status"),
-                                                "title": (notion.cached(db, u) or {}).get("title")}
-                                               for u in notion.pending(db, s_["id"])]}
+                                   "pending": []}         # los de pendientes ahora son subtickets
         return out
 
     def ticket_urls() -> list[str]:
@@ -324,7 +322,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         from ide_server import notion_tickets as notion
         sid = _resolve(p["id"])
         _ticket_guard(p, sid)
-        items = notion.add_pending(db, sid, str(p.get("url") or "").strip())
+        notion.add_sub(db, sid, str(p.get("url") or "").strip())    # `add-pending` = subticket
+        items = notion.subs(db, sid, (read_session(root, sid).get("meta") or {}).get("notion_url"))
         db.event(datetime.now().isoformat(timespec="seconds"), p.get("actor") or "ide", "ticket-pending", dev=sid,
                  data={"url": p.get("url")})
         if notion.get_token():
