@@ -476,9 +476,8 @@ class Supervisor:
         since = datetime.now()
         if det.get("messageAt"):
             since = datetime.fromisoformat(det["messageAt"].replace("Z", "+00:00")).astimezone().replace(tzinfo=None)
-        asks = bool(activity_mod.questions_in(det["message"]))
         return {"state": "waiting", "note": activity_mod.first_line(det["message"]),
-                "reason": "question" if asks else "turn", "since": since.isoformat(timespec="seconds")}
+                "reason": activity_mod.wait_reason(det["message"]), "since": since.isoformat(timespec="seconds")}
 
     def _forget(self, sid: str) -> None:
         self._head.pop(sid, None)

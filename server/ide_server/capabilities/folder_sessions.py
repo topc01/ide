@@ -1585,8 +1585,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 return {"ok": True}
             # terminó el turno con una pregunta para ti (una línea que termina en «?»): «pregunta», no «terminó»
             det = await asyncio.to_thread(activity_mod.detail, _transcript(sid), Path.home(), 0)
-            asks = bool(activity_mod.questions_in(det.get("message")))
-            prev = supervisor.set_activity(sid, "waiting", note, "question" if asks else "turn")
+            prev = supervisor.set_activity(sid, "waiting", note, activity_mod.wait_reason(det.get("message")))
         elif ev == "Notification":
             kind = p.get("notification_type") or ""
             msg = activity_mod.first_line(str(p.get("message") or "")) or None
@@ -2484,9 +2483,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                         if await asyncio.to_thread(activity_mod.pending_agents, tr, Path.home()):
                             continue
                         det = await asyncio.to_thread(activity_mod.detail, tr, Path.home(), 0)
-                        asks = bool(activity_mod.questions_in(det.get("message")))
                         supervisor.set_activity(sid_, "waiting", activity_mod.first_line(det.get("message") or ""),
-                                                "question" if asks else "turn")
+                                                activity_mod.wait_reason(det.get("message")))
                 except Exception:  # noqa: BLE001
                     log.exception("subagentes")
                 try:

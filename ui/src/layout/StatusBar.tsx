@@ -110,6 +110,7 @@ type Listed = readonly [string, { note: string | null; reason?: string | null }]
 const WAIT_REASON: Record<string, [string, string]> = {
   permission: ["permiso", "border-red-400/70 text-red-300"],
   question: ["pregunta", "border-amber-400/70 text-amber-300"],
+  login: ["login", "border-red-400/70 text-red-300"],
   turn: ["terminó", "border-border text-muted-foreground"],
   interrupt: ["interrumpida", "border-violet-400/60 text-violet-300"],
   idle: ["inactiva", "border-border text-muted-foreground"],
@@ -118,7 +119,7 @@ const WAIT_REASON: Record<string, [string, string]> = {
 const SKIP_KINDS = ["main", "ide", "recursos", "plugins"];
 
 /** Lo que necesita tu respuesta para seguir: pide un permiso o te hizo una pregunta. */
-const BLOCKED = ["permission", "question"];
+const BLOCKED = ["permission", "question", "login"];
 
 /** Las sesiones paradas esperando algo de ti: «te esperan» = bloqueadas (permiso o pregunta; más las marcadas
  *  "esperando tu input" de antes); «terminaron» = el resto (terminó el turno, la interrumpiste, inactiva, recién

@@ -145,6 +145,17 @@ def questions_in(text: str | None) -> list[str]:
     return out[-4:]
 
 
+_LOGIN = re.compile(r"\bide browser (login|new)\b")
+
+
+def wait_reason(text: str | None) -> str:
+    """Por qué te espera al terminar el turno: «login» si te pide iniciar una sesión de navegador (`ide browser
+    login|new`), «question» si termina con una pregunta, si no «turn»."""
+    if _LOGIN.search(text or ""):
+        return "login"
+    return "question" if questions_in(text) else "turn"
+
+
 def _summary(name: str, inp: dict) -> str:
     """Una línea de lo que hace una herramienta: el comando, el archivo, la búsqueda…"""
     if name == "Bash" and isinstance(inp.get("description"), str) and inp["description"].strip():
