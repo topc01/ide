@@ -151,7 +151,6 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         if not t.cancelled() and t.exception() is not None:
             log.error("tarea de fondo falló", exc_info=t.exception())
 
-    @asynccontextmanager
     async def roots_loop(stop: asyncio.Event) -> None:
         """Cada hora (la primera, 2 min después de arrancar): `root_refresh.refresh`; lo que hizo queda en el
         historial (`roots-refresh`) y en `kv roots:last`."""
@@ -174,6 +173,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             except Exception:  # noqa: BLE001
                 log.exception("no se pudo refrescar los repos raíz")
 
+    @asynccontextmanager
     async def lifespan(_app: FastAPI):
         tasks = [
             asyncio.create_task(watch_workspace(root, lambda: notify_box["fn"](), stop_event=stop_bg)),
