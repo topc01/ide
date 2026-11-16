@@ -1,6 +1,6 @@
 // ui/src/modules/sessions/SessionItem.tsx
 import { useState, type ReactNode } from "react";
-import { Archive, ExternalLink, Pause, Play } from "lucide-react";
+import { Archive, ExternalLink, Play } from "lucide-react";
 import { freezeSession, type FolderSession, type GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
 import { CardActions, CardCorner, DevIndex, TicketChip, RelationChips, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
@@ -57,16 +57,13 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
         selected={activeId === session.id && !activePrUrl || !!prs?.some((p) => p.url === activePrUrl)}>
         <CardCorner><DepsPause pr={pr} />{worst.ci && <CiMark pr={worst.ci} />}</CardCorner>
         <div className={cn("flex items-start gap-1.5", titlePad(pr))}>
-          {act === "working" || act === "frozen" ? (
-            // trabajando: hover = ⏸ (congelar); congelada: hover = ▶ (soltar). Sigue donde estaba.
-            <button aria-label={act === "working" ? "Congelar" : "Reanudar"}
-              title={act === "working" ? `${label}. Click: congelar (deja de gastar CPU y tokens y sigue donde estaba al reanudar; la memoria sigue ocupada)`
-                : `${label}. Click: reanudar`}
-              onClick={(e) => { e.stopPropagation(); freezeSession(getWs(), session.id, act === "working").catch((err: any) => setError(err?.message ?? String(err))); }}
+          {act === "frozen" ? (
+            // congelar ya no se ofrece; las que quedaron congeladas de antes se sueltan aquí
+            <button aria-label="Soltar" title={`${label}. Click: soltarla (sigue donde estaba)`}
+              onClick={(e) => { e.stopPropagation(); freezeSession(getWs(), session.id, false).catch((err: any) => setError(err?.message ?? String(err))); }}
               className="group/dot grid w-3 shrink-0 place-items-center">
               <span className={cn(dotCls, "group-hover/dot:hidden")}>{dot}</span>
-              {act === "working" ? <Pause size={11} className="hidden text-violet-400 group-hover/dot:block" />
-                : <Play size={11} className="hidden text-violet-400 group-hover/dot:block" />}
+              <Play size={11} className="hidden text-violet-400 group-hover/dot:block" />
             </button>
           ) : (
           <span aria-label={label} title={`${label}${session.activity?.since && session.process === "running"

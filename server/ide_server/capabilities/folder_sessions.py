@@ -888,7 +888,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
 
     async def nightly(_p: dict | None = None) -> dict:
-        """Revisión de feedback desde la última (prompt `nightly-review`), como manager en modo
+        """Revisión semanal de feedback desde la última (prompt `nightly-review`), como manager en modo
         restringido (ver _run_nightly). Deja un plan en `feedback/` de la principal."""
         main = await asyncio.to_thread(find_main, root)
         if main is None:
@@ -915,23 +915,30 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"id": main, "delivered": f"revisión corriendo aparte (log: feedback/{log_path.name})", "process": "headless"}
 
     async def nightly_loop(stop: asyncio.Event) -> None:
-        """A la hora de `[manager] nightly` (si el IDE está corriendo), una vez por día."""
+        """Una vez por semana: el día `[manager] weekday` a la hora `nightly`, con todo el feedback desde la
+        última revisión. Si ese día el IDE no estaba corriendo, la hace apenas arranca."""
+        days = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
         while not stop.is_set():
             try:
                 await asyncio.wait_for(stop.wait(), 60)
                 return
             except asyncio.TimeoutError:
                 pass
-            hhmm = str(manager_config(root).get("nightly") or "")
-            if not re.fullmatch(r"\d{1,2}:\d{2}", hhmm) or db is None:
+            cfg = manager_config(root)
+            hhmm = str(cfg.get("nightly") or "")
+            wd = str(cfg.get("weekday") or "mon").lower()[:3]
+            if not re.fullmatch(r"\d{1,2}:\d{2}", hhmm) or wd not in days or db is None:
                 continue
             now = datetime.now()
             h, m = map(int, hhmm.split(":"))
-            if (now.hour, now.minute) >= (h, m) and db.get("nightly:last") != now.date().isoformat():
+            due = (now - timedelta(days=(now.weekday() - days.index(wd)) % 7)).replace(hour=h, minute=m, second=0, microsecond=0)
+            if due > now:
+                due -= timedelta(days=7)
+            if (db.get("nightly:last") or "") < due.date().isoformat():
                 try:
                     await nightly()
                 except Exception:  # noqa: BLE001 — se reintenta en el próximo minuto
-                    log.exception("no se pudo pedir la revisión nocturna")
+                    log.exception("no se pudo pedir la revisión semanal")
 
     def _review_session(url: str) -> str | None:
         """La sesión que revisa la PR: la suya o la de un stack que la incluye."""

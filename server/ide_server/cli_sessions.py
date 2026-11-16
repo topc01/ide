@@ -239,7 +239,7 @@ def _parser() -> argparse.ArgumentParser:
     fb = sub.add_parser("feedback", help="revisión de feedback (sesión manager)").add_subparsers(dest="cmd", required=True)
     fc = fb.add_parser("collect", help="correcciones anotadas + mensajes del usuario de cada sesión desde --since")
     fc.add_argument("--since", help="ISO (AAAA-MM-DD[THH:MM]); default: hace 7 días"); fc.add_argument("--json", action="store_true")
-    fb.add_parser("run", help="pedirle ya la revisión nocturna a la sesión principal")
+    fb.add_parser("run", help="pedirle ya la revisión semanal de feedback a la sesión principal")
     sc = sub.add_parser("script"); sc.add_argument("name"); sc.add_argument("repo", nargs="?")
     sc.add_argument("--session")
     return ap

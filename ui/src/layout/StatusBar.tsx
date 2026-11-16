@@ -284,7 +284,7 @@ function SessionCounter({ items, one, many, what }:
   </>);
 }
 
-/** La revisión nocturna dejó un plan de feedback sin revisar: click = ir a la sesión principal. */
+/** La revisión semanal dejó un plan de feedback sin revisar: click = ir a la sesión principal. */
 function FeedbackPending() {
   const plans = useFolders((s) => s.tree.feedbackPending);
   const main = useFolders((s) => s.tree.sessions.find((x) => x.kind === "main"));

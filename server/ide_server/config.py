@@ -40,8 +40,9 @@ def reviews_config(root: Path) -> dict:
 
 
 def manager_config(root: Path) -> dict:
-    """[manager] nightly = "HH:MM" (revisión nocturna de feedback; "" la apaga)."""
-    return {"nightly": "03:00", **load_workspace_config(root).get("manager", {})}
+    """[manager] nightly = "HH:MM" (hora de la revisión semanal de feedback; "" la apaga) y weekday = el día
+    ("mon".."sun", lunes por defecto)."""
+    return {"nightly": "03:00", "weekday": "mon", **load_workspace_config(root).get("manager", {})}
 
 
 def ui_modules(root: Path) -> list[str]:
