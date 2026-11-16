@@ -88,8 +88,8 @@ def _edited_after(s: dict, row: dict) -> bool:
 
 
 def _backwards(before: str | None, status: str | None) -> bool:
-    """«investigando» es solo el estado inicial: un desarrollo que ya pasó a desarrollando (o más
-    adelante) no vuelve ahí, lo pida quien lo pida (sesión, UI o archivo)."""
+    """Volver a «investigando» desde una fase posterior: lo puedes hacer tú o la manager; la sesión misma (o
+    su archivo) no."""
     return status == "investigating" and before not in (None, "investigating")
 
 
@@ -181,10 +181,11 @@ def _apply(db: Db, key: str, status: str | None, note: str | None, actor: str, r
                                           "desarrollo queda en «te espera» solo. Termina el turno con la pregunta "
                                           "para él (clara, en el último mensaje). «Bloqueado» es solo para lo que "
                                           "depende de afuera: otra persona, producto, el cliente u otro desarrollo")
-    if _backwards(phase, status):
-        raise SessionError("backwards", "«investigando» es solo el estado inicial: este desarrollo ya pasó a "
-                                        f"«{LABEL.get(phase, phase)}» y no vuelve ahí (si está frenado, márcalo "
-                                        "bloqueado o pausado)")
+    # tú (UI, terminal) y la manager pueden volverlo a «investigando»; la sesión misma no se devuelve sola
+    if _backwards(phase, status) and actor == f"claude:{key[2:]}":
+        raise SessionError("backwards", "una sesión no se devuelve sola a «investigando»: este desarrollo ya "
+                                        f"pasó a «{LABEL.get(phase, phase)}» (si está frenado, márcalo bloqueado o "
+                                        "pausado; volverlo a investigando lo hace el usuario o la manager)")
     pinned = "gh" in cur
     pin = cur.get("gh")
     before = block or phase

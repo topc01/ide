@@ -377,8 +377,7 @@ function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: st
           className="mx-2 mt-2 w-[calc(100%-1rem)] rounded border border-primary/50 px-2 py-1 text-left text-[11px] text-primary hover:bg-accent">
           ↺ volver a lo de GitHub ({STATE[dev.gh][0]})</button>)}
       {title("¿En qué está el trabajo?")}
-      {/* «investigando» es solo el estado inicial: pasado eso no se vuelve (el server tampoco lo acepta) */}
-      {MANUAL.filter((st) => st !== "investigating" || dev.phase === "investigating").map((st) => option(st, !dev.block && dev.phase === st))}
+      {MANUAL.map((st) => option(st, !dev.block && dev.phase === st))}
       {title("¿Está frenado?")}
       {dev.block ? (
         <div className="px-2">

@@ -917,7 +917,7 @@ fase se puede poner a mano desde la UI: guarda la fase de GitHub de ese momento 
 que GitHub cambie (una review, un merge); "↺ usar la de GitHub" la suelta. Las que pone una sesión
 con `ide status` no se fijan (manda GitHub). Sin nada puesto se deduce (draft = desarrollando); un
 `investigating` puesto por la sesión queda viejo apenas hay una PR abierta (pasa a desarrollando,
-salvo que el usuario lo haya fijado a mano).
+salvo que el usuario lo haya fijado a mano). Volver a `investigating` desde una fase posterior lo puedes hacer tú (UI o terminal) o la manager; la sesión misma no (`backwards`).
 Pausas (tapan la fase sin borrarla, con nota y desde cuándo): `blocked` (la nota dice por qué o de
 quién), `paused`; `unblock` vuelve a la fase. ("esperando tu input" ya no es un estado del desarrollo:
 es la **actividad** de la sesión, ver abajo; los `waiting-input` que quedaron puestos se ven hasta que
