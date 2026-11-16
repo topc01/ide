@@ -23,9 +23,13 @@ function useDevLabel() {
   return (key: string) => {
     const n = tree.devIndex?.[key];
     const sid = key.startsWith("s:") ? key.slice(2) : null;
+    const it = (tree.later ?? []).find((x) => x.key === key);
+    const special: Record<string, string> = { manager: "Manager", recursos: "Recursos", plugins: "Plugins", ide: "IDE" };
     const name = devName(tree.devNames, key) ?? (sid ? tree.sessions.find((s) => s.id === sid)?.title : null)
+      ?? it?.devTitle ?? (sid ? special[sid] : null)
       ?? key.replace(/^p:https:\/\/github\.com\/[^/]+\/([^/]+)\/pull\/(\d+)$/, "$1#$2");
-    return `${n !== undefined ? `#${n} ` : ""}${name ?? key}`;
+    const num = n !== undefined ? `#${n} ` : sid && /^\d+$/.test(sid) ? `#${sid} ` : "";
+    return `${num}${name ?? key}${it?.archived ? " (archivado)" : ""}`;
   };
 }
 
@@ -41,9 +45,12 @@ function Item({ it, devLabel }: { it: LaterItem; devLabel?: string }) {
     setBusy(true); setMsg(null);
     laterAnswer(getWs(), it.id, answer.trim()).catch((e: any) => { setMsg(`⚠ ${e?.message ?? String(e)}`); setBusy(false); });
   };
+  // con artefacto: lo abre; sin él, la sesión (si está archivada no hay a dónde ir: muestra el contexto)
+  const live = toSession && !it.archived;
   const open = () => {
     if (it.artifact) openExternal(it.artifact);
-    else if (toSession) useFolders.getState().setActive(it.key.slice(2));
+    else if (live) useFolders.getState().setActive(it.key.slice(2));
+    else setMore(!more);
   };
   return (
     <div className="mx-2 mb-1.5 rounded-md border border-border bg-card p-2">
@@ -59,7 +66,7 @@ function Item({ it, devLabel }: { it: LaterItem; devLabel?: string }) {
           onClick={() => laterDismiss(getWs(), it.id).catch((e: any) => setMsg(`⚠ ${e?.message ?? String(e)}`))}
           className="rounded p-0.5 hover:bg-accent hover:text-foreground"><X size={12} /></button>
       </div>
-      <button onClick={open} title={it.artifact ? "Abrir el análisis (artefacto) en el navegador" : toSession ? "Ir a la sesión" : ""}
+      <button onClick={open} title={it.artifact ? "Abrir el análisis (artefacto) en el navegador" : live ? "Ir a la sesión" : "Ver el contexto (su sesión está archivada)"}
         className="block w-full text-left text-[12px] font-semibold leading-snug hover:text-primary">
         {it.text}{it.artifact && <ExternalLink size={11} className="ml-1 inline align-[-1px] text-muted-foreground" />}</button>
       {it.context && (more
@@ -67,7 +74,7 @@ function Item({ it, devLabel }: { it: LaterItem; devLabel?: string }) {
         : <button onClick={() => setMore(true)} title="Ver el contexto que dejó la sesión"
             className="mt-0.5 text-[10px] text-muted-foreground hover:text-foreground">contexto…</button>)}
       {answer === null ? (
-        <button title={toSession ? "Responder: la respuesta se le manda a la sesión" : "Anotar la respuesta"}
+        <button title={live ? "Responder: la respuesta se le manda a la sesión" : "Anotar la respuesta (su sesión está archivada: no le llega)"}
           onClick={() => setAnswer("")} className="mt-1 block text-[11px] text-primary hover:underline">Responder</button>
       ) : (
         <div className="mt-1.5">

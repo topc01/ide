@@ -148,7 +148,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "devPrs": db.dev_prs() if db else {},
                 "devIndex": db.with_prefix("devidx:") if db else {},
                 "devStates": dev_states(db) if db else {},
-                "later": later_mod.items(db) if db else [],
+                "later": _later_with_dev(later_mod.items(db)) if db else [],
                 "devTickets": _tickets(sessions) if db else {},
                 "devTours": {f"s:{k}": {"status": v.get("status"), "steps": len(v.get("steps") or []), "at": v.get("at"),
                                         "title": v.get("title")} for k, v in db.with_prefix("tour:").items() if v} if db else {},
@@ -159,6 +159,16 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                              for u, v in (db.with_prefix("verdict:") if db else {}).items()},
                 "feedbackPending": pending_plans(root),
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
+
+    def _later_with_dev(items: list[dict]) -> list[dict]:
+        """Cada decisión con el nombre de su desarrollo y si su sesión está archivada (la UI no la tiene en la lista
+        de sesiones: sin esto mostraba «s:204» y el click no abría nada)."""
+        out = []
+        for it in items:
+            row = db.dev(it["key"][2:]) if str(it.get("key") or "").startswith("s:") else None
+            title = str((row or {}).get("title") or "").strip().strip('"') or None
+            out.append({**it, "devTitle": title, "archived": bool((row or {}).get("archived"))})
+        return out
 
     def _tickets(sessions: list[dict]) -> dict:
         """Por desarrollo con sesión de ticket (`s:<id>`): su ticket de Notion (url, Status de la caché, error)

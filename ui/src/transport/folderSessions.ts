@@ -51,6 +51,7 @@ export interface LaterItem {
   id: string; key: string; text: string; context: string | null; actor: string; created: string;
   status: "open" | "answered" | "resolved" | "dismissed"; answer: string | null; resolved: string | null;
   artifact?: string | null; with?: string | null;   // el artefacto con el análisis; con quién conversarlo
+  devTitle?: string | null; archived?: boolean;      // el nombre de su desarrollo; si su sesión está archivada
 }
 export const laterAdd = (ws: WsClient, key: string, text: string, context: string | null,
   extra: { artifact?: string | null; with?: string | null } = {}): Promise<{ item: LaterItem }> =>
