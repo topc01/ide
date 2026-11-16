@@ -1,7 +1,7 @@
 // ui/src/modules/sessions/DevCard.tsx
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { CircleHelp, Eye, EyeOff, Flag, Pause, Pencil, Presentation } from "lucide-react";
+import { CircleHelp, Eye, EyeOff, Flag, Hourglass, Pause, Pencil, Presentation } from "lucide-react";
 import { hideDev, renameDev, setDevState, startTour, type GhPr, type MergeJob } from "../../transport/folderSessions";
 import { QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
 import { getWs } from "../../transport/wsClient";
@@ -414,20 +414,27 @@ function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: st
     </div>);
 }
 
-/** Chip "? N": decisiones abiertas del desarrollo (lo que tienes que decidir o conversar); click abre el módulo
- *  Decisiones. */
+/** Bloqueantes abiertos del desarrollo: «? N» decisiones y «⧗ N» pendientes (rojos si alguno bloquea el desarrollo);
+ *  click abre el módulo Bloqueantes. */
 export function LaterChip({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
   const items = useFolders((s) => s.tree.later);
   const { activePanel, setActivePanel, innerSidebarOpen, toggleInnerSidebar } = useStore();
   const keys = devKeys(devKey, prs);
   const mine = (items ?? []).filter((it) => keys.includes(it.key));
   if (!mine.length) return null;
-  const who = [...new Set(mine.map((it) => it.with).filter(Boolean))];
-  return (
-    <button title={`${mine.length} decisi${mine.length > 1 ? "ones" : "ón"} por tomar${who.length ? ` (con ${who.join(", ")})` : ""}: abre el módulo Decisiones`}
-      onClick={(e) => { e.stopPropagation(); if (activePanel !== "later") setActivePanel("later"); if (!innerSidebarOpen) toggleInnerSidebar(); }}
-      className="inline-flex shrink-0 items-center gap-0.5 rounded border border-sky-400/60 bg-sky-400/10 px-1 font-mono text-[10px] font-bold text-sky-300 hover:border-sky-300">
-      <CircleHelp size={10} />{mine.length}</button>);
+  const openIt = (e: React.MouseEvent) => { e.stopPropagation(); if (activePanel !== "later") setActivePanel("later"); if (!innerSidebarOpen) toggleInnerSidebar(); };
+  return (<>{(["decision", "pending"] as const).map((k) => {
+    const these = mine.filter((it) => (it.kind ?? "decision") === k);
+    if (!these.length) return null;
+    const blocks = these.some((it) => it.blocks);
+    const Icon = k === "decision" ? CircleHelp : Hourglass;
+    return (
+      <button key={k} onClick={openIt}
+        aria-label={`${these.length} ${k === "decision" ? "decisiones" : "pendientes"}${blocks ? " (bloquean el desarrollo)" : ""}: abre Bloqueantes`}
+        className={cn("inline-flex shrink-0 items-center gap-0.5 rounded border px-1 font-mono text-[10px] font-bold",
+          blocks ? "border-red-400/70 bg-red-400/10 text-red-300" : k === "decision" ? "border-sky-400/60 bg-sky-400/10 text-sky-300" : "border-amber-400/60 bg-amber-400/10 text-amber-300")}>
+        <Icon size={10} />{these.length}</button>);
+  })}</>);
 }
 
 const REL = {

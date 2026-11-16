@@ -107,16 +107,17 @@ sus capturas) y suma uno con `ide evidence add "texto" [--after <n>] [--shot]`. 
 captura con `ide evidence rm --step <n> --shot <n|archivo>`, un paso con `ide evidence rm --step <n>` o la
 corrida entera con `ide evidence rm` (`--run` para otra corrida que la última).
 
-**Decisiones:** lo que el usuario tiene que decidir o conversar con alguien (p. ej. «esto lo veo con
-Sebastián de CX», «déjalo para después»), o una pregunta tuya que puede esperar, déjalo como decisión:
-`ide later add "<la pregunta, en una línea>" --with "<con quién, si se conversa con alguien>" --artifact <link>`.
-La pregunta sola, autocontenida y corta: el análisis, las opciones y los casos van en un artefacto (el
-`--artifact`, que el usuario abre con un click), no en `-m`. Le sale en la card («? N»), en la barra de abajo y
-en el módulo Decisiones, agrupado por desarrollo o por persona. Sigue con lo que puedas sin esa respuesta; si ya
-no puedes avanzar, termina el turno diciéndolo, y marca `ide status blocked -m "pendiente: <qué y de quién>"`
-solo si la respuesta depende de un tercero. La respuesta te llega como `[Respuesta del usuario a un pendiente
-que quedó para después]`. Si se resuelve en el chat, ciérrala: `ide later ls --mine` y
-`ide later done <id> -m "<cómo>"`.
+**Bloqueantes:** lo que te frena va al módulo Bloqueantes, de dos tipos:
+- **Decisión**: algo que el usuario decide o conversa con alguien (p. ej. «esto lo veo con Sebastián de CX»), o
+  una pregunta tuya que puede esperar: `ide later add "<la pregunta, en una línea>" --with "<con quién>"`.
+- **Pendiente**: algo que se espera de alguien (documentos, una respuesta, un acceso): `ide later add
+  "<qué se espera>" --pending --with "<de quién>"`.
+El texto, corto y autocontenido; el análisis, las opciones y los casos van en un artefacto (`--artifact <link>`),
+no en `-m`. Si **ya no puedes avanzar en nada más** hasta que se resuelva, súmale `--blocks`: el desarrollo pasa
+solo a Bloqueado (con ese texto como motivo) y vuelve a su fase cuando se cierre; no uses `ide status blocked`
+para eso. Si todavía puedes avanzar en otra cosa, sin `--blocks`, y sigue. La respuesta te llega como
+`[Respuesta del usuario a un pendiente que quedó para después]`. Si se resuelve en el chat, ciérralo:
+`ide later ls --mine` y `ide later done <id> -m "<cómo>"`.
 
 `SESSION.md` guarda el análisis (y el `title` si está vacío). La sesión principal ve todo con
 `ide dev ls` y el detalle e historial con `ide dev show <id>`.

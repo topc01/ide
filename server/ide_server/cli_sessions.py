@@ -189,11 +189,13 @@ def _parser() -> argparse.ArgumentParser:
     tls.add_argument("--json", action="store_true")
     tsh = tl.add_parser("show", help="detalle e historial de una herramienta"); tsh.add_argument("name")
     tsh.add_argument("--json", action="store_true")
-    lt = sub.add_parser("later", help="pendientes para después (preguntas/temas que el usuario verá otro día)").add_subparsers(dest="cmd", required=True)
+    lt = sub.add_parser("later", help="bloqueantes del desarrollo: decisiones del usuario y pendientes de otros").add_subparsers(dest="cmd", required=True)
     la = lt.add_parser("add", help="deja un pendiente en el desarrollo de la sesión")
     la.add_argument("text", help="la pregunta, en una línea"); la.add_argument("-m", "--context", help="(opcional) contexto corto; el análisis va en el artefacto")
     la.add_argument("--artifact", help="link del artefacto con el análisis y las opciones (claude.ai/artifact/…)")
-    la.add_argument("--with", dest="with_", help="con quién hay que conversarlo (p.ej. \"Sebastián (CX)\")")
+    la.add_argument("--with", dest="with_", help="con quién hay que conversarlo, o de quién se espera (p.ej. \"Laura (CX)\")")
+    la.add_argument("--pending", action="store_true", help="es un pendiente (algo que se espera de alguien), no una decisión")
+    la.add_argument("--blocks", action="store_true", help="ya no puedes avanzar en nada más: el desarrollo pasa a Bloqueado hasta que se cierre")
     la.add_argument("--session")
     ll = lt.add_parser("ls", help="pendientes abiertos de todos los desarrollos")
     ll.add_argument("--json", action="store_true"); ll.add_argument("--all", action="store_true", help="también respondidos/descartados")
@@ -666,8 +668,11 @@ def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
             raise SessionError("no_session", "no estoy dentro de una sesión: usa --session <id>")
         actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
         data = _post(http, url, "/api/later", {"sid": sid, "text": a.text, "context": a.context, "actor": actor,
-                                              "artifact": a.artifact, "with": a.with_})
-        out.write(f"decisión {data['item']['id']} en {sid}\n")
+                                              "artifact": a.artifact, "with": a.with_,
+                                              "kind": "pending" if a.pending else "decision", "blocks": a.blocks})
+        it = data["item"]
+        out.write(f"{'pendiente' if it.get('kind') == 'pending' else 'decisión'} {it['id']} en {sid}"
+                  f"{' (bloquea el desarrollo: pasa a Bloqueado)' if it.get('blocks') else ''}\n")
         return 0
     if a.cmd == "done":
         from urllib.parse import quote

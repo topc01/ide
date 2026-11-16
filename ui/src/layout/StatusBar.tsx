@@ -335,14 +335,15 @@ function SessionCounter({ items, one, many, what }:
   </>);
 }
 
-/** «N decisiones»: lo que tienes que decidir o conversar (módulo Decisiones); click lo abre. */
+/** «N bloqueantes» (rojo): decisiones y pendientes que frenan a los desarrollos (módulo Bloqueantes); click lo abre.
+ *  Es lo que hay que bajar. */
 function Decisions() {
   const n = useFolders((s) => s.tree.later?.length ?? 0);
   const { activePanel, setActivePanel, innerSidebarOpen, toggleInnerSidebar } = useStore();
   return (
     <button disabled={!n} onClick={() => { if (activePanel !== "later") setActivePanel("later"); if (!innerSidebarOpen) toggleInnerSidebar(); }}
-      className="rounded border border-sky-400/60 px-1.5 text-sky-300 hover:bg-sky-400/10 disabled:border-border disabled:cursor-default disabled:text-muted-foreground disabled:opacity-60 disabled:hover:bg-transparent">
-      {n} {n === 1 ? "decisión" : "decisiones"}</button>);
+      className="rounded border border-red-400/70 px-1.5 font-semibold text-red-300 hover:bg-red-400/10 disabled:border-border disabled:font-normal disabled:cursor-default disabled:text-muted-foreground disabled:opacity-60 disabled:hover:bg-transparent">
+      {n} {n === 1 ? "bloqueante" : "bloqueantes"}</button>);
 }
 
 /** La revisión semanal dejó un plan de feedback sin revisar: click = ir a la sesión principal. */

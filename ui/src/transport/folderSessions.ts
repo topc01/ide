@@ -52,11 +52,13 @@ export interface LaterItem {
   status: "open" | "answered" | "resolved" | "dismissed"; answer: string | null; resolved: string | null;
   artifact?: string | null; with?: string | null;   // el artefacto con el análisis; con quién conversarlo
   devTitle?: string | null; archived?: boolean;      // el nombre de su desarrollo; si su sesión está archivada
+  kind?: "decision" | "pending"; blocks?: boolean;   // decisión tuya o pendiente de otro; si bloquea el desarrollo
 }
-export const laterUpdate = (ws: WsClient, id: string, fields: { text?: string; artifact?: string; with?: string }) =>
+export const laterUpdate = (ws: WsClient, id: string,
+  fields: { text?: string; artifact?: string; with?: string; kind?: "decision" | "pending"; blocks?: boolean }) =>
   ws.request("later.update", { id, ...fields });
 export const laterAdd = (ws: WsClient, key: string, text: string, context: string | null,
-  extra: { artifact?: string | null; with?: string | null } = {}): Promise<{ item: LaterItem }> =>
+  extra: { artifact?: string | null; with?: string | null; kind?: "decision" | "pending"; blocks?: boolean } = {}): Promise<{ item: LaterItem }> =>
   ws.request("later.add", { key, text, context, ...extra });
 /** Responder: si el desarrollo tiene sesión, la respuesta se le manda (`delivered` dice cómo). */
 export const laterAnswer = (ws: WsClient, id: string, answer: string): Promise<{ ok: boolean; delivered: string }> =>

@@ -2271,27 +2271,50 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         actor = p.get("actor") if isinstance(p.get("actor"), str) and p["actor"].startswith(("claude:", "cli")) else "usuario"
         try:
             item = later_mod.add(db, key, p.get("text") or "", p.get("context"), actor,
-                                 artifact=p.get("artifact"), with_=p.get("with"))
+                                 artifact=p.get("artifact"), with_=p.get("with"), kind=p.get("kind"),
+                                 blocks=bool(p.get("blocks")))
         except ValueError as exc:
             raise SessionError("bad_request", str(exc)) from exc
         db.event(datetime.now().isoformat(timespec="seconds"), actor, "later",
                  dev=key[2:] if key.startswith("s:") else None, data={"text": item["text"][:300]})
+        await asyncio.to_thread(_sync_block, key)
         notify()
         return {"item": item}
 
     async def later_list(p: dict) -> dict:
         return {"items": later_mod.items(db, open_only=not p.get("all")) if db else []}
 
+    def _sync_block(key: str) -> None:
+        """Un bloqueante que «bloquea el desarrollo» lo pasa a Bloqueado (con su texto como motivo); cuando no queda
+        ninguno abierto, vuelve a su fase. Solo deshace el bloqueo que puso él (`actor: bloqueante`), no uno tuyo."""
+        if db is None or not key:
+            return
+        blocking = [it for it in later_mod.items(db) if it["key"] == key and it.get("blocks")]
+        cur = db.get(f"devstate:{key}") or {}
+        mine = cur.get("block") == "blocked" and cur.get("actor") == "bloqueante"
+        try:
+            if blocking:
+                note = "; ".join(f"{it['text'][:120]}{' (' + it['with'] + ')' if it.get('with') else ''}"
+                                 for it in blocking)[:300]
+                if cur.get("block") != "blocked" or (mine and cur.get("note") != note):
+                    set_dev_state(root, db, key, "blocked", actor="bloqueante", note=note)
+            elif mine:
+                set_dev_state(root, db, key, "unblock", actor="bloqueante")
+        except SessionError:
+            log.warning("no pude sincronizar el bloqueo de %s", key)
+
     async def later_update(p: dict) -> dict:
         """Editar una decisión (módulo Decisiones: pregunta, con quién, artefacto). Solo desde la UI."""
         if p.get("_http") or db is None:
             raise SessionError("forbidden", "se edita desde el módulo Decisiones")
         try:
-            item = later_mod.update(db, str(p.get("id")), text=p.get("text"), artifact=p.get("artifact"), with_=p.get("with"))
+            item = later_mod.update(db, str(p.get("id")), text=p.get("text"), artifact=p.get("artifact"), with_=p.get("with"),
+                                    kind=p.get("kind"), blocks=p.get("blocks") if "blocks" in p else None)
         except KeyError:
             raise SessionError("not_found", "esa decisión ya no está abierta")
         except ValueError as exc:
             raise SessionError("bad_request", str(exc)) from exc
+        await asyncio.to_thread(_sync_block, item["key"])
         notify()
         return {"item": item}
 
@@ -2313,6 +2336,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     f"Pendiente: {item['text']}\nRespuesta: {answer}")
             _, how = _deliver_to(sid, text, "usuario")
         later_mod.close(db, item["id"], "answered", answer)
+        await asyncio.to_thread(_sync_block, item["key"])
         notify()
         return {"ok": True, "delivered": how}
 
@@ -2328,6 +2352,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         later_mod.close(db, item["id"], "resolved", (p.get("note") or "").strip()[:2000] or None)
         db.event(datetime.now().isoformat(timespec="seconds"), actor, "later-resolved",
                  dev=item["key"][2:] if item["key"].startswith("s:") else None, data={"text": item["text"][:300]})
+        await asyncio.to_thread(_sync_block, item["key"])
         notify()
         return {"ok": True}
 
@@ -2335,9 +2360,10 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if db is None:
             raise SessionError("no_db", "sin base")
         try:
-            later_mod.close(db, str(p.get("id")), "dismissed")
+            item = later_mod.close(db, str(p.get("id")), "dismissed")
         except KeyError as exc:
             raise SessionError("not_found", "no existe ese pendiente") from exc
+        await asyncio.to_thread(_sync_block, item["key"])
         notify()
         return {"ok": True}
 

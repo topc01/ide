@@ -1,5 +1,7 @@
 # server/ide_server/later.py
-"""Decisiones (antes «para después»): preguntas o temas de un desarrollo que el usuario no puede resolver ahora
+"""Bloqueantes (antes «para después»): decisiones (`kind: decision`, algo que el usuario decide o conversa) y
+pendientes (`kind: pending`, algo que se espera de alguien) de un desarrollo; `blocks` = la sesión ya no puede
+avanzar en nada más (el desarrollo pasa a Bloqueado mientras quede uno abierto). Antes: preguntas o temas de un desarrollo que el usuario no puede resolver ahora
 (p.ej. los tiene que conversar con el equipo). Los deja la sesión (`ide later add`) o el usuario desde
 la UI; se responden desde el módulo "Para después" (la respuesta se le manda a la sesión) o se
 descartan. En la base: `kv` `later:<id>` = {id, key, text, context, actor, created, status, answer,
@@ -16,8 +18,11 @@ def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+KINDS = ("decision", "pending")
+
+
 def add(db: Db, key: str, text: str, context: str | None, actor: str, *, artifact: str | None = None,
-        with_: str | None = None) -> dict:
+        with_: str | None = None, kind: str | None = None, blocks: bool = False) -> dict:
     """Una decisión: la pregunta (una línea), opcionalmente el artefacto con el análisis y con quién conversarla."""
     from ide_server.artifacts import URL_RE
     text = (text or "").strip()[:MAX_TEXT]
@@ -29,7 +34,8 @@ def add(db: Db, key: str, text: str, context: str | None, actor: str, *, artifac
     item = {"id": f"{datetime.now():%Y%m%d%H%M%S}-{secrets.token_hex(3)}", "key": key, "text": text,
             "context": (context or "").strip()[:MAX_TEXT] or None, "actor": actor, "created": _now(),
             "status": "open", "answer": None, "resolved": None, "artifact": artifact,
-            "with": (with_ or "").strip()[:80] or None}
+            "with": (with_ or "").strip()[:80] or None,
+            "kind": kind if kind in KINDS else "decision", "blocks": bool(blocks)}
     db.set(f"later:{item['id']}", item)
     return item
 
@@ -43,7 +49,8 @@ def items(db: Db, *, open_only: bool = True) -> list[dict]:
     return sorted(out, key=lambda v: v["created"])
 
 
-def update(db: Db, item_id: str, *, text: str | None = None, artifact: str | None = None, with_: str | None = None) -> dict:
+def update(db: Db, item_id: str, *, text: str | None = None, artifact: str | None = None, with_: str | None = None,
+           kind: str | None = None, blocks: bool | None = None) -> dict:
     """Editar una decisión abierta: la pregunta, el artefacto y con quién ("" los saca)."""
     from ide_server.artifacts import URL_RE
     item = get(db, item_id)
@@ -61,6 +68,10 @@ def update(db: Db, item_id: str, *, text: str | None = None, artifact: str | Non
         item["artifact"] = artifact
     if with_ is not None:
         item["with"] = with_.strip()[:80] or None
+    if kind in KINDS:
+        item["kind"] = kind
+    if blocks is not None:
+        item["blocks"] = bool(blocks)
     db.set(f"later:{item_id}", item)
     return item
 
