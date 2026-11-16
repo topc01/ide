@@ -49,9 +49,9 @@ export function AttachmentsPanel() {
   useEffect(load, [load, tree]);
   const act = (p: Promise<unknown>) => p.then(load).catch((e: any) => setError(e?.message ?? String(e)));
   const saveLink = (url: string, name = "") => {
-    url = cleanUrl(url);
     // el link en el campo del nombre y el nombre en el del link: se dan vuelta solos
-    if (!URL_RE.test(url) && URL_RE.test(cleanUrl(name))) [url, name] = [cleanUrl(name), url];
+    if (!URL_RE.test(cleanUrl(url)) && URL_RE.test(cleanUrl(name))) [url, name] = [name, url];
+    url = cleanUrl(url);
     if (!URL_RE.test(url)) { setError("tiene que empezar con http:// o https://"); return; }
     setLinking(false); setLink({ url: "", name: "" });
     act(addLinkAttachment(getWs(), sid!, url, name.trim()));
