@@ -150,6 +150,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "devStates": dev_states(db) if db else {},
                 "later": later_mod.items(db) if db else [],
                 "devTickets": _tickets(sessions) if db else {},
+                "devTours": {f"s:{k}": {"status": v.get("status"), "steps": len(v.get("steps") or []), "at": v.get("at"),
+                                        "title": v.get("title")} for k, v in db.with_prefix("tour:").items() if v} if db else {},
                 "devArtifacts": {f"s:{k}": v for k, v in db.with_prefix("artifacts:").items() if v} if db else {},
                 "devRelations": relations,
                 # el veredicto que registró cada sesión de revisión (sin el comentario): la card lo muestra
@@ -351,6 +353,76 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"ok": True}
 
+    def _own_or_user(p: dict, sid: str, what: str) -> None:
+        """Por HTTP: el claude de una sesión solo actúa sobre su propio desarrollo (se ve por proceso, no por lo que
+        dice el comando); el usuario desde su terminal y la manager, sobre cualquiera."""
+        if not p.get("_http") or _manager_or_terminal(p) is not None:
+            return
+        from ide_server import peer
+        chain = peer.caller_ancestors(p.get("_peer"))
+        tid = supervisor._running.get(sid)
+        own = hooks.pid_of(tid) if hooks.pid_of and tid else None
+        if not own or own not in chain:
+            raise SessionError("forbidden", f"una sesión solo toca {what} de su propio desarrollo")
+
+    tour_tokens: dict[str, str] = {}            # sid -> token del Chrome del recorrido abierto
+
+    async def tour_set(p: dict) -> dict:
+        """La sesión deja preparado el recorrido de lo que hizo (`ide tour set`): el usuario lo abre desde la card."""
+        from ide_server import tour as tour_mod
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        sid = _resolve(p["id"])
+        _own_or_user(p, sid, "el recorrido")
+        try:
+            steps = tour_mod.validate(p.get("steps"))
+        except ValueError as exc:
+            raise SessionError("bad_tour", str(exc)) from exc
+        title = str(p.get("title") or "").strip()[:120] or None
+        db.set(f"tour:{sid}", {"steps": steps, "title": title, "at": tour_mod.now(), "status": "ready"})
+        db.event(tour_mod.now(), p.get("actor") or "ide", "tour-set", dev=sid, data={"steps": len(steps)})
+        notify()
+        return {"id": sid, "steps": len(steps)}
+
+    async def tour_get(p: dict) -> dict:
+        sid = _resolve(p["id"])
+        return {"id": sid, "tour": db.get(f"tour:{sid}") if db is not None else None}
+
+    async def tour_start(p: dict) -> dict:
+        """Abre el recorrido (botón de la card). Solo desde la UI."""
+        from ide_server import tour as tour_mod
+        from ide_server import devs as devs_mod
+        if p.get("_http") or db is None:
+            raise SessionError("forbidden", "el recorrido se abre desde la card")
+        sid = require_plain_name(p["id"], "sesión")
+        t = db.get(f"tour:{sid}")
+        if not t:
+            raise SessionError("no_tour", "esta sesión no preparó un recorrido")
+        try:
+            token = await asyncio.to_thread(tour_mod.launch, root, sid, t, devs_mod.NOTIFY_URL or "http://127.0.0.1:8787")
+        except RuntimeError as exc:
+            raise SessionError("tour_failed", str(exc)) from exc
+        tour_tokens[sid] = token
+        db.set(f"tour:{sid}", {**t, "status": "running", "started": tour_mod.now()})
+        notify()
+        return {"ok": True}
+
+    async def tour_done(p: dict) -> dict:
+        """El Chrome del recorrido avisa que terminó (con su token): los comentarios le llegan a la sesión juntos."""
+        from ide_server import tour as tour_mod
+        sid = require_plain_name(str(p.get("id") or ""), "sesión")
+        token = tour_tokens.get(sid)
+        if not token or not secrets.compare_digest(str(p.get("token") or ""), token):
+            raise SessionError("forbidden", "token de recorrido inválido")
+        tour_tokens.pop(sid, None)
+        t = db.get(f"tour:{sid}") or {}
+        notes = [n for n in (p.get("notes") or []) if isinstance(n, dict) and str(n.get("text") or "").strip()][:200]
+        text = tour_mod.feedback_text(t, notes, str(p.get("reason") or ""), int(p.get("seen") or 0), int(p.get("total") or 0))
+        db.set(f"tour:{sid}", {**t, "status": "done", "ended": tour_mod.now(), "notes": len(notes)})
+        state, how = _deliver_to(sid, text, "usuario")
+        notify()
+        return {"ok": True, "delivered": how}
+
     async def dev_artifacts(p: dict) -> dict:
         """Los artefactos de un desarrollo (`ide artifact ls`)."""
         from ide_server import artifacts as art
@@ -364,14 +436,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if db is None:
             raise SessionError("no_db", "sin base")
         sid = _resolve(p["id"])
-        if p.get("_http") and _manager_or_terminal(p) is None:
-            # por proceso, no por lo que dice el comando: el claude que llama solo toca su propio desarrollo
-            from ide_server import peer
-            chain = peer.caller_ancestors(p.get("_peer"))
-            own = hooks.pid_of(supervisor._running.get(sid)) if hooks.pid_of and supervisor._running.get(sid) else None
-            if not own or own not in chain:
-                raise SessionError("forbidden", "una sesión solo toca los artefactos de su propio desarrollo "
-                                                "(los de otro, el usuario desde su terminal o la manager)")
+        _own_or_user(p, sid, "los artefactos")
         url = str(p.get("url") or "").strip()
         if p.get("op") == "rm":
             if not await asyncio.to_thread(art.remove, db, sid, url):
@@ -2489,7 +2554,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
-        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
+        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "sessions.tourSet": tour_set, "sessions.tourGet": tour_get, "sessions.tourStart": tour_start, "tour.done": tour_done, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,

@@ -1078,6 +1078,20 @@ CLI: `ide artifact ls [#n] [--json]`, `ide artifact add [#n] <url> [--title …]
 sesión), `ide artifact rm [#n] <url>` (`GET /api/devs/<id>/artifacts`, `POST /api/devs/<id>/artifact
 {url, op: add|rm, title}`; una sesión solo toca los de su propio desarrollo).
 
+## 9d-quater. Recorrido de lo que hizo la sesión
+
+Con un cambio que se ve en pantalla, la sesión deja preparado un **recorrido** (`ide tour set --title "…"
+--steps-file -` con `[{url, text, selector?}]` por stdin; urls de localhost o tech.finnecto.com, hasta 30 pasos;
+`POST /api/sessions/<id>/tour`; una sesión solo el suyo, se ve por proceso). En la card sale **«▶ recorrido
+(N)»** (ámbar sin ver; gris ya visto: se puede repetir). Click (canal `sessions.tourStart {id}`, solo desde
+la UI): el IDE abre un Chrome aparte (playwright-core en `~/.cache/ide-tour`, se instala solo la primera vez;
+usa tu Chrome instalado) con la **sesión local compartida**, va al paso 1 y muestra un recuadro abajo a la
+derecha: qué mirar, ◀ Anterior / Siguiente ▶, un campo para comentar la pantalla (Enter lo guarda) y
+**Terminar y mandar comentarios**; el elemento del `selector` queda resaltado. Puedes hacer click en la página:
+el recuadro sigue ahí. Al terminar (o al cerrar la ventana) los comentarios le llegan **juntos** a la sesión
+como un mensaje «[Recorrido]» (paso, pantalla y texto); si está pausada, al retomarla. `ide tour show`
+muestra los pasos y si ya lo viste (`kv tour:<sesión>`).
+
 ## 9e. Feedback y revisión semanal (mejora con el uso)
 
 Cada sesión anota las correcciones del usuario en la sección `## Feedback` de su `SESSION.md`

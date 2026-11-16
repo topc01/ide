@@ -1,0 +1,95 @@
+# server/ide_server/tour.py
+"""Recorridos (`ide tour`): la sesión prepara los pasos de lo que hizo (pantalla + qué mirar) y el usuario lo
+recorre cuando quiere desde la card: el IDE abre un Chrome con la sesión local compartida y un recuadro que le
+dice qué mirar en cada paso; lo que escribe se junta y le llega a la sesión al terminar. `kv tour:<sesión>` =
+{steps, at, title, status: ready|running|done, notes}."""
+from __future__ import annotations
+
+import json
+import os
+import re
+import secrets
+import shutil
+import subprocess
+import tempfile
+from datetime import datetime
+from pathlib import Path
+
+PLAYWRIGHT_CORE = "1.64.1"
+MAX_STEPS = 30
+_LOCAL = re.compile(r"^https?://(([a-z0-9-]+\.)*localhost|127\.0\.0\.1|tech\.finnecto\.com)(:\d+)?(/\S*)?$", re.I)
+
+
+def runtime_dir() -> Path:
+    return Path.home() / ".cache" / "ide-tour"
+
+
+def validate(raw) -> list[dict]:
+    """Los pasos: [{url (localhost o tech.finnecto.com), text, selector?}]. ValueError si algo no sirve."""
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("el recorrido necesita al menos un paso: [{\"url\": …, \"text\": …}]")
+    if len(raw) > MAX_STEPS:
+        raise ValueError(f"máximo {MAX_STEPS} pasos")
+    out = []
+    for i, s in enumerate(raw, 1):
+        if not isinstance(s, dict):
+            raise ValueError(f"paso {i}: tiene que ser un objeto {{url, text, selector?}}")
+        url, text = str(s.get("url") or "").strip(), str(s.get("text") or "").strip()
+        if not _LOCAL.match(url):
+            raise ValueError(f"paso {i}: la url tiene que ser de localhost (o tech.finnecto.com): {url[:120]!r}")
+        if not text:
+            raise ValueError(f"paso {i}: falta `text` (qué tiene que mirar el usuario)")
+        sel = s.get("selector")
+        out.append({"url": url, "text": text[:600], **({"selector": str(sel)[:300]} if sel else {})})
+    return out
+
+
+def ensure_runtime() -> Path:
+    """playwright-core en ~/.cache/ide-tour (una vez; usa el Chrome instalado, no baja navegadores)."""
+    d = runtime_dir()
+    if not (d / "node_modules" / "playwright-core").is_dir():
+        d.mkdir(parents=True, exist_ok=True)
+        npm = shutil.which("npm")
+        if not npm:
+            raise RuntimeError("falta npm (node) para abrir el recorrido")
+        r = subprocess.run([npm, "install", "--no-audit", "--no-fund", "--prefix", str(d), f"playwright-core@{PLAYWRIGHT_CORE}"],
+                           capture_output=True, text=True, timeout=300)
+        if r.returncode != 0:
+            raise RuntimeError("no pude instalar playwright-core: " + (r.stderr or r.stdout)[-300:])
+    return d
+
+
+def launch(root: Path, sid: str, tour: dict, ide_url: str) -> str:
+    """Abre el Chrome del recorrido (proceso aparte). Devuelve el token con que avisa al terminar."""
+    from ide_server.browsers import _shared_local
+    d = ensure_runtime()
+    cookies, login = _shared_local(root)
+    token = secrets.token_urlsafe(24)
+    cfg = {"steps": tour["steps"], "sid": sid, "ide": ide_url, "token": token, "cookies": str(cookies),
+           "login": str(login), "title": tour.get("title") or sid}
+    fd, path = tempfile.mkstemp(prefix="tour-", suffix=".json")
+    with os.fdopen(fd, "w") as fh:
+        json.dump(cfg, fh)
+    os.chmod(path, 0o600)
+    script = Path(__file__).parent / "assets" / "tour.js"
+    log = open(runtime_dir() / f"{sid}.log", "w")
+    subprocess.Popen([shutil.which("node") or "node", str(script), path], cwd=d, stdout=log, stderr=subprocess.STDOUT,
+                     start_new_session=True, env={**os.environ, "NODE_PATH": str(d / "node_modules")})
+    return token
+
+
+def feedback_text(tour: dict, notes: list[dict], reason: str, seen: int, total: int) -> str:
+    steps = tour.get("steps") or []
+    head = f"[Recorrido] El usuario recorrió {seen} de {total} pasos"
+    head += " y lo dio por terminado." if reason == "end" else " y cerró la ventana."
+    if not notes:
+        return head + " No dejó comentarios."
+    lines = [head, "", "Sus comentarios (atiéndelos; si alguno es una pregunta, contéstala):"]
+    for n in notes:
+        st = steps[n["step"] - 1] if 0 < n.get("step", 0) <= len(steps) else {}
+        lines.append(f"- Paso {n['step']} ({st.get('text', '')[:80]}; {n.get('url', '')}): {n['text']}")
+    return "\n".join(lines)
+
+
+def now() -> str:
+    return datetime.now().isoformat(timespec="seconds")

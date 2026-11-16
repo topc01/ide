@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Clock, Eye, EyeOff, Flag, Pause, Pencil, Presentation } from "lucide-react";
-import { hideDev, renameDev, setDevState, type GhPr, type MergeJob } from "../../transport/folderSessions";
+import { hideDev, renameDev, setDevState, startTour, type GhPr, type MergeJob } from "../../transport/folderSessions";
 import { QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
@@ -499,6 +499,26 @@ function TicketBlock({ devKey, url, title, status, error, what }:
       className={cn("inline-flex max-w-[10rem] shrink-0 items-center rounded border px-1 text-[10px] font-semibold text-foreground hover:brightness-110",
         error ? "border-destructive/70 bg-destructive/[0.07]" : ticketColor(status))}>
       <span className="truncate">{title ?? status ?? "Notion"}</span></button>);
+}
+
+/** El recorrido que preparó la sesión (`ide tour set`): click abre un Chrome que va por sus pantallas con un recuadro
+ *  que dice qué mirar; lo que escribas le llega a la sesión al terminar. Sin ver: resaltado; ya visto: discreto. */
+export function TourChip({ sid }: { sid: string }) {
+  const t = useFolders((s) => s.tree.devTours?.[`s:${sid}`]);
+  const [err, setErr] = useState<string | null>(null);
+  if (!t) return null;
+  const go = (e: React.MouseEvent) => {
+    e.stopPropagation(); setErr(null);
+    startTour(getWs(), sid).catch((x: any) => setErr(String(x?.message ?? x)));
+  };
+  const label = t.status === "running" ? "recorrido abierto" : t.status === "done" ? "recorrido" : `▶ recorrido (${t.steps})`;
+  return (
+    <button onClick={go} aria-label={`Abrir el recorrido de lo que hizo la sesión (${t.steps} pasos)${err ? `: ${err}` : ""}`}
+      className={cn("inline-flex shrink-0 items-center gap-0.5 rounded border px-1 text-[10px] font-semibold",
+        err ? "border-destructive/70 text-destructive"
+          : t.status === "done" ? "border-border text-muted-foreground hover:bg-accent"
+            : "border-amber-400/80 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20")}>
+      {err ? `⚠ ${label}` : label}</button>);
 }
 
 /** Los artefactos de la sesión que el módulo Artefactos deja en la card: un «▤ N» que los despliega o esconde

@@ -349,6 +349,18 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_sub_ticket(sid: str, body: dict):
         return await _http("dev.ticketSub", {**body, "id": sid})
 
+    @app.post("/api/sessions/{sid}/tour")
+    async def api_tour_set(sid: str, body: dict):
+        return await _http("sessions.tourSet", {**body, "id": sid, "_http": True})
+
+    @app.get("/api/sessions/{sid}/tour")
+    async def api_tour_get(sid: str):
+        return await _http("sessions.tourGet", {"id": sid})
+
+    @app.post("/api/tour/{sid}/done")
+    async def api_tour_done(sid: str, body: dict):
+        return await _http("tour.done", {**body, "id": sid, "_http": True})
+
     @app.get("/api/devs/{sid}/artifacts")
     async def api_artifacts(sid: str):
         return await _http("dev.artifacts", {"id": sid})

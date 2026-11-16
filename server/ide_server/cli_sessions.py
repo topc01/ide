@@ -103,6 +103,10 @@ def _parser() -> argparse.ArgumentParser:
                  ("add-sub", "suma un subticket (una tarjeta que es parte del desarrollo; las hijas del ticket en Notion, relación «Tickets», ya salen solas)"),
                  ("rm-sub", "saca un subticket (o esconde una hija del ticket; no toca Notion)")):
         x = tk.add_parser(c, help=h); x.add_argument("args", nargs="+", metavar="[#n] url")
+    tr = sub.add_parser("tour", help="el recorrido de lo que hizo la sesión: el usuario lo abre desde la card").add_subparsers(dest="cmd", required=True)
+    x = tr.add_parser("set", help="deja preparado el recorrido: pasos en JSON por stdin [{url, text, selector?}]")
+    x.add_argument("--steps-file", required=True, help="`-` = stdin"); x.add_argument("--title"); x.add_argument("--session")
+    x = tr.add_parser("show", help="el recorrido preparado y si ya lo vio"); x.add_argument("--session")
     ig = sub.add_parser("instagram", help="baja posts de Instagram con la cuenta del perfil `instagram`").add_subparsers(dest="cmd", required=True)
     ig.add_parser("fetch", help="baja las imágenes y el texto de un post a attachments/instagram/<código> de la sesión").add_argument("url")
     af = sub.add_parser("artifact", help="los artefactos (páginas de claude.ai) del desarrollo: los que publica su claude se suman solos").add_subparsers(dest="cmd", required=True)
@@ -1203,6 +1207,27 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
                     out.write(f"{x['url']}\t{x.get('title') or '-'}\t{x.get('at', '')[:16]}\t{'card' if x.get('card', True) else 'oculto'}\n")
                 if not data["artifacts"]:
                     out.write(f"{data['id']}: sin artefactos\n")
+            return 0
+        if a.group == "tour":
+            from urllib.parse import quote
+            sid = a.session or env.get("IDE_SESSION_ID") or current_session(root, env=env, cwd=cwd)
+            if a.cmd == "show":
+                t = _get(http, url, f"/api/sessions/{quote(sid, safe='')}/tour").get("tour")
+                if not t:
+                    out.write(f"{sid}: sin recorrido\n")
+                else:
+                    out.write(f"{sid}\t{t.get('status')}\t{len(t.get('steps') or [])} pasos\t{t.get('at', '')[:16]}\n")
+                    for i, st in enumerate(t.get("steps") or [], 1):
+                        out.write(f"  {i}. {st['url']}  {st['text'][:100]}\n")
+                return 0
+            raw = sys.stdin.read() if a.steps_file == "-" else Path(a.steps_file).read_text(encoding="utf-8")
+            try:
+                steps = json.loads(raw)
+            except ValueError as exc:
+                raise SessionError("bad_tour", f"los pasos no son JSON válido: {exc}")
+            data = _post(http, url, f"/api/sessions/{quote(sid, safe='')}/tour", {"steps": steps, "title": a.title,
+                         "actor": f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"})
+            out.write(f"{data['id']}\trecorrido listo: {data['steps']} pasos (el usuario lo abre con «Recorrido» en la card)\n")
             return 0
         if a.group == "instagram":
             return _instagram(a, root, env, cwd, out)

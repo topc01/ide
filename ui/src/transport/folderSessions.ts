@@ -40,6 +40,8 @@ export interface SessionsTree {
     subs?: { url: string; status: string | null; title: string | null; card?: boolean }[] }>;
   // artefactos (páginas de claude.ai) que publicó cada sesión (`s:<id>`); card false = escondido en la card
   devArtifacts?: Record<string, Artifact[]>;
+  // recorrido preparado por la sesión (`ide tour set`): ready = sin ver, running = abierto, done = ya lo vio
+  devTours?: Record<string, { status: "ready" | "running" | "done"; steps: number; at: string; title: string | null }>;
   // desarrollos colgados de otro (`s:<id>`): mismo ticket, PR apilada sobre una rama de otro, separado por el IDE
   verdicts?: Record<string, { verdict: "approve" | "request-changes"; at: string | null; sha: string | null }>;
   devRelations?: Record<string, { kind: "ticket" | "stacked" | "split"; dev: string; n: number | null; pr?: string }[]>;
@@ -316,6 +318,7 @@ export const fetchTool = (ws: WsClient, name: string): Promise<{ tool: ToolEntry
 export const fetchNotionPage = (ws: WsClient, url: string): Promise<{ url: string; title: string | null; status: string | null; markdown: string; notionUrl?: string }> =>
   ws.request("dev.notionPage", { url });
 /** El interruptor del módulo Notion: el subticket se muestra (o no) en la card. */
+export const startTour = (ws: WsClient, id: string) => ws.request("sessions.tourStart", { id });
 export type Artifact = { url: string; title: string | null; description?: string | null; at: string; card?: boolean };
 export const setArtifactCard = (ws: WsClient, id: string, url: string, show: boolean): Promise<{ ok: boolean }> =>
   ws.request("dev.artifactCard", { id, url, show });

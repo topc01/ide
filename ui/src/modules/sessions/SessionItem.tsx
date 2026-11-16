@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Archive, ExternalLink, Play } from "lucide-react";
 import { freezeSession, type FolderSession, type GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
-import { ArtifactsChip, CardActions, CardCorner, DevIndex, TicketChip, RelationChips, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { ArtifactsChip, TourChip, CardActions, CardCorner, DevIndex, TicketChip, RelationChips, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
 import { ago, STATE, type Block, type DevStateInfo } from "./devStates";
 import { ACTIVITY, activityOf, waitTime } from "./activity";
@@ -96,6 +96,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           <DevIndex devKey={`s:${session.id}`} prs={prs ?? (pr ? [pr] : [])} />
           {session.kind === "ticket" && <TicketChip devKey={`s:${session.id}`} />}
           <ArtifactsChip devKey={`s:${session.id}`} />
+          <TourChip sid={session.id} />
           {session.kind === "ticket" && <RelationChips devKey={`s:${session.id}`} />}
           {session.model && (
             <span title={`Su claude usa el modelo ${session.model} (cambiarlo: ide session model ${session.id} <modelo>)`}
