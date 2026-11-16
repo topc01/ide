@@ -5,6 +5,7 @@
  *  las sesiones (`ide later add`) o tú con «+ Nuevo bloqueante»; la respuesta se le manda a la sesión. */
 import { useEffect, useRef, useState } from "react";
 import { useLaterFocus } from "./focus";
+import { askAbout, laterCode } from "./ask";
 import { Check, CircleHelp, ExternalLink, Hourglass, Pencil, Plus, Send, X } from "lucide-react";
 import { useCurrentDev } from "../../main/currentDev";
 import { useFolders } from "../../state/folders";
@@ -42,8 +43,12 @@ function useDevLabel() {
 
 function DevLabel({ k, label, big }: { k: string; label: ReturnType<typeof useDevLabel>; big?: boolean }) {
   const { num, name } = label(k);
-  return <div className={cn("flex min-w-0 items-baseline gap-1.5 font-semibold text-foreground", big ? "text-[13px]" : "text-[12px]")}>
-    {num && <span className="shrink-0 font-mono text-primary">{num}</span>}<span className="truncate">{name}</span></div>;
+  const live = useFolders((s) => k.startsWith("s:") && s.tree.sessions.some((x) => x.id === k.slice(2)));
+  return <button disabled={!live} onClick={() => useFolders.getState().setActive(k.slice(2))}
+    title={live ? "Abrir la sesión" : "Su sesión está archivada"}
+    className={cn("flex w-full min-w-0 items-baseline gap-1.5 rounded px-1 -mx-1 text-left font-semibold text-foreground",
+      live && "hover:bg-accent", big ? "text-[13px]" : "text-[12px]")}>
+    {num && <span className="shrink-0 font-mono text-primary">{num}</span>}<span className="truncate">{name}</span></button>;
 }
 
 /** Los campos de un bloqueante (crear y editar): tipo, texto, con quién, artefacto y si bloquea el desarrollo. */
@@ -145,21 +150,21 @@ function Item({ it, showDev, label }: { it: LaterItem; showDev: boolean; label: 
     setBusy(true); setMsg(null);
     laterAnswer(getWs(), it.id, answer.trim()).catch((e) => { err(e); setBusy(false); });
   };
-  const open = () => {
-    if (it.artifact) openExternal(it.artifact);
-    else if (live) useFolders.getState().setActive(it.key.slice(2));
-    else setMore(!more);
-  };
+
   const saveEdit = () => {
     if (!editing?.text.trim()) return;
     laterUpdate(getWs(), it.id, { text: editing.text.trim(), with: editing.who.trim(), artifact: editing.art.trim(), kind: editing.kind, blocks: editing.blocks })
       .then(() => setEditing(null)).catch(err);
   };
   return (
-    <div ref={box} className={cn("mx-2 mb-1.5 rounded-md border bg-card p-2 transition-shadow", it.blocks ? "border-red-400/60" : "border-border",
+    <div ref={box} className={cn("mx-2 mb-1.5 rounded-md border bg-card p-2 transition-colors hover:bg-accent/40", it.blocks ? "border-red-400/60 hover:border-red-400" : "border-border hover:border-primary/50",
       flash && "ring-2 ring-primary")}>
       {showDev && <DevLabel k={it.key} label={label} />}
       <div className="mb-0.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
+        <button onClick={() => askAbout(it)} disabled={!live}
+          title={live ? `Abrir la sesión con «Sobre ${kind === "pending" ? "el pendiente" : "la decisión"} ${laterCode(it)}:» escrito, para preguntarle algo` : "Su sesión está archivada"}
+          className={cn("rounded border px-1 font-mono font-bold", live ? "border-border text-foreground hover:bg-accent" : "border-border text-muted-foreground")}>
+          {laterCode(it)}</button>
         <span className={cn("flex items-center gap-0.5 font-semibold", tone)}><Icon size={11} />{kindLabel}</span>
         {it.blocks && <span className="rounded border border-red-400/70 px-1 font-semibold text-red-300">bloquea</span>}
         {it.with && <span className="max-w-[12rem] truncate rounded border border-border px-1 text-foreground">con {it.with}</span>}
@@ -183,16 +188,18 @@ function Item({ it, showDev, label }: { it: LaterItem; showDev: boolean; label: 
           </div>
         </div>
       ) : (<>
-        <button onClick={open} title={it.artifact ? "Abrir el análisis (artefacto) en el navegador" : live ? "Ir a la sesión" : "Ver el contexto (su sesión está archivada)"}
-          className="block w-full text-left text-[12px] font-semibold leading-snug hover:text-primary">
-          {it.text}{it.artifact && <ExternalLink size={11} className="ml-1 inline align-[-1px] text-muted-foreground" />}</button>
+        <p className="whitespace-pre-wrap break-words text-[12px] font-semibold leading-snug">{it.text}</p>
+        {it.artifact && (
+          <button onClick={() => openExternal(it.artifact!)} title="Abrir el artefacto con el análisis en una pestaña nueva"
+            className="mt-1 inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[11px] text-foreground hover:bg-accent">
+            <ExternalLink size={11} />Abrir el artefacto</button>)}
         {it.context && (more
           ? <p className="mt-0.5 whitespace-pre-wrap break-words text-[11px] text-muted-foreground">{it.context}</p>
           : <button onClick={() => setMore(true)} title="Ver el contexto que dejó la sesión"
-              className="mt-0.5 text-[10px] text-muted-foreground hover:text-foreground">contexto…</button>)}
+              className="mt-0.5 text-[10px] text-muted-foreground">contexto…</button>)}
         {answer === null ? (
           <button title={live ? "Responder: la respuesta se le manda a la sesión" : "Anotar la respuesta (su sesión está archivada: no le llega)"}
-            onClick={() => setAnswer("")} className="mt-1 block text-[11px] text-primary hover:underline">Responder</button>
+            onClick={() => setAnswer("")} className="mt-1 block rounded px-1 -mx-1 text-[11px] text-primary hover:bg-accent">Responder</button>
         ) : (
           <div className="mt-1.5">
             <textarea autoFocus value={answer} onChange={(e) => setAnswer(e.target.value)} rows={3}

@@ -201,7 +201,7 @@ def _parser() -> argparse.ArgumentParser:
     ll.add_argument("--json", action="store_true"); ll.add_argument("--all", action="store_true", help="también respondidos/descartados")
     ll.add_argument("--mine", action="store_true", help="solo los del desarrollo de esta sesión")
     ld = lt.add_parser("done", help="marca un pendiente como resuelto (p.ej. se resolvió en el chat)")
-    ld.add_argument("id"); ld.add_argument("-m", "--note", help="cómo se resolvió")
+    ld.add_argument("id", help="el código (D3, P4) o el id"); ld.add_argument("-m", "--note", help="cómo se resolvió")
     sv = sub.add_parser("server", help="servidores de tu desarrollo por bloque (stack de un repo), como el módulo Servidores").add_subparsers(dest="cmd", required=True)
     sl = sv.add_parser("ls", help="bloques: PRs, rama, dónde corre, scripts y su estado"); sl.add_argument("--json", action="store_true")
     ss = sv.add_parser("start", help="corre un script de un bloque (crea el worktree aparte si hace falta)")
@@ -671,7 +671,7 @@ def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
                                               "artifact": a.artifact, "with": a.with_,
                                               "kind": "pending" if a.pending else "decision", "blocks": a.blocks})
         it = data["item"]
-        out.write(f"{'pendiente' if it.get('kind') == 'pending' else 'decisión'} {it['id']} en {sid}"
+        out.write(f"{'pendiente' if it.get('kind') == 'pending' else 'decisión'} {'P' if it.get('kind') == 'pending' else 'D'}{it.get('num')} en {sid}"
                   f"{' (bloquea el desarrollo: pasa a Bloqueado)' if it.get('blocks') else ''}\n")
         return 0
     if a.cmd == "done":
@@ -690,7 +690,8 @@ def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         out.write(json.dumps(items, ensure_ascii=False, indent=2) + "\n")
         return 0
     for it in items:
-        out.write(f"{it['id']}\t{it['created'][:10]}\t{it['key']}\t{it['status']}\t{it['text']}"
+        out.write(f"{'P' if it.get('kind') == 'pending' else 'D'}{it.get('num') or '?'}\t{it['created'][:10]}\t{it['key']}\t{it['status']}"
+                  f"{'\tbloquea' if it.get('blocks') else ''}\t{it['text']}"
                   + (f"\tcon {it['with']}" if it.get("with") else "") + (f"\t{it['artifact']}" if it.get("artifact") else "")
                   + (f"\t({it['context']})" if it.get("context") else "") + "\n")
     if not items:

@@ -8,6 +8,7 @@ import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
 import { useLaterFocus } from "../later/focus";
+import { askAbout, laterCode } from "../later/ask";
 import { devIndexOf, devKeys, devName, isHidden } from "./desarrollos";
 import { useStore } from "../../state/store";
 import { ago, STATE, type DevStateInfo, type Phase } from "./devStates";
@@ -318,10 +319,12 @@ function BlockerLine({ it }: { it: LaterItem }) {
   return (
     <div onClick={(e) => { e.stopPropagation(); setOpen(!open); }} role="button" aria-expanded={open}
       aria-label={`${open ? "Plegar" : "Desplegar"} el bloqueante: ${it.text}`}
-      className="mt-0.5 w-full cursor-pointer rounded border border-red-400/50 bg-red-400/[0.07] px-1 py-0.5 text-left text-[11px] text-foreground hover:border-red-400">
+      className="mt-0.5 box-border w-full min-w-0 max-w-full cursor-pointer overflow-hidden rounded border border-red-400/50 bg-red-400/[0.07] px-1 py-0.5 text-left text-[11px] text-foreground hover:border-red-400">
       <div className="flex items-start gap-1">
         <Icon size={11} className="mt-[2px] shrink-0 text-red-300" />
-        <span className={open ? "whitespace-pre-wrap break-words" : "line-clamp-2"}>
+        <button onClick={(e) => { e.stopPropagation(); askAbout(it); }} title="Escribirle a la sesión sobre este bloqueante"
+          className="shrink-0 rounded border border-red-400/50 px-0.5 font-mono text-[10px] font-bold hover:bg-red-400/20">{laterCode(it)}</button>
+        <span className={cn("min-w-0 flex-1 [overflow-wrap:anywhere]", open ? "whitespace-pre-wrap" : "line-clamp-2")}>
           {it.text}{it.with ? <span className="text-muted-foreground"> · {it.with}</span> : null}</span>
       </div>
       {open && (

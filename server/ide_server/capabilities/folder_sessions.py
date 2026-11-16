@@ -584,6 +584,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if text not in held:
             db.set(k, [*held, text])
 
+    if db is not None:
+        later_mod.number_all(db)                # cada bloqueante con su código (D3, P4)
+
     # los avisos del IDE que antes quedaban en «Para después»: pasan a la sesión (le llegan al abrirla)
     if db is not None:
         for it in later_mod.items(db):
@@ -2333,7 +2336,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if sid and session_path(root, sid).is_dir():
             # con encabezado: nunca empieza con "!" o "/", y la sesión sabe qué es
             text = ("[Respuesta del usuario a un pendiente que quedó para después]\n"
-                    f"Pendiente: {item['text']}\nRespuesta: {answer}")
+                    f"{later_mod.code(item)}: {item['text']}\nRespuesta: {answer}")
             _, how = _deliver_to(sid, text, "usuario")
         later_mod.close(db, item["id"], "answered", answer)
         await asyncio.to_thread(_sync_block, item["key"])

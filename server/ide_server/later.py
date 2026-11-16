@@ -21,6 +21,27 @@ def _now() -> str:
 KINDS = ("decision", "pending")
 
 
+def _next_num(db: Db) -> int:
+    n = int(db.get("laterseq") or 0) + 1        # una sola numeración (D3, P4): fuera del prefijo `later:`
+    db.set("laterseq", n)
+    return n
+
+
+def code(item: dict) -> str:
+    """El código corto: D<n> (decisión) o P<n> (pendiente)."""
+    return f"{'P' if item.get('kind') == 'pending' else 'D'}{item.get('num') or '?'}"
+
+
+def number_all(db: Db) -> None:
+    """Numera los que no tienen número (los de antes), del más viejo al más nuevo."""
+    # los abiertos primero (son los que se ven: D1, P2…), después los cerrados
+    rows = sorted((v for v in db.with_prefix("later:").values() if isinstance(v, dict) and not v.get("num")),
+                  key=lambda v: (v.get("status") != "open", v.get("created") or ""))
+    for v in rows:
+        v["num"] = _next_num(db)
+        db.set(f"later:{v['id']}", v)
+
+
 def add(db: Db, key: str, text: str, context: str | None, actor: str, *, artifact: str | None = None,
         with_: str | None = None, kind: str | None = None, blocks: bool = False) -> dict:
     """Una decisión: la pregunta (una línea), opcionalmente el artefacto con el análisis y con quién conversarla."""
@@ -35,12 +56,17 @@ def add(db: Db, key: str, text: str, context: str | None, actor: str, *, artifac
             "context": (context or "").strip()[:MAX_TEXT] or None, "actor": actor, "created": _now(),
             "status": "open", "answer": None, "resolved": None, "artifact": artifact,
             "with": (with_ or "").strip()[:80] or None,
-            "kind": kind if kind in KINDS else "decision", "blocks": bool(blocks)}
+            "kind": kind if kind in KINDS else "decision", "blocks": bool(blocks), "num": _next_num(db)}
     db.set(f"later:{item['id']}", item)
     return item
 
 
 def get(db: Db, item_id: str) -> dict | None:
+    """Por id o por código (D3 / P4)."""
+    import re
+    m = re.fullmatch(r"[DPdp](\d+)", str(item_id or "").strip())
+    if m:
+        return next((v for v in db.with_prefix("later:").values() if isinstance(v, dict) and v.get("num") == int(m.group(1))), None)
     return db.get(f"later:{item_id}")
 
 
@@ -72,7 +98,7 @@ def update(db: Db, item_id: str, *, text: str | None = None, artifact: str | Non
         item["kind"] = kind
     if blocks is not None:
         item["blocks"] = bool(blocks)
-    db.set(f"later:{item_id}", item)
+    db.set(f"later:{item['id']}", item)
     return item
 
 
@@ -81,7 +107,7 @@ def close(db: Db, item_id: str, status: str, answer: str | None = None) -> dict:
     if item is None:
         raise KeyError(item_id)
     item.update(status=status, answer=answer, resolved=_now())
-    db.set(f"later:{item_id}", item)
+    db.set(f"later:{item['id']}", item)
     return item
 
 

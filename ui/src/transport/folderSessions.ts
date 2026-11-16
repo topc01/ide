@@ -53,6 +53,7 @@ export interface LaterItem {
   artifact?: string | null; with?: string | null;   // el artefacto con el análisis; con quién conversarlo
   devTitle?: string | null; archived?: boolean;      // el nombre de su desarrollo; si su sesión está archivada
   kind?: "decision" | "pending"; blocks?: boolean;   // decisión tuya o pendiente de otro; si bloquea el desarrollo
+  num?: number;                                      // su número: el código es D<num> o P<num>
 }
 export const laterUpdate = (ws: WsClient, id: string,
   fields: { text?: string; artifact?: string; with?: string; kind?: "decision" | "pending"; blocks?: boolean }) =>

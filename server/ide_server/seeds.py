@@ -117,7 +117,8 @@ no en `-m`. Si **ya no puedes avanzar en nada más** hasta que se resuelva, súm
 solo a Bloqueado (con ese texto como motivo) y vuelve a su fase cuando se cierre; no uses `ide status blocked`
 para eso. Si todavía puedes avanzar en otra cosa, sin `--blocks`, y sigue. La respuesta te llega como
 `[Respuesta del usuario a un pendiente que quedó para después]`. Si se resuelve en el chat, ciérralo:
-`ide later ls --mine` y `ide later done <id> -m "<cómo>"`.
+`ide later ls --mine` y `ide later done <código, p. ej. D3> -m "<cómo>"`. Cada bloqueante tiene su código
+(`D3` decisión, `P4` pendiente): si el usuario te escribe «Sobre la decisión D3…», es ese.
 
 `SESSION.md` guarda el análisis (y el `title` si está vacío). La sesión principal ve todo con
 `ide dev ls` y el detalle e historial con `ide dev show <id>`.
