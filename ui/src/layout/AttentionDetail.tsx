@@ -17,8 +17,12 @@ const REASON: Record<string, string> = {
 
 /** Las preguntas de su último mensaje (líneas que terminan en «?»). */
 function questionsIn(text: string | null): string[] {
-  return (text ?? "").split("\n").map((l) => l.replace(/^[\s>*\-•\d.)]+/, "").replace(/\*\*/g, "").trim())
-    .filter((l) => l.endsWith("?") && l.length > 3).slice(-4);
+  const lines = (text ?? "").split("\n").map((l) => l.replace(/^[\s>*\-•\d.)]+/, "").replace(/\*\*/g, "").trim());
+  const qs = lines.filter((l) => l.endsWith("?") && l.length > 3);
+  // la primera línea que pide su OK o una decisión («Necesito tu OK para…», «Duda: …») también es lo que espera
+  const first = lines.find((l) => l);
+  const asks = first && /^(necesito (tu|que|una|un)\b|duda\b|decisi[oó]n que necesito|ok para\b)/i.test(first) && !qs.includes(first) ? [first] : [];
+  return [...asks, ...qs].slice(-4);
 }
 
 export function AttentionDetail({ sid, title, mode, pinned, onGo }:

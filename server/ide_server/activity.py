@@ -148,12 +148,25 @@ def questions_in(text: str | None) -> list[str]:
 _LOGIN = re.compile(r"\bide browser (login|new)\b")
 
 
+# lo que las instrucciones piden poner en la primera línea cuando la sesión necesita algo tuyo (sessions/CLAUDE.md:
+# «Necesito tu OK para…», «Duda: …»): sin «?» al final, antes contaba como «terminó»
+_ASKS = re.compile(r"^\W*(necesito (tu|que|una|un)\b|duda\b|decisi[oó]n que necesito|¿|ok para\b|confirm[aá]me\b|"
+                   r"me (confirmas|dices|das el ok)\b|esperando tu\b|falta tu\b)", re.I)
+
+
+def asks_ok(text: str | None) -> bool:
+    """La primera línea con texto pide algo al usuario (su OK, una decisión, una duda)."""
+    first = next((l for l in (text or "").splitlines() if l.strip()), "")
+    return bool(_ASKS.match(first.replace("**", "").strip()))
+
+
 def wait_reason(text: str | None) -> str:
     """Por qué te espera al terminar el turno: «login» si te pide iniciar una sesión de navegador (`ide browser
-    login|new`), «question» si termina con una pregunta, si no «turn»."""
+    login|new`), «question» si te pregunta algo (una línea que termina en «?») o la primera línea te pide algo
+    («Necesito tu OK…», «Duda: …»), si no «turn»."""
     if _LOGIN.search(text or ""):
         return "login"
-    return "question" if questions_in(text) else "turn"
+    return "question" if questions_in(text) or asks_ok(text) else "turn"
 
 
 def _summary(name: str, inp: dict) -> str:
