@@ -13,7 +13,9 @@ import { openExternal } from "../../lib/openExternal";
 
 const size = (n: number) => n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 export const shortName = (n: string) => (n.split("/").pop() ?? n).replace(/^\d{8}-\d{6}-/, "").replace(/\.url$/i, "");
+/** Un link http(s); los espacios (y lo invisible que trae un copiado) se limpian antes, no lo rechazan. */
 const URL_RE = /^https?:\/\/\S+$/i;
+const cleanUrl = (u: string) => u.replace(/[\u200B-\u200D\uFEFF]/g, "").trim().replace(/\s/g, "%20");
 const DRAG = "application/x-ide-attachment";     // arrastrar un adjunto (para moverlo), no un archivo del computador
 const parentOf = (p: string) => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
 
@@ -47,9 +49,12 @@ export function AttachmentsPanel() {
   useEffect(load, [load, tree]);
   const act = (p: Promise<unknown>) => p.then(load).catch((e: any) => setError(e?.message ?? String(e)));
   const saveLink = (url: string, name = "") => {
-    if (!URL_RE.test(url.trim())) { setError("tiene que ser un link http(s)"); return; }
+    url = cleanUrl(url);
+    // el link en el campo del nombre y el nombre en el del link: se dan vuelta solos
+    if (!URL_RE.test(url) && URL_RE.test(cleanUrl(name))) [url, name] = [cleanUrl(name), url];
+    if (!URL_RE.test(url)) { setError("tiene que empezar con http:// o https://"); return; }
     setLinking(false); setLink({ url: "", name: "" });
-    act(addLinkAttachment(getWs(), sid!, url.trim(), name.trim()));
+    act(addLinkAttachment(getWs(), sid!, url, name.trim()));
   };
   const upload = (list: FileList, dir = "") => {
     for (const f of Array.from(list)) act(uploadAttachment(sid!, f, dir));   // por HTTP: sirve también para archivos grandes

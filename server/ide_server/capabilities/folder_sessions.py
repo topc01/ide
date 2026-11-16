@@ -1137,9 +1137,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     async def attachments_link(p: dict) -> dict:
         """Un link como adjunto: `<nombre>.url` (acceso directo estándar, `URL=…`; claude lo lee)."""
-        url = str(p.get("url") or "").strip()
-        if not re.fullmatch(r"https?://\S{3,2000}", url):
-            raise SessionError("bad_request", "tiene que ser un link http(s)")
+        url = re.sub(r"\s", "%20", re.sub("[\u200b-\u200d\ufeff]", "", str(p.get("url") or "")).strip())
+        if not re.fullmatch(r"(?i)https?://\S{3,2000}", url):
+            raise SessionError("bad_request", "tiene que empezar con http:// o https://")
         from urllib.parse import urlparse
         u = urlparse(url)
         base = str(p.get("name") or "").strip() or (u.netloc + u.path).strip("/").replace("/", "-")
