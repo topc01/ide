@@ -20,3 +20,6 @@ dist/
 .env.local
 .DS_Store
 .context/
+
+# lo que deja el navegador de pruebas (Playwright MCP): estructura de páginas, capturas y consola
+.playwright-mcp/
