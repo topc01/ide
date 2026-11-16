@@ -1050,6 +1050,20 @@ revisión** muestra el veredicto y los botones **Aprobar** / **Pedir cambios** (
 cambios exige comentario) para publicar o corregir el veredicto tú (`gh pr review`) — solo PRs que te
 pidieron revisar o con sesión de revisión. Canales `review.draft {url}`, `review.submit {url, event, body}`. Al aprobar o pedir cambios desde la card, el IDE actualiza al tiro tu estado en la PR (también el sondeo de la PR de la sesión, del que sale el estado de una revisión que ya salió de tus listas; antes, con su dato viejo, la volvía a «revisando»). El veredicto y el comentario que trae la ventana salen de la **base**: los registra la sesión con **`ide review verdict <pr> approve|changes --file <comentario.md> [--why "…"]`** (o solo, al pedir cambios con `ide review publish`), con el commit que revisó; cada ronda pisa a la anterior (kv `verdict:<url de la PR>`, evento `review-verdict`, ruta `POST /api/reviews/verdict`, canal `review.verdict`). Si la PR tiene commits después de ese, la ventana avisa que conviene re-revisar. Todo prompt de revisión (primera vuelta o re-revisión, de una PR o de un stack) termina con un **cierre fijo** que agrega el IDE (`seeds.REVIEW_CLOSE`, pisa lo que diga el prompt del workspace): registrar el veredicto de cada PR apenas lo tenga. Al pedir una re-revisión se borra el veredicto anterior de esas PRs. En **Pendientes**, la card de la revisión muestra el veredicto registrado para el commit actual: **sugiere aprobar** (verde: apruébala tú con ✓), **sugiere pedir cambios** (rojo; con las que sugiere aprobar, si es un stack mixto), **revisando…** (la sesión trabaja y todavía no registra) o **sin veredicto** (`tree.verdicts`). Revisiones sin registro (de antes): se lee la **última** sección de esa PR en SESSION.md.
 
+## 9d-bis. Repos raíz al día (cada hora)
+
+Mientras el IDE corre (la primera pasada 2 min después de arrancar, después cada hora), cada repo raíz del
+workspace que usan las sesiones (los de `.ide/worktrees/*/` y `.ide/scripts/`) se pone al día con
+`origin/develop`: `git fetch origin develop` + `git merge --ff-only`. **Solo** si está en `develop`, sin
+cambios en archivos versionados y sin un merge/rebase a medias; si no, se salta (no toca tu trabajo) y si
+tiene commits locales que impiden avanzar, queda como error. En `finnecto-api`, si llegaron migraciones,
+migra la base raíz `finnecto_dev` (la plantilla que `clone_root_db` copia para cada sesión), reconstruyendo
+antes la imagen si cambiaron las dependencias; si la migración falla, se reintenta en la próxima pasada
+(`kv roots:migrated` = el último commit con que quedó migrada). Lo que hizo cada pasada: `kv roots:last`;
+lo que actualizó o falló, en el historial (`roots-refresh`). No corre en un IDE de prueba (`IDE_DB_PATH`).
+Los worktrees nuevos ya salen de `origin/develop` recién traído; esto mantiene al día el checkout raíz
+(:8000) y la base que se copia.
+
 ## 9e. Feedback y revisión semanal (mejora con el uso)
 
 Cada sesión anota las correcciones del usuario en la sección `## Feedback` de su `SESSION.md`

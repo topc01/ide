@@ -152,6 +152,28 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             log.error("tarea de fondo falló", exc_info=t.exception())
 
     @asynccontextmanager
+    async def roots_loop(stop: asyncio.Event) -> None:
+        """Cada hora (la primera, 2 min después de arrancar): `root_refresh.refresh`; lo que hizo queda en el
+        historial (`roots-refresh`) y en `kv roots:last`."""
+        from ide_server import root_refresh
+        wait = 120
+        while not stop.is_set():
+            try:
+                await asyncio.wait_for(stop.wait(), wait)
+                return
+            except asyncio.TimeoutError:
+                pass
+            wait = 3600
+            try:
+                res = await asyncio.to_thread(root_refresh.refresh, root, db)
+                db.set("roots:last", res)
+                if any(r["result"] in ("updated", "error") for r in res):
+                    from datetime import datetime
+                    db.event(datetime.now().isoformat(timespec="seconds"), "ide", "roots-refresh",
+                             data={"repos": [r for r in res if r["result"] != "ok"]})
+            except Exception:  # noqa: BLE001
+                log.exception("no se pudo refrescar los repos raíz")
+
     async def lifespan(_app: FastAPI):
         tasks = [
             asyncio.create_task(watch_workspace(root, lambda: notify_box["fn"](), stop_event=stop_bg)),
@@ -164,6 +186,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
             asyncio.create_task(save_history_loop(stop_bg)),
             asyncio.create_task(runs_watch(stop_bg)),
             asyncio.create_task(notify_box["fn"].nightly_loop(stop_bg)),
+            # los checkouts raíz al día con develop y la base raíz de la api migrada (no en un IDE de prueba)
+            *([] if os.environ.get("IDE_DB_PATH") else [asyncio.create_task(roots_loop(stop_bg))]),
             *([] if os.environ.get("IDE_DB_PATH") else [asyncio.create_task(notify_box["fn"].notion_loop(stop_bg))]),
             # el vigilante de recursos (sin IA); no en un IDE de prueba (avisaría dos veces)
             *([] if os.environ.get("IDE_DB_PATH") else [asyncio.create_task(procs_watcher.run(stop_bg))]),
