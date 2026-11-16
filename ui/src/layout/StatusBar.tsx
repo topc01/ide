@@ -179,6 +179,7 @@ function SessionCounter({ items, one, many, what }:
   const working = what === "trabajando";
   const tone = working ? "text-sky-300" : what === "terminaron" ? "text-muted-foreground" : "text-orange-300";
   const bg = working ? "bg-sky-400/15" : what === "terminaron" ? "bg-muted" : "bg-orange-400/15";
+  const border = working ? "border-sky-400/60" : what === "terminaron" ? "border-border" : "border-orange-400/70";
   const label = (k: string) => names?.[k] ?? (k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2))?.title ?? k.slice(2) : k.slice(2));
   const [at, setAt] = useState<DOMRect | null>(null);
   const [pinned, setPinned] = useState(false);            // la lista, fija (click en el contador)
@@ -234,7 +235,7 @@ function SessionCounter({ items, one, many, what }:
   }, [at, keys.join("|")]);
   if (!waiting.length) {
     return <button disabled title={`Ninguna sesión ${what === "trabajando" ? "en curso" : what}`}
-      className="cursor-default rounded px-1 text-muted-foreground opacity-60">0 {many}</button>;
+      className="cursor-default rounded border border-border px-1.5 text-muted-foreground opacity-60">0 {many}</button>;
   }
   const sel = Math.min(idx, waiting.length - 1);
   const shown = detailPinned ? keys[sel] : hoverKey;
@@ -247,7 +248,7 @@ function SessionCounter({ items, one, many, what }:
     <button ref={trigger} onMouseEnter={show} onMouseLeave={hide}
       onClick={() => { show(); setPinned(true); }}
       title={`Las sesiones ${working ? "con su claude trabajando" : what === "terminaron" ? "que terminaron (sin pregunta ni permiso pendiente)" : "que necesitan tu respuesta (un permiso o una pregunta)"}: pasa el mouse para verlas; click = la lista queda abierta hasta Esc. En la lista: hover en una sesión = su detalle; click = el detalle queda fijo (↑/↓ cambia de sesión); Enter abre la sesión`}
-      className={cn("rounded px-1 font-semibold", tone, (at || pinned) && bg)}>
+      className={cn("rounded border px-1.5 font-semibold hover:brightness-125", tone, border, (at || pinned) && bg)}>
       {waiting.length} {waiting.length === 1 ? one : many}</button>
     {at && createPortal(
       <div data-attention onMouseEnter={show} onMouseLeave={hide}>
@@ -302,7 +303,7 @@ function Decisions() {
   return (
     <button disabled={!n} onClick={() => { if (activePanel !== "later") setActivePanel("later"); if (!innerSidebarOpen) toggleInnerSidebar(); }}
       title="Lo que tienes que decidir o conversar con alguien, de todos los desarrollos: abre el módulo Decisiones"
-      className="rounded px-1 text-sky-300 hover:bg-sky-400/10 disabled:cursor-default disabled:text-muted-foreground disabled:opacity-60 disabled:hover:bg-transparent">
+      className="rounded border border-sky-400/60 px-1.5 text-sky-300 hover:bg-sky-400/10 disabled:border-border disabled:cursor-default disabled:text-muted-foreground disabled:opacity-60 disabled:hover:bg-transparent">
       {n} {n === 1 ? "decisión" : "decisiones"}</button>);
 }
 
