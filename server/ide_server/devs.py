@@ -192,6 +192,10 @@ def _apply(db: Db, key: str, status: str | None, note: str | None, actor: str, r
     if status in PHASES:
         phase, block = status, None
         pinned, pin = gh is not _KEEP, None if gh is _KEEP else gh
+        # «investigando» puesto por ti o la manager (no por la sesión misma) gana a la deducción por PRs en
+        # draft: se fija a lo que diga GitHub en ese momento ("?" = se anota la primera vez que se calcula)
+        if status == "investigating" and gh is _KEEP and actor != f"claude:{key[2:]}":
+            pinned, pin = True, "?"
     elif status in BLOCKS:
         block = status
     elif status == "unblock":
@@ -589,6 +593,11 @@ def effective_state(db: Db, key: str, row_status: str | None, prs: list[dict], m
     manual = cur.get("phase") if cur.get("phase") in PHASES else None
     block = cur.get("block") if cur.get("block") in BLOCKS else None
     gh = github_phase(prs, merged)
+    if cur.get("gh") == "?":                    # fijado sin saber la fase de GitHub: es la de ahora
+        cur["gh"] = gh
+        raw = db.get(f"devstate:{key}")
+        if raw:
+            db.set(f"devstate:{key}", {**raw, "gh": gh})
     pinned = bool(manual) and "gh" in cur and cur.get("gh") == gh
     stale = manual == "investigating" and bool(prs) and not pinned
     phase = (manual if pinned else gh or (None if stale else manual)) or ("developing" if prs else "investigating")

@@ -79,7 +79,7 @@ export function devStateOf(states: DevStates | undefined, key: string, prs: GhPr
   const gh0 = githubPhase(prs, job, merged);
   const gh: Phase | null = gh0 === "merged" && ticket === "Live Staging" ? "staging-evidence" : gh0;
   // puesta a mano desde la UI: gana mientras GitHub siga en la fase de ese momento
-  const pinned = !!manual && !!s && "gh" in s && (s.gh ?? null) === gh;
+  const pinned = !!manual && !!s && "gh" in s && ((s.gh as string | null) === "?" || (s.gh ?? null) === gh);   // "?": fijado, el server anota la fase
   // "investigando" puesto por la sesión queda viejo apenas abre una PR: con PRs es "desarrollando"
   // (salvo que el usuario lo haya fijado a mano)
   const stale = manual === "investigating" && prs.length > 0 && !pinned;
