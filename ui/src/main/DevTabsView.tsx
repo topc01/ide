@@ -7,6 +7,7 @@ import { NotionTab } from "./NotionTab";
 import { attachmentTab, claudeTab, consultTab, docTab, fileTab, scriptTab, summaryTab, useDevTabs, type DevTab } from "../state/devTabs";
 import { resolvePath } from "./pathLinks";
 import type { FolderSession, GhPr } from "../transport/folderSessions";
+import { markResumed } from "../modules/sessions/SessionItem";
 import { attachFile, isHtml, openHtmlAttachment, closeConsult, consultLast, consultSend, newSessionForPr, openConsult, openSession, refreshReview, resumeSession, startReview } from "../transport/folderSessions";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { openTerminal } from "../transport/terminalChannel";
@@ -114,7 +115,7 @@ function ClaudeTab({ session }: { session: FolderSession }) {
             {session.paused && session.process !== "running" ? (<>
               <span className="text-muted-foreground">Pausada desde las {session.paused.at.slice(11, 16)}: su claude está cerrado.</span>
               <Button title="Relanzar su claude con la misma conversación y decirle que siga"
-                onClick={() => { setError(null); act(resumeSession(getWs(), session.id)); }}>Reanudar</Button>
+                onClick={() => { setError(null); markResumed(session.id); act(resumeSession(getWs(), session.id)); }}>Reanudar</Button>
             </>) : session.process === "queued" ? <span className="text-muted-foreground">En cola (max_running)…</span> : (<>
               {session.launchError && <p role="alert" className="text-xs text-destructive">{session.launchError}</p>}
               {session.launchError || error

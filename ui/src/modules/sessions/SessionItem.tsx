@@ -9,6 +9,12 @@ import { ago, STATE, type Block, type DevStateInfo } from "./devStates";
 import { ACTIVITY, activityOf, waitTime } from "./activity";
 import { PersonChip } from "../../lib/people";
 import { getWs } from "../../transport/wsClient";
+
+/** Reanudar y Pausar están en el mismo lugar de la card: un segundo click (o un doble click) después de
+ *  Reanudar caía en Pausar y la volvía a cerrar. Pausar no sale hasta 15 s después de reanudarla. */
+const resumedAt: Record<string, number> = {};
+export const markResumed = (sid: string) => { resumedAt[sid] = Date.now(); };
+const PAUSE_GUARD_MS = 15000;
 import { useFolders } from "../../state/folders";
 import { QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
 import { Badge } from "../../components/ui/badge";
@@ -37,6 +43,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
   const { activeId, activePrUrl, setActive } = useFolders();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [, setTick] = useState(0);
   const act = activityOf(session, dev);
   const [dot, dotCls, label] = ACTIVITY[act];
   const waitNote = act === "waiting" || act === "outdated" ? session.activity?.note : null;
@@ -79,7 +86,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           <CardActions>
             <RenameAction devKey={`s:${session.id}`} />
             <StateAction dev={dev} devKey={`s:${session.id}`} />
-            {session.process === "running" && !session.paused && (
+            {session.process === "running" && !session.paused && Date.now() - (resumedAt[session.id] ?? 0) > PAUSE_GUARD_MS && (
               <QueueItemAction aria-label={`Pausar ${session.id}`}
                 title="Pausar: corta el turno, cierra su claude (libera su memoria y no gasta tokens) y nada lo relanza solo; Reanudar lo vuelve a abrir con la misma conversación"
                 onClick={(e) => { e.stopPropagation(); pauseSession(getWs(), session.id).catch((err: any) => setError(err?.message ?? String(err))); }}>
@@ -88,7 +95,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
             {session.paused && session.process !== "running" && (
               <QueueItemAction aria-label={`Reanudar ${session.id}`}
                 title="Reanudar: relanza su claude con la misma conversación, le dice que siga y le pasa los mensajes que llegaron mientras estaba pausada"
-                onClick={(e) => { e.stopPropagation(); resumeSession(getWs(), session.id).catch((err: any) => setError(err?.message ?? String(err))); }}>
+                onClick={(e) => { e.stopPropagation(); resumedAt[session.id] = Date.now(); window.setTimeout(() => setTick((n) => n + 1), PAUSE_GUARD_MS + 100); resumeSession(getWs(), session.id).catch((err: any) => setError(err?.message ?? String(err))); }}>
                 <Play size={11} />
               </QueueItemAction>)}
             {actions}
