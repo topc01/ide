@@ -32,17 +32,21 @@ function Meter({ pct }: { pct: number }) {
 }
 
 function Window({ label, w, now }: { label: string; w: UsageWindow | null; now: number }) {
-  if (!w) return <span className="text-muted-foreground">{label} —</span>;
+  // mismo ancho con o sin datos: nada de la barra se corre
   return (
     <span className="flex items-center gap-1.5">
-      <span className="text-muted-foreground">{label}</span><Meter pct={w.percent} />
-      <span className={tone(w.percent)}>{Math.round(w.percent)}%</span>
-      <span className="text-muted-foreground">· reinicia en {untilReset(w.resetsAt, now)}</span>
+      <span className="text-muted-foreground">{label}</span><Meter pct={w?.percent ?? 0} />
+      <span className={cn("w-9 text-right", w ? tone(w.percent) : "text-muted-foreground")}>{w ? `${Math.round(w.percent)}%` : "—"}</span>
+      <span className="w-16 text-muted-foreground" title="Cuánto falta para que se reinicie">{w ? `- ${untilReset(w.resetsAt, now)}` : ""}</span>
     </span>
   );
 }
 
-/** Barra inferior: contexto de la sesión abierta + ventanas de 5 h y semanal de Claude Code. */
+const Sep = () => <span aria-hidden className="text-border">|</span>;
+
+/** Barra inferior, siempre en el mismo orden (nada se corre): contexto de la sesión abierta, ventanas de 5 h y
+ *  semanal | contadores fijos (en curso, te esperan, terminaron, decisiones; deshabilitados en 0) y al final los
+ *  avisos que van y vienen (plan de feedback, versión nueva, error de límites). */
 export function StatusBar() {
   const activeId = useFolders((s) => s.activeId);
   const mainId = useFolders((s) => s.tree.sessions.find((x) => x.kind === "main")?.id);
@@ -76,22 +80,23 @@ export function StatusBar() {
       {error ? (
         <span role="status" className="text-destructive" title={error}>usage: desconectado ({error})</span>
       ) : (
-        <div className={cn("flex items-center gap-6 [&>*]:shrink-0", !usage && "opacity-50")}>
-          <span className="flex items-center gap-1.5">
-            <span className="text-muted-foreground">ctx{activeId ? ` ${activeId === mainId ? "Manager" : activeId}` : ""}</span>
-            {ctx ? (<>
-              <Meter pct={ctxPct} />
-              <span className={tone(ctxPct)}>{fmtK(ctx.window - ctx.used)} libre</span>
-              <span className="text-muted-foreground">({Math.round(ctxPct)}% de {fmtK(ctx.window)})</span>
-            </>) : <span className="text-muted-foreground">{activeId ? "sin conversación" : "—"}</span>}
+        <div className={cn("flex items-center gap-3 [&>*]:shrink-0", !usage && "opacity-50")}>
+          <span className="flex items-center gap-1.5"
+            title={ctx ? `Contexto de la sesión ${activeId === mainId ? "Manager" : activeId}: ${fmtK(ctx.window - ctx.used)} libres de ${fmtK(ctx.window)}` : "Contexto de la sesión abierta"}>
+            <span className="text-muted-foreground">sesión</span>
+            <Meter pct={ctxPct} />
+            <span className={cn("w-9 text-right", ctx ? tone(ctxPct) : "text-muted-foreground")}>{ctx ? `${Math.round(ctxPct)}%` : "—"}</span>
           </span>
+          <Sep />
+          <Window label="5h" w={lim?.fiveHour ?? null} now={now} />
+          <Sep />
+          <Window label="semana" w={lim?.weekly ?? null} now={now} />
+          <Sep />
           <WorkingNow />
           <WaitingForYou />
           <FinishedNow />
           <Decisions />
           <FeedbackPending />
-          <Window label="5h" w={lim?.fiveHour ?? null} now={now} />
-          <Window label="semana" w={lim?.weekly ?? null} now={now} />
           {update?.pending && (
             <span className="flex items-center gap-1.5 text-sky-400"
               title={`Se reinicia solo cuando nadie tecleó en una terminal por ${update.idleBefore} s; las conversaciones de claude siguen.`}>
@@ -154,7 +159,7 @@ function WorkingNow() {
     .map((x) => [`s:${x.id}`, { note: null }] as const);
   const since = (s?: { activity?: { since?: string | null } | null }) => s?.activity?.since
     ? `desde ${new Date(s.activity.since).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}` : null;
-  return <SessionCounter items={items} one="trabajando" many="trabajando" what="trabajando"
+  return <SessionCounter items={items} one="en curso" many="en curso" what="trabajando"
     tone="text-sky-300" bg="bg-sky-400/15" dot={["◐", "inline-block leading-none text-sky-400 animate-spin"]} time={since} />;
 }
 
@@ -227,7 +232,10 @@ function SessionCounter({ items, one, many, what }:
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [at, keys.join("|")]);
-  if (!waiting.length) return null;
+  if (!waiting.length) {
+    return <button disabled title={`Ninguna sesión ${what === "trabajando" ? "en curso" : what}`}
+      className="cursor-default rounded px-1 text-muted-foreground opacity-60">0 {many}</button>;
+  }
   const sel = Math.min(idx, waiting.length - 1);
   const shown = detailPinned ? keys[sel] : hoverKey;
   const listLeft = at ? Math.max(8, Math.min(at.left, window.innerWidth - 368)) : 0;
@@ -291,11 +299,11 @@ function SessionCounter({ items, one, many, what }:
 function Decisions() {
   const n = useFolders((s) => s.tree.later?.length ?? 0);
   const { activePanel, setActivePanel, innerSidebarOpen, toggleInnerSidebar } = useStore();
-  if (!n) return null;
   return (
-    <button onClick={() => { if (activePanel !== "later") setActivePanel("later"); if (!innerSidebarOpen) toggleInnerSidebar(); }}
+    <button disabled={!n} onClick={() => { if (activePanel !== "later") setActivePanel("later"); if (!innerSidebarOpen) toggleInnerSidebar(); }}
       title="Lo que tienes que decidir o conversar con alguien, de todos los desarrollos: abre el módulo Decisiones"
-      className="rounded px-1 text-sky-300 hover:bg-sky-400/10">{n} {n === 1 ? "decisión" : "decisiones"}</button>);
+      className="rounded px-1 text-sky-300 hover:bg-sky-400/10 disabled:cursor-default disabled:text-muted-foreground disabled:opacity-60 disabled:hover:bg-transparent">
+      {n} {n === 1 ? "decisión" : "decisiones"}</button>);
 }
 
 /** La revisión semanal dejó un plan de feedback sin revisar: click = ir a la sesión principal. */
