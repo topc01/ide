@@ -103,6 +103,8 @@ def _parser() -> argparse.ArgumentParser:
                  ("add-sub", "suma un subticket (una tarjeta que es parte del desarrollo; las hijas del ticket en Notion, relación «Tickets», ya salen solas)"),
                  ("rm-sub", "saca un subticket (o esconde una hija del ticket; no toca Notion)")):
         x = tk.add_parser(c, help=h); x.add_argument("args", nargs="+", metavar="[#n] url")
+    ig = sub.add_parser("instagram", help="baja posts de Instagram con la cuenta del perfil `instagram`").add_subparsers(dest="cmd", required=True)
+    ig.add_parser("fetch", help="baja las imágenes y el texto de un post a attachments/instagram/<código> de la sesión").add_argument("url")
     af = sub.add_parser("artifact", help="los artefactos (páginas de claude.ai) del desarrollo: los que publica su claude se suman solos").add_subparsers(dest="cmd", required=True)
     x = af.add_parser("ls", help="los artefactos del desarrollo"); x.add_argument("dev", nargs="?", metavar="#n"); x.add_argument("--json", action="store_true")
     x = af.add_parser("add", help="suma uno hecho fuera de la sesión"); x.add_argument("args", nargs="+", metavar="[#n] url"); x.add_argument("--title")
@@ -817,6 +819,40 @@ def _procs(a, root: Path, env, out: TextIO) -> int:
     return 0
 
 
+_IG_URL = re.compile(r"^https://(www\.)?instagram\.com/(p|reel|reels)/([A-Za-z0-9_-]{5,40})/?(\?[A-Za-z0-9_=&%-]*)?$")
+
+
+def _instagram(a, root: Path, env, cwd: Path, out: TextIO) -> int:
+    """`ide instagram fetch <url>`: gallery-dl con argumentos fijos (sin opciones del que llama: gallery-dl tiene
+    `--exec` y postprocesadores que corren comandos) y las cookies del perfil `instagram` (ver browsers.py)."""
+    import shutil
+    import subprocess
+    m = _IG_URL.match(a.url.strip())
+    if not m:
+        raise SessionError("bad_url", "tiene que ser el link de un post o reel: https://www.instagram.com/p/<código>/")
+    cookies = root / ".ide" / "browsers" / "instagram" / "cookies.txt"
+    if not cookies.is_file():
+        raise SessionError("no_login", "falta la sesión de Instagram: pídele al usuario `ide browser login instagram` "
+                                       "(la primera vez, antes `ide browser new instagram https://www.instagram.com`)")
+    exe = shutil.which("gallery-dl")
+    if not exe:
+        raise SessionError("no_tool", "falta gallery-dl (brew install gallery-dl)")
+    sid = env.get("IDE_SESSION_ID") or current_session(root, env=env, cwd=cwd)
+    from ide_server.sessions_fs import session_path
+    dest = session_path(root, sid) / "attachments" / "instagram" / m.group(3)
+    dest.mkdir(parents=True, exist_ok=True)
+    url = f"https://www.instagram.com/{m.group(2)}/{m.group(3)}/"
+    r = subprocess.run([exe, "--config-ignore", "--cookies", str(cookies), "--write-metadata", "-D", str(dest), "--", url],
+                       capture_output=True, text=True, timeout=300)
+    text = (r.stdout + r.stderr).strip()
+    if "login" in text.lower() and "redirect" in text.lower():
+        raise SessionError("login_expired", "Instagram mandó al inicio de sesión: venció la sesión del perfil. Pídele al "
+                                            "usuario `ide browser login instagram`")
+    files = sorted(p.name for p in dest.iterdir())
+    out.write(f"{dest}\n" + "".join(f"  {f}\n" for f in files) + (f"{text[-800:]}\n" if r.returncode else ""))
+    return 0 if r.returncode == 0 and files else 1
+
+
 def _browser(a, root: Path, env, out: TextIO) -> int:
     from ide_server import browsers
     if a.cmd == "ls":
@@ -1168,6 +1204,8 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
                 if not data["artifacts"]:
                     out.write(f"{data['id']}: sin artefactos\n")
             return 0
+        if a.group == "instagram":
+            return _instagram(a, root, env, cwd, out)
         if a.group == "procs":
             return _procs(a, root, env, out)
         if a.group == "merge":                  # no necesita sesión: la PR dice cuál es
