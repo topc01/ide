@@ -8,6 +8,7 @@ import { CiMark, DepsBadge, StackBadge, allPrs, useGithubReviews } from "../modu
 import { deriveMine, devIndexOf, devName, worstPr } from "../modules/sessions/desarrollos";
 import { DevIndex, RepoChips } from "../modules/sessions/DevCard";
 import { cn } from "../lib/utils";
+import { useInnerWidth } from "./InnerSidebar";
 
 /** Un desarrollo = una sesión o una PR (sin sesión) de las listas de la sidebar. */
 export type Desarrollo =
@@ -75,6 +76,7 @@ function DevLine({ d, names }: { d: Desarrollo; names?: Record<string, string> }
 export function DevSelector() {
   const { tree, activeId, activePrUrl, setActive, setActivePr } = useFolders();
   const innerOpen = useStore((s) => s.innerSidebarOpen);
+  const innerWidth = useInnerWidth((s) => s.width);
   const { gh } = useGithubReviews();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -100,7 +102,9 @@ export function DevSelector() {
   };
 
   return (
-    <div ref={ref} className={cn("relative shrink-0 border-b border-r border-border bg-card", innerOpen ? "w-[300px]" : "w-11")}>
+    // ancho: el menú de acciones (44 px) + la sidebar interna, que se puede ensanchar
+    <div ref={ref} className={cn("relative shrink-0 border-b border-r border-border bg-card", !innerOpen && "w-11")}
+      style={innerOpen ? { width: 44 + innerWidth } : undefined}>
       <button aria-label="Cambiar de desarrollo" title="Cambiar de desarrollo" aria-expanded={open} onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-1.5 px-2.5 py-2 hover:bg-accent/60">
         {innerOpen ? (<>
@@ -110,7 +114,7 @@ export function DevSelector() {
         </>) : <ChevronDown size={14} className="mx-auto text-muted-foreground" />}
       </button>
       {open && (
-        <div role="listbox" className="absolute left-0 top-full z-30 flex max-h-[70vh] w-[300px] flex-col rounded-b-md border border-border bg-popover shadow-lg">
+        <div role="listbox" style={{ width: Math.max(300, 44 + innerWidth) }} className="absolute left-0 top-full z-30 flex max-h-[70vh] flex-col rounded-b-md border border-border bg-popover shadow-lg">
           <label className="flex items-center gap-1.5 border-b border-border px-2.5 py-1.5">
             <Search size={12} className="text-muted-foreground" />
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar desarrollo…"

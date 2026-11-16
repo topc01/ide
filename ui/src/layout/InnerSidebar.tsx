@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useStore } from "../state/store";
 import { getModules } from "../modules/registry";
 import { useFolders } from "../state/folders";
 import { ScrollArea } from "../components/ui/scroll-area";
+import { create } from "zustand";
 
 const WIDTH_KEY = "ide.innerSidebarWidth";
 const MIN = 200, MAX = 720, DEFAULT = 256;
@@ -17,10 +18,17 @@ function savedWidth(): number {
   }
 }
 
+/** El ancho de la sidebar interna, compartido: el selector de desarrollo de arriba lo sigue. */
+export const useInnerWidth = create<{ width: number; set: (w: number | ((w: number) => number)) => void }>((set) => ({
+  width: savedWidth(),
+  set: (w) => set((st) => ({ width: typeof w === "function" ? w(st.width) : w })),
+}));
+
 export function InnerSidebar() {
   const { activePanel, innerSidebarOpen } = useStore();
   const uiModules = useFolders((s) => s.uiModules);
-  const [width, setWidth] = useState(savedWidth);
+  const width = useInnerWidth((s) => s.width);
+  const setWidth = useInnerWidth((s) => s.set);
   const drag = useRef<{ x: number; w: number } | null>(null);
   // arrastrar el borde derecho cambia el ancho; queda guardado en este navegador (doble click = el de siempre)
   useEffect(() => {
