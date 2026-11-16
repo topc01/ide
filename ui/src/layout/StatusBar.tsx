@@ -224,7 +224,9 @@ function SessionCounter({ items, one, many, what }:
       if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT") && t.closest("[data-attention]")) return;
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault(); e.stopPropagation();
+        // el detalle sigue a la selección (antes se quedaba en la sesión que tenía el mouse encima)
         setIdx((i) => (i + (e.key === "ArrowDown" ? 1 : -1) + keys.length) % keys.length);
+        setDetailPinned(true); setPinned(true);
       } else if (e.key === "Enter") {
         e.preventDefault(); e.stopPropagation();
         const k = keys[Math.min(idxRef.current, keys.length - 1)]; if (k) go(k);
