@@ -355,7 +355,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.post("/api/devs/{sid}/artifact")
     async def api_artifact(sid: str, body: dict):
-        return await _http("dev.artifact", {**body, "id": sid})
+        return await _http("dev.artifact", {**body, "id": sid, "_http": True})
 
     @app.post("/api/devs/{sid}/pending-ticket")
     async def api_pending_ticket(sid: str, body: dict):

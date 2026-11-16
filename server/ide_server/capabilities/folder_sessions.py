@@ -364,9 +364,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if db is None:
             raise SessionError("no_db", "sin base")
         sid = _resolve(p["id"])
-        if str(p.get("actor") or "").startswith("claude:") and p["actor"][len("claude:"):] != sid \
-                and not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
-            raise SessionError("forbidden", "una sesión solo toca los artefactos de su propio desarrollo")
+        if p.get("_http") and _manager_or_terminal(p) is None:
+            # por proceso, no por lo que dice el comando: el claude que llama solo toca su propio desarrollo
+            from ide_server import peer
+            chain = peer.caller_ancestors(p.get("_peer"))
+            own = hooks.pid_of(supervisor._running.get(sid)) if hooks.pid_of and supervisor._running.get(sid) else None
+            if not own or own not in chain:
+                raise SessionError("forbidden", "una sesión solo toca los artefactos de su propio desarrollo "
+                                                "(los de otro, el usuario desde su terminal o la manager)")
         url = str(p.get("url") or "").strip()
         if p.get("op") == "rm":
             if not await asyncio.to_thread(art.remove, db, sid, url):

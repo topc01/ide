@@ -95,6 +95,18 @@ def ws_rejected(port: int | None, claude_pids: set[int]) -> str | None:
     return None
 
 
+def caller_ancestors(port: int | None) -> set[int]:
+    """Los procesos de los que cuelga quien llama por HTTP (vacío si no se puede saber)."""
+    if not port:
+        return set()
+    try:
+        pid = _owner(port)
+        procs = _ps()
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return set()
+    return _ancestors(pid, procs) if pid else set()
+
+
 def _ancestors(pid: int, procs: dict[int, tuple[int, str]]) -> set[int]:
     out = set()
     while pid and pid not in out:
