@@ -1064,6 +1064,20 @@ lo que actualizó o falló, en el historial (`roots-refresh`). No corre en un ID
 Los worktrees nuevos ya salen de `origin/develop` recién traído; esto mantiene al día el checkout raíz
 (:8000) y la base que se copia.
 
+## 9d-ter. Artefactos de cada desarrollo
+
+Cada artefacto (página de claude.ai) que publica el claude de una sesión queda asociado a su desarrollo:
+el IDE lo encuentra solo en su conversación (cada ~20 s, leyendo solo lo nuevo; también queda como link en
+sus Adjuntos) y lo guarda en `kv artifacts:<sesión>` con su título, su descripción y la fecha. Republicar el
+mismo artefacto no lo repite (actualiza el título). En la **card**, un contador (ícono de pizarra + N) que
+despliega o esconde (recordado por card) un bloque por artefacto con su título; click lo abre en el
+navegador. El **módulo Artefactos** (barra de módulos) lista los del desarrollo elegido, del más nuevo al
+más viejo, con un interruptor para mostrarlo o no en la card (canal `dev.artifactCard {id, url, show}`, solo
+desde la UI) y ✕ para sacarlo del desarrollo (no lo borra de claude.ai). Los nuevos salen en la card.
+CLI: `ide artifact ls [#n] [--json]`, `ide artifact add [#n] <url> [--title …]` (uno hecho fuera de la
+sesión), `ide artifact rm [#n] <url>` (`GET /api/devs/<id>/artifacts`, `POST /api/devs/<id>/artifact
+{url, op: add|rm, title}`; una sesión solo toca los de su propio desarrollo).
+
 ## 9e. Feedback y revisión semanal (mejora con el uso)
 
 Cada sesión anota las correcciones del usuario en la sección `## Feedback` de su `SESSION.md`

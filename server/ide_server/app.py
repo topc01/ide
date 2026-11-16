@@ -80,7 +80,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     merger.all = MergeAll(db, merger, stacks=lambda: gh_reviews.state, on_change=lambda: merger._on_change())
     runner = Runner(root)
     viewer = DbViewer(root)
-    runs_watch = runs_cap.register(registry, root, manager, runner, viewer, db)
+    runs_watch = runs_cap.register(registry, root, manager, runner, viewer, db,
+                                   notify=lambda: notify_box["fn"]() if notify_box.get("fn") else None)
     notify_box["fn"] = folder_cap.register(registry, root, manager, hooks=hooks,
                                            supervisor=supervisor, poller=poller,
                                            gh_reviews=gh_reviews, limits=limits, merger=merger, db=db,
@@ -347,6 +348,14 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     @app.post("/api/devs/{sid}/sub-ticket")
     async def api_sub_ticket(sid: str, body: dict):
         return await _http("dev.ticketSub", {**body, "id": sid})
+
+    @app.get("/api/devs/{sid}/artifacts")
+    async def api_artifacts(sid: str):
+        return await _http("dev.artifacts", {"id": sid})
+
+    @app.post("/api/devs/{sid}/artifact")
+    async def api_artifact(sid: str, body: dict):
+        return await _http("dev.artifact", {**body, "id": sid})
 
     @app.post("/api/devs/{sid}/pending-ticket")
     async def api_pending_ticket(sid: str, body: dict):

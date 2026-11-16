@@ -103,6 +103,10 @@ def _parser() -> argparse.ArgumentParser:
                  ("add-sub", "suma un subticket (una tarjeta que es parte del desarrollo; las hijas del ticket en Notion, relación «Tickets», ya salen solas)"),
                  ("rm-sub", "saca un subticket (o esconde una hija del ticket; no toca Notion)")):
         x = tk.add_parser(c, help=h); x.add_argument("args", nargs="+", metavar="[#n] url")
+    af = sub.add_parser("artifact", help="los artefactos (páginas de claude.ai) del desarrollo: los que publica su claude se suman solos").add_subparsers(dest="cmd", required=True)
+    x = af.add_parser("ls", help="los artefactos del desarrollo"); x.add_argument("dev", nargs="?", metavar="#n"); x.add_argument("--json", action="store_true")
+    x = af.add_parser("add", help="suma uno hecho fuera de la sesión"); x.add_argument("args", nargs="+", metavar="[#n] url"); x.add_argument("--title")
+    x = af.add_parser("rm", help="lo saca del desarrollo (no lo borra de claude.ai)"); x.add_argument("args", nargs="+", metavar="[#n] url")
     mid = sub.add_parser("migrate-ids", help="(una vez) las sesiones de ticket pasan a llamarse por su número y la manager a `manager`")
     mid.add_argument("--dry-run", action="store_true")
     ms = sub.add_parser("merges", help="los desarrollos que se están mergeando («Mergear todo»): avance, qué esperan, si están pegados")
@@ -1138,6 +1142,31 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
                 out.write(f"{data['id']}\t{len(data['pending'])} subtickets\n")
             else:
                 out.write(f"{data['id']}\t{len(data['subs'])} subtickets\n")
+            return 0
+        if a.group == "artifact":
+            from urllib.parse import quote
+            args = [a.dev] if a.cmd == "ls" and a.dev else list(getattr(a, "args", None) or [])
+            dev = args[0] if (a.cmd == "ls" and args) or len(args) > 1 else env.get("IDE_SESSION_ID")
+            if not dev:
+                try:
+                    dev = current_session(root, env=env, cwd=cwd)
+                except SessionError:
+                    raise SessionError("no_session", "¿de qué desarrollo? `ide artifact ls <n>` (el número del desarrollo), "
+                                                     "o córrelo dentro de la carpeta de su sesión")
+            if a.cmd == "ls":
+                data = _get(http, url, f"/api/devs/{quote(dev, safe='')}/artifacts")
+            else:
+                data = _post(http, url, f"/api/devs/{quote(dev, safe='')}/artifact",
+                             {"url": args[-1], "title": getattr(a, "title", None), "op": a.cmd,
+                              "actor": f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli",
+                              "token": env.get("IDE_MANAGER_TOKEN", "")})
+            if getattr(a, "json", False):
+                out.write(json.dumps(data["artifacts"], ensure_ascii=False, indent=2) + "\n")
+            else:
+                for x in data["artifacts"]:
+                    out.write(f"{x['url']}\t{x.get('title') or '-'}\t{x.get('at', '')[:16]}\t{'card' if x.get('card', True) else 'oculto'}\n")
+                if not data["artifacts"]:
+                    out.write(f"{data['id']}: sin artefactos\n")
             return 0
         if a.group == "procs":
             return _procs(a, root, env, out)

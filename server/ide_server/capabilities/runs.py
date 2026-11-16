@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 POLL = 2.0
 
 
-def register(registry: Registry, root: Path, manager, runner: Runner, viewer=None, db=None):
+def register(registry: Registry, root: Path, manager, runner: Runner, viewer=None, db=None, notify=None):
     last: dict = {"payload": None}
 
     def payload() -> dict:
@@ -39,7 +39,8 @@ def register(registry: Registry, root: Path, manager, runner: Runner, viewer=Non
             tick["n"] += 1
             if db is not None and tick["n"] % 10 == 1:
                 try:
-                    await asyncio.to_thread(artifacts.scan, root, Path.home(), db)
+                    if await asyncio.to_thread(artifacts.scan, root, Path.home(), db) and notify is not None:
+                        notify()                # la card y el módulo Artefactos los ven al toque
                 except Exception:  # noqa: BLE001
                     log.exception("no se pudieron revisar los artefactos")
             try:

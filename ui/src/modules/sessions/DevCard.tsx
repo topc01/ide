@@ -1,7 +1,7 @@
 // ui/src/modules/sessions/DevCard.tsx
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Clock, Eye, EyeOff, Flag, Pause, Pencil } from "lucide-react";
+import { Clock, Eye, EyeOff, Flag, Pause, Pencil, Presentation } from "lucide-react";
 import { hideDev, renameDev, setDevState, type GhPr, type MergeJob } from "../../transport/folderSessions";
 import { QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
 import { getWs } from "../../transport/wsClient";
@@ -499,6 +499,27 @@ function TicketBlock({ devKey, url, title, status, error, what }:
       className={cn("inline-flex max-w-[10rem] shrink-0 items-center rounded border px-1 text-[10px] font-semibold text-foreground hover:brightness-110",
         error ? "border-destructive/70 bg-destructive/[0.07]" : ticketColor(status))}>
       <span className="truncate">{title ?? status ?? "Notion"}</span></button>);
+}
+
+/** Los artefactos de la sesión que el módulo Artefactos deja en la card: un «▤ N» que los despliega o esconde
+ *  (recordado por card), como los subtickets. Cada uno, un bloque con su título; click: lo abre en el navegador. */
+export function ArtifactsChip({ devKey }: { devKey: string }) {
+  const list = useFolders((s) => s.tree.devArtifacts?.[devKey]);
+  const items = (list ?? []).filter((a) => a.card !== false);
+  const [show, setShow] = usePersistentOpen(`artifacts.${devKey}`, false);
+  if (!items.length) return null;
+  return (<>
+    <button aria-expanded={show} onClick={(e) => { e.stopPropagation(); setShow(!show); }}
+      aria-label={show ? `Esconder los ${items.length} artefactos` : `Mostrar los ${items.length} artefactos`}
+      className={cn("rounded border px-1 font-mono text-[10px] font-bold text-foreground hover:bg-accent",
+        show ? "border-border bg-accent/40" : "border-dashed border-border")}>
+      <Presentation size={10} className="mr-0.5 inline align-[-1px]" />{items.length}</button>
+    {show && items.map((a) => (
+      <button key={a.url} onClick={(e) => { e.stopPropagation(); openExternal(a.url); }}
+        aria-label={`Abrir el artefacto ${a.title ?? a.url} en el navegador`}
+        className="inline-flex max-w-[10rem] shrink-0 items-center gap-0.5 rounded border border-border bg-muted/60 px-1 text-[10px] font-semibold text-foreground hover:bg-accent">
+        <Presentation size={9} className="shrink-0 text-muted-foreground" /><span className="truncate">{a.title ?? "artefacto"}</span></button>))}
+  </>);
 }
 
 /** Subtickets (las hijas del ticket en Notion y las sumadas con `ide ticket add-sub`): un «◫ N» que los despliega

@@ -7,6 +7,7 @@ import "./modules/terminal/register";
 import "./modules/changes/register";
 import "./modules/graphite/register";
 import "./modules/notion/register";
+import "./modules/artifacts/register";
 import "./modules/tasks/register";
 import "./modules/files/register";
 import "./modules/dev/register";

@@ -150,6 +150,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "devStates": dev_states(db) if db else {},
                 "later": later_mod.items(db) if db else [],
                 "devTickets": _tickets(sessions) if db else {},
+                "devArtifacts": {f"s:{k}": v for k, v in db.with_prefix("artifacts:").items() if v} if db else {},
                 "devRelations": relations,
                 # el veredicto que registró cada sesión de revisión (sin el comentario): la card lo muestra
                 "verdicts": {u: {"verdict": v.get("verdict"), "at": v.get("at"), "sha": v.get("sha")}
@@ -347,6 +348,46 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             raise SessionError("forbidden", "se cambia desde el módulo Notion")
         sid = require_plain_name(p["id"], "sesión")
         await asyncio.to_thread(notion.set_card, db, sid, str(p.get("url") or ""), bool(p.get("show")))
+        notify()
+        return {"ok": True}
+
+    async def dev_artifacts(p: dict) -> dict:
+        """Los artefactos de un desarrollo (`ide artifact ls`)."""
+        from ide_server import artifacts as art
+        sid = _resolve(p["id"])
+        return {"id": sid, "artifacts": art.items(db, sid) if db is not None else []}
+
+    async def dev_artifact(p: dict) -> dict:
+        """Suma (`add`) o saca (`rm`) un artefacto del desarrollo a mano; los que publica su claude se suman solos.
+        Una sesión solo toca los de su propio desarrollo."""
+        from ide_server import artifacts as art
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        sid = _resolve(p["id"])
+        if str(p.get("actor") or "").startswith("claude:") and p["actor"][len("claude:"):] != sid \
+                and not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+            raise SessionError("forbidden", "una sesión solo toca los artefactos de su propio desarrollo")
+        url = str(p.get("url") or "").strip()
+        if p.get("op") == "rm":
+            if not await asyncio.to_thread(art.remove, db, sid, url):
+                raise SessionError("not_found", f"el desarrollo no tiene ese artefacto: {url}")
+        else:
+            try:
+                await asyncio.to_thread(art.add, db, sid, url, p.get("title"))
+            except ValueError as exc:
+                raise SessionError("bad_url", str(exc)) from exc
+        db.event(datetime.now().isoformat(timespec="seconds"), p.get("actor") or "ide", f"artifact-{p.get('op') or 'add'}",
+                 dev=sid, data={"url": url})
+        notify()
+        return {"id": sid, "artifacts": art.items(db, sid)}
+
+    async def dev_artifact_card(p: dict) -> dict:
+        """El interruptor del módulo Artefactos: se muestra (o no) en la card. Solo desde la UI."""
+        from ide_server import artifacts as art
+        if p.get("_http") or db is None:
+            raise SessionError("forbidden", "se cambia desde el módulo Artefactos")
+        sid = require_plain_name(p["id"], "sesión")
+        await asyncio.to_thread(art.set_card, db, sid, str(p.get("url") or ""), bool(p.get("show")))
         notify()
         return {"ok": True}
 
@@ -2443,7 +2484,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
-        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.notionPage": notion_page, "usage.get": usage,
+        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
