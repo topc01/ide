@@ -165,14 +165,17 @@ def _keep_own_site(state: Path, url: str) -> None:
         h = h.lstrip(".").lower()
         if local:
             return h in ("localhost", "127.0.0.1", "::1", "[::1]") or h.endswith(".localhost")
-        return h == host
+        return h == host or (host.startswith("www.") and h == host[4:])
     try:
         data = json.loads(state.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
     # la cookie del dominio padre trae el punto adelante (`.finnecto.com`): solo vale el host exacto, sin punto
+    # el perfil en `www.<sitio>`: las cookies de `.<sitio>` son del mismo sitio (Instagram guarda ahí la sesión), no de
+    # un dominio padre compartido con otros clientes como `.finnecto.com`
+    same = {host, "." + host} | ({"." + host[4:], host[4:]} if host.startswith("www.") else set())
     data["cookies"] = [c for c in data.get("cookies") or []
-                       if ok(str(c.get("domain") or "")) and (local or str(c.get("domain") or "") == host)]
+                       if ok(str(c.get("domain") or "")) and (local or str(c.get("domain") or "") in same)]
     data["origins"] = [o for o in data.get("origins") or [] if ok(urlparse(str(o.get("origin") or "")).hostname or "")]
     state.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
