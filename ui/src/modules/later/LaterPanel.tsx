@@ -4,11 +4,11 @@
  *  conversarla. Agrupadas por desarrollo (el actual primero) o por persona. Las deja la sesión (`ide later add`)
  *  o tú desde acá; la respuesta se le manda a la sesión. */
 import { useState } from "react";
-import { Check, ExternalLink, Send, X } from "lucide-react";
+import { Check, ExternalLink, Pencil, Send, X } from "lucide-react";
 import { useCurrentDev } from "../../main/currentDev";
 import { useFolders } from "../../state/folders";
 import { getWs } from "../../transport/wsClient";
-import { laterAdd, laterAnswer, laterDismiss, laterResolve, type LaterItem } from "../../transport/folderSessions";
+import { laterAdd, laterAnswer, laterDismiss, laterResolve, laterUpdate, type LaterItem } from "../../transport/folderSessions";
 import { Button } from "../../components/ui/button";
 import { devKeys, devName } from "../sessions/desarrollos";
 import { ago } from "../sessions/devStates";
@@ -33,10 +33,46 @@ function useDevLabel() {
   };
 }
 
+/** Editar una decisión: la pregunta, con quién y el artefacto (uno de los del desarrollo, o un link pegado). */
+function Edit({ it, onDone }: { it: LaterItem; onDone: () => void }) {
+  const arts = useFolders((s) => s.tree.devArtifacts?.[it.key]) ?? [];
+  const [text, setText] = useState(it.text);
+  const [who, setWho] = useState(it.with ?? "");
+  const [art, setArt] = useState(it.artifact ?? "");
+  const [err, setErr] = useState<string | null>(null);
+  const save = () => {
+    setErr(null);
+    laterUpdate(getWs(), it.id, { text: text.trim(), with: who.trim(), artifact: art.trim() })
+      .then(onDone).catch((e: any) => setErr(e?.message ?? String(e)));
+  };
+  const key = (e: React.KeyboardEvent) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } if (e.key === "Escape") onDone(); };
+  return (
+    <div className="mt-1 space-y-1">
+      <textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={2} aria-label="Pregunta"
+        onKeyDown={key} className={cn(field, "resize-y")} />
+      <input value={who} onChange={(e) => setWho(e.target.value)} placeholder="con quién conversarla (p. ej. Sebastián de CX)"
+        aria-label="Con quién" onKeyDown={key} className={field} />
+      {arts.length > 0 && (
+        <select value={arts.some((a) => a.url === art) ? art : ""} onChange={(e) => setArt(e.target.value)}
+          aria-label="Artefacto del desarrollo" className={field}>
+          <option value="">— artefacto del desarrollo —</option>
+          {arts.map((a) => <option key={a.url} value={a.url}>{a.title ?? a.url}</option>)}
+        </select>)}
+      <input value={art} onChange={(e) => setArt(e.target.value)} placeholder="o pega el link de un artefacto (claude.ai/artifact/…)"
+        aria-label="Link del artefacto" onKeyDown={key} className={field} />
+      <div className="flex gap-1">
+        <Button size="sm" className="h-6 px-2 text-[11px]" disabled={!text.trim()} onClick={save} title="Guardar (Enter)">Guardar</Button>
+        <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={onDone} title="Cancelar (Esc)">Cancelar</Button>
+      </div>
+      {err && <p role="alert" className="text-[11px] text-destructive">{err}</p>}
+    </div>);
+}
+
 /** Una decisión: la pregunta (click: abre el artefacto, o la sesión si no tiene), con quién y de qué desarrollo. */
 function Item({ it, devLabel }: { it: LaterItem; devLabel?: string }) {
   const [answer, setAnswer] = useState<string | null>(null);
   const [more, setMore] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const toSession = it.key.startsWith("s:");
@@ -59,6 +95,8 @@ function Item({ it, devLabel }: { it: LaterItem; devLabel?: string }) {
         {devLabel && <span className="truncate">{devLabel}</span>}
         <span className="shrink-0">· hace {ago(it.created)}</span>
         <span className="flex-1" />
+        <button title="Editar: la pregunta, con quién conversarla y el artefacto" aria-label="Editar"
+          onClick={() => setEditing(!editing)} className="rounded p-0.5 hover:bg-accent hover:text-foreground"><Pencil size={11} /></button>
         <button title="Resuelto: cerrarla sin mandarle nada a la sesión (se resolvió en el chat)" aria-label="Resuelto"
           onClick={() => laterResolve(getWs(), it.id).catch((e: any) => setMsg(`⚠ ${e?.message ?? String(e)}`))}
           className="rounded p-0.5 hover:bg-accent hover:text-emerald-400"><Check size={12} /></button>
@@ -66,6 +104,7 @@ function Item({ it, devLabel }: { it: LaterItem; devLabel?: string }) {
           onClick={() => laterDismiss(getWs(), it.id).catch((e: any) => setMsg(`⚠ ${e?.message ?? String(e)}`))}
           className="rounded p-0.5 hover:bg-accent hover:text-foreground"><X size={12} /></button>
       </div>
+      {editing ? <Edit it={it} onDone={() => setEditing(false)} /> : <>
       <button onClick={open} title={it.artifact ? "Abrir el análisis (artefacto) en el navegador" : live ? "Ir a la sesión" : "Ver el contexto (su sesión está archivada)"}
         className="block w-full text-left text-[12px] font-semibold leading-snug hover:text-primary">
         {it.text}{it.artifact && <ExternalLink size={11} className="ml-1 inline align-[-1px] text-muted-foreground" />}</button>
@@ -73,7 +112,8 @@ function Item({ it, devLabel }: { it: LaterItem; devLabel?: string }) {
         ? <p className="mt-0.5 whitespace-pre-wrap break-words text-[11px] text-muted-foreground">{it.context}</p>
         : <button onClick={() => setMore(true)} title="Ver el contexto que dejó la sesión"
             className="mt-0.5 text-[10px] text-muted-foreground hover:text-foreground">contexto…</button>)}
-      {answer === null ? (
+      </>}
+      {editing ? null : answer === null ? (
         <button title={live ? "Responder: la respuesta se le manda a la sesión" : "Anotar la respuesta (su sesión está archivada: no le llega)"}
           onClick={() => setAnswer("")} className="mt-1 block text-[11px] text-primary hover:underline">Responder</button>
       ) : (
@@ -123,9 +163,9 @@ export function LaterPanel() {
         <span className="flex-1 text-muted-foreground">{items.length === 1 ? "decisión" : "decisiones"}
           {dev && items.length > 0 ? ` · ${here} de este desarrollo` : ""}</span>
         {(["dev", "who"] as const).map((k) => (
-          <button key={k} onClick={() => setBy(k)} title={k === "dev" ? "Agrupar por desarrollo" : "Agrupar por con quién conversarlas"}
+          <button key={k} onClick={() => setBy(k)} title={k === "dev" ? "Agrupar por desarrollo" : "Agrupar por con quién hay que conversarlas"}
             className={cn("rounded px-1 text-[10px]", by === k ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
-            {k === "dev" ? "desarrollo" : "persona"}</button>))}
+            {k === "dev" ? "desarrollo" : "con quién"}</button>))}
       </div>
       {dev && (
         <div className="mx-2.5 mt-2.5 space-y-1">
@@ -133,7 +173,7 @@ export function LaterPanel() {
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder="la pregunta" aria-label="Pregunta"
             onKeyDown={(e) => { if (e.key === "Enter") add(); }} className={field} />
           <div className="flex gap-1">
-            <input value={who} onChange={(e) => setWho(e.target.value)} placeholder="con quién (opcional)" aria-label="Con quién"
+            <input value={who} onChange={(e) => setWho(e.target.value)} placeholder="con quién conversarla (opcional)" aria-label="Con quién"
               onKeyDown={(e) => { if (e.key === "Enter") add(); }} className={field} />
             <input value={art} onChange={(e) => setArt(e.target.value)} placeholder="link del artefacto (opcional)" aria-label="Artefacto"
               onKeyDown={(e) => { if (e.key === "Enter") add(); }} className={field} />
@@ -148,7 +188,7 @@ export function LaterPanel() {
         <div key={g || "-"} className="mt-3">
           <div className={cn("mx-2.5 mb-1 truncate text-[10px] font-semibold uppercase tracking-wide",
             by === "dev" && mineKeys.includes(g) ? "text-primary" : "text-muted-foreground")}>
-            {by === "dev" ? label(g) : g ? `con ${g}` : "sin persona"} · {groups.get(g)!.length}</div>
+            {by === "dev" ? label(g) : g ? `con ${g}` : "falta definir con quién"} · {groups.get(g)!.length}</div>
           {groups.get(g)!.map((it) => <Item key={it.id} it={it} devLabel={by === "who" ? label(it.key) : undefined} />)}
         </div>))}
     </div>);

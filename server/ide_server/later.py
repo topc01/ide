@@ -43,6 +43,28 @@ def items(db: Db, *, open_only: bool = True) -> list[dict]:
     return sorted(out, key=lambda v: v["created"])
 
 
+def update(db: Db, item_id: str, *, text: str | None = None, artifact: str | None = None, with_: str | None = None) -> dict:
+    """Editar una decisión abierta: la pregunta, el artefacto y con quién ("" los saca)."""
+    from ide_server.artifacts import URL_RE
+    item = get(db, item_id)
+    if item is None or item.get("status") != "open":
+        raise KeyError(item_id)
+    if text is not None:
+        text = text.strip()[:MAX_TEXT]
+        if not text:
+            raise ValueError("la decisión necesita la pregunta")
+        item["text"] = text
+    if artifact is not None:
+        artifact = artifact.strip() or None
+        if artifact and not URL_RE.match(artifact):
+            raise ValueError("el artefacto tiene que ser un link https://claude.ai/artifact/<id>")
+        item["artifact"] = artifact
+    if with_ is not None:
+        item["with"] = with_.strip()[:80] or None
+    db.set(f"later:{item_id}", item)
+    return item
+
+
 def close(db: Db, item_id: str, status: str, answer: str | None = None) -> dict:
     item = get(db, item_id)
     if item is None:

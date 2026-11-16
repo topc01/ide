@@ -431,9 +431,9 @@ con alguien, para que no se pierda. Cada una es **una pregunta de una línea**, 
 **artefacto** del análisis (`--artifact <claude.ai/artifact/…>`) y **con quién** conversarla (`--with
 "Sebastián (CX)"`). Las deja la sesión con **`ide later add "<pregunta>" [--with …] [--artifact …] [-m
 "<contexto corto>"]`** (dentro de la sesión; `--session <id>` afuera) o el usuario desde el módulo (pregunta,
-con quién y link). El módulo las lista agrupadas **por desarrollo** (el actual primero) o **por persona** («con
+con quién y link). El módulo las lista agrupadas **por desarrollo** (el actual primero) o **por con quién** («con
 Sebastián · 3»); click en la pregunta abre el artefacto (si no tiene, la sesión; si su sesión está archivada —el grupo dice «(archivado)» con el nombre del desarrollo—, despliega el contexto y la respuesta solo queda anotada); el contexto queda plegado
-(«contexto…»). Arriba el total y el ícono del módulo lleva el número (`useBadge`). **Responder** le manda la
+(«contexto…»). El lápiz edita la pregunta, con quién y el artefacto (uno de los del desarrollo, de una lista, o un link pegado; canal `later.update {id, text, with, artifact}`, solo desde la UI). Arriba el total y el ícono del módulo lleva el número (`useBadge`). **Responder** le manda la
 respuesta a la sesión (encolada o la lanza; encabezado `[Respuesta del usuario a un pendiente que quedó para
 después]`) y la cierra; en desarrollos sin sesión solo queda anotada. **Resuelto** (✓) la cierra sin mandarle
 nada a la sesión. ✕ la descarta. La sesión cierra las suyas con **`ide later done <id> [-m "cómo"]`** (`ide

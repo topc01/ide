@@ -2282,6 +2282,19 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def later_list(p: dict) -> dict:
         return {"items": later_mod.items(db, open_only=not p.get("all")) if db else []}
 
+    async def later_update(p: dict) -> dict:
+        """Editar una decisión (módulo Decisiones: pregunta, con quién, artefacto). Solo desde la UI."""
+        if p.get("_http") or db is None:
+            raise SessionError("forbidden", "se edita desde el módulo Decisiones")
+        try:
+            item = later_mod.update(db, str(p.get("id")), text=p.get("text"), artifact=p.get("artifact"), with_=p.get("with"))
+        except KeyError:
+            raise SessionError("not_found", "esa decisión ya no está abierta")
+        except ValueError as exc:
+            raise SessionError("bad_request", str(exc)) from exc
+        notify()
+        return {"item": item}
+
     async def later_answer(p: dict) -> dict:
         """Responder un pendiente: la respuesta se le manda a la sesión (si el desarrollo tiene)."""
         if db is None:
@@ -2581,7 +2594,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "sessions.activity": session_activity, "sessions.attention": session_attention,
         "sessions.attentionReply": session_attention_reply,
         "tools.add": tools_add, "tools.set": tools_set, "tools.list": tools_list, "tools.show": tools_show,
-        "later.add": later_add, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss, "later.resolve": later_resolve,
+        "later.add": later_add, "later.update": later_update, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss, "later.resolve": later_resolve,
         "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "servers.blocks": servers_blocks, "servers.start": servers_start,
         "servers.stop": servers_stop, "servers.log": servers_log, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
