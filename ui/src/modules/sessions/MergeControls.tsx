@@ -1,6 +1,6 @@
 // ui/src/modules/sessions/MergeControls.tsx
 import { useState } from "react";
-import { GitMerge, Layers, Pause, Play, RotateCw, X } from "lucide-react";
+import { GitMerge, Layers, RotateCw, Square, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
 import { QueueItemAction } from "../../components/ai-elements/queue";
@@ -133,13 +133,13 @@ export function MergeAllAction({ devKey, prs, job, me, asButton }: { devKey: str
     ? <Button size="sm" variant="secondary" className="h-7 gap-1 text-xs" title={title} disabled={busy} onClick={onClick}>{icon}{label}</Button>
     : <QueueItemAction aria-label={label} title={title} onClick={(e) => { e.stopPropagation(); onClick(); }}>{icon}</QueueItemAction>;
   if (job?.state === "running")
-    return btn("Detener", "Detener «Mergear todo» (lo que ya está armado en GitHub sigue armado)", <Pause size={11} />,
+    return btn("Detener merge", "Detener «Mergear todo» (lo que ya está armado en GitHub sigue armado)", <Square size={11} />,
       () => act(mergeAllStop(getWs(), devKey)));
   if (job && (job.state === "error" || job.state === "stopped"))
     return (<>
-      {btn("Reanudar", `Reanudar «Mergear todo»${job.error ? ` (se detuvo: ${job.error})` : ""}`, <Play size={11} />,
+      {btn("Seguir mergeando", `Seguir con «Mergear todo»${job.error ? ` (se detuvo: ${job.error})` : ""}`, <Layers size={11} />,
         () => act(mergeAllResume(getWs(), devKey)))}
-      {btn("Descartar", "Descartar el «Mergear todo» detenido", <X size={11} />, () => act(mergeAllDismiss(getWs(), devKey)))}
+      {btn("Descartar merge", "Descartar el «Mergear todo» detenido", <X size={11} />, () => act(mergeAllDismiss(getWs(), devKey)))}
     </>);
   return (<>
     {btn("Mergear todo", `Mergear todo el desarrollo (${mine.length} PRs, en orden)`, <Layers size={11} />, () => setOpen(true))}

@@ -39,7 +39,7 @@ export const ACTIVITY: Record<Activity, [string, string, string]> = {
   stale: ["◯", "text-red-500", "stale: el claude no está corriendo y el desarrollo sigue activo (se abre al entrar a la sesión)"],
   idle: ["○", "text-muted-foreground", "claude parado"],
   frozen: ["⏸", "text-violet-400", "congelada: su claude está detenido donde estaba (sin gastar CPU ni tokens; la memoria sigue ocupada)"],
-  paused: ["⏸", "text-muted-foreground", "pausada: su claude está cerrado (sin memoria ni tokens); Reanudar en las acciones de la card"],
+  paused: ["⏸", "text-muted-foreground", "desarrollo pausado: su claude está cerrado (sin memoria ni tokens); se retoma quitándole la pausa o con Retomar en su panel"],
 };
 
 /** Las que te esperan, primero (orden estable). */

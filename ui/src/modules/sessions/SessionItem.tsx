@@ -1,7 +1,7 @@
 // ui/src/modules/sessions/SessionItem.tsx
 import { useState, type ReactNode } from "react";
-import { Archive, ExternalLink, Pause, Play, Power } from "lucide-react";
-import { freezeSession, pauseSession, resumeSession, type FolderSession, type GhPr } from "../../transport/folderSessions";
+import { Archive, ExternalLink, Pause, Play } from "lucide-react";
+import { freezeSession, type FolderSession, type GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
 import { CardActions, CardCorner, DevIndex, TicketChip, RelationChips, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
@@ -10,11 +10,6 @@ import { ACTIVITY, activityOf, waitTime } from "./activity";
 import { PersonChip } from "../../lib/people";
 import { getWs } from "../../transport/wsClient";
 
-/** Reanudar y Pausar están en el mismo lugar de la card: un segundo click (o un doble click) después de
- *  Reanudar caía en Pausar y la volvía a cerrar. Pausar no sale hasta 15 s después de reanudarla. */
-const resumedAt: Record<string, number> = {};
-export const markResumed = (sid: string) => { resumedAt[sid] = Date.now(); };
-const PAUSE_GUARD_MS = 15000;
 import { useFolders } from "../../state/folders";
 import { QueueItem, QueueItemActions, QueueItemAction } from "../../components/ai-elements/queue";
 import { Badge } from "../../components/ui/badge";
@@ -43,7 +38,6 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
   const { activeId, activePrUrl, setActive } = useFolders();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [, setTick] = useState(0);
   const act = activityOf(session, dev);
   const [dot, dotCls, label] = ACTIVITY[act];
   const waitNote = act === "waiting" || act === "outdated" ? session.activity?.note : null;
@@ -86,18 +80,6 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           <CardActions>
             <RenameAction devKey={`s:${session.id}`} />
             <StateAction dev={dev} devKey={`s:${session.id}`} />
-            {session.process === "running" && !session.paused && Date.now() - (resumedAt[session.id] ?? 0) > PAUSE_GUARD_MS && (
-              <QueueItemAction aria-label={`Pausar ${session.id}`}
-                title="Pausar: corta el turno, cierra su claude (libera su memoria y no gasta tokens) y nada lo relanza solo; Reanudar lo vuelve a abrir con la misma conversación"
-                onClick={(e) => { e.stopPropagation(); pauseSession(getWs(), session.id).catch((err: any) => setError(err?.message ?? String(err))); }}>
-                <Power size={11} />
-              </QueueItemAction>)}
-            {session.paused && session.process !== "running" && (
-              <QueueItemAction aria-label={`Reanudar ${session.id}`}
-                title="Reanudar: relanza su claude con la misma conversación, le dice que siga y le pasa los mensajes que llegaron mientras estaba pausada"
-                onClick={(e) => { e.stopPropagation(); resumedAt[session.id] = Date.now(); window.setTimeout(() => setTick((n) => n + 1), PAUSE_GUARD_MS + 100); resumeSession(getWs(), session.id).catch((err: any) => setError(err?.message ?? String(err))); }}>
-                <Play size={11} />
-              </QueueItemAction>)}
             {actions}
             {/* toda card con PR se puede abrir en GitHub (las pendientes ya lo traen en `actions`) */}
             {!onlyActions && (pr?.url ?? session.prUrl) && (

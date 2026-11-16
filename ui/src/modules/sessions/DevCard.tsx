@@ -382,7 +382,7 @@ function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: st
       {title("¿Está frenado?")}
       {dev.block ? (
         <div className="px-2">
-          <button onClick={() => set("unblock")} title={`Vuelve a "${STATE[dev.phase][0]}"`}
+          <button onClick={() => set("unblock")} title={dev.block === "paused" ? `Vuelve a "${STATE[dev.phase][0]}" y reabre su claude con la misma conversación` : `Vuelve a "${STATE[dev.phase][0]}"`}
             className="w-full rounded border border-border px-2 py-1 text-left hover:bg-accent">✕ Quitar pausa
             <span className="text-muted-foreground"> (vuelve a {STATE[dev.phase][0]})</span></button>
         </div>
@@ -402,7 +402,7 @@ function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: st
         <div className="flex gap-1 px-2">
           <button onClick={() => setBlocking(true)} title="No se puede avanzar: te pide el motivo"
             className="flex-1 rounded border border-border px-2 py-1 text-red-400 hover:bg-accent">Bloqueado…</button>
-          <button onClick={() => set("paused")} title="En espera, sin apuro"
+          <button onClick={() => set("paused")} title="En espera, para retomarlo después: cierra su claude (libera memoria, no gasta tokens) y los mensajes esperan"
             className="flex-1 rounded border border-border px-2 py-1 text-muted-foreground hover:bg-accent">Pausado</button>
         </div>)}
       <button onClick={() => setMore(!more)} title="Para cuando lo que dice GitHub está mal"

@@ -556,35 +556,33 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"ok": True}
 
-    async def pause(p: dict) -> dict:
-        """Pausar (acción de la card): corta el turno (Esc), cierra su claude (libera su memoria y no gasta
+    def _block(sid: str) -> str | None:
+        return ((db.get(f"devstate:s:{sid}") or {}).get("block")) if db is not None else None
+
+    async def _close_paused(sid: str) -> None:
+        """El desarrollo quedó pausado: corta el turno (Esc), cierra su claude (libera su memoria y no gasta
         tokens) y lo deja marcado para que nada lo relance solo; los mensajes que le lleguen esperan."""
-        sid = require_plain_name(p["id"], "sesión")
-        require_session(root, sid)
-        if db is None:
-            raise SessionError("no_db", "sin base")
+        if db is None or db.get(f"paused:{sid}"):
+            return
         if supervisor.state(sid) == "running":
             supervisor.interrupt(sid)
             await asyncio.sleep(1.5)            # que claude cierre el turno antes de matarlo
         supervisor.stop(sid)
         db.set(f"paused:{sid}", {"at": datetime.now().isoformat(timespec="seconds")})
         db.event(datetime.now().isoformat(timespec="seconds"), "usuario", "paused", dev=sid)
-        notify()
-        return {"ok": True}
 
-    async def resume(p: dict) -> dict:
-        """Reanudar una sesión pausada: relanza su claude con la misma conversación, le dice que siga y le pasa
-        los mensajes que llegaron mientras tanto."""
-        sid = require_plain_name(p["id"], "sesión")
-        require_session(root, sid)
+    def _reopen(sid: str) -> str:
+        """Se quitó la pausa: relanza su claude con la misma conversación, le dice que siga y le pasa los
+        mensajes que llegaron mientras tanto."""
         rec = db.get(f"paused:{sid}") if db is not None else None
-        held = (db.get(f"pausedmsgs:{sid}") or []) if db is not None else []
-        if db is not None:
-            db.delete(f"paused:{sid}")
-            db.delete(f"pausedmsgs:{sid}")
+        if rec is None:
+            return supervisor.state(sid)
+        held = db.get(f"pausedmsgs:{sid}") or []
+        db.delete(f"paused:{sid}")
+        db.delete(f"pausedmsgs:{sid}")
         when = (rec or {}).get("at", "")[11:16]
-        text = (f"[Aviso del IDE] El usuario te pausó{f' a las {when}' if when else ''}: se cerró tu claude y el turno que "
-                "estabas haciendo quedó cortado. Revisa en qué estabas y sigue.")
+        text = (f"[Aviso del IDE] El usuario pausó este desarrollo{f' a las {when}' if when else ''}: se cerró tu claude "
+                "y el turno que estabas haciendo quedó cortado. Ya lo retomó: revisa en qué estabas y sigue.")
         if held:
             text += "\n\nMientras estabas pausada te llegaron estos mensajes:\n\n" + "\n\n---\n\n".join(held)
         if supervisor.state(sid) == "running":
@@ -592,8 +590,44 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             state = "running"
         else:
             state = supervisor.start(sid, prompt=text)
-        if db is not None:
-            db.event(datetime.now().isoformat(timespec="seconds"), "usuario", "resumed", dev=sid)
+        db.event(datetime.now().isoformat(timespec="seconds"), "usuario", "resumed", dev=sid)
+        return state
+
+    # los desarrollos que ya estaban pausados (de antes de que pausar cerrara su claude): quedan cerrados
+    if db is not None:
+        for k, v in db.with_prefix("devstate:s:").items():
+            sid_ = k[len("devstate:s:"):]
+            if (v or {}).get("block") == "paused" and not db.get(f"paused:{sid_}"):
+                db.set(f"paused:{sid_}", {"at": (v.get("since") or datetime.now().isoformat(timespec="seconds"))[:19]})
+
+    async def _sync_pause(sid: str, before: str | None) -> None:
+        """Pausar el desarrollo (estado «pausado») cierra su claude; quitarle la pausa lo reabre."""
+        after = _block(sid)
+        if after == "paused" and before != "paused":
+            await _close_paused(sid)
+        elif before == "paused" and after != "paused":
+            _reopen(sid)
+
+    async def pause(p: dict) -> dict:
+        """Pausar el desarrollo de la sesión (lo mismo que el estado «pausado» de la card)."""
+        sid = require_plain_name(p["id"], "sesión")
+        require_session(root, sid)
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        before = _block(sid)
+        await asyncio.to_thread(set_status, root, db, sid, "paused", actor="ide")
+        await _sync_pause(sid, before)
+        await _close_paused(sid)
+        notify()
+        return {"ok": True}
+
+    async def resume(p: dict) -> dict:
+        """Reanudar (botón del panel de una sesión pausada): le quita la pausa al desarrollo y reabre su claude."""
+        sid = require_plain_name(p["id"], "sesión")
+        require_session(root, sid)
+        if db is not None and _block(sid) == "paused":
+            await asyncio.to_thread(set_status, root, db, sid, "unblock", actor="ide")
+        state = _reopen(sid)
         notify()
         return {"process": state}
 
@@ -1579,8 +1613,12 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             return {"dev": db.dev(require_plain_name(p["id"], "sesión")),
                     "message": "ya no hace falta: el IDE detecta solo cuando terminas el turno y esperas al "
                                "usuario (la primera línea de tu último mensaje es lo que ve)"}
-        row = await asyncio.to_thread(set_status, root, db, require_plain_name(p["id"], "sesión"),
-                                      p["status"], actor=p.get("actor") or "ide", note=p.get("note"))
+        sid = require_plain_name(p["id"], "sesión")
+        before = _block(sid)
+        actor = p.get("actor") or "ide"
+        row = await asyncio.to_thread(set_status, root, db, sid, p["status"], actor=actor, note=p.get("note"))
+        if actor != f"claude:{sid}":            # la sesión que se pausa a sí misma no se corta el turno
+            await _sync_pause(sid, before)
         notify()
         return {"dev": row}
 
@@ -1872,7 +1910,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             if p["gh"] is not None and p["gh"] not in (*PHASES, "merging", "staging-evidence"):
                 raise SessionError("bad_request", f"fase de GitHub inválida: {p['gh']!r}")
             extra["gh"] = p["gh"]
+        sid = key[2:] if key.startswith("s:") else None
+        before = _block(sid) if sid else None
         await asyncio.to_thread(set_dev_state, root, db, key, p.get("status"), actor="ide", note=note, **extra)
+        if sid:
+            await _sync_pause(sid, before)
         notify()
         return {"ok": True}
 
