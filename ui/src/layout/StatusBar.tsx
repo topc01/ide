@@ -280,7 +280,7 @@ function SessionCounter({ items, one, many, what }:
   return (<>
     <button ref={trigger} onMouseEnter={show} onMouseLeave={hide}
       onClick={() => { show(); setPinned(true); }}
-      title={`Las sesiones ${working ? "con su claude trabajando" : what === "terminaron" ? "que terminaron (sin pregunta ni permiso pendiente)" : "que necesitan tu respuesta (un permiso o una pregunta)"}: pasa el mouse para verlas; click = la lista queda abierta hasta Esc. En la lista: hover en una sesión = su detalle; click = abre la sesión; doble click = la lista y el detalle quedan fijos (↑/↓ cambia de sesión, Enter la abre)`}
+      // sin tooltip: tapaba la barra y la lista (el encabezado de la lista ya explica cómo se usa)
       className={cn("rounded border px-1.5 font-semibold hover:brightness-125", tone, border, (at || pinned) && bg)}>
       {waiting.length} {waiting.length === 1 ? one : many}</button>
     {at && createPortal(
