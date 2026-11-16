@@ -1,6 +1,7 @@
 // ui/src/layout/StatusBar.tsx
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { create } from "zustand";
 import { useFolders } from "../state/folders";
 import { useStore } from "../state/store";
 import { isWaiting, waitTime } from "../modules/sessions/activity";
@@ -163,6 +164,17 @@ function WorkingNow() {
     tone="text-sky-300" bg="bg-sky-400/15" dot={["◐", "inline-block leading-none text-sky-400 animate-spin"]} time={since} />;
 }
 
+/** Lo que ocupa en pantalla cada lista abierta de la barra (con su detalle): otra lista que se abre se corre al
+ *  costado en vez de taparla. */
+const useOpenLists = create<{ spans: Record<string, [number, number]>; set: (k: string, v: [number, number] | null) => void }>((set) => ({
+  spans: {},
+  set: (k, v) => set((st) => {
+    const spans = { ...st.spans };
+    if (v) spans[k] = v; else delete spans[k];
+    return { spans };
+  }),
+}));
+
 /** Contador de la barra inferior con su lista de cards (número y nombre). Hover = se despliega hacia arriba;
  *  click en el contador = queda fija hasta Esc. Hover en una card = su detalle al lado mientras el mouse está ahí;
  *  click = el detalle queda fijo y ↑/↓ lo cambia a la sesión de arriba/abajo. Enter (o «ir a la sesión») abre la
@@ -185,6 +197,16 @@ function SessionCounter({ items, one, many, what }:
   const [pinned, setPinned] = useState(false);            // la lista, fija (click en el contador)
   const [detailPinned, setDetailPinned] = useState(false); // el detalle, fijo (click en una card)
   const [hoverKey, setHoverKey] = useState<string | null>(null);
+  const spans = useOpenLists((st) => st.spans);
+  const setSpan = useOpenLists((st) => st.set);
+  const clickTimer = useRef<number | undefined>(undefined);
+  const spanRef = useRef<[number, number] | null>(null);
+  // después de cada render: anota lo que ocupa esta lista (solo si cambió, si no se re-renderizan en loop)
+  useEffect(() => {
+    const cur = useOpenLists.getState().spans[what] ?? null, v = spanRef.current;
+    if (JSON.stringify(cur) !== JSON.stringify(v)) setSpan(what, v);
+  });
+  useEffect(() => () => setSpan(what, null), []);
   const [idx, setIdx] = useState(0);
   const idxRef = useRef(0); idxRef.current = idx;
   const trigger = useRef<HTMLButtonElement>(null);
@@ -236,20 +258,29 @@ function SessionCounter({ items, one, many, what }:
     return () => window.removeEventListener("keydown", onKey, true);
   }, [at, keys.join("|")]);
   if (!waiting.length) {
+    spanRef.current = null;
     return <button disabled title={`Ninguna sesión ${what === "trabajando" ? "en curso" : what}`}
       className="cursor-default rounded border border-border px-1.5 text-muted-foreground opacity-60">0 {many}</button>;
   }
   const sel = Math.min(idx, waiting.length - 1);
   const shown = detailPinned ? keys[sel] : hoverKey;
-  const listLeft = at ? Math.max(8, Math.min(at.left, window.innerWidth - 368)) : 0;
   const detailW = 500;
-  const rightRoom = window.innerWidth - (listLeft + 368) - 8;
-  const detailLeft = rightRoom >= detailW ? listLeft + 368 : Math.max(8, listLeft - detailW - 8);
+  // la lista y su detalle van juntos (el detalle a la derecha); si otra lista abierta ocupa ese lugar, se corre
+  const blockW = 368 + (shown ? detailW : 0);
+  const W = window.innerWidth;
+  const others = Object.entries(spans).filter(([k]) => k !== what).map(([, v]) => v);
+  const fits = (l: number) => l >= 8 && l + blockW <= W - 8 && !others.some(([a, b]) => l < b + 8 && l + blockW > a - 8);
+  const start = at ? Math.max(8, Math.min(at.left, W - blockW - 8)) : 0;
+  const listLeft = !at ? 0 : fits(start) ? start
+    : [...others.map(([, b]) => b + 8), ...others.map(([a]) => a - 8 - blockW)].filter(fits)
+      .sort((x, y) => Math.abs(x - start) - Math.abs(y - start))[0] ?? start;
+  const detailLeft = listLeft + 368;
   const shownSid = shown?.startsWith("s:") ? shown.slice(2) : null;
+  spanRef.current = at ? [listLeft, listLeft + blockW] : null;
   return (<>
     <button ref={trigger} onMouseEnter={show} onMouseLeave={hide}
       onClick={() => { show(); setPinned(true); }}
-      title={`Las sesiones ${working ? "con su claude trabajando" : what === "terminaron" ? "que terminaron (sin pregunta ni permiso pendiente)" : "que necesitan tu respuesta (un permiso o una pregunta)"}: pasa el mouse para verlas; click = la lista queda abierta hasta Esc. En la lista: hover en una sesión = su detalle; click = el detalle queda fijo (↑/↓ cambia de sesión); Enter abre la sesión`}
+      title={`Las sesiones ${working ? "con su claude trabajando" : what === "terminaron" ? "que terminaron (sin pregunta ni permiso pendiente)" : "que necesitan tu respuesta (un permiso o una pregunta)"}: pasa el mouse para verlas; click = la lista queda abierta hasta Esc. En la lista: hover en una sesión = su detalle; click = abre la sesión; doble click = la lista y el detalle quedan fijos (↑/↓ cambia de sesión, Enter la abre)`}
       className={cn("rounded border px-1.5 font-semibold hover:brightness-125", tone, border, (at || pinned) && bg)}>
       {waiting.length} {waiting.length === 1 ? one : many}</button>
     {at && createPortal(
@@ -259,7 +290,7 @@ function SessionCounter({ items, one, many, what }:
           className="fixed z-50 w-[360px] pb-1 font-mono text-xs">
           <div className="max-h-[70vh] overflow-y-auto rounded-md border border-border bg-popover p-1.5 shadow-xl">
             <div className="px-1 pb-1.5 pt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-              {what}{persistent ? " · fija: Esc cierra" : ""} · ↑/↓, click fija el detalle, Enter abre</div>
+              {what}{persistent ? " · fija: Esc cierra" : ""} · click abre · doble click fija · ↑/↓</div>
             <div className="flex flex-col gap-1">
               {waiting.map(([k, v], i) => {
                 // terminó y su PR espera a los revisores: eso es lo que la frena, no «terminó»
@@ -273,7 +304,13 @@ function SessionCounter({ items, one, many, what }:
                   <button key={k} role="option" aria-selected={i === sel}
                     onMouseEnter={() => hoverIn(k)} onMouseLeave={hoverOut}
                     onMouseMove={() => i !== sel && !detailPinned && setIdx(i)}
-                    onClick={() => { setIdx(i); setPinned(true); setDetailPinned(true); }}
+                    // un click abre la sesión; doble click deja fijos la lista y el detalle
+                    onClick={(e) => {
+                      window.clearTimeout(clickTimer.current);
+                      if (e.detail > 1) return;
+                      clickTimer.current = window.setTimeout(() => { closeAll(); go(k); }, 250);
+                    }}
+                    onDoubleClick={() => { window.clearTimeout(clickTimer.current); setIdx(i); setPinned(true); setDetailPinned(true); }}
                     // sin title: el tooltip tapaba las cards de abajo (el encabezado de la lista ya explica)
                     className={cn("flex w-full items-start gap-2 rounded border px-2 py-1.5 text-left",
                       i === sel ? "border-primary/60 bg-accent text-foreground" : "border-border bg-background/40 text-muted-foreground hover:text-foreground",
