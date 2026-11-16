@@ -2,11 +2,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { CircleHelp, Eye, EyeOff, Flag, Hourglass, Pause, Pencil, Presentation } from "lucide-react";
-import { hideDev, renameDev, setDevState, startTour, type GhPr, type MergeJob } from "../../transport/folderSessions";
+import { hideDev, renameDev, setDevState, startTour, type LaterItem, type GhPr, type MergeJob } from "../../transport/folderSessions";
 import { QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
 import { cn } from "../../lib/utils";
+import { useLaterFocus } from "../later/focus";
 import { devIndexOf, devKeys, devName, isHidden } from "./desarrollos";
 import { useStore } from "../../state/store";
 import { ago, STATE, type DevStateInfo, type Phase } from "./devStates";
@@ -275,9 +276,13 @@ export function DevIndex({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
 /** Estado del desarrollo en la card: una píldora con su color, cuánto lleva así y la nota de la
  *  sesión en su propia línea. Si Mis desarrollos ya agrupa por estado, el grupo lo dice: solo la nota.
  *  Se cambia con la acción de hover (StateAction). */
-export function DevStateLabel({ dev }: { dev: DevStateInfo | null; devKey?: string }) {
+export function DevStateLabel({ dev, devKey }: { dev: DevStateInfo | null; devKey?: string }) {
   const grouped = useSidebarConfig((s) => (s.groupBy.mine ?? "status") === "status");
+  const later = useFolders((s) => s.tree.later);
+  const blockers = devKey ? (later ?? []).filter((it) => it.key === devKey && it.blocks) : [];
   if (!dev) return null;
+  // bloqueado por bloqueantes: se muestran ellos (click: el módulo Bloqueantes con ese marcado), no la nota
+  const shownBlockers = dev.block === "blocked" ? blockers : [];
   const [label, , text] = STATE[dev.state];
   const tip = `Estado del desarrollo: ${label}${dev.block ? ` (fase: ${STATE[dev.phase][0]})` : ""}`
     + `${dev.github ? " · la fase sale de GitHub" : ""}${dev.inferred ? " · deducido de sus PRs" : ""}`
@@ -293,8 +298,40 @@ export function DevStateLabel({ dev }: { dev: DevStateInfo | null; devKey?: stri
         </span>)}
       {dev.outOfDraft && <span className="block text-amber-300"
         title={`Está "${STATE[dev.manual!][0]}" pero una PR ya no está en draft (mientras se trabaja, las PRs van en draft)`}>PR fuera de draft</span>}
-      {dev.note && <span className="line-clamp-2 italic text-muted-foreground">{dev.note}</span>}
+      {shownBlockers.map((it) => <BlockerLine key={it.id} it={it} />)}
+      {dev.note && !shownBlockers.length && <span className="line-clamp-2 italic text-muted-foreground">{dev.note}</span>}
     </span>);
+}
+
+/** Un bloqueante en la card de un desarrollo bloqueado: click lo despliega (texto completo, con quién, artefacto y
+ *  «ver en Bloqueantes») y otro click lo pliega. */
+function BlockerLine({ it }: { it: LaterItem }) {
+  const [open, setOpen] = usePersistentOpen(`blocker.${it.id}`, false);
+  const { activePanel, setActivePanel, innerSidebarOpen, toggleInnerSidebar } = useStore();
+  const Icon = it.kind === "pending" ? Hourglass : CircleHelp;
+  const toModule = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    useLaterFocus.getState().set(it.id);
+    if (activePanel !== "later") setActivePanel("later");
+    if (!innerSidebarOpen) toggleInnerSidebar();
+  };
+  return (
+    <div onClick={(e) => { e.stopPropagation(); setOpen(!open); }} role="button" aria-expanded={open}
+      aria-label={`${open ? "Plegar" : "Desplegar"} el bloqueante: ${it.text}`}
+      className="mt-0.5 w-full cursor-pointer rounded border border-red-400/50 bg-red-400/[0.07] px-1 py-0.5 text-left text-[11px] text-foreground hover:border-red-400">
+      <div className="flex items-start gap-1">
+        <Icon size={11} className="mt-[2px] shrink-0 text-red-300" />
+        <span className={open ? "whitespace-pre-wrap break-words" : "line-clamp-2"}>
+          {it.text}{it.with ? <span className="text-muted-foreground"> · {it.with}</span> : null}</span>
+      </div>
+      {open && (
+        <div className="mt-1 flex flex-wrap gap-2 pl-4 text-[10px]">
+          {it.artifact && <button onClick={(e) => { e.stopPropagation(); openExternal(it.artifact!); }}
+            className="text-primary hover:underline">abrir el artefacto ↗</button>}
+          <button onClick={toModule} className="text-primary hover:underline">ver en Bloqueantes</button>
+          <span className="text-muted-foreground">hace {ago(it.created)}</span>
+        </div>)}
+    </div>);
 }
 
 /** Acción de hover "Cambiar estado": abre el menú flotante con todos los estados. */

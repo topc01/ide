@@ -3,7 +3,8 @@
  *  alguien) y **pendiente** (algo que se espera de alguien). Cada uno con con quién y, opcional, el artefacto del
  *  análisis (click en el texto lo abre). Si «bloquea el desarrollo», éste pasa a Bloqueado hasta cerrarlo. Los dejan
  *  las sesiones (`ide later add`) o tú con «+ Nuevo bloqueante»; la respuesta se le manda a la sesión. */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useLaterFocus } from "./focus";
 import { Check, CircleHelp, ExternalLink, Hourglass, Pencil, Plus, Send, X } from "lucide-react";
 import { useCurrentDev } from "../../main/currentDev";
 import { useFolders } from "../../state/folders";
@@ -124,6 +125,16 @@ function Item({ it, showDev, label }: { it: LaterItem; showDev: boolean; label: 
   const [editing, setEditing] = useState<Form | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const focus = useLaterFocus((s) => s.id);
+  const box = useRef<HTMLDivElement>(null);
+  const [flash, setFlash] = useState(false);
+  useEffect(() => {
+    if (focus !== it.id) return;
+    box.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    setFlash(true);
+    const t = window.setTimeout(() => { setFlash(false); useLaterFocus.getState().set(null); }, 2000);
+    return () => window.clearTimeout(t);
+  }, [focus, it.id]);
   const toSession = it.key.startsWith("s:");
   const live = toSession && !it.archived;
   const kind: Kind = it.kind === "pending" ? "pending" : "decision";
@@ -145,14 +156,15 @@ function Item({ it, showDev, label }: { it: LaterItem; showDev: boolean; label: 
       .then(() => setEditing(null)).catch(err);
   };
   return (
-    <div className={cn("mx-2 mb-1.5 rounded-md border bg-card p-2", it.blocks ? "border-red-400/60" : "border-border")}>
+    <div ref={box} className={cn("mx-2 mb-1.5 rounded-md border bg-card p-2 transition-shadow", it.blocks ? "border-red-400/60" : "border-border",
+      flash && "ring-2 ring-primary")}>
       {showDev && <DevLabel k={it.key} label={label} />}
-      <div className="mb-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+      <div className="mb-0.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
         <span className={cn("flex items-center gap-0.5 font-semibold", tone)}><Icon size={11} />{kindLabel}</span>
         {it.blocks && <span className="rounded border border-red-400/70 px-1 font-semibold text-red-300">bloquea</span>}
-        {it.with && <span className="min-w-0 max-w-[9rem] truncate rounded border border-border px-1 text-foreground">con {it.with}</span>}
+        {it.with && <span className="max-w-[12rem] truncate rounded border border-border px-1 text-foreground">con {it.with}</span>}
         <span className="shrink-0">· hace {ago(it.created)}</span>
-        <span className="flex-1" />
+        <span className="ml-auto flex shrink-0 items-center gap-1">
         <button title="Editar" aria-label="Editar"
           onClick={() => setEditing(editing ? null : { kind, text: it.text, who: it.with ?? "", art: it.artifact ?? "", blocks: !!it.blocks })}
           className="rounded p-0.5 hover:bg-accent hover:text-foreground"><Pencil size={11} /></button>
@@ -160,6 +172,7 @@ function Item({ it, showDev, label }: { it: LaterItem; showDev: boolean; label: 
           onClick={() => laterResolve(getWs(), it.id).catch(err)} className="rounded p-0.5 hover:bg-accent hover:text-emerald-400"><Check size={12} /></button>
         <button title="Descartar" aria-label="Descartar"
           onClick={() => laterDismiss(getWs(), it.id).catch(err)} className="rounded p-0.5 hover:bg-accent hover:text-foreground"><X size={12} /></button>
+        </span>
       </div>
       {editing ? (
         <div className="mt-1">
