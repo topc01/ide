@@ -191,7 +191,9 @@ def _parser() -> argparse.ArgumentParser:
     tsh.add_argument("--json", action="store_true")
     lt = sub.add_parser("later", help="pendientes para después (preguntas/temas que el usuario verá otro día)").add_subparsers(dest="cmd", required=True)
     la = lt.add_parser("add", help="deja un pendiente en el desarrollo de la sesión")
-    la.add_argument("text"); la.add_argument("-m", "--context", help="contexto: qué se necesita y por qué")
+    la.add_argument("text", help="la pregunta, en una línea"); la.add_argument("-m", "--context", help="(opcional) contexto corto; el análisis va en el artefacto")
+    la.add_argument("--artifact", help="link del artefacto con el análisis y las opciones (claude.ai/artifact/…)")
+    la.add_argument("--with", dest="with_", help="con quién hay que conversarlo (p.ej. \"Sebastián (CX)\")")
     la.add_argument("--session")
     ll = lt.add_parser("ls", help="pendientes abiertos de todos los desarrollos")
     ll.add_argument("--json", action="store_true"); ll.add_argument("--all", action="store_true", help="también respondidos/descartados")
@@ -663,8 +665,9 @@ def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         if not sid:
             raise SessionError("no_session", "no estoy dentro de una sesión: usa --session <id>")
         actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
-        data = _post(http, url, "/api/later", {"sid": sid, "text": a.text, "context": a.context, "actor": actor})
-        out.write(f"pendiente {data['item']['id']} en {sid}\n")
+        data = _post(http, url, "/api/later", {"sid": sid, "text": a.text, "context": a.context, "actor": actor,
+                                              "artifact": a.artifact, "with": a.with_})
+        out.write(f"decisión {data['item']['id']} en {sid}\n")
         return 0
     if a.cmd == "done":
         from urllib.parse import quote
@@ -683,6 +686,7 @@ def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         return 0
     for it in items:
         out.write(f"{it['id']}\t{it['created'][:10]}\t{it['key']}\t{it['status']}\t{it['text']}"
+                  + (f"\tcon {it['with']}" if it.get("with") else "") + (f"\t{it['artifact']}" if it.get("artifact") else "")
                   + (f"\t({it['context']})" if it.get("context") else "") + "\n")
     if not items:
         out.write("(ninguno)\n")

@@ -50,9 +50,11 @@ export interface SessionsTree {
 export interface LaterItem {
   id: string; key: string; text: string; context: string | null; actor: string; created: string;
   status: "open" | "answered" | "resolved" | "dismissed"; answer: string | null; resolved: string | null;
+  artifact?: string | null; with?: string | null;   // el artefacto con el análisis; con quién conversarlo
 }
-export const laterAdd = (ws: WsClient, key: string, text: string, context: string | null): Promise<{ item: LaterItem }> =>
-  ws.request("later.add", { key, text, context });
+export const laterAdd = (ws: WsClient, key: string, text: string, context: string | null,
+  extra: { artifact?: string | null; with?: string | null } = {}): Promise<{ item: LaterItem }> =>
+  ws.request("later.add", { key, text, context, ...extra });
 /** Responder: si el desarrollo tiene sesión, la respuesta se le manda (`delivered` dice cómo). */
 export const laterAnswer = (ws: WsClient, id: string, answer: string): Promise<{ ok: boolean; delivered: string }> =>
   ws.request("later.answer", { id, answer });

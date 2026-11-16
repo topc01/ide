@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFolders } from "../state/folders";
+import { useStore } from "../state/store";
 import { isWaiting, waitTime } from "../modules/sessions/activity";
 import { fetchUsage, type Usage, type UsageWindow } from "../transport/folderSessions";
 import { getWs } from "../transport/wsClient";
@@ -87,6 +88,7 @@ export function StatusBar() {
           <WorkingNow />
           <WaitingForYou />
           <FinishedNow />
+          <Decisions />
           <FeedbackPending />
           <Window label="5h" w={lim?.fiveHour ?? null} now={now} />
           <Window label="semana" w={lim?.weekly ?? null} now={now} />
@@ -283,6 +285,17 @@ function SessionCounter({ items, one, many, what }:
         )}
       </div>, document.body)}
   </>);
+}
+
+/** «N decisiones»: lo que tienes que decidir o conversar (módulo Decisiones); click lo abre. */
+function Decisions() {
+  const n = useFolders((s) => s.tree.later?.length ?? 0);
+  const { activePanel, setActivePanel, innerSidebarOpen, toggleInnerSidebar } = useStore();
+  if (!n) return null;
+  return (
+    <button onClick={() => { if (activePanel !== "later") setActivePanel("later"); if (!innerSidebarOpen) toggleInnerSidebar(); }}
+      title="Lo que tienes que decidir o conversar con alguien, de todos los desarrollos: abre el módulo Decisiones"
+      className="rounded px-1 text-sky-300 hover:bg-sky-400/10">{n} {n === 1 ? "decisión" : "decisiones"}</button>);
 }
 
 /** La revisión semanal dejó un plan de feedback sin revisar: click = ir a la sesión principal. */

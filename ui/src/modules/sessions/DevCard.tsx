@@ -1,7 +1,7 @@
 // ui/src/modules/sessions/DevCard.tsx
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Clock, Eye, EyeOff, Flag, Pause, Pencil, Presentation } from "lucide-react";
+import { CircleHelp, Eye, EyeOff, Flag, Pause, Pencil, Presentation } from "lucide-react";
 import { hideDev, renameDev, setDevState, startTour, type GhPr, type MergeJob } from "../../transport/folderSessions";
 import { QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
 import { getWs } from "../../transport/wsClient";
@@ -414,18 +414,20 @@ function StateMenu({ dev, devKey, at, onClose }: { dev: DevStateInfo; devKey: st
     </div>);
 }
 
-/** Chip "⏱ N": pendientes para después del desarrollo; click abre el módulo Para después. */
+/** Chip "? N": decisiones abiertas del desarrollo (lo que tienes que decidir o conversar); click abre el módulo
+ *  Decisiones. */
 export function LaterChip({ devKey, prs }: { devKey: string; prs?: GhPr[] }) {
   const items = useFolders((s) => s.tree.later);
   const { activePanel, setActivePanel, innerSidebarOpen, toggleInnerSidebar } = useStore();
   const keys = devKeys(devKey, prs);
-  const n = (items ?? []).filter((it) => keys.includes(it.key)).length;
-  if (!n) return null;
+  const mine = (items ?? []).filter((it) => keys.includes(it.key));
+  if (!mine.length) return null;
+  const who = [...new Set(mine.map((it) => it.with).filter(Boolean))];
   return (
-    <button title={`${n} pendiente${n > 1 ? "s" : ""} para después (abre el módulo Para después)`}
+    <button title={`${mine.length} decisi${mine.length > 1 ? "ones" : "ón"} por tomar${who.length ? ` (con ${who.join(", ")})` : ""}: abre el módulo Decisiones`}
       onClick={(e) => { e.stopPropagation(); if (activePanel !== "later") setActivePanel("later"); if (!innerSidebarOpen) toggleInnerSidebar(); }}
-      className="inline-flex shrink-0 items-center gap-0.5 rounded border border-yellow-400/40 px-1 font-mono text-[10px] font-bold text-yellow-300 hover:border-yellow-300">
-      <Clock size={10} />{n}</button>);
+      className="inline-flex shrink-0 items-center gap-0.5 rounded border border-sky-400/60 bg-sky-400/10 px-1 font-mono text-[10px] font-bold text-sky-300 hover:border-sky-300">
+      <CircleHelp size={10} />{mine.length}</button>);
 }
 
 const REL = {

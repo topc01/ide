@@ -107,12 +107,16 @@ sus capturas) y suma uno con `ide evidence add "texto" [--after <n>] [--shot]`. 
 captura con `ide evidence rm --step <n> --shot <n|archivo>`, un paso con `ide evidence rm --step <n>` o la
 corrida entera con `ide evidence rm` (`--run` para otra corrida que la última).
 
-**Para después:** si el usuario no puede responder ahora ("esto lo veo con el equipo", "déjalo para
-después"), o ves una pregunta que puede esperar, déjala como pendiente:
-`ide later add "<la pregunta, autocontenida>" -m "<contexto: qué necesitas y por qué>"`. Sigue con lo
-que puedas sin esa respuesta; si ya no puedes avanzar, `ide status blocked -m "pendiente: <qué>"`. La
-respuesta te llega como `[Respuesta del usuario a un pendiente que quedó para después]`. Si se resuelve
-en el chat, ciérralo: `ide later ls --mine` y `ide later done <id> -m "<cómo>"`.
+**Decisiones:** lo que el usuario tiene que decidir o conversar con alguien (p. ej. «esto lo veo con
+Sebastián de CX», «déjalo para después»), o una pregunta tuya que puede esperar, déjalo como decisión:
+`ide later add "<la pregunta, en una línea>" --with "<con quién, si se conversa con alguien>" --artifact <link>`.
+La pregunta sola, autocontenida y corta: el análisis, las opciones y los casos van en un artefacto (el
+`--artifact`, que el usuario abre con un click), no en `-m`. Le sale en la card («? N»), en la barra de abajo y
+en el módulo Decisiones, agrupado por desarrollo o por persona. Sigue con lo que puedas sin esa respuesta; si ya
+no puedes avanzar, termina el turno diciéndolo, y marca `ide status blocked -m "pendiente: <qué y de quién>"`
+solo si la respuesta depende de un tercero. La respuesta te llega como `[Respuesta del usuario a un pendiente
+que quedó para después]`. Si se resuelve en el chat, ciérrala: `ide later ls --mine` y
+`ide later done <id> -m "<cómo>"`.
 
 `SESSION.md` guarda el análisis (y el `title` si está vacío). La sesión principal ve todo con
 `ide dev ls` y el detalle e historial con `ide dev show <id>`.

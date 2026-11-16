@@ -426,22 +426,25 @@ de la última corrida o la de ese nombre; lo marca hecho) y marca un paso con `i
 [--undo]`. Corregir y sumar pasos: `ide evidence edit <n> ["texto"] [--detail …] [--shot|--no-shot]` (el paso conserva sus capturas) e `ide evidence add "texto" [--after <n>] [--detail …] [--shot]` (al final; `--after 0` = al principio); los dos con `--run`. **`--run`** (en add, edit, shot, check, rm y publish) acepta el **identificador** de la corrida (el que muestra `ide evidence ls` entre paréntesis, p.ej. `pr-20261109111021`) o su nombre; sin `--run`, la última. Si hay varias corridas con ese nombre no elige: falla con `ambiguous_run` y lista sus identificadores. `ide evidence plan --run <nombre>` avisa si ya había una corrida con ese nombre (crea la nueva igual). El nombre de antes, `ide evidencias` (set/done/github, `--label`), sigue andando: se traduce a `ide evidence` (plan/check/publish, `--run`). Para lo obsoleto: `ide evidence shot <n> <archivo> --replace` (reemplaza las capturas del paso), `ide evidence rm --step <n> --shot <n|archivo>` (saca una captura; el paso queda pendiente si se queda sin ninguna), `ide evidence rm --step <n>` (saca el paso) e `ide evidence rm` (borra la corrida); los archivos quedan en `attachments/`. Archivo: `.ide/sessions/<id>/evidence/<corrida>.json`; canales `evidence.list|new|save|
 duplicate|delete|shot|markdown|github`; HTTP `GET/POST /api/sessions/{id}/evidence`, `POST …/evidence/shot`, `POST …/evidence/save`, `POST …/evidence/delete`.
 
-**Para después** (módulo, id `later`): pendientes de los desarrollos que el usuario no puede resolver
-ahora (p.ej. una pregunta que tiene que conversar con el equipo), para que no se pierdan. Los deja la
-sesión con **`ide later add "<pregunta>" -m "<contexto>"`** (dentro de la sesión; `--session <id>`
-afuera) o el usuario desde el módulo ("Agregar a" el desarrollo actual). El módulo lista los abiertos
-de todos los desarrollos, agrupados por desarrollo (el actual primero), con de quién y hace cuánto;
-arriba el total ("N pendientes · M de este desarrollo") y el ícono del módulo en el menú de acciones
-lleva el número de pendientes abiertos (los módulos pueden mostrar un conteo así: `useBadge`).
-**Responder** le manda la respuesta a la sesión (encolada o la lanza; encabezado `[Respuesta del
-usuario a un pendiente que quedó para después]`) y lo cierra; en desarrollos sin sesión solo queda
-anotada. **Resuelto** (✓) lo cierra sin mandarle nada a la sesión (se resolvió en el chat). ✕ lo
-descarta. La sesión cierra los suyos con **`ide later done <id> [-m "cómo se resolvió"]`** (`ide later
-ls --mine` los lista con su id). La card muestra "⏱ N" (click abre el módulo). La sesión sigue con lo que
+**Decisiones** (módulo, id `later`; antes «Para después»): lo que el usuario tiene que decidir o conversar
+con alguien, para que no se pierda. Cada una es **una pregunta de una línea**, con opcionalmente el
+**artefacto** del análisis (`--artifact <claude.ai/artifact/…>`) y **con quién** conversarla (`--with
+"Sebastián (CX)"`). Las deja la sesión con **`ide later add "<pregunta>" [--with …] [--artifact …] [-m
+"<contexto corto>"]`** (dentro de la sesión; `--session <id>` afuera) o el usuario desde el módulo (pregunta,
+con quién y link). El módulo las lista agrupadas **por desarrollo** (el actual primero) o **por persona** («con
+Sebastián · 3»); click en la pregunta abre el artefacto (si no tiene, la sesión); el contexto queda plegado
+(«contexto…»). Arriba el total y el ícono del módulo lleva el número (`useBadge`). **Responder** le manda la
+respuesta a la sesión (encolada o la lanza; encabezado `[Respuesta del usuario a un pendiente que quedó para
+después]`) y la cierra; en desarrollos sin sesión solo queda anotada. **Resuelto** (✓) la cierra sin mandarle
+nada a la sesión. ✕ la descarta. La sesión cierra las suyas con **`ide later done <id> [-m "cómo"]`** (`ide
+later ls --mine` las lista con su id). La card muestra **«? N»** (con quién, en el tooltip; click abre el
+módulo) y la barra de abajo **«N decisiones»**. Los **avisos del IDE** (evidencias en staging, CI que falló,
+un merge detenido, PRs sumadas a una revisión) ya no van acá: si la sesión está parada, le llegan al abrirla
+(`kv notices:<sesión>`; pausada: al retomarla); los que había abiertos pasaron así a sus sesiones. La sesión sigue con lo que
 pueda; si ya no puede avanzar pasa a `blocked -m "pendiente: …"`. La manager los ve con **`ide later
 ls`** (`--all` incluye cerrados, `--json`) y en el material de la revisión semanal de feedback (recuerda los de
 más de 7 días). Base: `kv` `later:<id>` = `{id, key, text, context, actor, created, status
-(open|answered|resolved|dismissed), answer, resolved}`; canales `later.add {key, text, context}`, `later.list
+(open|answered|resolved|dismissed), answer, resolved, artifact, with}`; canales `later.add {key, text, context, artifact, with}`, `later.list
 {all}`, `later.answer {id, answer}`, `later.resolve {id, note}`, `later.dismiss {id}`; HTTP `GET/POST /api/later`, `POST /api/later/{id}/resolve`;
 `sessions.tree` trae `later` (los abiertos).
 
@@ -843,7 +846,7 @@ desarrollo"). Las PRs asignadas a mano con `ide dev link` no se tocan.
 ese desarrollo) cuando tiene **el mismo ticket** de Notion que otro desarrollo abierto («mismo ticket que
 #n»), una PR **apilada sobre una rama** de otro («apilada sobre #n») o el IDE lo **separó** de otro como
 línea paralela («sale del #n», `kv splitfrom:<sesión>`). La manager recibe un aviso una vez por cada
-relación nueva (a su claude si corre; si no, a Para después; `kv relwarn`; las que ya existían al
+relación nueva (a su claude si corre; si no, le llega al abrirla; `kv relwarn`; las que ya existían al
 estrenarlo no se avisan) para confirmarlo con el usuario y juntarlos con `ide dev link` si son el mismo
 trabajo. Regla (spec 2026-10-16-desarrollos, P1), cada PR en un solo desarrollo: (1) la sesión de
 ticket cuyos worktrees están en esa rama (los suyos o uno **extra** que armó aparte: con otro nombre en

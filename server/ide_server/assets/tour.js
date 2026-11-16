@@ -9,6 +9,9 @@ const { chromium } = require("playwright-core");
 const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 fs.unlinkSync(process.argv[2]);          // lleva el token: no queda en disco
 const steps = cfg.steps;
+// solo el recuadro conoce esta clave (va dentro de su función, en un shadow DOM cerrado): el código de la página que
+// se recorre puede ver la función __ideTour, pero no inventar comentarios ni terminar el recorrido
+const NONCE = require("crypto").randomBytes(18).toString("hex");
 let idx = 0;
 const notes = [];                         // {step, text}
 let finished = false;
@@ -31,7 +34,8 @@ const WIDGET = (state) => `(() => {
     if (document.getElementById("__ide_tour")) return;
     const box = document.createElement("div");
     box.id = "__ide_tour";
-    box.attachShadow({ mode: "open" }).innerHTML = \`
+    const root = box.attachShadow({ mode: "closed" });
+    root.innerHTML = \`
       <style>
         .w{position:fixed;right:16px;bottom:16px;z-index:2147483647;width:340px;font:13px/1.4 -apple-system,system-ui,sans-serif;
            background:#1c1917;color:#f5f5f4;border:1px solid #f59e0b;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.4);padding:12px}
@@ -55,7 +59,7 @@ const WIDGET = (state) => `(() => {
           <div class="n"></div>
         </div>
       </div>\`;
-    const r = box.shadowRoot;
+    const r = root;
     r.querySelector(".t").textContent = S.text;
     r.querySelector(".hd").textContent = "Recorrido · " + S.title + " · paso " + (S.i + 1) + " de " + S.n;
     const note = () => r.querySelector(".n").textContent = S.count ? S.count + " comentario(s) guardado(s)" : "";
@@ -63,11 +67,11 @@ const WIDGET = (state) => `(() => {
     r.querySelector(".prev").disabled = S.i === 0;
     r.querySelector(".next").disabled = S.i >= S.n - 1;
     const ta = r.querySelector("textarea");
-    const save = async () => { const v = ta.value.trim(); if (!v) return; ta.value = ""; S.count = await window.__ideTour({ op: "note", text: v }); note(); };
+    const save = async () => { const v = ta.value.trim(); if (!v) return; ta.value = ""; S.count = await window.__ideTour({ op: "note", text: v, k: S.k }); note(); };
     ta.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } });
-    r.querySelector(".prev").onclick = async () => { await save(); window.__ideTour({ op: "go", d: -1 }); };
-    r.querySelector(".next").onclick = async () => { await save(); window.__ideTour({ op: "go", d: 1 }); };
-    r.querySelector(".end").onclick = async () => { await save(); window.__ideTour({ op: "end" }); };
+    r.querySelector(".prev").onclick = async () => { await save(); window.__ideTour({ op: "go", d: -1, k: S.k }); };
+    r.querySelector(".next").onclick = async () => { await save(); window.__ideTour({ op: "go", d: 1, k: S.k }); };
+    r.querySelector(".end").onclick = async () => { await save(); window.__ideTour({ op: "end", k: S.k }); };
     r.querySelector(".min").onclick = () => { const b = r.querySelector(".body"); b.style.display = b.style.display === "none" ? "" : "none"; };
     document.documentElement.appendChild(box);
     if (S.selector) {
@@ -91,13 +95,14 @@ const WIDGET = (state) => `(() => {
   let widget = null;
   const show = async () => {
     const s = steps[idx];
-    widget = WIDGET({ i: idx, n: steps.length, text: s.text, selector: s.selector || null, title: cfg.title, count: notes.length });
+    widget = WIDGET({ k: NONCE, i: idx, n: steps.length, text: s.text, selector: s.selector || null, title: cfg.title, count: notes.length });
     await page.goto(s.url, { waitUntil: "domcontentloaded" }).catch(() => {});
     await page.evaluate(widget).catch(() => {});
   };
   // en cada navegación dentro del mismo paso (el usuario hace click), el recuadro vuelve
   page.on("domcontentloaded", () => { if (widget) page.evaluate(widget).catch(() => {}); });
-  await ctx.exposeBinding("__ideTour", async (_src, msg) => {
+  await ctx.exposeBinding("__ideTour", async (src, msg) => {
+    if (!msg || msg.k !== NONCE || src.frame !== page.mainFrame()) return null;
     if (msg.op === "note") { notes.push({ step: idx + 1, url: page.url(), text: String(msg.text).slice(0, 2000) }); return notes.length; }
     if (msg.op === "go") { idx = Math.max(0, Math.min(steps.length - 1, idx + msg.d)); setTimeout(show, 0); return idx; }
     if (msg.op === "end") { await report("end"); setTimeout(() => browser.close().catch(() => {}), 300); }

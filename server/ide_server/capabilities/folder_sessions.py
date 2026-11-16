@@ -564,9 +564,31 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {**res, "process": process}
 
+    def _hold_notice(sid: str, text: str) -> None:
+        """Un aviso del IDE para una sesión parada: le llega al abrirla (pausada: al retomarla). No es una decisión
+        del usuario, así que no va a Decisiones."""
+        if db is None:
+            return
+        k = f"pausedmsgs:{sid}" if db.get(f"paused:{sid}") else f"notices:{sid}"
+        held = db.get(k) or []
+        if text not in held:
+            db.set(k, [*held, text])
+
+    # los avisos del IDE que antes quedaban en «Para después»: pasan a la sesión (le llegan al abrirla)
+    if db is not None:
+        for it in later_mod.items(db):
+            if it.get("actor") == "ide" and str(it.get("key") or "").startswith("s:"):
+                body = it.get("context") or it["text"]
+                _hold_notice(it["key"][2:], body if body.startswith("[Aviso del IDE]") else f"[Aviso del IDE] {body}")
+                later_mod.close(db, it["id"], "dismissed", "pasó a la sesión como aviso")
+
     async def open_(p: dict) -> dict:
         if db is not None and db.get(f"paused:{p['id']}"):
             return {"process": "paused"}        # pausada: no se relanza sola al entrar; se reanuda con el botón
+        held = (db.get(f"notices:{p['id']}") or []) if db is not None else []
+        if held and supervisor.state(p["id"]) not in ("running", "queued"):
+            db.delete(f"notices:{p['id']}")
+            return {"process": supervisor.start(p["id"], prompt="\n\n---\n\n".join(held))}
         return {"process": supervisor.start(p["id"])}
 
     # -- claude de consulta: una bifurcación de la conversación de la sesión, en modo plan (solo lectura) ----
@@ -1432,7 +1454,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             supervisor.send(sid, text)
             db.event(datetime.now().isoformat(timespec="seconds"), "ide", "prompt", dev=sid, data={"text": text[:300]})
         else:
-            later_mod.add(db, f"s:{sid}", f"El merge de {ref} se detuvo", text, "ide")
+            _hold_notice(sid, text)
         notify()
 
     if merger is not None:
@@ -1447,7 +1469,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             supervisor.send(sid, text)
             db.event(datetime.now().isoformat(timespec="seconds"), "ide", "prompt", dev=sid, data={"text": text[:300]})
         else:
-            later_mod.add(db, key, title, text, "ide")
+            _hold_notice(sid, text)
         notify()
 
     def _tell_manager(text: str, title: str = "Un «Mergear todo» está pegado") -> None:
@@ -1862,8 +1884,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     "`## <repo>#<n>` en SESSION.md):\n" + lines + ("\n" + "\n".join(missing) if missing else ""))
             if supervisor.state(sid) == "running":
                 supervisor.send(sid, text)
-            else:                               # parada: queda como pendiente de la revisión
-                later_mod.add(db, f"s:{sid}", text.removeprefix("[Aviso del IDE] "), None, actor)
+            else:                               # parada: le llega al abrirla
+                _hold_notice(sid, text)
         notify()
         return {"ok": True, "moved": out}
 
@@ -2238,7 +2260,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         key = _dev_key(p.get("key") or (f"s:{p['sid']}" if p.get("sid") else None))
         actor = p.get("actor") if isinstance(p.get("actor"), str) and p["actor"].startswith(("claude:", "cli")) else "usuario"
         try:
-            item = later_mod.add(db, key, p.get("text") or "", p.get("context"), actor)
+            item = later_mod.add(db, key, p.get("text") or "", p.get("context"), actor,
+                                 artifact=p.get("artifact"), with_=p.get("with"))
         except ValueError as exc:
             raise SessionError("bad_request", str(exc)) from exc
         db.event(datetime.now().isoformat(timespec="seconds"), actor, "later",
