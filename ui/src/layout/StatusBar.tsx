@@ -259,7 +259,7 @@ function SessionCounter({ items, one, many, what }:
   }, [at, keys.join("|")]);
   if (!waiting.length) {
     spanRef.current = null;
-    return <button disabled title={`Ninguna sesión ${what === "trabajando" ? "en curso" : what}`}
+    return <button disabled
       className="cursor-default rounded border border-border px-1.5 text-muted-foreground opacity-60">0 {many}</button>;
   }
   const sel = Math.min(idx, waiting.length - 1);
@@ -341,7 +341,6 @@ function Decisions() {
   const { activePanel, setActivePanel, innerSidebarOpen, toggleInnerSidebar } = useStore();
   return (
     <button disabled={!n} onClick={() => { if (activePanel !== "later") setActivePanel("later"); if (!innerSidebarOpen) toggleInnerSidebar(); }}
-      title="Lo que tienes que decidir o conversar con alguien, de todos los desarrollos: abre el módulo Decisiones"
       className="rounded border border-sky-400/60 px-1.5 text-sky-300 hover:bg-sky-400/10 disabled:border-border disabled:cursor-default disabled:text-muted-foreground disabled:opacity-60 disabled:hover:bg-transparent">
       {n} {n === 1 ? "decisión" : "decisiones"}</button>);
 }
