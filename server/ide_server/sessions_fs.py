@@ -383,6 +383,12 @@ servidores MCP, plugins y herramientas). Conoces lo que el IDE ya hace (`ide doc
   una página (un post, un README, una página de producto) lanza el agente `web-fetch` con la URL y lo que quieres
   saber. No evalúes solo con búsquedas, y no digas «no pude abrirlo» sin haberlo intentado con `web-fetch`. Para un
   repo de GitHub también sirve `gh repo view <owner>/<repo>` (README) y `gh release list`.
+- **Posts de Instagram:** `web-fetch` no los abre (Instagram pide iniciar sesión). Bájalos con gallery-dl y la cuenta
+  secundaria del perfil `instagram`: `gallery-dl --cookies @@IDE@@/browsers/instagram/cookies.txt --write-metadata
+  -D attachments/instagram/<código del post> <url>` (deja las imágenes y el texto, que puedes leer). **Nunca**
+  `--cookies-from-browser`: lee las cookies de todo el Chrome del usuario por el llavero de macOS (le pide la
+  contraseña) y está prohibido. Si Instagram lo manda al login, venció la sesión del perfil: pídele en la primera línea
+  `ide browser login instagram`.
 - **Llevar registro** con `ide tools` (en la base del IDE; el usuario lo ve en Configuración → Herramientas):
   - antes de evaluar algo, búscalo: `ide tools ls -q <nombre>` (también `--state <estado>`, `--json`);
   - al cerrar, `ide tools add <nombre> --link <url> --state <estado> -m "<motivo>"` o, si ya estaba,
@@ -440,7 +446,7 @@ def ensure_plugins_session(root: Path) -> str:
         write_toml(path / ".session.toml", {"kind": PLUGINS, "permissions": "default", "title": "Plugins",
                                             "created": datetime.now().isoformat(timespec="seconds")})
     if not (path / "CLAUDE.md").is_file():
-        (path / "CLAUDE.md").write_text(PLUGINS_MD, encoding="utf-8")
+        (path / "CLAUDE.md").write_text(PLUGINS_MD.replace("@@IDE@@", str((root / ".ide").resolve())), encoding="utf-8")
     ide = "/" + str((root / ".ide").resolve())            # `//ruta` = ruta absoluta en las reglas de Claude Code
     rules = {
         "allow": ["WebFetch", "WebSearch", "Bash(gh repo view:*)", "Bash(gh search:*)", "Bash(gh release view:*)",
@@ -459,7 +465,10 @@ def ensure_plugins_session(root: Path) -> str:
                  "Read(~/.config/gh/**)", "Read(~/.netrc)", "Bash(gh auth:*)", "Bash(security:*)", "Bash(gh api:*)", "Bash(gh pr create:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)",
                  "Bash(gh pr merge:*)", "Bash(gh issue create:*)", "Bash(gh issue comment:*)", "Bash(git push:*)",
                  f"Edit({ide}/sessions/CLAUDE.md)", f"Edit({ide}/manager.md)",
-                 f"Edit({ide}/prompts/**)"],
+                 f"Edit({ide}/prompts/**)",
+                 # las sesiones de navegador de tus cuentas (perfiles del IDE) y las cookies de tu Chrome (pasan por el
+                 # llavero de macOS: te pedía la contraseña cada vez y traen todas tus cuentas)
+                 f"Read({ide}/browsers/**)", "Bash(*--cookies-from-browser*)"],
     }
     settings = path / ".claude" / "settings.json"
     first = not settings.is_file()
@@ -468,6 +477,15 @@ def ensure_plugins_session(root: Path) -> str:
     # reglas que se sacaron (versiones anteriores las daban sin preguntar)
     perms["allow"] = [r for r in perms.get("allow", []) if r not in ("Bash(ide session send ide:*)",)]
     perms["allow"] = [r for r in perms["allow"] if r != "Edit(./EVALUADOS.md)"]   # el registro pasó a `ide tools`
+    # Instagram con el perfil `instagram` (cuenta secundaria): gallery-dl con su cookies.txt, sin preguntar; se suma una vez
+    gallery = f"Bash(gallery-dl --cookies {(root / '.ide' / 'browsers' / 'instagram' / 'cookies.txt').resolve()}:*)"
+    rules["allow"] = [*rules["allow"], gallery]
+    gmark = path / ".claude" / ".ide-gallery-rule"
+    if not first and not gmark.is_file():
+        if gallery not in perms["allow"]:
+            perms["allow"].append(gallery)
+        gmark.parent.mkdir(exist_ok=True)
+        gmark.write_text("", encoding="utf-8")
     marker = path / ".claude" / ".ide-tools-rule"          # `ide tools` es posterior a su creación: se suma una vez
     if not first and not marker.is_file():
         if "Bash(ide tools:*)" not in perms["allow"]:

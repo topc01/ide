@@ -126,8 +126,30 @@ def login(root: Path, name: str, url: str | None = None) -> int:
     if state.is_file():
         _keep_own_site(state, url)
         state.chmod(0o600)      # Playwright lo reescribe con los permisos por defecto
+        if name != "local":
+            write_cookies_txt(state, d / "cookies.txt")
     write_mcp_config(root)
     return rc
+
+
+def write_cookies_txt(state: Path, out: Path) -> None:
+    """Las cookies del perfil en formato Netscape (`cookies.txt`, solo las de su sitio: ver _keep_own_site), para
+    herramientas de línea de comandos (p.ej. `gallery-dl --cookies`): así no leen las de tu Chrome, que pasan por
+    el llavero de macOS (te pide la contraseña) y traen todas tus cuentas."""
+    try:
+        data = json.loads(state.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    lines = ["# Netscape HTTP Cookie File", "# generado por `ide browser login` (solo el sitio del perfil)"]
+    for c in data.get("cookies") or []:
+        dom = str(c.get("domain") or "")
+        exp = int(c["expires"]) if isinstance(c.get("expires"), (int, float)) and c["expires"] > 0 else 0
+        lines.append("\t".join([dom, "TRUE" if dom.startswith(".") else "FALSE", str(c.get("path") or "/"),
+                                "TRUE" if c.get("secure") else "FALSE", str(exp), str(c.get("name") or ""),
+                                str(c.get("value") or "")]))
+    fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.write(fd, ("\n".join(lines) + "\n").encode())
+    os.close(fd)
 
 
 def _keep_own_site(state: Path, url: str) -> None:
