@@ -2323,24 +2323,45 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def later_list(p: dict) -> dict:
         return {"items": later_mod.items(db, open_only=not p.get("all")) if db else []}
 
+    AWAITING = "Awaiting Client"
+
     def _sync_block(key: str) -> None:
-        """Un bloqueante que «bloquea el desarrollo» lo pasa a Bloqueado (con su texto como motivo); cuando no queda
-        ninguno abierto, vuelve a su fase. Solo deshace el bloqueo que puso él (`actor: bloqueante`), no uno tuyo."""
+        """El desarrollo pasa solo a Bloqueado (con el motivo) si su ticket de Notion está en «Awaiting Client» o tiene un
+        bloqueante que «bloquea el desarrollo»; cuando no queda ninguno de los dos, vuelve a su fase. Solo deshace el
+        bloqueo que puso él (`actor: bloqueante`): no toca un bloqueo ni una pausa tuya."""
         if db is None or not key:
             return
+        from ide_server import notion_tickets as notion
         blocking = [it for it in later_mod.items(db) if it["key"] == key and it.get("blocks")]
+        awaiting = False
+        if key.startswith("s:"):
+            try:
+                url = (read_session(root, key[2:]).get("meta") or {}).get("notion_url")
+            except Exception:  # noqa: BLE001 — archivada o sin carpeta
+                url = None
+            awaiting = bool(url) and (notion.cached(db, url) or {}).get("status") == AWAITING
         cur = db.get(f"devstate:{key}") or {}
         mine = cur.get("block") == "blocked" and cur.get("actor") == "bloqueante"
         try:
-            if blocking:
-                note = "; ".join(f"{it['text'][:120]}{' (' + it['with'] + ')' if it.get('with') else ''}"
-                                 for it in blocking)[:300]
-                if cur.get("block") != "blocked" or (mine and cur.get("note") != note):
+            if blocking or awaiting:
+                parts = ([f"ticket en {AWAITING}"] if awaiting else []) + [
+                    f"{later_mod.code(it)} {it['text'][:120]}{' (' + it['with'] + ')' if it.get('with') else ''}" for it in blocking]
+                note = "; ".join(parts)[:300]
+                if not cur.get("block") or (mine and cur.get("note") != note):
                     set_dev_state(root, db, key, "blocked", actor="bloqueante", note=note)
             elif mine:
                 set_dev_state(root, db, key, "unblock", actor="bloqueante")
         except SessionError:
             log.warning("no pude sincronizar el bloqueo de %s", key)
+
+    def sync_blocks() -> bool:
+        """Todas las sesiones de ticket (cada minuto, y el Status de Notion cambia solo): True si algo cambió."""
+        before = {k: (v or {}).get("block") for k, v in db.with_prefix("devstate:").items()} if db else {}
+        for s_ in list_sessions(root):
+            if s_.get("kind") == "ticket":
+                _sync_block(f"s:{s_['id']}")
+        after = {k: (v or {}).get("block") for k, v in db.with_prefix("devstate:").items()} if db else {}
+        return before != after
 
     async def later_update(p: dict) -> dict:
         """Editar una decisión (módulo Decisiones: pregunta, con quién, artefacto). Solo desde la UI."""
@@ -2692,6 +2713,18 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     await asyncio.wait_for(stop.wait(), notion.TTL)
                 except asyncio.TimeoutError:
                     pass
+        async def tick_blocks() -> None:
+            """Cada minuto: Bloqueado según el ticket («Awaiting Client») y los bloqueantes que bloquean."""
+            while not stop.is_set():
+                try:
+                    if await asyncio.to_thread(sync_blocks):
+                        notify()
+                except Exception:  # noqa: BLE001
+                    log.exception("bloqueos automáticos")
+                try:
+                    await asyncio.wait_for(stop.wait(), 60)
+                except asyncio.TimeoutError:
+                    pass
         async def tick_agents() -> None:
             """Cada minuto: una sesión «trabajando» solo porque esperaba subagentes vuelve a «te espera» cuando ya no
             le queda ninguno (su aviso de término no abre turno si llega con la sesión ya cerrada, o no se reconoció)."""
@@ -2733,7 +2766,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     await asyncio.wait_for(stop.wait(), 180)
                 except asyncio.TimeoutError:
                     pass
-        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live(), tick_staging(), tick_review(), tick_agents())
+        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live(), tick_staging(), tick_review(), tick_agents(), tick_blocks())
 
     notify.notion_loop = notion_loop        # type: ignore[attr-defined]
     notify.telegram = bridge                # type: ignore[attr-defined]
