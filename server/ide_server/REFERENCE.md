@@ -1104,7 +1104,7 @@ la marca leída; «marcar leídas», «limpiar» y ✕ por cada una (canal `noti
 Arriba de la lista, el **resumen de revisiones pendientes** (`kv notifs:summary`, cada minuto): **veredicto por
 mandar** (PRs que te piden revisar con el veredicto de su sesión listo para el commit actual) y **listos para
 revisión, sin revisor pedido** (desarrollos en «listo para revisión»). El número de la campana: las no leídas
-(o, si no hay, las revisiones pendientes, en rojo). Cada **10 minutos**, si hay revisiones pendientes, un aviso
+(o, si no hay, las revisiones pendientes, en rojo). Cada **5 minutos**, si hay revisiones pendientes, un aviso
 lo recuerda.
 
 ## 9e. Feedback y revisión semanal (mejora con el uso)

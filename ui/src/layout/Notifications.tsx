@@ -1,7 +1,7 @@
 // ui/src/layout/Notifications.tsx
 /** La campana (arriba a la derecha): todas las notificaciones del IDE (una sesión te espera, te piden revisar una
  *  PR, Recursos…) y arriba el resumen de revisiones pendientes (veredictos por mandar, desarrollos por pedir
- *  revisor). Lo nuevo aparece un momento como aviso; cada 10 min, si hay revisiones pendientes, un recordatorio. */
+ *  revisor). Lo nuevo aparece un momento como aviso; cada 5 min, si hay revisiones pendientes, un recordatorio. */
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Bell, X } from "lucide-react";
@@ -11,7 +11,7 @@ import { notifsRead, type Notif } from "../transport/folderSessions";
 import { ago } from "../modules/sessions/devStates";
 import { cn } from "../lib/utils";
 
-const REMIND_MS = 10 * 60 * 1000;
+const REMIND_MS = 5 * 60 * 1000;
 
 function go(focus: string | null) {
   if (!focus) return;
