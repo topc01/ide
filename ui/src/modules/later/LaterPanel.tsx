@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLaterFocus } from "./focus";
 import { askAbout, laterCode } from "./ask";
-import { Check, CircleHelp, ExternalLink, Hourglass, Pencil, Plus, Send, X } from "lucide-react";
+import { Check, ChevronRight, CircleHelp, ExternalLink, Hourglass, Pencil, Plus, Send, X } from "lucide-react";
 import { useCurrentDev } from "../../main/currentDev";
 import { useFolders } from "../../state/folders";
 import { getWs } from "../../transport/wsClient";
@@ -17,6 +17,7 @@ import { devKeys, devName } from "../sessions/desarrollos";
 import { ago } from "../sessions/devStates";
 import { openExternal } from "../../lib/openExternal";
 import { cn } from "../../lib/utils";
+import { usePersistentOpen } from "../../lib/persist";
 
 const field = "w-full rounded border border-border bg-background px-1.5 py-1 text-[12px] text-foreground outline-none focus:border-primary";
 type Kind = "decision" | "pending";
@@ -218,19 +219,50 @@ function Item({ it, showDev, label }: { it: LaterItem; showDev: boolean; label: 
     </div>);
 }
 
-export function LaterPanel() {
-  const dev = useCurrentDev();
-  const items = useFolders((s) => s.tree.later) ?? [];
-  const label = useDevLabel();
-  const [by, setBy] = useState<"dev" | "who">("dev");
-  const [creating, setCreating] = useState(false);
-  const mineKeys = dev ? devKeys(dev.key, dev.prs) : [];
+/** Una lista de bloqueantes agrupada (por desarrollo o por con quién). */
+function Groups({ items, by, label, mineKeys }: { items: LaterItem[]; by: "dev" | "who"; label: ReturnType<typeof useDevLabel>; mineKeys: string[] }) {
   const groupOf = (it: LaterItem) => by === "dev" ? it.key : (it.with ?? "");
   const groups = new Map<string, LaterItem[]>();
   for (const it of items) groups.set(groupOf(it), [...(groups.get(groupOf(it)) ?? []), it]);
   const order = [...groups.keys()].sort((a, b) => by === "dev"
     ? Number(mineKeys.includes(b)) - Number(mineKeys.includes(a))
     : (a === "" ? 1 : b === "" ? -1 : groups.get(b)!.length - groups.get(a)!.length));
+  return (<>{order.map((g) => (
+    <div key={g || "-"} className="mt-3">
+      <div className="mx-2.5 mb-1">
+        {by === "dev" ? <DevLabel k={g} label={label} big />
+          : <div className="text-[13px] font-semibold text-foreground">{g ? `con ${g}` : "falta definir con quién"}</div>}
+      </div>
+      {groups.get(g)!.map((it) => <Item key={it.id} it={it} showDev={by === "who"} label={label} />)}
+    </div>))}</>);
+}
+
+/** Sección plegable (Pausado, Archivado): los bloqueantes de desarrollos que no están en curso. */
+function Section({ id, title, items, ...rest }: { id: string; title: string; items: LaterItem[]; by: "dev" | "who";
+  label: ReturnType<typeof useDevLabel>; mineKeys: string[] }) {
+  const [open, setOpen] = usePersistentOpen(`later.section.${id}`, false);
+  if (!items.length) return null;
+  return (
+    <div className="mt-4 border-t border-border pt-2">
+      <button onClick={() => setOpen(!open)} aria-expanded={open}
+        className="mx-2.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground">
+        <ChevronRight size={11} className={cn("transition-transform", open && "rotate-90")} />{title} · {items.length}</button>
+      {open && <Groups items={items} {...rest} />}
+    </div>);
+}
+
+export function LaterPanel() {
+  const dev = useCurrentDev();
+  const all = useFolders((s) => s.tree.later) ?? [];
+  const devStates = useFolders((s) => s.tree.devStates);
+  const label = useDevLabel();
+  const [by, setBy] = useState<"dev" | "who">("dev");
+  const [creating, setCreating] = useState(false);
+  const mineKeys = dev ? devKeys(dev.key, dev.prs) : [];
+  // en curso arriba; los de desarrollos pausados y archivados, en sus secciones plegables (no cuentan)
+  const archived = all.filter((it) => it.archived);
+  const paused = all.filter((it) => !it.archived && devStates?.[it.key]?.block === "paused");
+  const items = all.filter((it) => !archived.includes(it) && !paused.includes(it));
   const here = items.filter((it) => mineKeys.includes(it.key)).length;
   return (
     <div className="flex h-full flex-col overflow-auto pb-3 text-xs">
@@ -251,13 +283,8 @@ export function LaterPanel() {
       {creating && <NewDialog onClose={() => setCreating(false)} />}
       {!items.length && <p className="mx-2.5 mt-3 text-[11px] text-muted-foreground">
         Nada te frena. Las sesiones dejan acá sus decisiones y lo que esperan de otros (`ide later add`).</p>}
-      {order.map((g) => (
-        <div key={g || "-"} className="mt-3">
-          <div className="mx-2.5 mb-1">
-            {by === "dev" ? <DevLabel k={g} label={label} big />
-              : <div className="text-[13px] font-semibold text-foreground">{g ? `con ${g}` : "falta definir con quién"}</div>}
-          </div>
-          {groups.get(g)!.map((it) => <Item key={it.id} it={it} showDev={by === "who"} label={label} />)}
-        </div>))}
+      <Groups items={items} by={by} label={label} mineKeys={mineKeys} />
+      <Section id="paused" title="Pausado" items={paused} by={by} label={label} mineKeys={mineKeys} />
+      <Section id="archived" title="Archivado" items={archived} by={by} label={label} mineKeys={mineKeys} />
     </div>);
 }

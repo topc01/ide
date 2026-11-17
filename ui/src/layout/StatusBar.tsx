@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { create } from "zustand";
 import { useFolders } from "../state/folders";
 import { useStore } from "../state/store";
+import { activeBlockers } from "../modules/later/focus";
 import { isWaiting, waitTime } from "../modules/sessions/activity";
 import { fetchUsage, type Usage, type UsageWindow } from "../transport/folderSessions";
 import { getWs } from "../transport/wsClient";
@@ -338,7 +339,7 @@ function SessionCounter({ items, one, many, what }:
 /** «N bloqueantes» (rojo): decisiones y pendientes que frenan a los desarrollos (módulo Bloqueantes); click lo abre.
  *  Es lo que hay que bajar. */
 function Decisions() {
-  const n = useFolders((s) => s.tree.later?.length ?? 0);
+  const n = useFolders(activeBlockers);
   const { activePanel, setActivePanel, innerSidebarOpen, toggleInnerSidebar } = useStore();
   return (
     <button disabled={!n} onClick={() => { if (activePanel !== "later") setActivePanel("later"); if (!innerSidebarOpen) toggleInnerSidebar(); }}
