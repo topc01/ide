@@ -42,207 +42,318 @@ viene de un ticket). Si una regla del repo choca con una de este archivo, gana e
 
 ## Herramientas del IDE (por Bash)
 
-- `ide repo add <repo> [--branch b]`: agrega el repo a tu sesión como worktree (corre su `setup` si existe).
-- `ide repo rm <repo>`: lo quita.
-- `ide push [<repo>] [--force] [--branch <b>]…`: sube a `origin` la rama de tus worktrees (sin `cd`; nunca
-  la principal). `--force` = `--force-with-lease`, después de un rebase; `--branch` para otras ramas
-  locales del repo (p.ej. las de un stack). Úsalo en vez de pedirle al usuario que corra `git push`.
-- `ide update [<repo>] [--dry-run]`: pone al día tu rama sobre su base **solo si hace falta** (la PR está
-  en conflicto o su madre del stack se mergeó); si solo está atrás de `develop`, se niega. Si el rebase
-  choca, queda a medias para que resuelvas, `git rebase --continue` y `ide push <repo> --force`.
-- `ide migrations check|renumber [<repo>]`: las migraciones de tu rama contra la base de su PR (develop):
-  cada nueva tiene que ir después de la última de su app y depender de ella. Si chocan, `renumber` las
-  renumera, corrige las dependencias, commitea y sube (sin preguntarle al usuario). Revísalo antes de pedir
-  revisión. Mergear (`ide merge`) lo hace el usuario.
-- `ide db <prod|staging> "<SQL>" [--csv] [--out <archivo>]`: una consulta de solo lectura a la base (sin comandos
-  de psql: nada con `\\\\`). **Córrelo siempre solo, como único comando de la línea**: sin pipes (`| head`,
-  `| tr`), sin `;`, sin loops (`for env in …`) ni `cd … &&` delante. Solo así lo cubre el permiso; combinado,
-  el clasificador lo bloquea como «Production Reads». Para procesar el resultado: `--out nombre.csv` (con `--csv`;
-  queda en `attachments/db/`) y después léelo en otro comando; para filtrar u ordenar, hazlo en el SQL.
-- `ide script <nombre> [<repo>]`: corre un script del repo (`run`, `test`, …).
-- `ide session ls [--json]`: lista sesiones y su estado.
-- `ide session new --if-missing --notion <url> --template ticket --vars-file -` (JSON por stdin):
-  (solo la principal) lanza una sesión por ticket.
-- `ide session new --review <pr-url>`: (solo la principal) lanza una revisión de PR.
+Cada una tiene su ayuda con ejemplos: `ide <comando> --help` (también `ide <comando> <sub> --help`). Si un
+comando choca con una trampa conocida, el IDE lo frena y te dice el correcto.
+
+| Para… | Usa | Cuándo |
+|---|---|---|
+| sumar o sacar un repo | `ide repo add\\|rm` | el desarrollo toca ese repo |
+| subir tu rama | `ide push` | siempre, en vez de `git push` |
+| poner al día tu rama | `ide update` | solo si GitHub marca conflicto o se mergeó la madre del stack |
+| revisar migraciones | `ide migrations check\\|renumber` | antes de pedir revisión; si chocan, renumera sin preguntar |
+| consultar prod o staging | `ide db` | solo lectura; va solo en la línea |
+| servidores para probar | `ide server` | levantar api/fronts por bloque (no `ide script run`) |
+| un script que termina | `ide script` | build, test, … |
+| el estado del desarrollo | `ide status` | lo que es criterio tuyo (ver Convención de estado) |
+| bloqueantes | `ide later` | decisiones y pendientes (ver Bloqueantes) |
+| evidencias | `ide evidence` | guía de prueba con capturas |
+| el ticket de Notion | `ide ticket` | asociarlo, subtickets, callouts |
+| el recorrido | `ide tour` | antes de declarar listo, si hay UI |
+| dependencias entre PRs | `ide dep` | además de `## Dependencias` en el body |
+| revisiones de PR | `ide review` | en sesiones de revisión, en vez de `gh api` |
+| avisar por Telegram | `ide reply` | si el usuario te lo pide; nunca claves |
+| sesiones y desarrollos | `ide session`, `ide dev` | `ide session new --title "<qué>"` para trabajo aparte |
+| perfiles de navegador | `ide browser ls` | ver Navegador |
+
+Mergear (`ide merge`) lo hace el usuario; si él te pide explícito que mergees, hazlo con `ide merge` y verifica
+en GitHub que quedó mergeada.
+
+**Cómo cierras una revisión** (sesiones de revisión; pisa lo que digan el prompt de revisión o la skill; nunca
+publicas aprobaciones ni comentarios sueltos):
+- **Pedir cambios con algún hallazgo importante** (un bug, comportamiento incorrecto, datos, seguridad, o algo de
+  arquitectura que cambia el diseño): **no publiques**. Muéstrale los hallazgos en el chat (cada uno en una
+  línea, con su severidad) en un mensaje que empiece con «Necesito tu OK para pedir cambios en <pr>» y espera su
+  OK. Con el OK, publícala con `ide review publish`.
+- **Pedir cambios solo por menores o nits:** dile el resumen (cada hallazgo en una línea, con su severidad) y
+  publícala directo con `ide review publish`.
+- **Aprobar:** no la publiques: la aprueba el usuario desde la card. Registra el veredicto con `ide review verdict
+  <pr> approve` y díselo con el resumen. Si el usuario te pide explícito que la apruebes tú, apruébala con `gh pr
+  review <pr> --approve --body-file <comentario.md>` y verifica con `gh pr view` que `reviewDecision` quedó en
+  APPROVED.
+- El veredicto que ve el usuario sale **solo** de lo que registras con `ide review`, no de SESSION.md. Cada ronda
+  registra el suyo y pisa al anterior.
 
 ## Convención de estado
 
-El **estado del desarrollo** vive en la base del IDE y **casi todo lo deduce solo**; tú marcas solo
-lo que es criterio, con `ide status <estado> [-m "nota"]` (nunca editando el `status:` del archivo):
-- **Automático, no lo marques:** `developing` (apenas hay una PR abierta en draft), lo que da GitHub
-  (`testing` = fuera de draft sin revisores, `in-review`, `changes-requested`, `approved`, `merged`;
-  una PR en draft con revisores pedidos o revisión ya cuenta: en revisión, cambios pedidos o aprobada),
-  si estás trabajando o esperando al usuario (hooks), y en las sesiones de revisión el veredicto
-  (sale de tu review publicada en GitHub).
-- **Tú:** `investigating` al empezar si todavía no hay código; `ready-for-review` cuando terminaste
-  (las PRs siguen en draft: el usuario las manda a revisión desde el IDE); `blocked -m "<por qué o de
-  quién>"` si no puedes avanzar (p.ej. "definiciones de producto", "el cliente", "#12") y `ide status
-  unblock` al destrabar; `paused` si el usuario lo pide.
-- Mientras trabajas, las PRs van en **draft** (`gh pr create --draft`).
-- **No saques una PR de draft** (`gh pr ready`): lo hace **el IDE solo, apenas la PR queda aprobada**
-  (sin revisiones pedidas pendientes; también las hijas de un stack). Tú no, salvo que el usuario te lo
-  pida explícito. Haz exactamente la acción que te piden; si propones algo más, pregúntalo aparte.
-- **Revisores:** pídelos (`gh pr edit --add-reviewer <login>`) cuando el usuario o el manager lo pidan,
-  aunque la PR siga en draft: en el equipo se revisa en draft y el CI corre después de aprobar. Desde
-  ahí el IDE muestra el desarrollo en revisión (no hace falta `ide status`).
-- **Esperar al usuario no se marca:** el IDE ve cuándo terminaste el turno y le muestra la **primera
-  línea de tu último mensaje**. Si le preguntas algo o necesitas su OK, **empieza el mensaje con eso**
-  en una línea ("Necesito tu OK para publicar la review", "Duda: ¿filtro por fecha de factura o de
-  pago?") y después el detalle.
+El **estado del desarrollo** vive en la base del IDE y **casi todo lo deduce solo**; tú marcas solo lo que es
+criterio, con `ide status` (nunca editando el `status:` del archivo):
+- **Automático, no lo marques:** `developing` (apenas hay una PR abierta en draft), lo que da GitHub (en
+  revisión, cambios pedidos, aprobada, mergeada; una PR en draft con revisores pedidos o revisión ya cuenta), si
+  estás trabajando o esperando al usuario, y en las sesiones de revisión el veredicto.
+- **Tú:** `investigating` al empezar si todavía no hay código; `ready-for-review` cuando terminaste (las PRs
+  siguen en draft: el usuario las manda a revisión desde el IDE); `blocked -m "<por qué o de quién>"` solo si
+  dependes de afuera (p.ej. "definiciones de producto", "el cliente", "#12") y `unblock` al destrabar; `paused`
+  si el usuario lo pide. Si lo que falta es una decisión del usuario, no marques nada: termina el turno con la pregunta en la primera línea y el IDE lo muestra en «te esperan».
+- Mientras trabajas, las PRs van en **draft**. **No saques una PR de draft**: lo hace el IDE solo, apenas queda
+  aprobada; tú no, salvo que el usuario te lo pida explícito. Haz exactamente la acción que te piden; si
+  propones algo más, pregúntalo aparte.
+- **Revisores:** pídelos (`gh pr edit --add-reviewer <login>`) cuando el usuario o el manager lo pidan, aunque
+  la PR siga en draft: en el equipo se revisa en draft y el CI corre después de aprobar.
+- **Re-revisión:** cuando una PR ya tiene revisor y atiendes sus cambios pedidos, **pide tú la re-revisión** en
+  el mismo turno, en cada PR que tocaste: respondes en cada hilo y haces `gh pr edit <url> --add-reviewer
+  <login>`. Verifícalo con `gh pr view <url> --json reviewRequests`. No le digas al usuario que la pida él, salvo
+  que te diga que no la pidas.
+- **Esperar al usuario no se marca:** el IDE ve cuándo terminaste el turno y le muestra la **primera línea de tu
+  último mensaje**. Si le preguntas algo o necesitas su OK, **empieza el mensaje con eso** en una línea
+  ("Necesito tu OK para publicar la review", "Duda: ¿filtro por fecha de factura o de pago?") y después el
+  detalle.
 
-**Evidencias:** cuando el desarrollo está listo para probar, deja la guía de pruebas para el
-usuario: qué hacer en la plataforma, paso a paso, y dónde sacar captura. Va por stdin en markdown, un
-ítem de lista por paso (las líneas de abajo son su detalle; `📸` = lleva captura):
-`ide evidence plan --run PR <<'EOF'` … `EOF`. El usuario la sigue en el módulo Evidencias y
-adjunta las capturas a cada paso (quedan en `attachments/`; `ide evidence ls` muestra las rutas).
-Si las capturas las sacas tú (p.ej. con el navegador), adjúntalas tú: `ide evidence shot <n>
-<archivo>…` (lo marca hecho; `--run` para otra corrida); un paso sin captura, `ide evidence check <n>`.
-**Publicar la guía en una PR:** `ide evidence publish <pr>` (URL o `repo#n`; `--run` para otra corrida): arma el
-comentario, sube las capturas y verifica que subieron todas. No armes el body ni los `--attach` a mano. Si alguna vez
-armas un `gh … --attach` (usas zsh): los `--attach` van en un array (`args+=(--attach "$f")` y `"${{args[@]}}"`),
-nunca en una variable de texto, y a un `gh` que publica no le pongas `| tail` (escondería el error).
-**Evidencias obsoletas** (cambió la pantalla, la captura quedó vieja): no edites ni borres archivos a mano ni
-inventes caminos. Corrige un paso con `ide evidence edit <n> "texto" [--detail …] [--shot|--no-shot]` (conserva
-sus capturas) y suma uno con `ide evidence add "texto" [--after <n>] [--shot]`. Reemplaza las capturas de un paso con `ide evidence shot <n> <archivo> --replace`; saca una
-captura con `ide evidence rm --step <n> --shot <n|archivo>`, un paso con `ide evidence rm --step <n>` o la
-corrida entera con `ide evidence rm` (`--run` para otra corrida que la última).
+**Evidencias:** van en dos momentos.
+- **En local, durante el desarrollo:** apenas el desarrollo esté para probar, sin que te lo pidan, deja la guía
+  de pruebas para el usuario con `ide evidence plan` (qué hacer en la plataforma, paso a paso, y dónde sacar
+  captura). Saca tú, en tu ventana del navegador, las capturas que puedas y asócialas a su paso (`ide evidence
+  shot`). Deja para el usuario solo las que no puedas sacar, y en ese paso dile qué hacer y por qué no la
+  sacaste tú. No dejes capturas sueltas en `attachments/` ni una guía aparte en un `.md`; si una captura quedó
+  vieja, corrígela con `ide evidence` (nunca a mano). Las mismas capturas van al body de cada PR del desarrollo,
+  en el orden del flujo (skill `pr-body`); en un comentario de la PR, con `ide evidence publish`. Si el cambio es
+  del design system, sácalas de Storybook (antes y después).
+- **En staging, después de mergear:** cuando se mergea la última PR, el ticket pasa a Live Staging, la card queda
+  en «evidencias en staging» y el IDE te avisa: prueba el flujo en staging y carga esas evidencias en el ticket
+  principal, **dentro del bloque Evidencias que ya está arriba en la página**, no al final ni debajo de los
+  comentarios. Son para el equipo y CX: qué se hizo y que funciona, en lenguaje de negocio. Lo técnico (SSM,
+  Terraform, tests, migraciones, PRs) va en la PR. Si algo solo se va a ver en producción (un aviso, un job), di
+  cuándo pasa y qué se va a ver. Si creaste tarjetas nuevas en Notion, enlázalas en un comentario del ticket
+  principal. Después vuelve a leer la página y confirma que se ven, y recién ahí pasa el ticket a **Completed
+  Staging**. No van evidencias en staging solo si el usuario lo dice o si el cambio no tiene nada visible (un
+  refactor, un job sin pantalla): en ese caso escribe en el bloque Evidencias una línea que lo diga, en lenguaje
+  de negocio, y pasa igual a Completed Staging.
 
-**Callouts en el ticket de Notion:** **un callout por pregunta o pendiente**, al principio del ticket. Lo más simple:
-crear el bloqueante y su callout juntos, con `--callout-file -`:
-`ide later add "<la pregunta>" --with "Sebastián (CX)" --callout-file - <<'EOF'` y en el cuerpo **la propuesta**
-(«**Propuesta:** …», con su porqué), el contexto mínimo y los links a artefactos. El título del callout es la
-pregunta (h2); amarillo si es decisión, morado si es pendiente (`--pending`). Varias preguntas = varios
-bloqueantes, cada uno con su callout. La **evidencia** va aparte: `ide ticket callout --type evidence --title
-"<qué se probó>" --body-file -` (verde). Cuando un bloqueante se cierra, el IDE pasa su callout al final del
-ticket, en gris, con cómo se resolvió. Un desarrollo en Bloqueado deja el ticket en «Awaiting Client» (y al
-desbloquearlo vuelve a «In progress»): no cambies ese Status a mano.
+**Ticket de Notion:** todo desarrollo tiene su ticket (salvo las revisiones de PRs ajenas). Si tu sesión nació
+sin ticket (un hotfix, algo que otra sesión separó), en tu primer turno arma el borrador del ticket y
+muéstraselo al usuario antes de crearlo; cuando lo cree, asócialo con `ide ticket set <url>`. Al mergearse la
+última PR, el ticket pasa a **Live Staging**: lo hace el IDE; si ves que no se movió, muévelo tú.
 
-**Bloqueantes:** lo que te frena va al módulo Bloqueantes, de dos tipos:
+**Lo que queda fuera:** antes de `ide status ready-for-review`, lista lo que el ticket pedía y no entra en este
+desarrollo (p. ej. «faltó llevar la unidad al ERP y a los PDF de OC»). Por cada cosa, arma el borrador de un
+ticket nuevo, muéstraselo al usuario y créalo con su OK. Va **a la cola de la célula** (skill
+`finnecto-core:notion-tickets`): Status Backlog, **Células** llenas (las del cliente), **Asignee vacío**,
+**Priority Danger** y **Order ≤ 1**, y enlazado al ticket original; súmalo al desarrollo con `ide ticket
+add-sub <url>`. Nada queda pendiente solo en el chat o en el SESSION.md.
+
+**Bloqueantes:** lo que te frena va al módulo Bloqueantes (`ide later add`), de dos tipos:
 - **Decisión**: algo que el usuario decide o conversa con alguien (p. ej. «esto lo veo con Sebastián de CX»), o
-  una pregunta tuya que puede esperar: `ide later add "<la pregunta, en una línea>" --with "<con quién>"`.
-- **Pendiente**: algo que se espera de alguien (documentos, una respuesta, un acceso): `ide later add
-  "<qué se espera>" --pending --with "<de quién>"`.
-El texto, corto y autocontenido; el análisis, las opciones y los casos van en un artefacto (`--artifact <link>`),
-no en `-m`. Si **ya no puedes avanzar en nada más** hasta que se resuelva, súmale `--blocks`: el desarrollo pasa
-solo a Bloqueado (con ese texto como motivo) y vuelve a su fase cuando se cierre; no uses `ide status blocked`
-para eso. Si todavía puedes avanzar en otra cosa, sin `--blocks`, y sigue. La respuesta te llega como
-`[Respuesta del usuario a un pendiente que quedó para después]`. Si se resuelve en el chat, ciérralo:
-`ide later ls --mine` y `ide later done <código, p. ej. D3> -m "<cómo>"`. Cada bloqueante tiene su código
-(`D3` decisión, `P4` pendiente): si el usuario te escribe «Sobre la decisión D3…», es ese.
+  una pregunta tuya que puede esperar.
+- **Pendiente** (`--pending`): algo que se espera de alguien (documentos, una respuesta, un acceso).
+El texto, corto y autocontenido; el análisis, las opciones y los casos van en un artefacto (`--artifact`). Si
+**ya no puedes avanzar en nada más** hasta que se resuelva, súmale `--blocks`: el desarrollo pasa solo a
+Bloqueado y vuelve a su fase cuando se cierre (no uses `ide status blocked` para eso). Si todavía puedes avanzar en otra cosa, sin `--blocks`, y sigue.
+La respuesta te llega como `[Respuesta del usuario a un pendiente que quedó para después]`. Si se resuelve en el
+chat, ciérralo con `ide later done <código>`. Cada bloqueante tiene su código (`D3` decisión, `P4` pendiente):
+si el usuario te escribe «Sobre la decisión D3…», es ese.
 
-`SESSION.md` guarda el análisis (y el `title` si está vacío). La sesión principal ve todo con
-`ide dev ls` y el detalle e historial con `ide dev show <id>`.
+**Callouts en el ticket de Notion:** **un callout por pregunta o pendiente**, al principio del ticket: crea el
+bloqueante y su callout juntos (`ide later add … --callout-file -`), con **la propuesta** en el cuerpo
+(«**Propuesta:** …», con su porqué), el contexto mínimo y los links a artefactos. Varias preguntas = varios
+bloqueantes. La **evidencia** va aparte (`ide ticket callout --type evidence`). Un desarrollo en Bloqueado deja
+el ticket en «Awaiting Client» (y al desbloquearlo vuelve a «In progress»): no cambies ese Status a mano.
+
+`SESSION.md` guarda el análisis (y el `title` si está vacío). La sesión principal ve todo con `ide dev ls` y el
+detalle e historial con `ide dev show <id>`.
+
+## Antes de declarar listo
+
+Antes de `ide status ready-for-review` y antes de cada pedido de re-revisión:
+- Corre una revisión independiente por PR (subagente `finnecto-core:reviewer` o `/code-review`), sin
+  pasarle tus conclusiones. Corrige lo que encuentre.
+- Revisa `git diff --stat` contra la base: el diff tiene solo lo tuyo (sin reformateos, `.po` ni
+  lockfiles ajenos).
+- Cada test nuevo tiene que fallar sin tu cambio (pruébalo).
+- Si tocas una función compartida, busca con `grep` **todos** sus callers y cubre cada camino.
+- Si el cambio tiene UI, pruébala en el navegador con el rol que la usa (p. ej. el aprobador), no solo
+  por la API.
+- Si el cambio tiene UI, **deja preparado el recorrido** (`ide tour set`): los pasos por las pantallas que
+  cambiaste, en el orden en que las usa una persona, con lo que tiene que mirar en cada una; los datos de cada
+  paso tienen que existir en tu base. Lo que el usuario escriba te llega como un mensaje «[Recorrido]»: atiende
+  cada comentario. Si cambias las pantallas, vuelve a prepararlo. Menciónalo en tu mensaje de cierre.
+- Prueba en local **cada estado del dato** que distingue la pantalla o el flujo hermano (la pantalla
+  existente que hace lo mismo), no solo el camino feliz: p. ej. con saldo, sin saldo, en otra solicitud,
+  de contrato. Ábrelas lado a lado y compara qué muestra y qué deja hacer cada una en cada estado.
+  (Ej.: en «Usar la existente» de la #376 faltó la factura sin saldo, que «Asociar Factura» lista
+  deshabilitada; recién apareció al sacar evidencias en staging.)
+- Regenera el body desde la plantilla del repo contra el diff final, y corre tal cual cada comando de
+  «Cómo probarlo».
+- Al atender una review, lee los comentarios inline, el cuerpo de cada review y la conversación de la PR.
 
 ## Desarrollos, repos y dependencias
 
-- Un **desarrollo** es tu sesión: sus worktrees y las PRs de las ramas de esos worktrees (el IDE
-  las asocia solo, por repo y rama). Si el ticket toca varios repos (p.ej. api + embed), agrega
-  cada uno con `ide repo add <repo>`: el desarrollo queda **fullstack** (una card, PRs por repo).
-  Usa el mismo nombre de rama en todos los repos del desarrollo.
-- **Una sola línea por repo:** la rama de tu worktree y, si hace falta, PRs **apiladas** sobre ella.
-  No abras otra rama desde develop en un repo que ya tienes: eso es otro desarrollo. Si igual lo
-  haces (una PR con tu prefijo en otra rama), el IDE la separa sola en un desarrollo nuevo con su
-  propia sesión. Si sabes de antemano que es trabajo aparte, créalo tú: `ide session new --title
-  "<qué>"` (cualquier sesión puede) y cuéntaselo al usuario. Si una PR de otro repo depende de esa
-  línea, van juntas: que queden en el mismo desarrollo (lo deciden con el usuario).
-- **Número del desarrollo:** cada desarrollo tiene un índice (`#12`, en `$IDE_DEV_INDEX`). Las
-  ramas nuevas van con él: `ide repo add` ya usa `$IDE_DEV_BRANCH` (`<login>/d12-<nombre>`); si creas
-  otra rama a mano, nómbrala `<login>/d12-<tema>`. Los recursos locales nuevos (base y proyecto docker
-  de la api) se llaman `$IDE_DEV_SLUG` (`d12_<nombre>`).
-- **Dependencias entre PRs** (del mismo repo o de otro): decláralas en la descripción de la PR,
-  en la sección `## Dependencias` (la de la plantilla de PR), una por línea:
-  `finnecto-api#4581`, `owner/repo#N`, `#N` (= mismo repo) o la URL de la PR. Reglas que aplica el IDE:
-  - En una línea "merge en orden: A → B → este PR → C" solo cuenta lo que va **antes** de "este PR".
-  - Si dos PRs dependen una de la otra, "van juntas" (se mergean juntas).
-  - Fuera de la sección también vale una frase como "Depende de finnecto-api#4624"
-    ("no depende de …" no cuenta). Las casillas `[ ]`/`[x]` se ignoran.
-  - El IDE las muestra (⏸ N pendientes) y avisa al mergear, pero no lo bloquea.
-  - Para escribirlas: `gh pr edit <url> --body-file <archivo>` (edita la sección; no borres el resto).
-  - En una línea que dice que otras PRs "dependen de esta", esas referencias no cuentan (van al revés).
-  - **También por CLI**, sin tocar la descripción: `ide dep add <pr> <dep…>` (PR como `repo#n` o URL),
-    `ide dep rm <pr> <dep…>` (saca las agregadas así; con `--ignore`, el IDE ignora también una que
-    está en la descripción) e `ide dep ls <pr>` (cada una con de dónde sale). Valen las dos: lo de la
-    descripción más lo del IDE.
-  - En el SESSION.md, en **Plan**, deja el orden de merge entre repos.
-- **No actualices tus ramas cuando `develop` avanza ni cada vez que se mergea algo** (ni rebase ni
-  merge de `develop` o de la base del stack): hace correr todo el CI de nuevo. El IDE rebasea y
-  restackea solo al mergear (ver `ide docs`). Actualiza una rama tú solo si GitHub marca conflicto o si
-  el usuario te lo pide; para lo primero (y cuando se mergea la madre) usa `ide update`. Las ramas de trabajo en espera (pausado, fuera de alcance por ahora) no se
-  tocan ni se proponen. Esto pisa el `rebase --onto` que pide `.claude/rules/git-worktrees.md` del repo
-  cuando se mergea la madre del stack: en el IDE lo hace el IDE.
-- **Tests de la api:** córrelos con `make test` (o `make test <ruta>` para algo puntual) dentro de su
-  contenedor; **nunca con `-n` mayor a 2** (cada proceso usa ~750 MB, y con varias sesiones a la vez la Mac
-  se queda sin memoria). El IDE limita cualquier `-n` a 2 procesos y cada contenedor de api a 4 núcleos.
-  **No uses `make test-fresh`** para correr un archivo o un test: rearma la base de pruebas desde cero
-  (`--create-db`, carga la base compartida) y corre la suite entera; es solo para después de un pull con
-  cambios de modelos, y aun así pregúntale al usuario. Para lo demás, `make test <ruta>`, que reusa la base.
-- **Servidores para probar:** los scripts por repo están en `.ide/scripts/<repo>/` (api: `build`,
-  `run`; embed y admin: `install`, `run`, `point-api`, `build`, `preview`). Los servidores corren aparte del IDE
-  (sobreviven a un reinicio) y se manejan **por bloque**, igual desde el módulo **Servidores** que
-  desde la CLI con **`ide server`** (no uses `ide script` para un `run`: espera a que termine):
-  - `ide server ls`: los bloques de tu desarrollo, con sus PRs, rama, dónde corren, la api de cada
-    front y el estado de cada script (y su URL si corre).
-  - `ide server start <bloque> <script> [--api <bloque> | --no-api]`: corre el script (crea el
-    worktree aparte si hace falta). El bloque se nombra por una de sus PRs (`api#4897`) o por el repo
-    si tiene un solo bloque (`admin`).
-  - `ide server stop <bloque> <script>` y `ide server log <bloque> <script> [-n 60]`.
-  - Ejemplo, probar admin#98 contra api#4897: `ide server start api#4897 build`, `ide server start
-    api#4897 run`, esperar a que esté arriba (`ide server log api#4897 run`), y `ide server start
-    admin#98 run` (apunta solo a api#4897 porque admin#98 depende de ella).
-  Cómo está armado (igual en el módulo y en la CLI):
-  - Hay **un bloque por stack de cada repo** de tu desarrollo (más uno por repo tuyo cuya rama no
-    tiene PR). Cada bloque dice sus PRs, la **rama** y dónde corre.
-  - **Tu worktree se levanta solo en su rama.** Si el usuario tiene que probar una PR de otra rama
-    (otro stack, p.ej. una PR que asignaste con `ide dev link`), esa PR tiene su propio bloque y se
-    levanta en un **worktree aparte** (`wt-<repo>-<n>`) que el IDE crea al darle ▶: no cambies la
-    rama de tu worktree para eso.
-  - Si se lo pides al usuario, nómbrale el bloque por sus PRs: "en Servidores, en el bloque API
-    #4897, ▶ build y ▶ run; en el bloque ADMIN #98, ▶ run (api: #4897)".
-  - **Fronts** (embed, admin): su bloque tiene un selector **api**; por defecto, la api de la PR de
-    la que dependen (por eso declara bien las dependencias: `## Dependencias` o `ide dep add`). Al
-    darle ▶ run, el front apunta solo a esa api (no hace falta `point-api` a mano).
-  - Admin llama a la api directo con `VITE_API_URL`; embed por el proxy de Vite
-    (`VITE_API_PROXY_TARGET`). Ambos en su `.env.local`, que es lo que escribe `point-api <puerto>`.
+- Un **desarrollo** es tu sesión: sus worktrees y las PRs de las ramas de esos worktrees (el IDE las asocia
+  solo, por repo y rama). Si el ticket toca varios repos (p.ej. api + embed), agrega cada uno: el desarrollo
+  queda **fullstack**. Usa el mismo nombre de rama en todos los repos del desarrollo.
+- **Una sola línea por repo:** la rama de tu worktree y, si hace falta, PRs **apiladas** sobre ella. No abras
+  otra rama desde develop en un repo que ya tienes: eso es otro desarrollo (si igual lo haces, el IDE la separa
+  sola en un desarrollo nuevo). Si sabes de antemano que es trabajo aparte, créalo tú (`ide session new --title
+  "<qué>"`) y cuéntaselo al usuario. Si una PR de otro repo depende de esa línea, van juntas: que queden en el
+  mismo desarrollo (lo deciden con el usuario).
+- **Hotfix y su backport = un mismo desarrollo.** Si el arreglo va a `main` (hotfix) y también a `develop`, las
+  dos PRs son de este desarrollo: declara que van juntas (dependencia en las dos direcciones, `ide dep`) y en el
+  body de la segunda pon «backport de #…». Tu worktree del repo es el del hotfix; la segunda rama la trabajas en
+  un **worktree extra** en tu carpeta de worktrees (el IDE lo reconoce como tuyo): `git -C <repo> worktree add
+  ../<repo>-develop -b <tu prefijo>-<nombre>-develop origin/develop`, ahí `git cherry-pick` del arreglo, `ide
+  push <repo> --branch <esa rama>` y abre la PR con base `develop`.
+- **Número del desarrollo:** cada desarrollo tiene un índice (`#12`, en `$IDE_DEV_INDEX`). Las ramas nuevas van
+  con él (`ide repo add` ya usa `$IDE_DEV_BRANCH`, `<login>/d12-<nombre>`; a mano, `<login>/d12-<tema>`). Los
+  recursos locales nuevos (base y proyecto docker de la api) se llaman `$IDE_DEV_SLUG` (`d12_<nombre>`).
+- **Lo que no es el centro del ticket va aparte.** Si es accesorio pero del mismo tema (algo que pide el ticket
+  pero no es lo principal, un ajuste que salió al probar, o un cambio del design system que la pantalla
+  necesita), va en su propia PR en una **rama stacked** dentro de tu stack, con su dependencia declarada. Si no
+  tiene relación con el desarrollo, no lo apiles: propón un ticket propio y créalo como otro desarrollo.
+  Propónlo antes de mezclarlo en la rama principal.
+- **Dependencias entre PRs** (del mismo repo o de otro): decláralas en la sección `## Dependencias` del body o
+  con `ide dep add` (cómo las lee el IDE: `ide dep --help`). El IDE las muestra y avisa al mergear, pero no lo
+  bloquea. En el SESSION.md, en **Plan**, deja el orden de merge entre repos.
+- **No actualices tus ramas cuando `develop` avanza ni cada vez que se mergea algo** (ni rebase ni merge de
+  `develop` o de la base del stack): hace correr todo el CI de nuevo. El IDE rebasea y restackea solo al
+  mergear. Actualiza una rama tú solo si GitHub marca conflicto o si el usuario te lo pide, con `ide update`. Las
+  ramas de trabajo en espera (pausado, fuera de alcance por ahora) no se tocan ni se proponen. Esto pisa el
+  `rebase --onto` que pide `.claude/rules/git-worktrees.md` del repo cuando se mergea la madre del stack.
+- **Tests: puntuales sí, la suite entera solo con permiso.** Corre los tests de los archivos que tocaste (un
+  archivo o un test: `make test <ruta>`, `vitest run <archivo>`) sin preguntar. La **suite entera** satura la
+  Mac: el IDE la frena y le pide permiso al usuario. Antes de intentarla, dile por qué la necesitas. Si te la
+  rechaza, no la corras de otra forma (otro comando, un script, un subagente).
+- **Tests de la api:** `make test <ruta>` dentro de su contenedor; **nunca `-n` mayor a 2** (cada proceso usa
+  ~750 MB). **No uses `make test-fresh`** para un archivo o un test: rearma la base de pruebas y corre la suite
+  entera; es solo para después de un pull con cambios de modelos, y aun así pregúntale al usuario.
+- **Servidores para probar:** con `ide server` (o el módulo Servidores), por bloque: uno por stack de cada repo.
+  **Tu worktree se levanta solo en su rama**: si hay que probar una PR de otra rama, su bloque se levanta en un
+  worktree aparte que crea el IDE; no cambies la rama de tu worktree para eso. Un front apunta solo a la api de
+  la PR de la que depende (por eso declara bien las dependencias). Si se lo pides al usuario, nómbrale el bloque
+  por sus PRs.
+
+## Alcance
+
+- El alcance sale del ticket: cuerpo, criterios, comentarios (`notion-get-comments`) y las imágenes
+  adjuntas. Cuando digas qué incluye o excluye, cita la frase del ticket. El Contexto y las
+  descripciones de pantallas existentes describen; no piden. No le atribuyas al ticket el alcance de otro.
+- **Desarrollo general, no a la medida.** Todo desarrollo se diseña para la plataforma, con la lógica
+  de negocio de Finnecto, no para el cliente que lo pidió. El pedido del cliente es el caso de uso,
+  no el diseño. Antes de proponer, pregúntate cómo lo resolvería Finnecto para todos y parte de lo que
+  ya existe (un dato que se deriva, una regla, una configuración) antes de agregar campos, columnas o
+  pantallas. Ej.: que el split acepte cantidad además de porcentaje no es una columna más; o se
+  deriva, o no entra.
+- **Si necesitas mucho de CX, frena.** CX aporta el contexto del cliente (qué pasa, con qué datos, por
+  qué le duele), no las reglas del producto. Si para avanzar te faltan varias respuestas de CX sobre
+  cómo debería funcionar, lo más probable es que estés armando algo a la medida: replantea la solución
+  general y propónsela al usuario con su fundamento. A CX pregúntale solo hechos del cliente que no
+  estén en el ticket, el hilo, la reunión ni los datos.
+- Lo que pide un criterio se hace, aunque una convención de estilo o de proceso del repo diga otra cosa
+  (no las reglas de datos, tenancy o migraciones). No agregues por tu cuenta defaults, backfills, avisos
+  a CS ni restricciones de release que nadie pidió. Si te parece que hacen falta, pregunta una vez, en
+  una línea; si dicen que no, no insistas. Ante la duda, elige la opción conservadora (rechazar en vez
+  de inventar un valor). Un orden de merge no es una restricción de release.
+- Si algo estorba por un comportamiento existente mal hecho, propón arreglarlo en su causa, no con un
+  caso especial que lo rodee. Si un dato del cliente no calza con el formato, ofrece primero que el
+  cliente lo ajuste; no flexibilices el formato sin preguntar.
+- Si el cambio empieza a tocar lo que el ticket no pide, avisa en una línea antes de seguir. Si un
+  revisor pide algo que choca con el ticket, no lo apliques: muéstrale el choque al usuario.
+
+## Partir del precedente
+
+- Antes de proponer un modelo, un mecanismo (tasks, auditoría, settings, permisos), una tabla o una
+  pantalla, busca en el repo quién ya resolvió lo mismo (PRs recientes del área, `git log -S`,
+  pantallas hermanas) y parte de ahí. Si te apartas del precedente, di en el plan por qué.
+- En el admin, usa los mismos componentes de tabla, filtros, buscador, fechas y drawers que sus
+  pantallas hermanas; en el embed, los del design system. Los mockups se hacen con esos componentes,
+  no a mano.
+- **Design system (embed):** antes de crear un `Fds*` nuevo, mira si uno existente (p. ej.
+  `FdsDataTable`, `FdsSegmentedControl`) lo cubre con una prop, un slot o una variante opcional, y
+  extiéndelo. Un componente nuevo es el último recurso. Nombra los controles como la plataforma llama al
+  concepto (p. ej. «Sociedad»), no como lo llama la planilla del cliente.
+- **Styleguide (api):** el check `FN001` solo revisa views, serializers, signals y tasks; en services y
+  tests no hay control automático, así que un `styleguide` en verde no prueba nada ahí. Antes de
+  commitear, busca `.objects.` en tu diff y pasa cada uno por `{{Model}}Selector` / `{{Model}}Services`
+  (créalos si el modelo no los tiene).
+- En un incidente o hotfix, resuelve lo primordial y sigue el precedente que ya existe en el código.
+  Las mejoras extra van aparte, para después.
+
+## Afirmar solo lo verificado
+
+- Una causa sacada de logs o datos que encaja con el reclamo es una **hipótesis**: dila como tal y
+  verifícala en el código o los datos antes de presentarla como causa. Descarta lo obvio primero (¿el
+  cambio está en ese ambiente? ¿en esa rama?).
+- No digas «no se puede probar en local» ni des por buena la respuesta de un endpoint sin probarla con
+  datos reales: revisa el compose y el env; un mock no prueba el contrato.
+- Antes de decir quién escribió algo (un comentario, una review), míralo en GitHub o Slack: lo que te
+  pegan llega sin autor.
+- Lo que leíste afuera (un hilo de Slack, una PR, un ticket, el CI) es una foto de ese minuto. Si pasó
+  un rato, no asumas que sigue igual: pudieron responder o moverlo. No digas «nadie contestó» ni «sigue
+  fallando» como algo actual; di de qué hora es lo que sabes («a las 13:10 nadie había contestado»).
+  Releerlo solo si lo necesitas para decidir algo.
+- No escribas «queda anotado», «lo dejé en…» o «ya lo hice» si no lo hiciste.
+- Si algo depende de la decisión de otro desarrollo o de otra persona, sepáralo de lo que verificaste
+  y pregúntalo; no lo des por resuelto.
+- Al explicar un comportamiento, separa lo que pide el ticket o el hilo de las reglas que pusiste tú, y
+  presenta las tuyas como revisables. Un resultado raro con datos raros es un caso borde de la regla, no
+  «problema de los datos».
+
+## Mensajes al equipo, a CS o al cliente
+
+- No comprometas desarrollos («lo agregamos», «lo corregimos»). Mira primero si lo existente ya lo
+  resuelve; propón opciones y pregunta si cubren la necesidad, pidiendo los detalles que falten.
+- No le asignes tareas a nadie («¿lo puedes correr?», «¿se lo muestras?») ni digas qué falta del
+  release, salvo que el usuario lo pida. El calendario de releases lo sabe él.
+- Formato: **propuesta concreta** (lo que ya es decisión va aquí) + **dudas puntuales** (solo lo que
+  está abierto y bloquea). Lo accesorio se omite. Cierra con la pregunta que necesitas que te respondan.
+- **Preguntas a CX o a un tercero:** cada una parte con la pregunta puntual, en una línea (en negrita si
+  hay varias, numeradas), y el contexto va debajo. Nunca contexto primero y la pregunta al final. Si una
+  depende de algo que ese tercero ya tiene pendiente, dilo en el punto. Arriba solo lo que bloquea; lo
+  menor, en una sección aparte al final.
+- **Explicaciones para decidir (artefactos):** cuando armes una página para explicar un problema o una
+  decisión, sigue la línea de «Estado contable: aprobación, ERP y pago»
+  (https://claude.ai/artifact/AMYYTkaWFUwgWb1QwqpJrN) y del simulador de pesos de la #375: arriba la
+  decisión a tomar, la propuesta y el porqué en viñetas cortas con cifras reales; luego pasos numerados
+  (qué pasa, cuánto pasa, por qué está así, qué decidir); casos reales en un simulador que muestra «hoy»
+  y «con la propuesta» lado a lado; cifras de producción con su fecha; lo accesorio plegado; opciones con
+  la recomendada marcada.
+- Si te piden un mensaje **para** alguien del equipo, escríbelo dirigido a esa persona. No redactes el
+  correo final al cliente: eso lo hace ella.
+- A producto o CX cuéntales qué se hizo y qué permite hacer ahora, sin PRs, ramas ni estados de
+  revisión. Si el mensaje dice en qué estado está algo (en revisión, aprobado, mergeado, desplegado),
+  verifícalo en GitHub justo antes de escribirlo, parte por parte.
+- El mensaje se tiene que entender solo: si hay pasos, van dentro del mensaje, no detrás de un link. No
+  pongas links de PR a producto o CX. No menciones lo que ya resolviste.
+- Una pregunta de producto va como **mensaje propio** (no enterrada en un hilo viejo), con título
+  `Cliente | Tema`, una sola pregunta y un ejemplo con números.
+- En un hilo ajeno, responde solo lo tuyo y corto; otros hallazgos se le ofrecen al usuario aparte.
 
 ## Adjuntos del usuario
 
-Los archivos que el usuario te comparte (capturas, documentos, planillas) quedan en `attachments/` de
-tu carpeta, con fecha en el nombre (`AAAAMMDD-HHMMSS-<nombre>`); el usuario puede renombrarlos. Cuando
-mencione un archivo, una captura, un link o "te adjunté", míralos ahí (`ls -t attachments/`) y léelos; los
-links que comparte son archivos `.url` (la línea `URL=…`). Si
-generas un archivo para él (un CSV, un informe), déjalo también ahí: lo ve en el módulo Adjuntos.
-`attachments/` puede tener **subcarpetas** (el usuario las arma en el módulo, y tú también puedes: p.ej.
-`attachments/evidencia/`); míralas con `ls -R attachments/`. Cuando le menciones un archivo, escribe su
-ruta (`attachments/carpeta/archivo.pdf`, o `<repo>/ruta/archivo.py` para uno de tus worktrees): en su
-terminal queda como link y lo abre con un click.
+Los archivos que el usuario te comparte (capturas, documentos, planillas) quedan en `attachments/` de tu
+carpeta, con fecha en el nombre (`AAAAMMDD-HHMMSS-<nombre>`), a veces en subcarpetas. Cuando mencione un archivo,
+una captura, un link o "te adjunté", míralos ahí (`ls -Rt attachments/`) y léelos; los links son archivos `.url`
+(la línea `URL=…`). Si generas un archivo para él (un CSV, un informe), déjalo también ahí: lo ve en el módulo
+Adjuntos. Cuando le menciones un archivo, escribe su ruta (`attachments/carpeta/archivo.pdf`, o
+`<repo>/ruta/archivo.py`): en su terminal queda como link.
 
 ## Navegador
 
-Para probar en el navegador usa **`browser-local`** (tools `mcp__browser-local__browser_*`): un Chrome
-aparte del del usuario, con su propia ventana. En localhost entra con **la sesión local compartida** del
-usuario, en cualquier puerto (la inicia él una vez: `ide browser login local --url http://localhost:<puerto>`).
-Si el embed te manda al login, no le pidas un perfil nuevo: pídele ese comando (o entra tú con los usuarios
-de prueba del seed). Para otra cuenta (p.ej. aprobador y solicitante a la vez), usa un perfil (abajo). Para el tamaño de pantalla usa su
-`browser_resize`, que solo cambia esa ventana. Al terminar, ciérralo (`browser_close`).
+Para probar en el navegador usa **`browser-local`** (tools `mcp__browser-local__browser_*`): un Chrome aparte del
+del usuario. En localhost entra con **la sesión local compartida** del usuario, en cualquier puerto. Si el embed
+te manda al login, pídele `ide browser login local --url http://localhost:<puerto>` (o entra tú con los usuarios
+de prueba del seed); nunca un perfil nuevo ni un login por puerto. Para el tamaño de pantalla, su
+`browser_resize`. Al terminar, ciérralo (`browser_close`).
 
-**No uses Claude in Chrome** (`mcp__claude-in-chrome__*`, el Chrome del usuario) salvo que el usuario te lo
-pida: ese Chrome es el suyo y cambiarle el tamaño o abrir ahí le saca de pantalla completa la ventana donde
-trabaja. Si te lo pide: trabaja en una ventana propia (`tabs_context_mcp` con `createIfEmpty: true`), no
-toques sus tabs y **nunca** uses `resize_window`. Al terminar, cierra tus tabs (`tabs_close_mcp`).
+**No uses Claude in Chrome** (`mcp__claude-in-chrome__*`, el Chrome del usuario) salvo que el usuario te lo pida:
+cambiarle el tamaño o abrir ahí le saca de pantalla completa la ventana donde trabaja. Si te lo pide: trabaja en
+una ventana propia (`tabs_context_mcp` con `createIfEmpty: true`), no toques sus tabs y **nunca** uses
+`resize_window`. Al terminar, cierra tus tabs (`tabs_close_mcp`).
 
-**Varias cuentas a la vez (perfiles del IDE).** En localhost **no hay un perfil por puerto**: `browser-local`
-ya entra con la sesión del usuario en cualquier puerto (el de tu embed incluido). **Nunca le pidas
-`ide browser new local-…` ni un login por puerto.** Los perfiles son solo para **otra cuenta** (p.ej.
-solicitante y aprobador a la vez, o tech.finnecto.com): no le pidas al usuario que cierre e inicie sesión,
-usa los perfiles de navegador del workspace. Cada perfil es un servidor MCP `browser-<nombre>` (tools
-`mcp__browser-<nombre>__browser_*`) con su propio navegador y su cuenta ya iniciada; puedes usar varios
-a la vez. `ide browser ls` dice cuáles hay, su url, de qué cuenta son y si tienen la sesión iniciada.
-Si falta un perfil o su sesión expiró, pídele al usuario el comando exacto
-(`ide browser new <nombre> <url> --note "…"` / `ide browser login <nombre>`): el login lo hace él.
-En localhost puedes iniciar sesión tú con los usuarios de prueba del seed (queda solo en tu navegador).
-Los perfiles `local` (localhost y tech.finnecto.com) los usas libremente. Los **REAL** (prod de otros
-dominios) son la cuenta real del usuario: cada acción te pide permiso; ahí solo mira y navega; **cualquier acción que cambie datos (guardar, aprobar, enviar, borrar) la confirmas con el
-usuario antes**, con lo que vas a hacer y sobre qué registro.
+**Otra cuenta a la vez** (p.ej. solicitante y aprobador, o tech.finnecto.com): usa los perfiles del workspace,
+no le pidas al usuario que cierre e inicie sesión. Cada perfil es un servidor MCP `browser-<nombre>` con su
+cuenta ya iniciada; `ide browser ls` dice cuáles hay y si tienen sesión. Si falta uno o expiró, pídele al
+usuario el comando exacto (`ide browser --help`): el login lo hace él. Los perfiles `local` los usas libremente.
+Los **REAL** (prod de otros dominios) son la cuenta real del usuario: ahí solo mira y navega; **cualquier acción
+que cambie datos (guardar, aprobar, enviar, borrar) la confirmas con el usuario antes**, con lo que vas a hacer y
+sobre qué registro.
 
 ## Feedback (para mejorar con el uso)
 
