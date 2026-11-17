@@ -121,7 +121,9 @@ ejemplos:
   ide evidence rm --step 3 --shot 1                 # saca una captura; --step 3 solo = el paso; sin nada = la corrida
   ide evidence ls                                   # corridas, pasos y rutas de las capturas
   ide evidence publish api#5092                     # comentario en la PR con pasos y capturas (verifica que subieron)
-No edites ni borres los archivos a mano, ni armes el comentario o los --attach de gh tú."""),
+No edites ni borres los archivos a mano, ni armes el comentario o los --attach de gh tú. Si alguna vez armas un
+`gh … --attach` (zsh): los --attach van en un array (args+=(--attach "$f") y "${args[@]}"), nunca en una variable de
+texto, y a un gh que publica no le pongas | tail (escondería el error)."""),
     "ticket": ("El ticket de Notion del desarrollo.", """\
 ejemplos:
   ide ticket set https://www.notion.so/…        # asocia el ticket (la card muestra su Status)
@@ -182,13 +184,23 @@ ejemplos:
   ide server start embed run --api api#4897 # o a otra (--no-api: la de su .env.local)
   ide server stop api#4897 run
 El bloque se nombra por una de sus PRs (api#4897) o por el repo si tiene un solo bloque (admin). Una PR de otra rama
-se levanta en un worktree aparte que el IDE crea solo: no cambies la rama de tu worktree para eso."""),
+se levanta en un worktree aparte que el IDE crea solo: no cambies la rama de tu worktree para eso.
+Si se lo pides al usuario, nombra el bloque por sus PRs: «en Servidores, bloque API #4897: ▶ build y ▶ run».
+Fronts: admin llama a la api con VITE_API_URL y embed por el proxy de Vite (VITE_API_PROXY_TARGET), ambos en su
+.env.local (lo escribe `point-api <puerto>`; al darle run con --api no hace falta)."""),
     "dep": ("Dependencias entre PRs, además de la sección `## Dependencias` del body (valen las dos).", """\
 ejemplos:
   ide dep add api#5101 api#5092 embed#3109  # api#5101 depende de esas
   ide dep rm api#5101 api#5092              # --ignore: ignora también una que está en el body
   ide dep ls api#5101                       # cada una con de dónde sale
-Dos PRs que dependen una de la otra van juntas (hotfix y su backport): declara las dos direcciones."""),
+Dos PRs que dependen una de la otra van juntas (hotfix y su backport): declara las dos direcciones.
+en el body de la PR (sección `## Dependencias` de la plantilla), una por línea:
+  finnecto-api#4581 · owner/repo#N · #N (mismo repo) · la URL de la PR
+  - «merge en orden: A → B → este PR → C»: solo cuenta lo que va antes de «este PR».
+  - Fuera de la sección vale «Depende de finnecto-api#4624» («no depende de …» no cuenta).
+  - Una línea que dice que otras PRs «dependen de esta» no cuenta (va al revés). Las casillas [ ]/[x] se ignoran.
+  - Para escribirlas: gh pr edit <url> --body-file <archivo> (edita la sección; no borres el resto).
+El IDE las muestra (⏸ N pendientes) y avisa al mergear, pero no lo bloquea."""),
     "dev": ("Los desarrollos del tablero.", """\
 ejemplos:
   ide dev ls
