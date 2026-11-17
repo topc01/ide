@@ -4,6 +4,7 @@
 reconoce como tuyo), con una rama `<tu rama>-develop` desde origin/develop y los commits del hotfix copiados con
 `git cherry-pick -x`. Después la sube (`ide push`). La PR la abres tú (`gh pr create --draft --base develop`)."""
 from __future__ import annotations
+import re
 import subprocess
 from pathlib import Path
 from typing import TextIO
@@ -18,6 +19,9 @@ def _git(wt: Path, *args: str, timeout: int = 300) -> subprocess.CompletedProces
 
 
 def backport(root: Path, sid: str, repo: str, *, onto: str = "develop", source: str = "main", out: TextIO) -> int:
+    for b in (onto, source):     # llegan a git: un `--upload-pack=…` sería una opción, no una rama
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,100}", b) or ".." in b or b.endswith((".lock", "/", ".")):
+            raise SessionError("bad_ref", f"rama inválida: {b!r} (p.ej. develop, main, staging)")
     links = {p.name: p for p in repo_links(require_session(root, sid))}
     if repo not in links:
         raise SessionError("unknown_repo", f"la sesión {sid} no tiene {repo} (tiene: {', '.join(links) or 'ninguno'})")
@@ -26,7 +30,7 @@ def backport(root: Path, sid: str, repo: str, *, onto: str = "develop", source: 
     if not branch:
         raise SessionError("detached", f"{repo}: el worktree no está en una rama (detached)")
     for b in (onto, source):
-        r = _git(wt, "fetch", "origin", b)
+        r = _git(wt, "fetch", "origin", f"refs/heads/{b}:refs/remotes/origin/{b}")
         if r.returncode != 0:
             raise SessionError("fetch_failed", f"no pude traer origin/{b}: {r.stderr.strip()[-200:]}")
     commits = _git(wt, "rev-list", "--reverse", "--no-merges", f"origin/{source}..HEAD").stdout.split()
