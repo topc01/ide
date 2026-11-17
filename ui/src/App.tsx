@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useFolders } from "./state/folders";
 import { fetchUiConfig } from "./transport/folderSessions";
 import { getWs } from "./transport/wsClient";
+import { useTheme } from "./state/theme";
 import "./modules/search/register";
 import "./modules/terminal/register";
 import "./modules/changes/register";
@@ -37,6 +38,15 @@ import { DevSearch } from "./layout/DevSearch";
 import { Notifications } from "./layout/Notifications";
 
 export default function App() {
+  // el recuadro del recorrido (Chrome aparte) sigue el tema del IDE: se lo contamos al server al cambiar y cada
+  // tanto (si el server se reinició, vuelve a saberlo)
+  const theme = useTheme((s) => s.theme);
+  useEffect(() => {
+    const send = () => { getWs().request("ui.theme", { theme }).catch(() => {}); };
+    send();
+    const t = setInterval(send, 20_000);
+    return () => clearInterval(t);
+  }, [theme]);
   useDevShortcuts();
   const setUiModules = useFolders((s) => s.setUiModules);
   const setConnected = useFolders((s) => s.setConnected);

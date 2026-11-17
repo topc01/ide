@@ -59,14 +59,15 @@ def ensure_runtime() -> Path:
     return d
 
 
-def launch(root: Path, sid: str, tour: dict, ide_url: str) -> str:
+def launch(root: Path, sid: str, tour: dict, ide_url: str, theme: str = "dark") -> str:
     """Abre el Chrome del recorrido (proceso aparte). Devuelve el token con que avisa al terminar."""
     from ide_server.browsers import _shared_local
     d = ensure_runtime()
     cookies, login = _shared_local(root)
     token = secrets.token_urlsafe(24)
     cfg = {"steps": tour["steps"], "sid": sid, "ide": ide_url, "token": token, "cookies": str(cookies),
-           "login": str(login), "title": tour.get("title") or sid}
+           "login": str(login), "title": tour.get("title") or sid,
+           "theme": theme, "pos_file": str(runtime_dir() / "widget-pos.json")}
     fd, path = tempfile.mkstemp(prefix="tour-", suffix=".json")
     with os.fdopen(fd, "w") as fh:
         json.dump(cfg, fh)

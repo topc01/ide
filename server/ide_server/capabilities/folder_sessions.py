@@ -377,6 +377,17 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             raise SessionError("forbidden", f"una sesión solo toca {what} de su propio desarrollo")
 
     tour_tokens: dict[str, str] = {}            # sid -> token del Chrome del recorrido abierto
+    ui_theme = {"theme": "dark"}                # el tema que se ve en el IDE: el recuadro del recorrido lo sigue
+
+    async def ui_theme_set(p: dict) -> dict:
+        """La UI avisa su tema (claro u oscuro) al abrir y al cambiarlo."""
+        if p.get("_http"):
+            raise SessionError("forbidden", "el tema lo avisa la UI")
+        ui_theme["theme"] = "light" if p.get("theme") == "light" else "dark"
+        return {"ok": True}
+
+    async def ui_theme_get(p: dict) -> dict:
+        return dict(ui_theme)
 
     async def tour_set(p: dict) -> dict:
         """La sesión deja preparado el recorrido de lo que hizo (`ide tour set`): el usuario lo abre desde la card."""
@@ -410,7 +421,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if not t:
             raise SessionError("no_tour", "esta sesión no preparó un recorrido")
         try:
-            token = await asyncio.to_thread(tour_mod.launch, root, sid, t, devs_mod.NOTIFY_URL or "http://127.0.0.1:8787")
+            token = await asyncio.to_thread(tour_mod.launch, root, sid, t, devs_mod.NOTIFY_URL or "http://127.0.0.1:8787",
+                                            ui_theme["theme"])
         except RuntimeError as exc:
             raise SessionError("tour_failed", str(exc)) from exc
         tour_tokens[sid] = token
@@ -2893,7 +2905,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
-        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "dev.ticketCallout": ticket_callout, "notifs.read": notifs_read, "sessions.tourSet": tour_set, "sessions.tourGet": tour_get, "sessions.tourStart": tour_start, "sessions.tourRequest": tour_request, "tour.done": tour_done, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
+        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "dev.ticketCallout": ticket_callout, "notifs.read": notifs_read, "sessions.tourSet": tour_set, "sessions.tourGet": tour_get, "sessions.tourStart": tour_start, "sessions.tourRequest": tour_request, "tour.done": tour_done, "ui.theme": ui_theme_set, "ui.themeGet": ui_theme_get, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,

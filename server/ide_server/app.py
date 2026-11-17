@@ -361,6 +361,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_tour_get(sid: str):
         return await _http("sessions.tourGet", {"id": sid})
 
+    @app.get("/api/ui/theme")
+    async def api_ui_theme():
+        return await _http("ui.themeGet", {})
+
     @app.post("/api/tour/{sid}/done")
     async def api_tour_done(sid: str, body: dict):
         return await _http("tour.done", {**body, "id": sid, "_http": True})

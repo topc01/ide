@@ -1090,7 +1090,10 @@ la UI): el IDE abre un Chrome aparte (playwright-core en `~/.cache/ide-tour`, se
 usa tu Chrome instalado) con la **sesión local compartida**, va al paso 1 y muestra un recuadro abajo a la
 derecha: qué mirar, ◀ Anterior / Siguiente ▶, un campo para comentar la pantalla (Enter lo guarda) y
 **Terminar y mandar comentarios**; el elemento del `selector` queda resaltado. Puedes hacer click en la página:
-el recuadro sigue ahí. Al terminar (o al cerrar la ventana) los comentarios le llegan **juntos** a la sesión
+el recuadro sigue ahí. El recuadro sigue el **tema del IDE** (claro u oscuro, también si lo cambias con el
+recorrido abierto: la UI se lo avisa al server, canal `ui.theme`, y el recuadro lo lee de `GET /api/ui/theme`) y se
+**arrastra** desde su barra de arriba: queda donde lo dejaste en los pasos y recorridos siguientes
+(`~/.cache/ide-tour/widget-pos.json`). Al terminar (o al cerrar la ventana) los comentarios le llegan **juntos** a la sesión
 como un mensaje «[Recorrido]» (paso, pantalla y texto); si está pausada, al retomarla. `ide tour show`
 muestra los pasos y si ya lo viste (`kv tour:<sesión>`).
 
