@@ -1806,10 +1806,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         _own_or_user(p, sid, "el estado")      # por HTTP: una sesión solo cambia el de su propio desarrollo
         before = _block(sid)
         actor = p.get("actor") or "ide"
+        # quién es de verdad (por proceso): por HTTP sin la clave de la manager ni tu terminal, es la sesión misma
+        verified = not p.get("_http") or _manager_or_terminal(p) is not None
+        if not verified:
+            actor = f"claude:{sid}"
         row = await asyncio.to_thread(set_status, root, db, sid, p["status"], actor=actor, note=p.get("note"))
         if actor != f"claude:{sid}":            # la sesión que se pausa a sí misma no se corta el turno
             await _sync_pause(sid, before)
-        if before == "blocked" and _block(sid) != "blocked" and actor != f"claude:{sid}":
+        if before == "blocked" and _block(sid) != "blocked" and verified:
             await asyncio.to_thread(_user_unblocked, f"s:{sid}")
         await asyncio.to_thread(_sync_block, f"s:{sid}")
         notify()
