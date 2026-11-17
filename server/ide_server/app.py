@@ -486,7 +486,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.post("/api/later/{item_id}/resolve")
     async def api_later_resolve(item_id: str, body: dict):
-        return await _http("later.resolve", {**body, "id": item_id})
+        return await _http("later.resolve", {**body, "id": item_id, "_http": True})
 
     @app.get("/api/tools")
     async def api_tools(q: str | None = None, state: str | None = None):
@@ -599,7 +599,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.post("/api/devs/{sid}/status")
     async def api_dev_status(sid: str, body: dict):
-        return await _http("dev.status", {**body, "id": sid})
+        return await _http("dev.status", {**body, "id": sid, "_http": True})
 
     @app.post("/api/sessions/{sid}/stop")
     async def api_stop(sid: str):

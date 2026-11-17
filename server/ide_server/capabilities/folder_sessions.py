@@ -1802,6 +1802,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     "message": "ya no hace falta: el IDE detecta solo cuando terminas el turno y esperas al "
                                "usuario (la primera línea de tu último mensaje es lo que ve)"}
         sid = require_plain_name(p["id"], "sesión")
+        _own_or_user(p, sid, "el estado")      # por HTTP: una sesión solo cambia el de su propio desarrollo
         before = _block(sid)
         actor = p.get("actor") or "ide"
         row = await asyncio.to_thread(set_status, root, db, sid, p["status"], actor=actor, note=p.get("note"))
@@ -2484,6 +2485,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         item = later_mod.get(db, str(p.get("id")))
         if item is None or item["status"] != "open":
             raise SessionError("not_found", "ese pendiente ya no está abierto")
+        if str(item.get("key") or "").startswith("s:"):
+            _own_or_user(p, item["key"][2:], "los bloqueantes")   # por HTTP: una sesión solo cierra los suyos
         actor = p.get("actor") if isinstance(p.get("actor"), str) and p["actor"].startswith(("claude:", "cli")) else "usuario"
         later_mod.close(db, item["id"], "resolved", (p.get("note") or "").strip()[:2000] or None)
         note = (p.get("note") or "").strip()

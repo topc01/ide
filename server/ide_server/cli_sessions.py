@@ -683,7 +683,8 @@ def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
     if a.cmd == "done":
         from urllib.parse import quote
         actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
-        _post(http, url, f"/api/later/{quote(a.id, safe='')}/resolve", {"note": a.note, "actor": actor})
+        _post(http, url, f"/api/later/{quote(a.id, safe='')}/resolve", {"note": a.note, "actor": actor,
+                                                                         "token": env.get("IDE_MANAGER_TOKEN", "")})
         out.write(f"{a.id}\tresuelto\n")
         return 0
     items = _get(http, url, "/api/later" + ("?all=true" if a.all else ""))["items"]
@@ -713,7 +714,7 @@ def _dev_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
             raise SessionError("no_session", "no estoy dentro de una sesión: usa --session <id>")
         actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
         data = _post(http, url, f"/api/devs/{quote(sid, safe='')}/status",
-                     {"status": a.status, "note": a.note, "actor": actor})
+                     {"status": a.status, "note": a.note, "actor": actor, "token": env.get("IDE_MANAGER_TOKEN", "")})
         out.write(f"{sid}\t{data['dev']['status']}\n" + (f"{data['message']}\n" if data.get("message") else ""))
         return 0
     if a.cmd in ("link", "unlink"):
