@@ -160,7 +160,12 @@ export function RefChip({ repo, number, title, pr }: { repo: string; number?: nu
       ✓ {repoShort(repo)}{number ? ` #${number}` : ""}</a>;
   }
   const waiting = pr?.review === "approved" ? (pr.reviewers ?? []).filter((r) => r.state === "requested").map((r) => r.login) : [];
-  return <span title={title ?? (pr ? `${pr.repo}#${pr.number}: ${pr.title}${waiting.length ? `\naprobada · falta ${waiting.join(", ")}` : ""}` : number ? `${repo}#${number}` : repo)}
+  const STATE_REV: Record<string, string> = { approved: "aprobó", changes: "pidió cambios", requested: "pendiente" };
+  const revs = pr ? ((pr.reviewers ?? []).length
+    ? `\nRevisor${(pr.reviewers ?? []).length > 1 ? "es" : ""}: ${(pr.reviewers ?? []).map((r) => `@${r.login} (${STATE_REV[r.state] ?? r.state})`).join(", ")}`
+    : "\nSin revisor pedido") : "";
+  const base = title ?? (pr ? `${pr.repo}#${pr.number}: ${pr.title}${waiting.length ? `\naprobada · falta ${waiting.join(", ")}` : ""}` : number ? `${repo}#${number}` : repo);
+  return <span title={base + revs}
     onClick={pr ? (e) => { e.stopPropagation(); setActivePr(pr.url); } : undefined}
     className={cn("inline-flex shrink-0 items-center gap-1 rounded border px-1 font-mono text-[10px] font-bold tracking-wide text-foreground/90",
       active ? "border-primary" : "border-border", pr && "cursor-pointer hover:border-primary/60")}>
