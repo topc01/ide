@@ -1,0 +1,246 @@
+# server/ide_server/cli_help.py
+"""`ide <comando> --help`: qué hace, cómo se usa y ejemplos. El CLAUDE.md de las sesiones dice qué comando usar y
+cuándo; el detalle de uso vive aquí. Un error de argumentos también muestra los ejemplos del comando."""
+from __future__ import annotations
+import argparse
+import sys
+
+# clave = el comando sin `ide` ("review publish"); valor = (descripción, ejemplos/notas). Va tal cual (saltos de línea).
+HELP: dict[str, tuple[str, str]] = {
+    "repo": ("Los repos de tu sesión (un worktree por repo).", """\
+ejemplos:
+  ide repo add finnecto-api                 # worktree en la rama $IDE_DEV_BRANCH (<login>/d12-<nombre>); corre su setup
+  ide repo add finnecto-embed --branch x    # en otra rama
+  ide repo rm finnecto-embed                # lo saca (--force si tiene cambios sin commitear)
+Si el desarrollo toca varios repos, agrega cada uno: queda fullstack (una card, PRs por repo), mismo nombre de rama."""),
+    "push": ("Sube a origin la rama de tus worktrees (sin cd; nunca la principal). Úsalo en vez de `git push`.", """\
+ejemplos:
+  ide push                                  # todos los repos de la sesión
+  ide push finnecto-api --force             # --force-with-lease, después de un rebase
+  ide push finnecto-api --branch tpc/d12-x-develop   # otra rama local (p.ej. las de un stack o un backport)"""),
+    "update": ("Pone al día tu rama sobre su base SOLO si hace falta: la PR está en conflicto o su madre del stack se "
+               "mergeó. Si solo está atrás de develop, se niega (rebasear sin necesidad corre todo el CI).", """\
+ejemplos:
+  ide update --dry-run                      # dice qué haría
+  ide update finnecto-api
+Si el rebase choca, queda a medias: resuelve, `git rebase --continue` y `ide push <repo> --force`."""),
+    "migrations": ("Las migraciones de tu rama contra develop: cada nueva va después de la última de su app y depende "
+                   "de ella.", """\
+ejemplos:
+  ide migrations check                      # antes de pedir revisión
+  ide migrations renumber finnecto-api      # si chocan: renumera, corrige dependencias, commitea y sube (sin preguntar)"""),
+    "merge": ("Mergea una PR (squash): revisa sus migraciones, la pone al día si está en conflicto y restackea las de "
+              "arriba. Lo hace el usuario; tú solo si te lo pide explícito.", """\
+ejemplo:
+  ide merge api#5092                        # después verifica en GitHub que quedó mergeada"""),
+    "db": ("Una consulta de solo lectura a la base de prod o staging.", """\
+reglas (si no, el permiso no lo cubre y se frena):
+  - Va SOLO, como único comando de la línea: sin pipes (| head), sin ;, sin &&, sin `cd … &&` delante, sin loops.
+  - Sin comandos de psql (nada con \\). Filtra, ordena y limita en el SQL.
+  - Una base por comando: prod y staging van en dos comandos.
+ejemplos:
+  ide db prod "select id, name from companies_company where name ilike '%acme%' limit 20"
+  ide db staging "select count(*) from invoices_invoice where status = 'paid'"
+  ide db prod "select * from payments_payment where company_id = 12" --csv --out pagos.csv
+      # queda en attachments/db/pagos.csv (el usuario lo ve en Adjuntos); léelo en otro comando"""),
+    "script": ("Corre un script del repo que termina (test, build, …): espera a que acabe.", """\
+ejemplos:
+  ide script build finnecto-api
+Para levantar un servidor (`run`), usa `ide server start <bloque> run`: un run no termina."""),
+    "session": ("Sesiones del IDE.", """\
+ejemplos:
+  ide session ls                            # sesiones y su estado
+  ide session new --title "Exportar pagos a CSV"   # otro desarrollo (cualquier sesión puede); cuéntaselo al usuario
+  ide session send 12 --prompt-file - <<'EOF'      # le encola un prompt a la sesión #12
+  …
+  EOF
+Solo la principal: `ide session new --if-missing --notion <url> --template ticket --vars-file -` y
+`ide session new --review <pr-url>`."""),
+    "session send": ("Encola un prompt a la sesión de un desarrollo (id o #número).", """\
+ejemplos:
+  ide session send 12 --prompt "¿en qué quedó la migración?"
+  ide session send 12 --prompt-file - <<'EOF'
+  texto de varias líneas
+  EOF
+  ide session send 12 --prompt-file attachments/pedido.md   # un archivo de tu carpeta de sesión"""),
+    "session propose": ("Propone por Telegram mandarle un prompt a una sesión (se manda con el Sí del usuario).",
+                        "ejemplo:\n  ide session propose 12 --prompt-file - <<'EOF'\n  …\n  EOF"),
+    "status": ("Marca el estado del desarrollo (lo demás lo deduce el IDE solo: draft, revisión, merge, si trabajas o "
+               "esperas).", """\
+estados que marcas tú:
+  investigating                 al empezar, si todavía no hay código
+  ready-for-review              terminaste (las PRs siguen en draft; el usuario las manda a revisión)
+  blocked -m "<de quién>"       dependes de afuera y ya no puedes avanzar (mejor: ide later add … --blocks)
+  unblock                       se destrabó
+  paused                        si el usuario lo pide
+ejemplos:
+  ide status investigating
+  ide status blocked -m "definiciones de producto"
+  ide status unblock
+Nunca edites el `status:` de SESSION.md a mano."""),
+    "review": ("Publicar en GitHub desde una sesión de revisión (solo sus PRs). En vez de `gh api` (lo frena el "
+               "clasificador). Córrelo solo, como único comando de la línea. <pr> = URL o <repo>#<n>.", """\
+ejemplos:
+  ide review publish api#5092 review.json   # pide cambios con comentarios en línea
+  ide review verdict api#5092 approve --file comentario.md --why "una línea"   # aprobar: lo publica el usuario
+  ide review reply api#5092 123456 "Listo, corregido"
+  ide review resolve PRRT_kwDOabc --undo
+  ide review add-reviewer api#5092 diegobustosk
+Para verificar: gh pr view."""),
+    "review publish": ("Publica una review que pide cambios, con sus comentarios en línea.", """\
+el JSON es el de POST /repos/<o>/<r>/pulls/<n>/reviews:
+  {"body": "…", "event": "REQUEST_CHANGES", "commit_id": "<sha de la cabeza>",
+   "comments": [{"path": "app/x.py", "line": 42, "side": "RIGHT", "body": "…"}]}
+Nunca event COMMENT (una review solo de comentarios no sirve). Aprobar: `ide review verdict … approve`.
+Deja el veredicto registrado en el IDE.
+ejemplo:
+  ide review publish https://github.com/Finnecto/finnecto-api/pull/5092 review.json"""),
+    "review verdict": ("Registra tu veredicto en el IDE (la ventana Aprobar / Pedir cambios de la card lo trae cargado). "
+                       "Cada ronda pisa a la anterior.", """\
+ejemplos:
+  ide review verdict api#5092 approve --file comentario.md --why "cubre los 3 criterios, tests ok"
+  ide review verdict api#5092 changes --file - --why "falta validar el tenant" <<'EOF'
+  …
+  EOF"""),
+    "review reply": ("Responde en un hilo de review existente.",
+                     "ejemplos:\n  ide review reply api#5092 123456 \"Hecho en abc123\"\n"
+                     "  ide review reply api#5092 123456 --file - <<'EOF'\n  …\n  EOF"),
+    "evidence": ("Pasos de prueba con capturas (módulo Evidencias). <n> = número del paso; --run elige la corrida "
+                 "(default: la última).", """\
+ejemplos:
+  ide evidence plan --run PR <<'EOF'        # la guía: un ítem de lista por paso; 📸 = lleva captura
+  - Entra a Pagos y filtra por «Programados» 📸
+    detalle del paso (líneas de abajo)
+  - Abre el pago #19 y revisa el candado 📸
+  EOF
+  ide evidence shot 1 attachments/pagos.png        # adjunta captura(s) a un paso (lo marca hecho)
+  ide evidence shot 1 nueva.png --replace          # reemplaza las capturas obsoletas
+  ide evidence check 2                              # paso hecho sin captura
+  ide evidence edit 2 "texto nuevo" --detail "…" --shot   # corrige un paso (conserva sus capturas)
+  ide evidence add "otro paso" --after 2 --shot
+  ide evidence rm --step 3 --shot 1                 # saca una captura; --step 3 solo = el paso; sin nada = la corrida
+  ide evidence ls                                   # corridas, pasos y rutas de las capturas
+  ide evidence publish api#5092                     # comentario en la PR con pasos y capturas (verifica que subieron)
+No edites ni borres los archivos a mano, ni armes el comentario o los --attach de gh tú."""),
+    "ticket": ("El ticket de Notion del desarrollo.", """\
+ejemplos:
+  ide ticket set https://www.notion.so/…        # asocia el ticket (la card muestra su Status)
+  ide ticket add-sub https://www.notion.so/…    # suma un subticket (p.ej. lo que quedó fuera)
+  ide ticket rm-sub https://www.notion.so/…
+  ide ticket callout --type evidence --title "Probado en staging" --body-file - <<'EOF'
+  - qué se probó y qué se ve
+  EOF
+Desde la principal o tu terminal, antes del link va el desarrollo: ide ticket set 12 <url>."""),
+    "ticket callout": ("Un callout al principio del ticket: decision (amarillo), pending (morado), evidence (verde). "
+                       "Para una pregunta o pendiente, mejor `ide later add … --callout-file -` (crea los dos enlazados).",
+                       """\
+cuerpo: líneas «- …» (viñetas), «1. …», texto; **negrita** y [links](url).
+ejemplo:
+  ide ticket callout --type evidence --title "Etiqueta por correo en recepción" --body-file - <<'EOF'
+  - Se recibe la OC y el correo llega con la etiqueta
+  - [Captura](https://…)
+  EOF"""),
+    "later": ("Bloqueantes del desarrollo: decisiones (del usuario o a conversar con alguien) y pendientes (algo que "
+              "se espera de alguien). Cada uno tiene su código: D3 (decisión), P4 (pendiente).", """\
+ejemplos:
+  ide later add "¿Filtramos por fecha de factura o de pago?" --with "Sebastián (CX)"
+  ide later add "Credenciales del SFTP del cliente" --pending --with "Laura (CX)" --blocks
+  ide later add "¿Qué hacemos con las facturas sin OC?" --with "Sebastián (CX)" --callout-file - <<'EOF'
+  **Propuesta:** rechazarlas en FinnOps, porque …
+  - Contexto: …
+  - [Análisis](https://claude.ai/artifact/…)
+  EOF
+  ide later ls --mine
+  ide later done D3 -m "se decidió por fecha de pago"
+--blocks = ya no puedes avanzar en nada más: el desarrollo pasa a Bloqueado (y el ticket a Awaiting Client) hasta
+que se cierre. El texto, corto; el análisis va en un artefacto (--artifact <link>), no en -m."""),
+    "later add": ("Deja un bloqueante en el desarrollo de la sesión.", """\
+ejemplos:
+  ide later add "¿Filtramos por fecha de factura o de pago?" --with "Sebastián (CX)"
+  ide later add "Accesos al ERP del cliente" --pending --with "Laura (CX)" --blocks
+  ide later add "¿…?" --with "…" --artifact https://claude.ai/artifact/abc --callout-file attachments/callout.md
+--callout-file: además, su callout al principio del ticket (la pregunta es el título; el cuerpo, la propuesta con
+su porqué, el contexto mínimo y links). Una pregunta por bloqueante."""),
+    "tour": ("El recorrido de lo que hiciste: el usuario lo abre desde la card («▶ recorrido») y un Chrome va por tus "
+             "pantallas con un recuadro que le dice qué mirar; sus comentarios te llegan juntos al terminar.", """\
+ejemplo:
+  ide tour set --title "Retención de pagos desde Finn Ops" --steps-file - <<'EOF'
+  [{"url": "http://localhost:3004/payments", "text": "El pago #19 dice «Pendiente de aprobación»", "selector": "#row-19"},
+   {"url": "http://localhost:3004/payments/19", "text": "El botón Liberar pago (solo super admin)"}]
+  EOF
+  ide tour show
+urls de tu front local (o tech.finnecto.com); `selector` (css, opcional) resalta un elemento. Los datos de cada paso
+tienen que existir en tu base. Si cambian las pantallas, vuelve a correr `ide tour set`."""),
+    "server": ("Servidores de tu desarrollo, por bloque (un bloque por stack de cada repo), igual que el módulo "
+               "Servidores. Corren aparte del IDE.", """\
+ejemplos:
+  ide server ls                             # bloques: PRs, rama, dónde corre, scripts y su estado (y URL)
+  ide server start api#4897 build
+  ide server start api#4897 run
+  ide server log api#4897 run -n 80         # ¿ya está arriba?
+  ide server start admin#98 run             # un front apunta solo a la api de la PR de la que depende
+  ide server start embed run --api api#4897 # o a otra (--no-api: la de su .env.local)
+  ide server stop api#4897 run
+El bloque se nombra por una de sus PRs (api#4897) o por el repo si tiene un solo bloque (admin). Una PR de otra rama
+se levanta en un worktree aparte que el IDE crea solo: no cambies la rama de tu worktree para eso."""),
+    "dep": ("Dependencias entre PRs, además de la sección `## Dependencias` del body (valen las dos).", """\
+ejemplos:
+  ide dep add api#5101 api#5092 embed#3109  # api#5101 depende de esas
+  ide dep rm api#5101 api#5092              # --ignore: ignora también una que está en el body
+  ide dep ls api#5101                       # cada una con de dónde sale
+Dos PRs que dependen una de la otra van juntas (hotfix y su backport): declara las dos direcciones."""),
+    "dev": ("Los desarrollos del tablero.", """\
+ejemplos:
+  ide dev ls
+  ide dev show 12                           # detalle e historial
+  ide dev link 12 api#5092                  # asigna PRs a un desarrollo
+  ide dev hide 12 [--undo]"""),
+    "reply": ("Le escribe al usuario por Telegram (va con «[#n nombre]» adelante). Nunca claves ni datos sensibles.",
+              """\
+ejemplos:
+  ide reply "Listo el filtro de pagos: está en la card de #12"
+  ide reply --prompt-file - <<'EOF'
+  varias líneas
+  EOF
+  ide reply --prompt-file attachments/resumen.md   # un archivo de tu carpeta de sesión"""),
+    "browser": ("Perfiles de navegador del workspace (uno por cuenta; cada uno es el MCP `browser-<nombre>`). En "
+                "localhost no hay un perfil por puerto: `browser-local` entra con la sesión local en todos.", """\
+ejemplos:
+  ide browser ls                            # perfiles, su url, de qué cuenta son y si tienen sesión
+El usuario los crea e inicia sesión (pídele el comando exacto):
+  ide browser new aprobador http://localhost:3004 --note "aprobador de Acme"
+  ide browser login aprobador
+  ide browser login local --url http://localhost:3004"""),
+    "artifact": ("Los artefactos (páginas de claude.ai) del desarrollo: los que publica su claude se suman solos.",
+                 "ejemplos:\n  ide artifact ls\n  ide artifact add https://claude.ai/artifact/abc --title \"…\"\n"
+                 "  ide artifact rm https://claude.ai/artifact/abc"),
+}
+
+
+class IdeParser(argparse.ArgumentParser):
+    """Un error de argumentos dice qué falló y muestra los ejemplos del comando, no solo el usage."""
+
+    def error(self, message: str):  # noqa: D401
+        self.print_usage(sys.stderr)
+        msg = f"{self.prog}: error: {message}\n"
+        if self.epilog:
+            msg += "\n" + self.epilog + "\n"
+        msg += f"\nmás: {self.prog} --help\n"
+        sys.stderr.write(msg)
+        sys.exit(2)
+
+
+def apply(ap: argparse.ArgumentParser, path: str = "") -> None:
+    """Pone descripción y ejemplos a cada subcomando (recorre el árbol del parser)."""
+    for act in ap._actions:
+        if not isinstance(act, argparse._SubParsersAction):
+            continue
+        helps = {c.dest: c.help for c in act._choices_actions}
+        for name, sp in act.choices.items():
+            key = f"{path} {name}".strip()
+            desc, ex = HELP.get(key, (None, None))
+            sp.formatter_class = argparse.RawDescriptionHelpFormatter
+            sp.description = desc or sp.description or helps.get(name)
+            if ex:
+                sp.epilog = ex
+            apply(sp, key)

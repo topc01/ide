@@ -46,7 +46,8 @@ def current_session(root: Path, *, env: dict, cwd: Path, explicit: str | None = 
 
 
 def _parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="ide")
+    from ide_server.cli_help import IdeParser
+    ap = IdeParser(prog="ide")
     sub = ap.add_subparsers(dest="group", required=True)
     s = sub.add_parser("session").add_subparsers(dest="cmd", required=True)
     new = s.add_parser("new")
@@ -265,6 +266,8 @@ def _parser() -> argparse.ArgumentParser:
     fb.add_parser("run", help="pedirle ya la revisión semanal de feedback a la sesión principal")
     sc = sub.add_parser("script"); sc.add_argument("name"); sc.add_argument("repo", nargs="?")
     sc.add_argument("--session")
+    from ide_server import cli_help
+    cli_help.apply(ap)
     return ap
 
 
@@ -582,14 +585,34 @@ def a_urls(d: dict, raw: list[str]) -> list[str]:
     return out
 
 
-def _stdin_only(prompt_file: str | None, env: dict) -> None:
-    """Dentro de una sesión, `ide reply` / `ide session send|propose` toman el texto de stdin (`--prompt-file -`) o
-    del argumento, nunca de un archivo: esos comandos se permiten sin preguntar, y un `--prompt-file ~/.ssh/…`
-    mandaría ese archivo a Telegram o a otra sesión sin pasar por los permisos de lectura de claude."""
+def _text_in(value: str | None, env: dict, root: Path | None, flag: str = "--prompt-file") -> str | None:
+    """El texto de un `--prompt-file`/`--body-file`/`--callout-file`: `-` = stdin, o la ruta de un archivo.
+    Dentro de una sesión, solo un archivo de **su carpeta** (p.ej. `attachments/mensaje.md`; sin seguir enlaces,
+    así quedan fuera sus worktrees y sus `.env`): `ide reply` y `ide session send|propose` corren sin pedir permiso,
+    y un `--prompt-file ~/.ssh/…` mandaría ese archivo a Telegram o a otra sesión sin pasar por los permisos de
+    lectura de claude."""
+    if not value:
+        return None
+    if value == "-":
+        return sys.stdin.read()
+    p = Path(value).expanduser()
     # por la clave que da el privilegio, no solo por la sesión (sacar IDE_SESSION_ID no lo salta)
-    if prompt_file and prompt_file != "-" and any(env.get(k) for k in ("IDE_SESSION_ID", "IDE_MANAGER_TOKEN", "IDE_PLUGINS_TOKEN")):
-        raise SessionError("bad_prompt_file", "dentro de una sesión, --prompt-file solo acepta - (stdin): "
-                                              "usa `--prompt-file - <<'EOF' … EOF`")
+    if any(env.get(k) for k in ("IDE_SESSION_ID", "IDE_MANAGER_TOKEN", "IDE_PLUGINS_TOKEN")):
+        from ide_server.sessions_fs import session_path
+        sid = env.get("IDE_SESSION_ID") or ""
+        home = session_path(root, sid).resolve() if root and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", sid) else None
+        full = p if p.is_absolute() else Path.cwd() / p
+        ok = home is not None and full.resolve().is_relative_to(home) and not any(
+            q.is_symlink() for q in [full, *full.parents] if q.is_relative_to(home) and q != home)
+        if not ok:
+            raise SessionError("bad_file", f"{flag}: dentro de una sesión va `-` (stdin: `{flag} - <<'EOF'` … `EOF`) o "
+                                           f"un archivo de tu carpeta de sesión (p.ej. attachments/mensaje.md); "
+                                           f"{value} está fuera")
+    try:
+        return p.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise SessionError("bad_file", f"{flag}: no pude leer {value} ({exc.__class__.__name__}: {exc}); "
+                                       f"o pásalo por stdin: `{flag} - <<'EOF'` … `EOF`")
 
 
 def _hook(url: str | None, http, env: dict) -> int:
@@ -602,6 +625,21 @@ def _hook(url: str | None, http, env: dict) -> int:
         if ev.get("hook_event_name") == "PreToolUse":
             from ide_server.test_guard import ASK_FULL, ASK_REASON, full_suite, is_test_command
             cmd = str((ev.get("tool_input") or {}).get("command") or "")
+            # trampas conocidas (ide db combinado, gh api para reviews, git push, …): se frena y se le dice el
+            # comando correcto, en vez de chocar con el clasificador o quedar esperando un permiso
+            from ide_server.cmd_guard import advise
+            tip = advise(cmd) if ev.get("tool_name") == "Bash" else None
+            if tip:
+                sys.stdout.write(json.dumps({"hookSpecificOutput": {
+                    "hookEventName": "PreToolUse", "permissionDecision": tip[0],
+                    "permissionDecisionReason": tip[1]}}) + "\n")
+                if tip[0] == "ask" and sid and url and not env.get("IDE_CONSULT"):
+                    try:      # claude no avisa (Notification) cuando el permiso lo pide un hook
+                        http.post(f"{url}/api/sessions/{quote(sid, safe='')}/activity", timeout=3, json={
+                            "event": "Notification", "notification_type": "permission_prompt", "message": tip[1][:200]})
+                    except Exception:  # noqa: BLE001
+                        pass
+                return 0
             # solo la suite entera pide permiso (los puntuales corren sin preguntar: pedirlo en cada uno cansaba)
             whole = ev.get("tool_name") == "Bash" and is_test_command(cmd) and full_suite(cmd)
             if whole:
@@ -670,7 +708,7 @@ def _tools_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
     return 0
 
 
-def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
+def _later_cmd(a, url: str | None, http, out: TextIO, env: dict, root: Path | None = None) -> int:
     if a.cmd == "add":
         sid = a.session or env.get("IDE_SESSION_ID")
         if not sid:
@@ -682,8 +720,7 @@ def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         it = data["item"]
         if getattr(a, "callout_file", None):
             from urllib.parse import quote
-            _stdin_only(a.callout_file, env)
-            body = sys.stdin.read() if a.callout_file == "-" else Path(a.callout_file).read_text(encoding="utf-8")
+            body = _text_in(a.callout_file, env, root, "--callout-file")
             code = f"{'P' if it.get('kind') == 'pending' else 'D'}{it.get('num')}"
             _post(http, url, f"/api/devs/{quote(sid, safe='')}/callout",
                   {"type": it.get("kind") or "decision", "title": it["text"][:200], "body": body, "blocker": code,
@@ -1138,7 +1175,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "hook":
             return _hook(url, http, env)
         if a.group == "later":
-            return _later_cmd(a, url, http, out, env)
+            return _later_cmd(a, url, http, out, env, root)
         if a.group == "tools":
             return _tools_cmd(a, url, http, out, env)
         if a.group == "evidence":
@@ -1150,8 +1187,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "feedback":
             return _feedback(a, root, home, url, http, out)
         if a.group == "reply":
-            _stdin_only(a.prompt_file, env)
-            text = sys.stdin.read() if a.prompt_file == "-" else (Path(a.prompt_file).read_text(encoding="utf-8") if a.prompt_file else a.text)
+            text = _text_in(a.prompt_file, env, root) if a.prompt_file else a.text
             if not text or not text.strip():
                 raise SessionError("bad_request", "falta el texto (argumento o --prompt-file -)")
             _post(http, url, "/api/telegram/reply", {"text": text, "token": env.get("IDE_MANAGER_TOKEN", ""),
@@ -1195,8 +1231,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "ticket" and a.cmd == "callout":
             from urllib.parse import quote
             dev = a.session or env.get("IDE_SESSION_ID") or current_session(root, env=env, cwd=cwd)
-            _stdin_only(a.body_file, env)
-            body = sys.stdin.read() if a.body_file == "-" else Path(a.body_file).read_text(encoding="utf-8")
+            body = _text_in(a.body_file, env, root, "--body-file")
             data = _post(http, url, f"/api/devs/{quote(dev, safe='')}/callout",
                          {"type": a.type, "title": a.title, "body": body, "blocker": a.blocker,
                           "actor": f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli",
@@ -1325,6 +1360,10 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
                 raise SessionError("ambiguous_repo",
                                    f"la sesión tiene {len(repos)} repos: indica cuál ({', '.join(repos)})")
             repo = repos[0]
+        if a.name == "run":
+            raise SessionError("use_server", f"`ide script run` espera a que el script termine, y un `run` levanta un "
+                                             f"servidor que no termina: usa `ide server start {repo} run` (o el bloque "
+                                             f"por su PR, p.ej. api#4897; ver `ide server ls` e `ide server --help`)")
         return run_script(root, sid, repo, a.name, out=out)
     except BranchOccupied as exc:
         err.write(f"error: branch ocupada: {exc.branch}. Usa --branch <otra>\n")
@@ -1366,12 +1405,7 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
         out.write(f"{data['id']}\t{'creada' if data['created'] else 'existe'}\t{data['process']}\n")
         return 0
     if a.cmd in ("send", "propose"):
-        try:
-            _stdin_only(a.prompt_file, env)
-            text = (sys.stdin.read() if a.prompt_file == "-" else Path(a.prompt_file).read_text(encoding="utf-8")) \
-                if a.prompt_file else a.prompt
-        except (OSError, UnicodeDecodeError) as exc:
-            raise SessionError("bad_prompt_file", f"no se pudo leer --prompt-file: {exc}")
+        text = _text_in(a.prompt_file, env, root) if a.prompt_file else a.prompt
         if not text or not text.strip():
             raise SessionError("bad_request", "falta el texto: --prompt-file - (stdin) o --prompt")
         sid = a.id if a.id.lstrip("#").isdigit() else normalize_id(a.id)
