@@ -1809,6 +1809,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         row = await asyncio.to_thread(set_status, root, db, sid, p["status"], actor=actor, note=p.get("note"))
         if actor != f"claude:{sid}":            # la sesión que se pausa a sí misma no se corta el turno
             await _sync_pause(sid, before)
+        if before == "blocked" and _block(sid) != "blocked" and actor != f"claude:{sid}":
+            await asyncio.to_thread(_user_unblocked, f"s:{sid}")
         await asyncio.to_thread(_sync_block, f"s:{sid}")
         notify()
         return {"dev": row}
@@ -2106,6 +2108,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         await asyncio.to_thread(set_dev_state, root, db, key, p.get("status"), actor="ide", note=note, **extra)
         if sid:
             await _sync_pause(sid, before)
+            if before == "blocked" and _block(sid) != "blocked":
+                await asyncio.to_thread(_user_unblocked, key)
             await asyncio.to_thread(_sync_block, key)
         notify()
         return {"ok": True}
@@ -2329,6 +2333,23 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     AWAITING = "Awaiting Client"
     IN_PROGRESS = "In progress"
+
+    def _user_unblocked(key: str) -> None:
+        """Tú (o la manager) le quitaste el bloqueo: eso manda. El ticket sale de «Awaiting Client» (vuelve a In
+        progress) y sus bloqueantes dejan de bloquear el desarrollo (siguen abiertos), así nada lo vuelve a bloquear."""
+        from ide_server import notion_tickets as notion
+        if db is None or not key.startswith("s:"):
+            return
+        for it in later_mod.items(db):
+            if it["key"] == key and it.get("blocks"):
+                later_mod.update(db, it["id"], blocks=False)
+        db.delete(f"awaitsync:{key}")
+        try:
+            url = (read_session(root, key[2:]).get("meta") or {}).get("notion_url")
+            if url and notion.get_token() and (notion.cached(db, url) or {}).get("status") == AWAITING:
+                notion.set_status(db, url, IN_PROGRESS)
+        except Exception:  # noqa: BLE001
+            log.warning("no pude sacar de Awaiting Client el ticket de %s", key)
 
     def _sync_block(key: str) -> None:
         """Bloqueado ⇄ el Status «Awaiting Client» del ticket de Notion, en los dos sentidos, y los bloqueantes que
