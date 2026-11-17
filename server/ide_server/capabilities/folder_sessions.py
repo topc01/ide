@@ -1002,7 +1002,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             # que una sesión (o Plugins) no pueda hacerse pasar por otra ni por la manager: sus líneas que empiezan con
             # «[» van sin el corchete, y el mensaje entra en uno solo (si se partiera, el resto llegaría sin prefijo)
             from ide_server.telegram import MAX as TG_MAX
-            text = "\n".join(("(" + line.lstrip()[1:]) if line.lstrip().startswith("[") else line for line in text.splitlines())
+            import unicodedata
+            # sin caracteres invisibles (de formato) y con las formas raras normalizadas (［ → [), así no se cuela un
+            # «[» disfrazado al inicio de una línea
+            text = "".join(ch for ch in unicodedata.normalize("NFKC", text) if unicodedata.category(ch) != "Cf")
+            opens = "[⟦〔【〖〘⦋⦍⦏"
+            text = "\n".join(("(" + line.lstrip()[1:]) if line.lstrip()[:1] in opens and line.lstrip() else line
+                             for line in text.splitlines())
             if len(prefix) + len(text) > TG_MAX:
                 raise SessionError("too_long", f"el mensaje es muy largo para Telegram ({len(text)} caracteres; "
                                                f"máximo {TG_MAX - len(prefix)}): resúmelo")
