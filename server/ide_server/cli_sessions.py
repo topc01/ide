@@ -683,9 +683,13 @@ def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
     if a.cmd == "done":
         from urllib.parse import quote
         actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
-        _post(http, url, f"/api/later/{quote(a.id, safe='')}/resolve", {"note": a.note, "actor": actor,
-                                                                         "token": env.get("IDE_MANAGER_TOKEN", "")})
-        out.write(f"{a.id}\tresuelto\n")
+        data = _post(http, url, f"/api/later/{quote(a.id, safe='')}/resolve", {"note": a.note, "actor": actor,
+                                                                                "token": env.get("IDE_MANAGER_TOKEN", "")})
+        if data.get("already"):
+            out.write(f"{a.id}\tya estaba cerrado ({'respondido por el usuario' if data['already'] == 'answered' else data['already']}"
+                      f"{', ' + str(data.get('at'))[11:16] if data.get('at') else ''}): no hace falta nada más\n")
+        else:
+            out.write(f"{a.id}\tresuelto\n")
         return 0
     items = _get(http, url, "/api/later" + ("?all=true" if a.all else ""))["items"]
     if a.mine:

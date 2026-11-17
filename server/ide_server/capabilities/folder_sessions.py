@@ -2589,8 +2589,10 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if db is None:
             raise SessionError("no_db", "sin base")
         item = later_mod.get(db, str(p.get("id")))
-        if item is None or item["status"] != "open":
-            raise SessionError("not_found", "ese pendiente ya no está abierto")
+        if item is None:
+            raise SessionError("not_found", "no existe ese bloqueante")
+        if item["status"] != "open":                # ya lo cerró el usuario (p.ej. lo respondió): no es un error
+            return {"ok": True, "already": item["status"], "at": item.get("resolved")}
         if str(item.get("key") or "").startswith("s:"):
             _own_or_user(p, item["key"][2:], "los bloqueantes")   # por HTTP: una sesión solo cierra los suyos
         elif p.get("_http") and _manager_or_terminal(p) is None:   # de una PR sin sesión: solo tú o la manager
