@@ -998,6 +998,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         # nunca una clave por Telegram (un texto armado desde un archivo o una página): se rechaza entero
         if _SECRET_RE.search(text):
             raise SessionError("secret", "el mensaje parece tener una clave (llave privada, token): no lo mando por Telegram")
+        if prefix:
+            # que una sesión (o Plugins) no pueda hacerse pasar por otra ni por la manager: sus líneas que empiezan con
+            # «[» van sin el corchete, y el mensaje entra en uno solo (si se partiera, el resto llegaría sin prefijo)
+            from ide_server.telegram import MAX as TG_MAX
+            text = "\n".join(("(" + line.lstrip()[1:]) if line.lstrip().startswith("[") else line for line in text.splitlines())
+            if len(prefix) + len(text) > TG_MAX:
+                raise SessionError("too_long", f"el mensaje es muy largo para Telegram ({len(text)} caracteres; "
+                                               f"máximo {TG_MAX - len(prefix)}): resúmelo")
         text = prefix + text
         try:
             await bridge.send(text)
