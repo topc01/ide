@@ -201,6 +201,9 @@ def _parser() -> argparse.ArgumentParser:
     la.add_argument("--artifact", help="link del artefacto con el análisis y las opciones (claude.ai/artifact/…)")
     la.add_argument("--with", dest="with_", help="con quién hay que conversarlo, o de quién se espera (p.ej. \"Laura (CX)\")")
     la.add_argument("--pending", action="store_true", help="es un pendiente (algo que se espera de alguien), no una decisión")
+    la.add_argument("--callout-file", help="`-` = stdin: además, su callout al principio del ticket de Notion (amarillo si es "
+                    "decisión, morado si es pendiente), con la pregunta como título y este cuerpo (la propuesta, el "
+                    "contexto, links); al cerrarlo, pasa al final en gris")
     la.add_argument("--blocks", action="store_true", help="ya no puedes avanzar en nada más: el desarrollo pasa a Bloqueado hasta que se cierre")
     la.add_argument("--session")
     ll = lt.add_parser("ls", help="pendientes abiertos de todos los desarrollos")
@@ -677,6 +680,14 @@ def _later_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
                                               "artifact": a.artifact, "with": a.with_,
                                               "kind": "pending" if a.pending else "decision", "blocks": a.blocks})
         it = data["item"]
+        if getattr(a, "callout_file", None):
+            from urllib.parse import quote
+            _stdin_only(a.callout_file, env)
+            body = sys.stdin.read() if a.callout_file == "-" else Path(a.callout_file).read_text(encoding="utf-8")
+            code = f"{'P' if it.get('kind') == 'pending' else 'D'}{it.get('num')}"
+            _post(http, url, f"/api/devs/{quote(sid, safe='')}/callout",
+                  {"type": it.get("kind") or "decision", "title": it["text"][:200], "body": body, "blocker": code,
+                   "actor": actor, "token": env.get("IDE_MANAGER_TOKEN", "")})
         out.write(f"{'pendiente' if it.get('kind') == 'pending' else 'decisión'} {'P' if it.get('kind') == 'pending' else 'D'}{it.get('num')} en {sid}"
                   f"{' (bloquea el desarrollo: pasa a Bloqueado)' if it.get('blocks') else ''}\n")
         return 0

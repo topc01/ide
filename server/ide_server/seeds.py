@@ -107,16 +107,15 @@ sus capturas) y suma uno con `ide evidence add "texto" [--after <n>] [--shot]`. 
 captura con `ide evidence rm --step <n> --shot <n|archivo>`, un paso con `ide evidence rm --step <n>` o la
 corrida entera con `ide evidence rm` (`--run` para otra corrida que la última).
 
-**Callouts en el ticket de Notion:** al principio del ticket, con `ide ticket callout --type <tipo> --title "<título
-descriptivo>" --body-file - [--blocker D3] <<'EOF'` (el cuerpo: viñetas «- …», **negrita**, [links](url)):
-- **decision** (amarillo): una decisión que hay que conversar con CX o el cliente. Preguntas puntuales, cada una
-  con tu propuesta («- **¿Solo el admin libera?** Propuesta: sí, con motivo obligatorio.») y los links a los
-  artefactos. Va con `--blocker` del bloqueante de esa decisión.
-- **pending** (morado): lo que hay que hacer o lo que se espera de alguien, en concreto. Con `--blocker`.
-- **evidence** (verde): la evidencia de lo probado (qué se probó, dónde, links a capturas o a la PR).
-Cuando el bloqueante se cierra, el IDE pasa su callout al final del ticket, en gris, con cómo se resolvió.
-Un desarrollo en Bloqueado deja el ticket en «Awaiting Client» (y al desbloquearlo vuelve a «In progress»):
-no cambies ese Status a mano.
+**Callouts en el ticket de Notion:** **un callout por pregunta o pendiente**, al principio del ticket. Lo más simple:
+crear el bloqueante y su callout juntos, con `--callout-file -`:
+`ide later add "<la pregunta>" --with "Sebastián (CX)" --callout-file - <<'EOF'` y en el cuerpo **la propuesta**
+(«**Propuesta:** …», con su porqué), el contexto mínimo y los links a artefactos. El título del callout es la
+pregunta (h2); amarillo si es decisión, morado si es pendiente (`--pending`). Varias preguntas = varios
+bloqueantes, cada uno con su callout. La **evidencia** va aparte: `ide ticket callout --type evidence --title
+"<qué se probó>" --body-file -` (verde). Cuando un bloqueante se cierra, el IDE pasa su callout al final del
+ticket, en gris, con cómo se resolvió. Un desarrollo en Bloqueado deja el ticket en «Awaiting Client» (y al
+desbloquearlo vuelve a «In progress»): no cambies ese Status a mano.
 
 **Bloqueantes:** lo que te frena va al módulo Bloqueantes, de dos tipos:
 - **Decisión**: algo que el usuario decide o conversa con alguien (p. ej. «esto lo veo con Sebastián de CX»), o
