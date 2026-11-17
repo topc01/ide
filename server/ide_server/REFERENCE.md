@@ -1094,6 +1094,19 @@ el recuadro sigue ahí. Al terminar (o al cerrar la ventana) los comentarios le 
 como un mensaje «[Recorrido]» (paso, pantalla y texto); si está pausada, al retomarla. `ide tour show`
 muestra los pasos y si ya lo viste (`kv tour:<sesión>`).
 
+## 9d-quinquies. Notificaciones (la campana)
+
+Arriba a la derecha, una **campana** con todas las notificaciones del IDE (`kv notifs`, las últimas 200, la más
+nueva primero): cada aviso de macOS del IDE (una sesión te espera, Recursos…) y cada **PR nueva que te piden
+revisar** (se revisa cada minuto; la primera vez no avisa de las que ya estaban). Lo nuevo aparece unos segundos
+como aviso abajo de la campana; en la campana queda hasta que lo saques. Click en una: abre su sesión (o la PR) y
+la marca leída; «marcar leídas», «limpiar» y ✕ por cada una (canal `notifs.read {id?, remove?}`, solo desde la UI).
+Arriba de la lista, el **resumen de revisiones pendientes** (`kv notifs:summary`, cada minuto): **veredicto por
+mandar** (PRs que te piden revisar con el veredicto de su sesión listo para el commit actual) y **listos para
+revisión, sin revisor pedido** (desarrollos en «listo para revisión»). El número de la campana: las no leídas
+(o, si no hay, las revisiones pendientes, en rojo). Cada **10 minutos**, si hay revisiones pendientes, un aviso
+lo recuerda.
+
 ## 9e. Feedback y revisión semanal (mejora con el uso)
 
 Cada sesión anota las correcciones del usuario en la sección `## Feedback` de su `SESSION.md`

@@ -34,6 +34,7 @@ import { HoverTips } from "./layout/HoverTips";
 import { useDevShortcuts } from "./layout/devShortcuts";
 import { DevSwitcher } from "./layout/DevSwitcher";
 import { DevSearch } from "./layout/DevSearch";
+import { Notifications } from "./layout/Notifications";
 
 export default function App() {
   useDevShortcuts();
@@ -57,6 +58,7 @@ export default function App() {
       </div>
       <StatusBar />
       <HoverTips />
+      <Notifications />
       <DevSwitcher />
       <DevSearch />
       <SettingsModal />

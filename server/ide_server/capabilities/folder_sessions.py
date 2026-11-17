@@ -152,6 +152,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "devTickets": _tickets(sessions) if db else {},
                 "devTours": {f"s:{k}": {"status": v.get("status"), "steps": len(v.get("steps") or []), "at": v.get("at"),
                                         "title": v.get("title")} for k, v in db.with_prefix("tour:").items() if v} if db else {},
+                "notifications": {"items": (db.get("notifs") or [])[:60], "summary": db.get("notifs:summary")} if db else None,
                 "devArtifacts": {f"s:{k}": v for k, v in db.with_prefix("artifacts:").items() if v} if db else {},
                 "devRelations": relations,
                 # el veredicto que registró cada sesión de revisión (sin el comentario): la card lo muestra
@@ -2385,6 +2386,86 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         except SessionError:
             log.warning("no pude sincronizar el bloqueo de %s", key)
 
+    def review_summary() -> dict:
+        """Lo que tienes que hacer con revisiones: PRs que te pidieron revisar con el veredicto listo para mandar
+        (su sesión lo dejó para el commit actual) y desarrollos listos para revisión sin revisor pedido."""
+        st = gh_reviews.state if gh_reviews is not None else {}
+        verdicts = []
+        for c in st.get("pending") or []:
+            v = db.get(f"verdict:{c['url']}") if db else None
+            if v and (not v.get("sha") or not c.get("headSha") or v["sha"] == c["headSha"]):
+                verdicts.append({"url": c["url"], "label": f"{c.get('repo', '').replace('finnecto-', '')}#{c.get('number')}",
+                                 "sid": v.get("sid")})
+        reviewers = []
+        try:
+            for d in list_devs(root, db, list_sessions(root), st):
+                if d.get("kind") == "ticket" and d.get("status") == "ready-for-review":
+                    n = db.get(f"devidx:s:{d['id']}")
+                    reviewers.append({"label": f"#{n}" if n else d["id"], "sid": d["id"], "name": d.get("name") or d.get("title")})
+        except Exception:  # noqa: BLE001
+            log.exception("resumen de revisiones")
+        return {"verdicts": verdicts, "reviewers": reviewers}
+
+    def review_notifs() -> bool:
+        """Notifica las PRs nuevas que te piden revisar (una vez cada una) y guarda el resumen. True si cambió algo."""
+        from ide_server import notifications as notif
+        if db is None or gh_reviews is None or not (gh_reviews.state or {}).get("me"):
+            return False
+        changed = False
+        seen = set(db.get("notifs:seenreviews") or [])
+        pending = gh_reviews.state.get("pending") or []
+        if db.get("notifs:seenreviews") is None:            # la primera vez no avisa de todo lo que ya había
+            db.set("notifs:seenreviews", [c["url"] for c in pending])
+        else:
+            for c in pending:
+                if c["url"] not in seen:
+                    notif.add(db, "review", f"Te pidieron revisar {c.get('repo', '').replace('finnecto-', '')}#{c.get('number')}",
+                              f"{c.get('title') or ''}" + (f" · de {c['author']}" if c.get("author") else ""), f"p:{c['url']}")
+                    _notify_mac_only(f"Te pidieron revisar {c.get('repo', '')}#{c.get('number')}: {c.get('title') or ''}")
+                    changed = True
+            db.set("notifs:seenreviews", sorted(seen | {c["url"] for c in pending}))
+        summ = review_summary()
+        if summ != db.get("notifs:summary"):
+            db.set("notifs:summary", summ)
+            changed = True
+        return changed
+
+    def _notify_mac_only(text: str) -> None:
+        from ide_server import devs as devs_mod
+        sink, devs_mod.NOTIFY_SINK = devs_mod.NOTIFY_SINK, None
+        try:
+            devs_mod._notify_mac(text)
+        finally:
+            devs_mod.NOTIFY_SINK = sink
+
+    def _sink(message: str, focus: str | None) -> None:
+        """Cada aviso de macOS del IDE también queda en la campana."""
+        from ide_server import notifications as notif
+        if db is None:
+            return
+        notif.add(db, "aviso", message, None, f"s:{focus}" if focus else None)
+        try:
+            asyncio.get_running_loop()
+            notify()
+        except RuntimeError:
+            if loop_box.get("loop"):
+                asyncio.run_coroutine_threadsafe(_notify_async(), loop_box["loop"])
+
+    from ide_server import devs as _devs_for_sink
+    _devs_for_sink.NOTIFY_SINK = _sink
+
+    async def notifs_read(p: dict) -> dict:
+        """La campana: marcar como leídas (todas o una) o sacar una (o todas). Solo desde la UI."""
+        from ide_server import notifications as notif
+        if p.get("_http") or db is None:
+            raise SessionError("forbidden", "se maneja desde la campana")
+        if p.get("remove"):
+            notif.remove(db, p.get("id"))
+        else:
+            notif.mark_read(db, p.get("id"))
+        notify()
+        return {"ok": True}
+
     def sync_blocks() -> bool:
         """Todas las sesiones de ticket (cada minuto, y el Status de Notion cambia solo): True si algo cambió."""
         before = {k: (v or {}).get("block") for k, v in db.with_prefix("devstate:").items()} if db else {}
@@ -2770,7 +2851,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
-        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "dev.ticketCallout": ticket_callout, "sessions.tourSet": tour_set, "sessions.tourGet": tour_get, "sessions.tourStart": tour_start, "tour.done": tour_done, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
+        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "dev.ticketCallout": ticket_callout, "notifs.read": notifs_read, "sessions.tourSet": tour_set, "sessions.tourGet": tour_get, "sessions.tourStart": tour_start, "tour.done": tour_done, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
@@ -2795,6 +2876,20 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     log.exception("Live Staging")
                 try:
                     await asyncio.wait_for(stop.wait(), notion.TTL)
+                except asyncio.TimeoutError:
+                    pass
+        async def tick_reviews() -> None:
+            """Cada minuto: las PRs nuevas que te piden revisar (una notificación cada una, queda en la campana) y el
+            resumen de revisiones pendientes: por pedir revisor y por mandar el veredicto."""
+            loop_box.setdefault("loop", asyncio.get_running_loop())
+            while not stop.is_set():
+                try:
+                    if await asyncio.to_thread(review_notifs):
+                        notify()
+                except Exception:  # noqa: BLE001
+                    log.exception("notificaciones de revisiones")
+                try:
+                    await asyncio.wait_for(stop.wait(), 60)
                 except asyncio.TimeoutError:
                     pass
         async def tick_blocks() -> None:
@@ -2850,7 +2945,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     await asyncio.wait_for(stop.wait(), 180)
                 except asyncio.TimeoutError:
                     pass
-        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live(), tick_staging(), tick_review(), tick_agents(), tick_blocks())
+        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live(), tick_staging(), tick_review(), tick_agents(), tick_blocks(), tick_reviews())
 
     notify.notion_loop = notion_loop        # type: ignore[attr-defined]
     notify.telegram = bridge                # type: ignore[attr-defined]

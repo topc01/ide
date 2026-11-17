@@ -248,9 +248,17 @@ def set_status(root: Path, db: Db, sid: str, status: str, *, actor: str, note: s
 NOTIFY_URL: str | None = None             # la URL del IDE (la pone app.py): el click en el aviso la abre
 
 
+NOTIFY_SINK = None                        # además del aviso de macOS, la campana del IDE (lo pone folder_sessions)
+
+
 def _notify_mac(message: str, focus: str | None = None) -> None:
     """Notificación de macOS. Con `terminal-notifier` (brew), un click abre el IDE enfocado en la sesión
     `focus` (`<url>#<id>`); si no está, con osascript (sin click)."""
+    if NOTIFY_SINK is not None:
+        try:
+            NOTIFY_SINK(message, focus)
+        except Exception:  # noqa: BLE001
+            pass
     import shutil
     import subprocess
     import sys

@@ -40,6 +40,8 @@ export interface SessionsTree {
     subs?: { url: string; status: string | null; title: string | null; card?: boolean }[] }>;
   // artefactos (páginas de claude.ai) que publicó cada sesión (`s:<id>`); card false = escondido en la card
   devArtifacts?: Record<string, Artifact[]>;
+  // la campana: las notificaciones del IDE (la más nueva primero) y el resumen de revisiones pendientes
+  notifications?: { items: Notif[]; summary: ReviewSummary | null } | null;
   // recorrido preparado por la sesión (`ide tour set`): ready = sin ver, running = abierto, done = ya lo vio
   devTours?: Record<string, { status: "ready" | "running" | "done"; steps: number; at: string; title: string | null }>;
   // desarrollos colgados de otro (`s:<id>`): mismo ticket, PR apilada sobre una rama de otro, separado por el IDE
@@ -327,6 +329,9 @@ export const fetchNotionPage = (ws: WsClient, url: string): Promise<{ url: strin
   ws.request("dev.notionPage", { url });
 /** El interruptor del módulo Notion: el subticket se muestra (o no) en la card. */
 export const startTour = (ws: WsClient, id: string) => ws.request("sessions.tourStart", { id });
+export type Notif = { id: string; at: string; kind: string; title: string; body: string | null; focus: string | null; read: boolean };
+export type ReviewSummary = { verdicts: { url: string; label: string; sid?: string | null }[]; reviewers: { sid: string; label: string; name?: string | null }[] };
+export const notifsRead = (ws: WsClient, id?: string, remove = false) => ws.request("notifs.read", { id, remove });
 export type Artifact = { url: string; title: string | null; description?: string | null; at: string; card?: boolean };
 export const setArtifactCard = (ws: WsClient, id: string, url: string, show: boolean): Promise<{ ok: boolean }> =>
   ws.request("dev.artifactCard", { id, url, show });
