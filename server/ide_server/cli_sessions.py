@@ -1321,7 +1321,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             out.write(f"{a.pr}: merge armado ({data.get('state')}); el avance se ve en la card\n")
             return 0
         sid = current_session(root, env=env, cwd=cwd, explicit=getattr(a, "session", None))
-        if a.group in ("migrations", "update"):
+        if a.group in ("migrations", "update", "backport"):
             # una sesión solo toca sus ramas (como `ide push`)
             caller = env.get("IDE_SESSION_ID")
             if caller is None:
@@ -1338,8 +1338,6 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             from ide_server.update_branch import update
             return update(root, sid, a.repo, dry_run=a.dry_run, out=out)
         if a.group == "backport":
-            if env.get("IDE_SESSION_ID") and sid != env["IDE_SESSION_ID"]:
-                raise SessionError("forbidden", f"desde la sesión {env['IDE_SESSION_ID']} no se toca {sid}")
             from ide_server.backport import backport
             return backport(root, sid, a.repo, onto=a.onto, source=a.source, out=out)
         if a.group == "push":
