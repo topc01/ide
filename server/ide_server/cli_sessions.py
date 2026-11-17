@@ -139,6 +139,10 @@ def _parser() -> argparse.ArgumentParser:
     pu.add_argument("--branch", action="append", help="otra rama local del repo en vez de la actual (repetible; p.ej. las de un stack)")
     pu.add_argument("--force", action="store_true", help="--force-with-lease (después de un rebase)")
     pu.add_argument("--session")
+    bp = sub.add_parser("backport", help="el backport de un hotfix: worktree extra con tu rama -develop y los commits del hotfix (cherry-pick), y lo sube")
+    bp.add_argument("repo"); bp.add_argument("--onto", default="develop", help="a dónde va el backport (default: develop)")
+    bp.add_argument("--from", dest="source", default="main", help="la base del hotfix (default: main)")
+    bp.add_argument("--session")
     st = sub.add_parser("status", help="cambia el estado de la sesión (queda en la base y en el historial)")
     st.add_argument("status"); st.add_argument("-m", "--note"); st.add_argument("--session")
     rv = sub.add_parser("review", help="publicar en GitHub desde una sesión de revisión (solo sus PRs, org Finnecto)").add_subparsers(dest="cmd", required=True)
@@ -1333,6 +1337,11 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "update":
             from ide_server.update_branch import update
             return update(root, sid, a.repo, dry_run=a.dry_run, out=out)
+        if a.group == "backport":
+            if env.get("IDE_SESSION_ID") and sid != env["IDE_SESSION_ID"]:
+                raise SessionError("forbidden", f"desde la sesión {env['IDE_SESSION_ID']} no se toca {sid}")
+            from ide_server.backport import backport
+            return backport(root, sid, a.repo, onto=a.onto, source=a.source, out=out)
         if a.group == "push":
             # una sesión solo sube lo suyo (el permiso `ide push` no le da las ramas de otras)
             # (barrera contra errores, no de seguridad: el permiso que importa es el de claude)

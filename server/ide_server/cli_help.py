@@ -18,6 +18,15 @@ ejemplos:
   ide push                                  # todos los repos de la sesión
   ide push finnecto-api --force             # --force-with-lease, después de un rebase
   ide push finnecto-api --branch tpc/d12-x-develop   # otra rama local (p.ej. las de un stack o un backport)"""),
+    "backport": ("El backport de un hotfix, en el mismo desarrollo: crea un worktree extra en tu carpeta de worktrees "
+                 "(<repo>-develop) con la rama <tu rama>-develop desde origin/develop, copia los commits del hotfix "
+                 "(cherry-pick -x) y la sube.", """\
+ejemplos:
+  ide backport finnecto-api                  # hotfix sobre main → backport a develop
+  ide backport finnecto-api --onto staging --from main
+Si el cherry-pick choca, queda a medias: resuelve en el worktree extra, `git -C <ruta> cherry-pick --continue` e
+`ide push <repo> --branch <tu rama>-develop`. Después abre la PR con base develop («backport de #…» en el body) y
+declara que van juntas (`ide dep add` en las dos direcciones)."""),
     "update": ("Pone al día tu rama sobre su base SOLO si hace falta: la PR está en conflicto o su madre del stack se "
                "mergeó. Si solo está atrás de develop, se niega (rebasear sin necesidad corre todo el CI).", """\
 ejemplos:
@@ -222,7 +231,16 @@ ejemplos:
 El usuario los crea e inicia sesión (pídele el comando exacto):
   ide browser new aprobador http://localhost:3004 --note "aprobador de Acme"
   ide browser login aprobador
-  ide browser login local --url http://localhost:3004"""),
+  ide browser login local --url http://localhost:3004
+para qué sirve cada uno:
+  - browser-local (mcp__browser-local__browser_*): para probar; en localhost entra con la sesión local compartida del
+    usuario en cualquier puerto. Si el front te manda al login, pídele `ide browser login local --url <tu front>` (o
+    entra con los usuarios de prueba del seed). Nunca un perfil nuevo ni un login por puerto.
+  - Otro perfil = otra cuenta a la vez (solicitante y aprobador, tech.finnecto.com): cada uno es el servidor MCP
+    browser-<nombre> (mcp__browser-<nombre>__browser_*) con su cuenta ya iniciada; puedes usar varios a la vez.
+    Si falta uno o su sesión expiró, pídele al usuario el comando exacto (new/login): el login lo hace él.
+  - Los `local` (localhost y tech.finnecto.com) se usan libremente; los REAL son la cuenta real del usuario.
+  - Tamaño de pantalla: browser_resize del MCP (solo cambia esa ventana). Al terminar, browser_close."""),
     "artifact": ("Los artefactos (páginas de claude.ai) del desarrollo: los que publica su claude se suman solos.",
                  "ejemplos:\n  ide artifact ls\n  ide artifact add https://claude.ai/artifact/abc --title \"…\"\n"
                  "  ide artifact rm https://claude.ai/artifact/abc"),

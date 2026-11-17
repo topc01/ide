@@ -22,14 +22,12 @@ modules = ["sessions", "terminal", "prompts", "stack", "review", "deps", "config
 
 
 def claude_md(repos: list[str]) -> str:
-    lines = "\n".join(f"- `{r}`: (describe qué hace este repo)" for r in repos) or "- (sin repos)"
-    return f"""\
+    # (los repos ya no se listan: cada sesión lee el CLAUDE.md de los suyos)
+    return """\
 # Workspace
 
 Estás en una sesión del IDE (`.ide/sessions/<id>/`). Referencia completa del IDE (config,
-permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace:
-
-{lines}
+permisos, plantillas, scripts, CLI): ejecuta `ide docs`.
 
 ## Las instrucciones de cada repo
 
@@ -49,21 +47,20 @@ comando choca con una trampa conocida, el IDE lo frena y te dice el correcto.
 |---|---|---|
 | sumar o sacar un repo | `ide repo add\\|rm` | el desarrollo toca ese repo |
 | subir tu rama | `ide push` | siempre, en vez de `git push` |
+| backport de un hotfix | `ide backport` | el hotfix también va a develop |
 | poner al día tu rama | `ide update` | solo si GitHub marca conflicto o se mergeó la madre del stack |
 | revisar migraciones | `ide migrations check\\|renumber` | antes de pedir revisión; si chocan, renumera sin preguntar |
 | consultar prod o staging | `ide db` | solo lectura; va solo en la línea |
-| servidores para probar | `ide server` | levantar api/fronts por bloque (no `ide script run`) |
+| servidores para probar | `ide server` | levantar api y fronts |
 | un script que termina | `ide script` | build, test, … |
 | el estado del desarrollo | `ide status` | lo que es criterio tuyo (ver Convención de estado) |
 | bloqueantes | `ide later` | decisiones y pendientes (ver Bloqueantes) |
 | evidencias | `ide evidence` | guía de prueba con capturas |
 | el ticket de Notion | `ide ticket` | asociarlo, subtickets, callouts |
 | el recorrido | `ide tour` | antes de declarar listo, si hay UI |
-| dependencias entre PRs | `ide dep` | además de `## Dependencias` en el body |
 | revisiones de PR | `ide review` | en sesiones de revisión, en vez de `gh api` |
 | avisar por Telegram | `ide reply` | si el usuario te lo pide; nunca claves |
 | sesiones y desarrollos | `ide session`, `ide dev` | `ide session new --title "<qué>"` para trabajo aparte |
-| perfiles de navegador | `ide browser ls` | ver Navegador |
 
 Mergear (`ide merge`) lo hace el usuario; si él te pide explícito que mergees, hazlo con `ide merge` y verifica
 en GitHub que quedó mergeada.
@@ -129,13 +126,11 @@ criterio, con `ide status` (nunca editando el `status:` del archivo):
   de negocio, y pasa igual a Completed Staging.
 
 **Ticket de Notion:** todo desarrollo tiene su ticket (salvo las revisiones de PRs ajenas). Si tu sesión nació
-sin ticket (un hotfix, algo que otra sesión separó), en tu primer turno arma el borrador del ticket y
-muéstraselo al usuario antes de crearlo; cuando lo cree, asócialo con `ide ticket set <url>`. Al mergearse la
+sin ticket (un hotfix, algo que otra sesión separó), en tu primer turno arma el borrador del ticket; cuando lo cree, asócialo con `ide ticket set <url>`. Al mergearse la
 última PR, el ticket pasa a **Live Staging**: lo hace el IDE; si ves que no se movió, muévelo tú.
 
 **Lo que queda fuera:** antes de `ide status ready-for-review`, lista lo que el ticket pedía y no entra en este
-desarrollo (p. ej. «faltó llevar la unidad al ERP y a los PDF de OC»). Por cada cosa, arma el borrador de un
-ticket nuevo, muéstraselo al usuario y créalo con su OK. Va **a la cola de la célula** (skill
+desarrollo (p. ej. «faltó llevar la unidad al ERP y a los PDF de OC»). Por cada cosa, un ticket nuevo. Va **a la cola de la célula** (skill
 `finnecto-core:notion-tickets`): Status Backlog, **Células** llenas (las del cliente), **Asignee vacío**,
 **Priority Danger** y **Order ≤ 1**, y enlazado al ticket original; súmalo al desarrollo con `ide ticket
 add-sub <url>`. Nada queda pendiente solo en el chat o en el SESSION.md.
@@ -184,7 +179,7 @@ Antes de `ide status ready-for-review` y antes de cada pedido de re-revisión:
   «Cómo probarlo».
 - Al atender una review, lee los comentarios inline, el cuerpo de cada review y la conversación de la PR.
 
-## Desarrollos, repos y dependencias
+## Desarrollos y repos
 
 - Un **desarrollo** es tu sesión: sus worktrees y las PRs de las ramas de esos worktrees (el IDE las asocia
   solo, por repo y rama). Si el ticket toca varios repos (p.ej. api + embed), agrega cada uno: el desarrollo
@@ -192,25 +187,16 @@ Antes de `ide status ready-for-review` y antes de cada pedido de re-revisión:
 - **Una sola línea por repo:** la rama de tu worktree y, si hace falta, PRs **apiladas** sobre ella. No abras
   otra rama desde develop en un repo que ya tienes: eso es otro desarrollo (si igual lo haces, el IDE la separa
   sola en un desarrollo nuevo). Si sabes de antemano que es trabajo aparte, créalo tú (`ide session new --title
-  "<qué>"`) y cuéntaselo al usuario. Si una PR de otro repo depende de esa línea, van juntas: que queden en el
-  mismo desarrollo (lo deciden con el usuario).
-- **Hotfix y su backport = un mismo desarrollo.** Si el arreglo va a `main` (hotfix) y también a `develop`, las
-  dos PRs son de este desarrollo: declara que van juntas (dependencia en las dos direcciones, `ide dep`) y en el
-  body de la segunda pon «backport de #…». Tu worktree del repo es el del hotfix; la segunda rama la trabajas en
-  un **worktree extra** en tu carpeta de worktrees (el IDE lo reconoce como tuyo): `git -C <repo> worktree add
-  ../<repo>-develop -b <tu prefijo>-<nombre>-develop origin/develop`, ahí `git cherry-pick` del arreglo, `ide
-  push <repo> --branch <esa rama>` y abre la PR con base `develop`.
+  "<qué>"`) y cuéntaselo al usuario.
+- **Hotfix y su backport = un mismo desarrollo:** el backport lo armas con `ide backport <repo>`.
 - **Número del desarrollo:** cada desarrollo tiene un índice (`#12`, en `$IDE_DEV_INDEX`). Las ramas nuevas van
   con él (`ide repo add` ya usa `$IDE_DEV_BRANCH`, `<login>/d12-<nombre>`; a mano, `<login>/d12-<tema>`). Los
   recursos locales nuevos (base y proyecto docker de la api) se llaman `$IDE_DEV_SLUG` (`d12_<nombre>`).
 - **Lo que no es el centro del ticket va aparte.** Si es accesorio pero del mismo tema (algo que pide el ticket
   pero no es lo principal, un ajuste que salió al probar, o un cambio del design system que la pantalla
-  necesita), va en su propia PR en una **rama stacked** dentro de tu stack, con su dependencia declarada. Si no
+  necesita), va en su propia PR en una **rama stacked** dentro de tu stack. Si no
   tiene relación con el desarrollo, no lo apiles: propón un ticket propio y créalo como otro desarrollo.
   Propónlo antes de mezclarlo en la rama principal.
-- **Dependencias entre PRs** (del mismo repo o de otro): decláralas en la sección `## Dependencias` del body o
-  con `ide dep add` (cómo las lee el IDE: `ide dep --help`). El IDE las muestra y avisa al mergear, pero no lo
-  bloquea. En el SESSION.md, en **Plan**, deja el orden de merge entre repos.
 - **No actualices tus ramas cuando `develop` avanza ni cada vez que se mergea algo** (ni rebase ni merge de
   `develop` o de la base del stack): hace correr todo el CI de nuevo. El IDE rebasea y restackea solo al
   mergear. Actualiza una rama tú solo si GitHub marca conflicto o si el usuario te lo pide, con `ide update`. Las
@@ -223,11 +209,7 @@ Antes de `ide status ready-for-review` y antes de cada pedido de re-revisión:
 - **Tests de la api:** `make test <ruta>` dentro de su contenedor; **nunca `-n` mayor a 2** (cada proceso usa
   ~750 MB). **No uses `make test-fresh`** para un archivo o un test: rearma la base de pruebas y corre la suite
   entera; es solo para después de un pull con cambios de modelos, y aun así pregúntale al usuario.
-- **Servidores para probar:** con `ide server` (o el módulo Servidores), por bloque: uno por stack de cada repo.
-  **Tu worktree se levanta solo en su rama**: si hay que probar una PR de otra rama, su bloque se levanta en un
-  worktree aparte que crea el IDE; no cambies la rama de tu worktree para eso. Un front apunta solo a la api de
-  la PR de la que depende (por eso declara bien las dependencias). Si se lo pides al usuario, nómbrale el bloque
-  por sus PRs.
+- **Servidores:** para probar, `ide server`.
 
 ## Alcance
 
@@ -243,8 +225,7 @@ Antes de `ide status ready-for-review` y antes de cada pedido de re-revisión:
 - **Si necesitas mucho de CX, frena.** CX aporta el contexto del cliente (qué pasa, con qué datos, por
   qué le duele), no las reglas del producto. Si para avanzar te faltan varias respuestas de CX sobre
   cómo debería funcionar, lo más probable es que estés armando algo a la medida: replantea la solución
-  general y propónsela al usuario con su fundamento. A CX pregúntale solo hechos del cliente que no
-  estén en el ticket, el hilo, la reunión ni los datos.
+  general y propónsela al usuario con su fundamento. A CX pregúntale solo hechos del cliente.
 - Lo que pide un criterio se hace, aunque una convención de estilo o de proceso del repo diga otra cosa
   (no las reglas de datos, tenancy o migraciones). No agregues por tu cuenta defaults, backfills, avisos
   a CS ni restricciones de release que nadie pidió. Si te parece que hacen falta, pregunta una vez, en
@@ -270,7 +251,7 @@ Antes de `ide status ready-for-review` y antes de cada pedido de re-revisión:
   concepto (p. ej. «Sociedad»), no como lo llama la planilla del cliente.
 - **Styleguide (api):** el check `FN001` solo revisa views, serializers, signals y tasks; en services y
   tests no hay control automático, así que un `styleguide` en verde no prueba nada ahí. Antes de
-  commitear, busca `.objects.` en tu diff y pasa cada uno por `{{Model}}Selector` / `{{Model}}Services`
+  commitear, busca `.objects.` en tu diff y pasa cada uno por `{Model}Selector` / `{Model}Services`
   (créalos si el modelo no los tiene).
 - En un incidente o hotfix, resuelve lo primordial y sigue el precedente que ya existe en el código.
   Las mejoras extra van aparte, para después.
@@ -336,24 +317,14 @@ Adjuntos. Cuando le menciones un archivo, escribe su ruta (`attachments/carpeta/
 
 ## Navegador
 
-Para probar en el navegador usa **`browser-local`** (tools `mcp__browser-local__browser_*`): un Chrome aparte del
-del usuario. En localhost entra con **la sesión local compartida** del usuario, en cualquier puerto. Si el embed
-te manda al login, pídele `ide browser login local --url http://localhost:<puerto>` (o entra tú con los usuarios
-de prueba del seed); nunca un perfil nuevo ni un login por puerto. Para el tamaño de pantalla, su
-`browser_resize`. Al terminar, ciérralo (`browser_close`).
-
-**No uses Claude in Chrome** (`mcp__claude-in-chrome__*`, el Chrome del usuario) salvo que el usuario te lo pida:
-cambiarle el tamaño o abrir ahí le saca de pantalla completa la ventana donde trabaja. Si te lo pide: trabaja en
-una ventana propia (`tabs_context_mcp` con `createIfEmpty: true`), no toques sus tabs y **nunca** uses
-`resize_window`. Al terminar, cierra tus tabs (`tabs_close_mcp`).
-
-**Otra cuenta a la vez** (p.ej. solicitante y aprobador, o tech.finnecto.com): usa los perfiles del workspace,
-no le pidas al usuario que cierre e inicie sesión. Cada perfil es un servidor MCP `browser-<nombre>` con su
-cuenta ya iniciada; `ide browser ls` dice cuáles hay y si tienen sesión. Si falta uno o expiró, pídele al
-usuario el comando exacto (`ide browser --help`): el login lo hace él. Los perfiles `local` los usas libremente.
-Los **REAL** (prod de otros dominios) son la cuenta real del usuario: ahí solo mira y navega; **cualquier acción
-que cambie datos (guardar, aprobar, enviar, borrar) la confirmas con el usuario antes**, con lo que vas a hacer y
-sobre qué registro.
+- Para probar usa **`browser-local`** (`mcp__browser-local__browser_*`), no el Chrome del usuario; para otra
+  cuenta a la vez, los perfiles del workspace (`ide browser --help`). Al terminar, ciérralo.
+- **No uses Claude in Chrome** (`mcp__claude-in-chrome__*`, el Chrome del usuario) salvo que te lo pida. Si te lo
+  pide: una ventana propia (`tabs_context_mcp` con `createIfEmpty: true`), sin tocar sus tabs, **nunca**
+  `resize_window`, y al terminar cierra tus tabs.
+- En los perfiles **REAL** (prod, la cuenta real del usuario) solo mira y navega: **cualquier acción que cambie
+  datos (guardar, aprobar, enviar, borrar) la confirmas con el usuario antes**, con lo que vas a hacer y sobre qué
+  registro.
 
 ## Feedback (para mejorar con el uso)
 
