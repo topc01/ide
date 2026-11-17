@@ -329,6 +329,7 @@ export const fetchNotionPage = (ws: WsClient, url: string): Promise<{ url: strin
   ws.request("dev.notionPage", { url });
 /** El interruptor del módulo Notion: el subticket se muestra (o no) en la card. */
 export const startTour = (ws: WsClient, id: string) => ws.request("sessions.tourStart", { id });
+export const requestTour = (ws: WsClient, id: string) => ws.request("sessions.tourRequest", { id });
 export type Notif = { id: string; at: string; kind: string; title: string; body: string | null; focus: string | null; read: boolean };
 export type ReviewSummary = { verdicts: { url: string; label: string; sid?: string | null }[]; reviewers: { sid: string; label: string; name?: string | null }[] };
 export const notifsRead = (ws: WsClient, id?: string, remove = false) => ws.request("notifs.read", { id, remove });

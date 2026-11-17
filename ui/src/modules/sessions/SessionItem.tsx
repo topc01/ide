@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Archive, ExternalLink, Play } from "lucide-react";
 import { freezeSession, type FolderSession, type GhPr } from "../../transport/folderSessions";
 import { CardMeta, CiMark } from "./ReviewsSection";
-import { ArtifactsChip, TourChip, CardActions, CardCorner, DevIndex, TicketChip, RelationChips, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
+import { ArtifactsChip, TourAction, TourChip, CardActions, CardCorner, DevIndex, TicketChip, RelationChips, LaterChip, DevStateLabel, RenameAction, StateAction, CardShell, DepsPause, DevTitle, RefChip, devTone, repoShort, titlePad } from "./DevCard";
 import { byRepoStack, worstPr } from "./desarrollos";
 import { ago, STATE, type Block, type DevStateInfo } from "./devStates";
 import { ACTIVITY, activityOf, waitTime } from "./activity";
@@ -77,6 +77,7 @@ export function SessionItem({ session, actions, pr: prProp, prs, onlyActions = f
           <CardActions>
             <RenameAction devKey={`s:${session.id}`} />
             <StateAction dev={dev} devKey={`s:${session.id}`} />
+            {session.kind === "ticket" && <TourAction sid={session.id} />}
             {actions}
             {/* toda card con PR se puede abrir en GitHub (las pendientes ya lo traen en `actions`) */}
             {!onlyActions && (pr?.url ?? session.prUrl) && (

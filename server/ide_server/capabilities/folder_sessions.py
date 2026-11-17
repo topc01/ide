@@ -418,6 +418,21 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         notify()
         return {"ok": True}
 
+    async def tour_request(p: dict) -> dict:
+        """«Pedir el recorrido» (acción de la card): le pide a la sesión que lo prepare. Solo desde la UI."""
+        if p.get("_http"):
+            raise SessionError("forbidden", "se pide desde la card")
+        sid = require_plain_name(p["id"], "sesión")
+        require_session(root, sid)
+        text = ("[Mensaje del usuario]\nPrepárame el recorrido de lo que hiciste, para verlo yo en el navegador: "
+                "`ide tour set --title \"<qué hiciste>\" --steps-file -` con los pasos por tus pantallas, en el orden en "
+                "que las usa una persona, y en cada uno qué tengo que mirar (ver «Antes de declarar listo» en tus "
+                "instrucciones). Los datos de cada paso tienen que existir en tu base local y tu front tiene que estar "
+                "corriendo. Avísame en una línea cuando esté.")
+        state, how = _deliver_to(sid, text, "usuario")
+        notify()
+        return {"process": state, "delivered": how}
+
     async def tour_done(p: dict) -> dict:
         """El Chrome del recorrido avisa que terminó (con su token): los comentarios le llegan a la sesión juntos."""
         from ide_server import tour as tour_mod
@@ -2878,7 +2893,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
-        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "dev.ticketCallout": ticket_callout, "notifs.read": notifs_read, "sessions.tourSet": tour_set, "sessions.tourGet": tour_get, "sessions.tourStart": tour_start, "tour.done": tour_done, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
+        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "dev.ticketCallout": ticket_callout, "notifs.read": notifs_read, "sessions.tourSet": tour_set, "sessions.tourGet": tour_get, "sessions.tourStart": tour_start, "sessions.tourRequest": tour_request, "tour.done": tour_done, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,

@@ -1,8 +1,8 @@
 // ui/src/modules/sessions/DevCard.tsx
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { CircleHelp, Eye, EyeOff, Flag, Hourglass, Pause, Pencil, Presentation } from "lucide-react";
-import { hideDev, renameDev, setDevState, startTour, type LaterItem, type GhPr, type MergeJob } from "../../transport/folderSessions";
+import { CircleHelp, Eye, EyeOff, Flag, Hourglass, Pause, Pencil, Presentation, Route } from "lucide-react";
+import { hideDev, renameDev, requestTour, setDevState, startTour, type LaterItem, type GhPr, type MergeJob } from "../../transport/folderSessions";
 import { QueueItemAction, QueueItemActions } from "../../components/ai-elements/queue";
 import { getWs } from "../../transport/wsClient";
 import { useFolders } from "../../state/folders";
@@ -568,6 +568,22 @@ export function TourChip({ sid }: { sid: string }) {
           : t.status === "done" ? "border-border text-muted-foreground hover:bg-accent"
             : "border-amber-400/80 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20")}>
       {err ? `⚠ ${label}` : label}</button>);
+}
+
+/** Acción de la card «Recorrido»: lo abre si la sesión lo preparó; si no, se lo pide. */
+export function TourAction({ sid }: { sid: string }) {
+  const t = useFolders((s) => s.tree.devTours?.[`s:${sid}`]);
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <QueueItemAction aria-label={msg ?? (t ? `Abrir el recorrido (${t.steps} pasos)` : "Pedir el recorrido (la sesión lo prepara)")}
+      onClick={(e) => {
+        e.stopPropagation();
+        (t ? startTour(getWs(), sid) : requestTour(getWs(), sid))
+          .then(() => setMsg(t ? null : "Recorrido pedido: la sesión lo está preparando"))
+          .catch((x: any) => setMsg(`⚠ ${x?.message ?? String(x)}`));
+      }}>
+      <Route size={11} />
+    </QueueItemAction>);
 }
 
 /** Los artefactos de la sesión que el módulo Artefactos deja en la card: un «▤ N» que los despliega o esconde
