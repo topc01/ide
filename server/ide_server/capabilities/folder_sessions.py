@@ -1807,6 +1807,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         row = await asyncio.to_thread(set_status, root, db, sid, p["status"], actor=actor, note=p.get("note"))
         if actor != f"claude:{sid}":            # la sesión que se pausa a sí misma no se corta el turno
             await _sync_pause(sid, before)
+        await asyncio.to_thread(_sync_block, f"s:{sid}")
         notify()
         return {"dev": row}
 
@@ -2103,6 +2104,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         await asyncio.to_thread(set_dev_state, root, db, key, p.get("status"), actor="ide", note=note, **extra)
         if sid:
             await _sync_pause(sid, before)
+            await asyncio.to_thread(_sync_block, key)
         notify()
         return {"ok": True}
 
@@ -2324,33 +2326,61 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"items": later_mod.items(db, open_only=not p.get("all")) if db else []}
 
     AWAITING = "Awaiting Client"
+    IN_PROGRESS = "In progress"
 
     def _sync_block(key: str) -> None:
-        """El desarrollo pasa solo a Bloqueado (con el motivo) si su ticket de Notion está en «Awaiting Client» o tiene un
-        bloqueante que «bloquea el desarrollo»; cuando no queda ninguno de los dos, vuelve a su fase. Solo deshace el
-        bloqueo que puso él (`actor: bloqueante`): no toca un bloqueo ni una pausa tuya."""
+        """Bloqueado ⇄ el Status «Awaiting Client» del ticket de Notion, en los dos sentidos, y los bloqueantes que
+        «bloquean el desarrollo»:
+        - ticket en Awaiting Client o un bloqueante que bloquea → el desarrollo pasa a Bloqueado (si no tenía ya un
+          bloqueo o una pausa);
+        - el desarrollo pasa a Bloqueado (por quien sea) → el ticket pasa a Awaiting Client (`kv awaitsync:<s>`: lo
+          puso el IDE);
+        - el desarrollo sale de Bloqueado → si el IDE lo había puesto, el ticket vuelve a In progress;
+        - el ticket sale de Awaiting Client → si el bloqueo venía de ahí o el IDE lo había reflejado, se desbloquea.
+        Solo deshace un bloqueo puesto por él (`actor: bloqueante`) o reflejado en Notion; nunca una pausa."""
         if db is None or not key:
             return
         from ide_server import notion_tickets as notion
         blocking = [it for it in later_mod.items(db) if it["key"] == key and it.get("blocks")]
-        awaiting = False
+        url = None
         if key.startswith("s:"):
             try:
                 url = (read_session(root, key[2:]).get("meta") or {}).get("notion_url")
             except Exception:  # noqa: BLE001 — archivada o sin carpeta
                 url = None
-            awaiting = bool(url) and (notion.cached(db, url) or {}).get("status") == AWAITING
+        status = (notion.cached(db, url) or {}).get("status") if url else None
+        awaiting = status == AWAITING
+        flag = bool(db.get(f"awaitsync:{key}"))
         cur = db.get(f"devstate:{key}") or {}
-        mine = cur.get("block") == "blocked" and cur.get("actor") == "bloqueante"
+        block = cur.get("block")
+        mine = block == "blocked" and cur.get("actor") == "bloqueante"
         try:
+            # Notion dejó Awaiting Client (alguien lo cambió allá): se desbloquea lo que venía de ahí
+            if flag and not awaiting and block == "blocked" and status:
+                db.delete(f"awaitsync:{key}")
+                if not blocking:
+                    set_dev_state(root, db, key, "unblock", actor="bloqueante")
+                return
             if blocking or awaiting:
                 parts = ([f"ticket en {AWAITING}"] if awaiting else []) + [
                     f"{later_mod.code(it)} {it['text'][:120]}{' (' + it['with'] + ')' if it.get('with') else ''}" for it in blocking]
                 note = "; ".join(parts)[:300]
-                if not cur.get("block") or (mine and cur.get("note") != note):
+                if not block or (mine and cur.get("note") != note):
                     set_dev_state(root, db, key, "blocked", actor="bloqueante", note=note)
+                    block = "blocked"
             elif mine:
                 set_dev_state(root, db, key, "unblock", actor="bloqueante")
+                block = None
+            # el IDE → Notion
+            if url and notion.get_token():
+                if block == "blocked" and not awaiting and status:
+                    notion.set_status(db, url, AWAITING)
+                    db.set(f"awaitsync:{key}", True)
+                elif block != "blocked" and awaiting and flag:
+                    notion.set_status(db, url, IN_PROGRESS)
+                    db.delete(f"awaitsync:{key}")
+                elif block == "blocked" and awaiting and not flag:
+                    db.set(f"awaitsync:{key}", True)      # ya estaban de acuerdo: quedan enlazados
         except SessionError:
             log.warning("no pude sincronizar el bloqueo de %s", key)
 
@@ -2362,6 +2392,51 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 _sync_block(f"s:{s_['id']}")
         after = {k: (v or {}).get("block") for k, v in db.with_prefix("devstate:").items()} if db else {}
         return before != after
+
+    async def ticket_callout(p: dict) -> dict:
+        """`ide ticket callout`: un callout al principio del ticket de Notion del desarrollo (decisión amarilla,
+        pendiente morado, evidencia verde), opcionalmente enlazado a un bloqueante (al cerrarlo, pasa al final en gris)."""
+        from ide_server import notion_tickets as notion
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        sid = _resolve(p["id"])
+        _own_or_user(p, sid, "el ticket")
+        url = (read_session(root, sid).get("meta") or {}).get("notion_url")
+        if not url:
+            raise SessionError("no_ticket", "el desarrollo no tiene ticket de Notion (`ide ticket set <url>`)")
+        kind, title, body = str(p.get("type") or ""), str(p.get("title") or "").strip()[:200], str(p.get("body") or "")[:8000]
+        if not title:
+            raise SessionError("bad_request", "falta --title")
+        blocker = None
+        if p.get("blocker"):
+            blocker = later_mod.get(db, str(p["blocker"]))
+            if blocker is None or blocker.get("key") != f"s:{sid}":
+                raise SessionError("not_found", f"el desarrollo no tiene el bloqueante {p['blocker']}")
+        block = await asyncio.to_thread(notion.add_callout, url, kind, title, body)
+        rec = {"block": block, "kind": kind, "title": title, "body": body, "at": datetime.now().isoformat(timespec="seconds"),
+               "blocker": blocker["id"] if blocker else None}
+        db.set(f"callouts:{sid}", [*(db.get(f"callouts:{sid}") or []), rec])
+        db.event(rec["at"], p.get("actor") or "ide", "ticket-callout", dev=sid, data={"type": kind, "title": title})
+        return {"id": sid, "block": block}
+
+    def _close_callout(item: dict, line: str) -> None:
+        """El callout del bloqueante que se cerró: al final del ticket, gris, con cómo se resolvió."""
+        from ide_server import notion_tickets as notion
+        if db is None or not str(item.get("key") or "").startswith("s:"):
+            return
+        sid = item["key"][2:]
+        recs = db.get(f"callouts:{sid}") or []
+        hit = [r for r in recs if r.get("blocker") == item["id"] and not r.get("resolved")]
+        if not hit:
+            return
+        try:
+            url = (read_session(root, sid).get("meta") or {}).get("notion_url")
+            for r in hit:
+                r["block"] = notion.resolve_callout(url, r, line)
+                r["resolved"] = datetime.now().isoformat(timespec="seconds")
+            db.set(f"callouts:{sid}", recs)
+        except Exception:  # noqa: BLE001 — no frena el cierre del bloqueante
+            log.exception("no pude pasar el callout al final")
 
     async def later_update(p: dict) -> dict:
         """Editar una decisión (módulo Decisiones: pregunta, con quién, artefacto). Solo desde la UI."""
@@ -2396,6 +2471,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     f"{later_mod.code(item)}: {item['text']}\nRespuesta: {answer}")
             _, how = _deliver_to(sid, text, "usuario")
         later_mod.close(db, item["id"], "answered", answer)
+        await asyncio.to_thread(_close_callout, item, f"Resuelto {datetime.now():%d-%m}: {answer[:500]}")
         await asyncio.to_thread(_sync_block, item["key"])
         notify()
         return {"ok": True, "delivered": how}
@@ -2410,6 +2486,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             raise SessionError("not_found", "ese pendiente ya no está abierto")
         actor = p.get("actor") if isinstance(p.get("actor"), str) and p["actor"].startswith(("claude:", "cli")) else "usuario"
         later_mod.close(db, item["id"], "resolved", (p.get("note") or "").strip()[:2000] or None)
+        note = (p.get("note") or "").strip()
+        await asyncio.to_thread(_close_callout, item, f"Resuelto {datetime.now():%d-%m}" + (f": {note[:500]}" if note else ""))
         db.event(datetime.now().isoformat(timespec="seconds"), actor, "later-resolved",
                  dev=item["key"][2:] if item["key"].startswith("s:") else None, data={"text": item["text"][:300]})
         await asyncio.to_thread(_sync_block, item["key"])
@@ -2423,6 +2501,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             item = later_mod.close(db, str(p.get("id")), "dismissed")
         except KeyError as exc:
             raise SessionError("not_found", "no existe ese pendiente") from exc
+        await asyncio.to_thread(_close_callout, item, f"Descartado {datetime.now():%d-%m}")
         await asyncio.to_thread(_sync_block, item["key"])
         notify()
         return {"ok": True}
@@ -2686,7 +2765,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
-        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "sessions.tourSet": tour_set, "sessions.tourGet": tour_get, "sessions.tourStart": tour_start, "tour.done": tour_done, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
+        "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "dev.ticketCallout": ticket_callout, "sessions.tourSet": tour_set, "sessions.tourGet": tour_get, "sessions.tourStart": tour_start, "tour.done": tour_done, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,

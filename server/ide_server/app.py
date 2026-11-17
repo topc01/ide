@@ -345,6 +345,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_ticket(sid: str, body: dict):
         return await _http("dev.ticketSet", {**body, "id": sid})
 
+    @app.post("/api/devs/{sid}/callout")
+    async def api_ticket_callout(sid: str, body: dict):
+        return await _http("dev.ticketCallout", {**body, "id": sid, "_http": True})
+
     @app.post("/api/devs/{sid}/sub-ticket")
     async def api_sub_ticket(sid: str, body: dict):
         return await _http("dev.ticketSub", {**body, "id": sid})

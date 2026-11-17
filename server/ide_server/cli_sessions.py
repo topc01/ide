@@ -113,6 +113,12 @@ def _parser() -> argparse.ArgumentParser:
     x = af.add_parser("ls", help="los artefactos del desarrollo"); x.add_argument("dev", nargs="?", metavar="#n"); x.add_argument("--json", action="store_true")
     x = af.add_parser("add", help="suma uno hecho fuera de la sesión"); x.add_argument("args", nargs="+", metavar="[#n] url"); x.add_argument("--title")
     x = af.add_parser("rm", help="lo saca del desarrollo (no lo borra de claude.ai)"); x.add_argument("args", nargs="+", metavar="[#n] url")
+    co = tk.add_parser("callout", help="un callout al principio del ticket: decision (amarillo), pending (morado), evidence (verde)")
+    co.add_argument("--type", required=True, choices=["decision", "pending", "evidence"])
+    co.add_argument("--title", required=True, help="el título descriptivo (va como h2)")
+    co.add_argument("--body-file", required=True, help="`-` = stdin: líneas «- …» (viñetas), «1. …», texto; **negrita** y [links](url)")
+    co.add_argument("--blocker", help="el bloqueante que explica (D3, P4): al cerrarlo, el callout pasa al final en gris")
+    co.add_argument("--session")
     mid = sub.add_parser("migrate-ids", help="(una vez) las sesiones de ticket pasan a llamarse por su número y la manager a `manager`")
     mid.add_argument("--dry-run", action="store_true")
     ms = sub.add_parser("merges", help="los desarrollos que se están mergeando («Mergear todo»): avance, qué esperan, si están pegados")
@@ -1170,6 +1176,17 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return 0
         if a.group == "notion":
             return _notion_cmd(a, env, out)
+        if a.group == "ticket" and a.cmd == "callout":
+            from urllib.parse import quote
+            dev = a.session or env.get("IDE_SESSION_ID") or current_session(root, env=env, cwd=cwd)
+            _stdin_only(a.body_file, env)
+            body = sys.stdin.read() if a.body_file == "-" else Path(a.body_file).read_text(encoding="utf-8")
+            data = _post(http, url, f"/api/devs/{quote(dev, safe='')}/callout",
+                         {"type": a.type, "title": a.title, "body": body, "blocker": a.blocker,
+                          "actor": f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli",
+                          "token": env.get("IDE_MANAGER_TOKEN", "")})
+            out.write(f"{data['id']}\tcallout al principio del ticket ({a.type})\n")
+            return 0
         if a.group == "ticket":
             dev, link = (a.args[0], a.args[1]) if len(a.args) > 1 else (env.get("IDE_SESSION_ID"), a.args[0])
             if not dev:                         # tu terminal: la sesión de la carpeta donde estás

@@ -382,3 +382,106 @@ def page_markdown(db: Db, url: str) -> dict:
     db.set(f"notion:{pid}", {**cur, "status": status, "title": title, "children": _children(page), "ts": time.time(),
                              "at": datetime.now().isoformat(timespec="minutes"), "error": None})
     return {"url": url, "title": title, "status": status, "markdown": md, "notionUrl": page.get("url")}
+
+
+# -- callouts en el ticket (bloqueantes y evidencia) -------------------------------------------------------------
+# `position: start` (insertar al principio de la página) es de las versiones nuevas de la API
+CALLOUT_VERSION = "2025-09-03"
+CALLOUT = {  # tipo → (color, ícono, etiqueta)
+    "decision": ("yellow_background", "❓", "Decisión a conversar"),
+    "pending": ("purple_background", "⏳", "Pendiente"),
+    "evidence": ("green_background", "✅", "Evidencia"),
+}
+_INLINE = re.compile(r"\*\*(.+?)\*\*|\[([^\]]+)\]\((https?://[^)\s]+)\)|(https?://\S+)")
+
+
+def _to_rich(text: str) -> list[dict]:
+    """Texto con **negrita**, [links](url) y urls sueltas → rich_text de Notion (trozos de ≤2000)."""
+    out, i = [], 0
+    def put(t: str, bold=False, link=None):
+        for k in range(0, len(t), 2000):
+            rt = {"type": "text", "text": {"content": t[k:k + 2000], **({"link": {"url": link}} if link else {})}}
+            if bold:
+                rt["annotations"] = {"bold": True}
+            out.append(rt)
+    for m in _INLINE.finditer(text):
+        if m.start() > i:
+            put(text[i:m.start()])
+        if m.group(1):
+            put(m.group(1), bold=True)
+        elif m.group(2):
+            put(m.group(2), link=m.group(3))
+        else:
+            put(m.group(4), link=m.group(4))
+        i = m.end()
+    if i < len(text):
+        put(text[i:])
+    return out[:100] or [{"type": "text", "text": {"content": ""}}]
+
+
+def _body_blocks(body: str) -> list[dict]:
+    blocks = []
+    for raw in (body or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith(("- ", "* ")):
+            blocks.append({"type": "bulleted_list_item", "bulleted_list_item": {"rich_text": _to_rich(line[2:])}})
+        elif re.match(r"\d+[.)] ", line):
+            blocks.append({"type": "numbered_list_item", "numbered_list_item": {"rich_text": _to_rich(line.split(" ", 1)[1])}})
+        elif line.startswith("### "):
+            blocks.append({"type": "heading_3", "heading_3": {"rich_text": _to_rich(line[4:])}})
+        else:
+            blocks.append({"type": "paragraph", "paragraph": {"rich_text": _to_rich(line)}})
+    return blocks
+
+
+def callout_block(kind: str, title: str, body: str, resolved: str | None = None) -> dict:
+    """Un callout del color del tipo, con el título en h2 y el cuerpo adentro (resuelto: gris y una línea al final)."""
+    color, icon, label = CALLOUT[kind]
+    children = [{"type": "heading_2", "heading_2": {"rich_text": _to_rich(title)}}, *_body_blocks(body)]
+    if resolved:
+        children.append({"type": "paragraph", "paragraph": {"rich_text": _to_rich(f"**✓ {resolved}**")}})
+    return {"type": "callout", "callout": {
+        "rich_text": _to_rich(label + (" (resuelto)" if resolved else "")),
+        "icon": {"type": "emoji", "emoji": "✔️" if resolved else icon},
+        "color": "gray_background" if resolved else color, "children": children[:100]}}
+
+
+def _call_v(method: str, path: str, body: dict | None, version: str) -> dict:
+    global VERSION
+    old = VERSION
+    VERSION = version
+    try:
+        return _call(method, path, body)
+    finally:
+        VERSION = old
+
+
+def add_callout(url: str, kind: str, title: str, body: str) -> str:
+    """Inserta el callout al principio del ticket (una llamada); si la API no acepta `position`, al final. Devuelve
+    el id del bloque."""
+    if kind not in CALLOUT:
+        raise SessionError("bad_request", f"tipo de callout inválido: {kind!r} (decision | pending | evidence)")
+    pid = page_id(check_url(url))
+    block = callout_block(kind, title, body)
+    try:
+        r = _call_v("PATCH", f"/blocks/{pid}/children", {"children": [block], "position": {"type": "start"}}, CALLOUT_VERSION)
+    except SessionError as exc:
+        if exc.code != "notion_failed":
+            raise
+        r = _call("PATCH", f"/blocks/{pid}/children", {"children": [block]})
+    return (r.get("results") or [{}])[0].get("id") or ""
+
+
+def resolve_callout(url: str, rec: dict, line: str) -> str:
+    """Lo pasa al final de la página, en gris y con la línea de cómo se resolvió (dos llamadas: crear y borrar)."""
+    pid = page_id(check_url(url))
+    r = _call("PATCH", f"/blocks/{pid}/children",
+              {"children": [callout_block(rec["kind"], rec["title"], rec.get("body") or "", resolved=line)]})
+    if rec.get("block"):
+        try:
+            _call("DELETE", f"/blocks/{rec['block']}")
+        except SessionError:
+            log.warning("no pude borrar el callout %s", rec.get("block"))
+    return (r.get("results") or [{}])[0].get("id") or ""
