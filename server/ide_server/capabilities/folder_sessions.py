@@ -2487,6 +2487,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             raise SessionError("not_found", "ese pendiente ya no está abierto")
         if str(item.get("key") or "").startswith("s:"):
             _own_or_user(p, item["key"][2:], "los bloqueantes")   # por HTTP: una sesión solo cierra los suyos
+        elif p.get("_http") and _manager_or_terminal(p) is None:   # de una PR sin sesión: solo tú o la manager
+            raise SessionError("forbidden", "ese bloqueante no es de tu desarrollo")
         actor = p.get("actor") if isinstance(p.get("actor"), str) and p["actor"].startswith(("claude:", "cli")) else "usuario"
         later_mod.close(db, item["id"], "resolved", (p.get("note") or "").strip()[:2000] or None)
         note = (p.get("note") or "").strip()
