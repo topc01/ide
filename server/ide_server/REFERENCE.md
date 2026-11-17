@@ -249,7 +249,7 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 - El IDE lee el bot por long polling (nada expuesto a internet). Solo acepta mensajes privados del
   chat vinculado; los demás se ignoran. Cada mensaje se le encola a la principal como
   `[Mensaje de Telegram del usuario]`.
-- `ide reply [texto | --prompt-file -]`: la principal le contesta al usuario (solo a ese chat).
+- `ide reply [texto | --prompt-file -]`: le escribe al usuario por Telegram (solo a ese chat). La principal, sin prefijo; Plugins, con «[Plugins]»; **cualquier otra sesión**, con «[#n nombre]» adelante (se sabe de cuál por el proceso que llama, no por lo que dice el comando; permitido sin preguntar en el perfil `analyze`); tu terminal, sin prefijo. Rechaza textos que parecen una clave.
 - `ide session propose <id | #n> --prompt-file -`: la principal propone mandarle algo a una sesión; le
   llega al usuario con botones **Sí / No** y el IDE lo encola solo con el Sí de ese chat (la sesión no
   puede autoaprobarse). Ambos solo para la principal (token) y permitidos sin preguntar.

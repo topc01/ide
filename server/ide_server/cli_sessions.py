@@ -245,7 +245,7 @@ def _parser() -> argparse.ArgumentParser:
     ho.add_argument("--force", action="store_true", help="mover aunque haya procesos corriendo desde ahí")
     ho.add_argument("--install-skill", action="store_true",
                     help="instala la skill /ide-handoff en ~/.claude/skills (para las sesiones de Conductor)")
-    rp = sub.add_parser("reply", help="la principal le responde al usuario por Telegram")
+    rp = sub.add_parser("reply", help="le escribe al usuario por Telegram (cualquier sesión; va con «[#n nombre]» adelante)")
     rp.add_argument("text", nargs="?"); rp.add_argument("--prompt-file", help="'-' = stdin")
     tg = sub.add_parser("telegram", help="conectar Telegram con la sesión manager").add_subparsers(dest="cmd", required=True)
     tg.add_parser("setup", help="guarda el token del bot en el llavero y da el código para vincular tu chat")

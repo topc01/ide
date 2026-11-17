@@ -551,7 +551,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.post("/api/telegram/reply")
     async def api_tg_reply(body: dict):
-        return await _http("telegram.reply", body)
+        return await _http("telegram.reply", {**body, "_http": True})
 
     @app.post("/api/manager/nightly")
     async def api_nightly():

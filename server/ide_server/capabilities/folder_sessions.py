@@ -963,10 +963,33 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     bridge = TelegramBridge(db, deliver=_tg_deliver, propose_ok=_tg_propose_ok) if db is not None else None
 
+    def _calling_session(p: dict) -> str | None:
+        """La sesión cuyo claude hizo la llamada HTTP (por proceso, no por lo que dice el comando)."""
+        from ide_server import peer
+        chain = peer.caller_ancestors(p.get("_peer"))
+        if not chain or not hooks.pid_of:
+            return None
+        for sid_, tid in list(supervisor._running.items()):
+            if hooks.pid_of(tid) in chain:
+                return sid_
+        return None
+
     async def tg_reply(p: dict) -> dict:
+        """Responderle al usuario por Telegram: la manager, Plugins o cualquier sesión (su mensaje va con
+        «[#n nombre]» adelante, para que sepas de quién es); también tu terminal."""
         plugins = _is_plugins(p)
-        if not plugins:
-            _manager_only(p)
+        prefix = ""
+        if plugins:
+            prefix = "[Plugins] "
+        elif not secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+            sid = _calling_session(p) if p.get("_http") else None
+            if sid:
+                n = db.get(f"devidx:s:{sid}") if db else None
+                row = db.dev(sid) if db else None
+                name = (db.dev_names().get(f"s:{sid}") if db else None) or str((row or {}).get("title") or "").strip().strip('"')
+                prefix = f"[{f'#{n} ' if n else ''}{(name or sid)[:50]}] "
+            elif _manager_or_terminal(p) != "user":
+                raise SessionError("forbidden", "no sé de qué sesión viene: `ide reply` se corre desde una sesión o tu terminal")
         if bridge is None:
             raise SessionError("no_db", "sin base")
         text = (p.get("text") or "").strip()
@@ -975,8 +998,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         # nunca una clave por Telegram (un texto armado desde un archivo o una página): se rechaza entero
         if _SECRET_RE.search(text):
             raise SessionError("secret", "el mensaje parece tener una clave (llave privada, token): no lo mando por Telegram")
-        if plugins:
-            text = "[Plugins] " + text
+        text = prefix + text
         try:
             await bridge.send(text)
         except RuntimeError as exc:
