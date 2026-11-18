@@ -121,7 +121,16 @@ def resume(wt: Path, session_dir: Path, repo: str, out: TextIO) -> int | None:
     f = _state_file(session_dir, repo)
     if not f.exists():
         return None
-    st = json.loads(f.read_text(encoding="utf-8"))
+    try:
+        st = json.loads(f.read_text(encoding="utf-8"))
+        bad = _invalid(wt, st)
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:
+        bad = f"ilegible ({exc})"
+    if bad:
+        f.unlink(missing_ok=True)
+        out.write(f"{repo}: descarté el avance guardado del update del stack: {bad}. Vuelve a correr `ide update {repo}`"
+                  f" (si quedó un rebase a medias: `git -C {wt} rebase --abort`).\n")
+        return 1
     gitdir = Path(_git(wt, "rev-parse", "--absolute-git-dir").stdout.strip())
     if (gitdir / "rebase-merge").exists() or (gitdir / "rebase-apply").exists():
         b = st["branches"][st["i"]]
@@ -135,6 +144,37 @@ def resume(wt: Path, session_dir: Path, repo: str, out: TextIO) -> int | None:
         return 1
     st["i"] += 1
     return _run(wt, session_dir, repo, st, out)
+
+
+def _invalid(wt: Path, st: dict) -> str | None:
+    """El archivo de avance vive en la carpeta de la sesión (la sesión lo puede editar): antes de seguir se vuelve a
+    verificar todo lo que llega a un push forzado o a un `pr edit`. Devuelve el motivo si no vale."""
+    branches, i = st["branches"], int(st["i"])
+    if not isinstance(branches, list) or not branches or not 0 <= i < len(branches) or st["top"] not in branches:
+        return "estructura inválida"
+    default = _default_branch(wt)
+    me = _gh(wt, "api", "user", "--jq", ".login").stdout.strip()
+    for b in branches:
+        if not isinstance(b, str) or b in PROTECTED or b == default:
+            return f"{b!r} es una rama principal"
+        r = _gh(wt, "pr", "view", b, "--json", "state,author,headRefName")
+        pr = json.loads(r.stdout or "{}") if r.returncode == 0 else {}
+        if not me or pr.get("state") != "OPEN" or pr.get("headRefName") != b or (pr.get("author") or {}).get("login") != me:
+            return f"{b} no es la rama de una PR tuya abierta"
+        # lo que todavía no se subió tiene que seguir como estaba en origin (la protección del push forzado)
+        if branches.index(b) >= i and st["leases"][b] != _git(wt, "rev-parse", f"refs/remotes/origin/{b}").stdout.strip():
+            return f"origin/{b} no coincide con lo guardado"
+    for b, m in (st.get("parent") or {}).items():
+        if b not in branches or m not in branches:
+            return "madres inválidas"
+    first = st["first"]
+    if first.get("new_base") or first.get("pr"):
+        r = _gh(wt, "pr", "view", branches[0], "--json", "number")
+        if r.returncode != 0 or json.loads(r.stdout).get("number") != (first.get("pr") or {}).get("number"):
+            return f"la PR de {branches[0]} no coincide"
+        if first.get("new_base") and (first["new_base"] in branches or not isinstance(first["new_base"], str)):
+            return "base nueva inválida"
+    return None
 
 
 def _finish(wt: Path, repo: str, st: dict, out: TextIO) -> bool:
