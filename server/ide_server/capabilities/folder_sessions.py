@@ -1538,12 +1538,23 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         merger.on_problem = _merge_problem
 
     def _tell_dev(key: str, title: str, text: str) -> None:
-        """A la sesión de un desarrollo (`s:<id>`): a su claude si corre; si no, a Para después."""
+        """A la sesión de un desarrollo (`s:<id>`): a su claude si corre; si está parada, la lanza con el aviso (trabaja
+        en segundo plano, como con un mensaje de la manager); pausada, o sin lugar (max_running), queda guardado y
+        le llega al abrirla."""
         sid = key[2:] if key.startswith("s:") else None
         if db is None or not sid or not session_path(root, sid).is_dir():
             return
-        if supervisor.state(sid) == "running":
+        state = supervisor.state(sid)
+        delivered = False
+        if state == "running":
             supervisor.send(sid, text)
+            delivered = True
+        elif state == "stopped" and not db.get(f"paused:{sid}"):
+            try:
+                delivered = supervisor.start(sid, prompt=text) == "running"
+            except SessionError as exc:
+                log.info("aviso para %s guardado: %s", sid, exc)
+        if delivered:
             db.event(datetime.now().isoformat(timespec="seconds"), "ide", "prompt", dev=sid, data={"text": text[:300]})
         else:
             _hold_notice(sid, text)
