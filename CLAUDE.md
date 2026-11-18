@@ -3,6 +3,10 @@
 Instrucciones para cualquier agente que trabaje en este repo. Lee también `README.md` y
 `docs/` antes de tocar código.
 
+**¿Te piden instalar, configurar o usar el IDE (no programarlo)?** Sigue «Primeros pasos» del
+`README.md` en orden y, con `ide` ya instalado, lee la referencia completa con `ide docs`. El resto
+de este archivo es para quien desarrolla el IDE.
+
 ## Qué es
 
 Un **IDE agéntico que corre en el navegador (localhost)** para orquestar **sesiones

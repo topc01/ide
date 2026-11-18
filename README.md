@@ -1,93 +1,100 @@
 # Agentic IDE (working name)
 
-> Nombre de trabajo — renombrable. Raíz del proyecto: `~/dev/ide`.
-
 Un IDE **agéntico** que corre en el **navegador (localhost)** para orquestar **sesiones
 paralelas de Claude Code** sobre múltiples repos y git worktrees, cada una aislada.
 Backend en **Python (FastAPI)**, frontend en **React + Vite**, terminales por
-**WebSocket → xterm.js**. Todo pasa por **Claude Code local** (no Managed Agents).
+**WebSocket → xterm.js**. Todo pasa por **Claude Code local** con tu suscripción (sin
+`ANTHROPIC_API_KEY`).
 
-Este proyecto es **nuevo y separado** de `finnecto-ide`. Toma a finnecto-ide únicamente
-como **referencia de dominio** (worktrees, árbol recursivo de sesiones, graphite,
-parseo de transcripts), no como base de código.
+## Primeros pasos
 
-## Layout
+> Si eres Claude y te pidieron instalar o configurar el IDE: sigue estos pasos en orden y
+> después lee la referencia completa con `ide docs`.
 
-Tres regiones (según el mockup, dirección visual **1a — Terminal/amber**):
+### 1. Requisitos
 
-1. **Sidebar de sesiones** (izq): repos + árbol recursivo de sesiones + customizations.
-2. **Rail de actividad + panel** (medio): 6 módulos (Search, Changed files, Graphite,
-   Tasks, Terminal, Notion) — **extensibles vía plugins**.
-3. **Panel principal** (der): chat con Claude por defecto; abrir archivo/tarea/branch/
-   terminal/página lo convierte en una pestaña.
+| Herramienta | Para qué | Cómo |
+|---|---|---|
+| [`claude`](https://docs.claude.com/en/docs/claude-code) | las sesiones | instalado y logueado con tu suscripción (`claude` → `/login`) |
+| [`uv`](https://docs.astral.sh/uv/) | instalar y correr el server | `brew install uv` |
+| Node + npm | buildear la UI | `brew install node` |
+| `git` | worktrees | — |
+| [`gh`](https://cli.github.com/) | revisiones de PR y la sección Revisiones | `brew install gh` y `gh auth login` |
+| [`ripgrep`](https://github.com/BurntSushi/ripgrep) | el buscador (opcional) | `brew install ripgrep` |
 
-## Stack
+### 2. Instalar el comando `ide`
 
-| Capa | Elección |
-|------|----------|
-| Backend | Python + FastAPI (async, WebSocket) |
-| Frontend | React + Vite + TypeScript |
-| Terminales | PTY local ↔ WebSocket ↔ xterm.js |
-| Claude Code | CLI local (programático + PTY), **no** Managed Agents |
-| Tiempo real | WebSocket (streams de PTY, chat y sync de estado) |
+```bash
+git clone https://github.com/topc01/ide.git && cd ide
+(cd ui && npm install)
+(cd server && uv run ide build)     # buildea la UI y la empaqueta dentro del server
+uv tool install ./server            # deja `ide` en el PATH
+```
+
+Para actualizar después: `git pull`, repetir `ide build` y correr
+`uv tool install --reinstall ./server`. Un `ide run` que ya está corriendo se reinicia solo con
+la versión nueva.
+
+### 3. Armar el workspace
+
+El **workspace** es una carpeta que contiene tus repos clonados (cada subcarpeta con `.git` es
+un repo) y la carpeta `.ide/` del IDE, que es local y no se commitea:
+
+```
+~/trabajo/
+├── repo-a/
+├── repo-b/
+└── .ide/          # la crea `ide init` (o `ide run` si falta)
+```
+
+```bash
+cd ~/trabajo
+ide init           # siembra .ide/config.toml, plantillas, permisos y prompts (nunca pisa ediciones)
+```
+
+Revisa `.ide/config.toml` (nombre, permisos por defecto, tope de sesiones, org de GitHub) y,
+si un repo necesita preparación al crear un worktree (copiar `.env`, instalar dependencias),
+crea su script en `.ide/scripts/<repo>/setup` (ejecutable). Todo está en `ide docs`, §4 y §8.
+
+### 4. Levantar
+
+```bash
+cd ~/trabajo && ide run      # abre http://127.0.0.1:8787
+```
+
+**Confianza de carpeta:** Claude Code pide confirmar cada carpeta nueva. Si una sesión muestra
+**⚠ confiar carpeta**, entra a su terminal y acepta (el IDE nunca la acepta por ti).
+
+### 5. Primer desarrollo
+
+- En la sidebar principal, la **★** es la sesión principal: un `claude` desde el que despachas
+  el resto.
+- Pídele a la principal que cree una sesión por ticket (o hazlo tú desde una terminal:
+  `ide session new --id <nombre> --prompt "…"`). Cada sesión suma los repos que necesita con
+  `ide repo add <repo>`: un worktree por repo, en una rama propia.
+- `ide --help` lista los comandos; `ide docs` explica cada uno.
+
+Si algo falla, mira **«Problemas comunes»** en `ide docs` (§10).
 
 ## Documentación
 
-- **`ide docs`** (`server/ide_server/REFERENCE.md`) — referencia completa para agentes y humanos: layout de `.ide/`, `config.toml`, permisos, plantillas, scripts, CLI, estados y errores.
+- **`ide docs`** (`server/ide_server/REFERENCE.md`) — referencia completa para agentes y
+  humanos: layout de `.ide/`, `config.toml`, permisos, plantillas, scripts, CLI, estados y errores.
 - `docs/superpowers/HANDOFF.md` — estado vivo del desarrollo y próximos pasos.
-- `docs/design/handoff/HANDOFF.md` — spec de diseño (fuente de verdad, alta fidelidad).
-- `docs/design/handoff/mockup.dc.html` — prototipo interactivo (formato propietario `.dc.html`).
-- `docs/design/ROADMAP.md` — descomposición en rebanadas (R0–R6).
-- `docs/design/REFERENCES.md` — tokens 1a, mapeo a módulos de finnecto, integración con Claude Code.
-- `docs/superpowers/specs/` — specs por rebanada. Empezamos por **R0 (Fundación)**.
+- `docs/design/` — identidad visual, roadmap y referencias de diseño.
+- `docs/superpowers/specs/` y `plans/` — specs y planes por rebanada.
 
-## Cómo correr
-
-**Requisitos:** [`uv`](https://docs.astral.sh/uv/), Node + npm, y el binario `claude` de Claude
-Code en el PATH, logueado por suscripción (**sin `ANTHROPIC_API_KEY`**). Para el módulo
-**Search** (buscar contenido) hace falta [`ripgrep`](https://github.com/BurntSushi/ripgrep)
-(`rg`) en el PATH (`brew install ripgrep`); si falta, el buscador avisa con `rg_missing` en vez
-de fallar en silencio. Para las **revisiones de PR** (`ide session new --review`) hace falta
-[`gh`](https://cli.github.com/) logueado (`gh auth login`).
-
-**Confianza de carpeta:** Claude Code pide confirmar cada carpeta nueva. La primera vez, abre
-`claude` en la carpeta del workspace y acepta la confianza; si una sesión muestra
-**⚠ confiar carpeta**, entra a su terminal y acepta (el IDE nunca la acepta por ti).
-
-### Un comando levanta todo
+## Desarrollar el IDE
 
 ```bash
-cd server && uv run ide build     # buildea el frontend y lo empaqueta en ide_server/web/
-uv tool install ./server          # deja `ide` en el PATH con el frontend adentro
-
-ide run --cwd /ruta/a/tu/workspace   # sirve todo en http://127.0.0.1:8787
+cd server && uv run ide run --cwd <workspace> --no-browser   # backend + frontend servido
+cd ui && npm run dev                                          # Vite en :5173 con hot-reload
 ```
 
-`ide run` auto-crea `.ide/` si falta y abre el navegador (`--no-browser` lo evita).
-
-### Desarrollo (hot-reload de la UI)
+En dev abre `:5173` (Vite); el WebSocket del frontend siempre pega a `:8787`. Las reglas para
+programar el IDE están en `CLAUDE.md`.
 
 ```bash
-cd server && uv run ide run --cwd <ws> --no-browser   # backend + frontend servido
-cd ui && npm run dev                                   # Vite en :5173 con hot-reload
+cd server && uv run pytest -q     # tests backend
+cd ui && npm test                 # tests frontend (vitest)
 ```
-
-En dev abre `:5173` (Vite); el WebSocket del frontend siempre pega a `:8787`.
-
-## Tests
-
-```bash
-cd server && uv run pytest -q     # backend
-cd ui && npm test                 # frontend (vitest)
-```
-
-## Estado
-
-En desarrollo activo. Rebanadas cerradas end-to-end: **R0** (fundación), **R1** (sesiones),
-**R2** (terminal), **R3** (chat), **UI shadcn/1a**, **R4** (changed files + diff), **R5a**
-(graphite stack), **R6** (settings/customizations), **Notion Fase 1 y 2**, **Orquestación entre
-sesiones Fase 1** (coordinadora comanda hijas vía MCP), **Tasks Fase 1** (markdown local).
-
-El estado vivo y los próximos pasos están en **`docs/superpowers/HANDOFF.md`** (fuente de verdad
-para retomar). Pendiente prioritario: **arranque con un solo comando `ide`** (servir el frontend
-desde el backend + auto-init de `.ide/`).
