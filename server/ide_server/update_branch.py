@@ -1,10 +1,9 @@
 # server/ide_server/update_branch.py
-"""`ide update`: pone al día la rama de un worktree de la sesión sobre su base, **solo cuando hace falta**:
-la PR está en conflicto con su base, o su madre del stack se mergeó (con squash). Que `develop` haya
-avanzado (BEHIND) no basta: rebasear por eso cambia los commits y vuelve a correr todo el CI (al mergear,
-si GitHub exige la rama al día, la pone al día el IDE). Rebasea en el mismo worktree; si choca, deja el
-rebase a medias para que la sesión resuelva y siga (`git rebase --continue` + `ide push --force`). `--behind`:
-rebasea también si solo está atrás, cuando el usuario lo pide."""
+"""`ide update`: pone al día la rama de un worktree de la sesión sobre su base: si la PR está en conflicto, si su
+madre del stack se mergeó (con squash), o si está atrás de su base y **todavía no tiene aprobación** (el CI corre
+recién con una aprobación: rebasear antes no cuesta nada). Aprobada y solo atrás, no (vuelve a correr el CI y puede
+descartar la aprobación), salvo con `--behind` cuando el usuario lo pide. Rebasea en el mismo worktree; si choca,
+deja el rebase a medias para que la sesión resuelva y siga (`git rebase --continue` + `ide push --force`)."""
 from __future__ import annotations
 import json
 import re
@@ -32,7 +31,7 @@ def _slug(wt: Path) -> str | None:
 
 def plan(wt: Path, branch: str, *, behind: bool = False) -> dict:
     """Qué haría (sin tocar nada): {pr, reason, onto, upstream, new_base} o {pr, skip: motivo}."""
-    out = _gh(wt, "pr", "view", branch, "--json", "number,url,state,baseRefName,mergeable,mergeStateStatus")
+    out = _gh(wt, "pr", "view", branch, "--json", "number,url,state,baseRefName,mergeable,mergeStateStatus,reviewDecision")
     if out.returncode != 0:
         return {"skip": f"la rama {branch} no tiene PR: sin PR no hay conflicto que resolver"}
     pr = json.loads(out.stdout)
@@ -57,15 +56,20 @@ def plan(wt: Path, branch: str, *, behind: bool = False) -> dict:
     if pr.get("mergeable") == "CONFLICTING":
         return {"pr": pr, "reason": f"está en conflicto con {base}", "onto": f"origin/{base}"}
     state = pr.get("mergeStateStatus") or pr.get("mergeable") or "?"
-    if behind:     # mergeStateStatus no siempre dice BEHIND (con el CI rojo dice UNSTABLE): se cuenta con git
-        n = _git(wt, "rev-list", "--count", f"HEAD..origin/{base}").stdout.strip()
-        if n.isdigit() and int(n) > 0:
-            return {"pr": pr, "reason": f"le faltan {n} commit(s) de {base} (--behind)", "onto": f"origin/{base}"}
+    # atrás de su base: sin aprobación se rebasea (el CI corre recién con una aprobación: no cuesta nada); aprobada,
+    # solo con --behind (vuelve a correr el CI y puede descartar la aprobación). mergeStateStatus no siempre dice
+    # BEHIND (con el CI rojo dice UNSTABLE): se cuenta con git
+    approved = pr.get("reviewDecision") == "APPROVED"
+    n = _git(wt, "rev-list", "--count", f"HEAD..origin/{base}").stdout.strip()
+    if n.isdigit() and int(n) > 0 and (behind or not approved):
+        return {"pr": pr, "reason": f"le faltan {n} commit(s) de {base}" + (" (--behind)" if approved else " (sin aprobación)"),
+                "onto": f"origin/{base}"}
+    if behind and not (n.isdigit() and int(n) > 0):
         return {"pr": pr, "skip": f"ya está al día con origin/{base}"}
-    why = ("solo está atrás de su base (BEHIND): eso no basta, no se actualiza (si el usuario lo pidió: `--behind`)"
-           if state == "BEHIND"
+    why = ("está aprobada y solo está atrás de su base: no se rebasea (vuelve a correr el CI y puede descartar la "
+           "aprobación; si el usuario lo pidió: `--behind`)" if approved and n.isdigit() and int(n) > 0
            else "GitHub todavía está calculando si tiene conflicto: prueba en un rato" if pr.get("mergeable") == "UNKNOWN"
-           else f"no tiene conflicto ni madre mergeada ({state}): no hace falta")
+           else f"está al día con su base, sin conflicto ni madre mergeada ({state}): no hace falta")
     return {"pr": pr, "skip": why}
 
 

@@ -119,9 +119,15 @@ def resolve(root: Path, sid: str, thread_id: str, *, undo: bool = False, dev_prs
     return {"resolved": (((res.get("data") or {}).get(op) or {}).get("thread") or {}).get("isResolved")}
 
 
-def add_reviewer(root: Path, sid: str, ref: str, logins: list[str], dev_prs: set[str] | None = None) -> None:
+def add_reviewer(root: Path, sid: str, ref: str, logins: list[str], dev_prs: set[str] | None = None) -> bool:
+    """Pide revisión; en una PR propia en draft, además la saca de draft. Devuelve si la sacó."""
     _, _, url = _own_pr(root, sid, ref, dev_prs)
     bad = [x for x in logins if not _LOGIN_RE.match(x)]
     if bad or not logins:
         raise SessionError("bad_request", f"login inválido: {', '.join(bad) or '(ninguno)'}")
     _gh(["pr", "edit", url, "--add-reviewer", ",".join(logins)])
+    if dev_prs is not None:      # una PR propia (sesión de ticket): pedir revisor = lista para revisión, sale de draft
+        if json.loads(_gh(["pr", "view", url, "--json", "isDraft"]) or "{}").get("isDraft"):
+            _gh(["pr", "ready", url])
+            return True
+    return False

@@ -87,17 +87,16 @@ publicas aprobaciones ni comentarios sueltos):
 El **estado del desarrollo** vive en la base del IDE y **casi todo lo deduce solo**; tú marcas solo lo que es
 criterio, con `ide status` (nunca editando el `status:` del archivo):
 - **Automático, no lo marques:** `developing` (apenas hay una PR abierta en draft), lo que da GitHub (en
-  revisión, cambios pedidos, aprobada, mergeada; una PR en draft con revisores pedidos o revisión ya cuenta), si
+  revisión, cambios pedidos, aprobada, mergeada), si
   estás trabajando o esperando al usuario, y en las sesiones de revisión el veredicto.
-- **Tú:** `investigating` al empezar si todavía no hay código; `ready-for-review` cuando terminaste (las PRs
-  siguen en draft: el usuario las manda a revisión desde el IDE); `blocked -m "<por qué o de quién>"` solo si
+- **Tú:** `investigating` al empezar si todavía no hay código; `ready-for-review` cuando terminaste; `blocked -m "<por qué o de quién>"` solo si
   dependes de afuera (p.ej. "definiciones de producto", "el cliente", "#12") y `unblock` al destrabar; `paused`
   si el usuario lo pide. Si lo que falta es una decisión del usuario, no marques nada: termina el turno con la pregunta en la primera línea y el IDE lo muestra en «te esperan».
-- Mientras trabajas, las PRs van en **draft**. **No saques una PR de draft**: lo hace el IDE solo, apenas queda
-  aprobada; tú no, salvo que el usuario te lo pida explícito. Haz exactamente la acción que te piden; si
-  propones algo más, pregúntalo aparte.
-- **Revisores:** pídelos (`ide review add-reviewer <pr> <login>`) cuando el usuario o el manager lo pidan, aunque
-  la PR siga en draft: en el equipo se revisa en draft y el CI corre después de aprobar.
+- Mientras la PR está en desarrollo va en **draft**. Pasa a lista para revisión solo cuando ya está lista para
+  pedir revisor: `ide review add-reviewer <pr> <login>` pide el revisor y la saca de draft. Pide revisor cuando el
+  usuario o el manager lo pidan. Haz exactamente la acción que te piden; si propones algo más, pregúntalo aparte.
+- **Rebasear:** mientras la PR no tiene aprobación, ponla al día con su base sin miedo (`ide update`): el CI corre
+  recién con una aprobación. Aprobada, solo si hay conflicto o el usuario lo pide (`ide update --behind`).
 - **Re-revisión:** cuando una PR ya tiene revisor y atiendes sus cambios pedidos, **pide tú la re-revisión** en
   el mismo turno, en cada PR que tocaste: respondes en cada hilo (`ide review reply`) y haces `ide review add-reviewer <pr>
   <login>`. Verifícalo con `gh pr view <url> --json reviewRequests`. No le digas al usuario que la pida él, salvo

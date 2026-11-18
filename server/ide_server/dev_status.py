@@ -59,8 +59,8 @@ def render(dev: dict, root: Path, sid: str, out: TextIO, *, fetch: bool = False)
         elif w["unpushed"]:
             bits.append(f"{w['unpushed']} commit(s) sin subir")
         if w["behind_base"]:
-            bits.append(f"le faltan {w['behind_base']} commit(s) de origin/{w['base']} (no hace falta actualizar salvo "
-                        f"conflicto: `ide update` decide; `--behind` solo si el usuario lo pide)")
+            bits.append(f"le faltan {w['behind_base']} commit(s) de origin/{w['base']} (`ide update`: la rebasea si "
+                        f"todavía no tiene aprobación)")
         out.write(f"{r['name']}: {', '.join(bits)}\n")
         mine = [p for p in prs if p["repo"] == r["name"]]
         for p in sorted(mine, key=lambda p: (p.get("stack") or {}).get("position", 0)):

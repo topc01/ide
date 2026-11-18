@@ -27,13 +27,14 @@ ejemplos:
 Si el cherry-pick choca, queda a medias: resuelve en el worktree extra, `git -C <ruta> cherry-pick --continue` e
 `ide push <repo> --branch <tu rama>-develop`. Después abre la PR con base develop («backport de #…» en el body) y
 declara que van juntas (`ide dep add` en las dos direcciones)."""),
-    "update": ("Pone al día tu rama sobre su base SOLO si hace falta: la PR está en conflicto o su madre del stack se "
-               "mergeó. Si solo está atrás de develop, se niega (rebasear sin necesidad corre todo el CI), salvo con "
-               "--behind, cuando el usuario lo pidió explícito.", """\
+    "update": ("Pone al día tu rama sobre su base cuando hace falta: la PR está en conflicto, su madre del stack se "
+               "mergeó, o está atrás y todavía no tiene aprobación (el CI corre recién con una aprobación: rebasear "
+               "antes no cuesta nada). Aprobada y solo atrás, se niega (vuelve a correr el CI y puede descartar la "
+               "aprobación), salvo con --behind, cuando el usuario lo pidió explícito.", """\
 ejemplos:
   ide update --dry-run                      # dice qué haría
   ide update finnecto-api
-  ide update finnecto-api --behind          # el usuario pidió ponerla al día aunque solo esté atrás (no a mano)
+  ide update finnecto-api --behind          # aprobada: el usuario pidió ponerla al día igual (no a mano)
 Si el rebase choca, queda a medias: resuelve, `git rebase --continue` y `ide push <repo> --force`."""),
     "migrations": ("Las migraciones de tu rama contra develop: cada nueva va después de la última de su app y depende "
                    "de ella.", """\
@@ -106,7 +107,7 @@ ejemplos:
   ide review verdict api#5092 approve --file comentario.md --why "una línea"   # aprobar: lo publica el usuario
   ide review reply api#5092 123456 "Listo, corregido"
   ide review resolve PRRT_kwDOabc --undo
-  ide review add-reviewer api#5092 diegobustosk
+  ide review add-reviewer api#5092 diegobustosk   # en una PR tuya en draft, además la saca de draft
 Para verificar: gh pr view."""),
     "review publish": ("Publica una review que pide cambios, con sus comentarios en línea.", """\
 el JSON es el de POST /repos/<o>/<r>/pulls/<n>/reviews:

@@ -28,11 +28,8 @@ REVIEW_REPLY = ("Para responder en un hilo de review usa `ide review reply <pr> 
 REVIEW_RESOLVE = "Para resolver un hilo usa `ide review resolve <PRRT_…>` (`--undo` lo reabre), no `gh api graphql`."
 PUSH = ("Para subir la rama usa `ide push [<repo>]` (sin cd; `--force` = force-with-lease después de un rebase; "
         "`--branch <rama>` para otra rama local, p.ej. las de un stack). Ver `ide push --help`.")
-DRAFT = ("Las PRs se abren en draft: agrega `--draft` (`gh pr create --draft …`). El IDE la saca de draft solo cuando "
-         "queda aprobada.")
-READY = ("Sacar una PR de draft lo hace el IDE solo cuando queda aprobada. Hazlo solo si el usuario te lo pidió "
-         "explícito para esta PR.")
-
+DRAFT = ("Las PRs se abren en draft mientras están en desarrollo: agrega `--draft` (`gh pr create --draft …`). Pasa a "
+         "lista para revisión cuando pides revisor (`ide review add-reviewer` lo hace solo).")
 
 def _tokens(cmd: str) -> list[str]:
     cmd = _HEREDOC.sub("", cmd)          # el cuerpo de un heredoc es texto, no comandos
@@ -95,6 +92,4 @@ def advise(cmd: str) -> tuple[str, str] | None:
             return "deny", REVIEW_PUBLISH
         if w[:3] == ["gh", "pr", "create"] and not any(x in ("--draft", "-d") for x in w[3:]):
             return "deny", DRAFT
-        if w[:3] == ["gh", "pr", "ready"] and "--undo" not in w[3:]:
-            return "ask", READY
     return None

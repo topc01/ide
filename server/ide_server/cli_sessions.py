@@ -1204,8 +1204,8 @@ def _review_cmd(a, root: Path, cwd: Path, out: TextIO, env: dict, url: str | Non
         r = rp.resolve(root, sid, a.thread_id, undo=a.undo, dev_prs=_set(dev_prs()))
         out.write(f"hilo {'resuelto' if r['resolved'] else 'abierto'}\n")
     elif a.cmd == "add-reviewer":
-        rp.add_reviewer(root, sid, a.pr, a.logins, _set(dev_prs()))
-        out.write(f"revisión pedida a {', '.join(a.logins)}\n")
+        undrafted = rp.add_reviewer(root, sid, a.pr, a.logins, _set(dev_prs()))
+        out.write(f"revisión pedida a {', '.join(a.logins)}" + ("; salió de draft (lista para revisión)" if undrafted else "") + "\n")
     return 0
 
 
