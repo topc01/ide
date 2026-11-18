@@ -22,12 +22,14 @@ modules = ["sessions", "terminal", "prompts", "stack", "review", "deps", "config
 
 
 def claude_md(repos: list[str]) -> str:
-    # (los repos ya no se listan: cada sesión lee el CLAUDE.md de los suyos)
+    lines = "\n".join(f"- `{r}`: (qué hace y cuándo se suma)" for r in repos) or "- (sin repos)"
     return """\
 # Workspace
 
 Estás en una sesión del IDE (`.ide/sessions/<id>/`). Referencia completa del IDE (config,
-permisos, plantillas, scripts, CLI): ejecuta `ide docs`.
+permisos, plantillas, scripts, CLI): ejecuta `ide docs`. Los repos del workspace (súmalos con `ide repo add <repo>`):
+
+@@REPOS@@
 
 ## Las instrucciones de cada repo
 
@@ -335,7 +337,7 @@ tocaba tomar, un supuesto equivocado), anótalo **en el momento**, sin que te lo
 "general" = vale para cualquier sesión o repo; "este desarrollo" = solo para este. La sesión
 principal las revisa una vez por semana (también lee los transcripts, por si alguna no quedó anotada) y
 propone mejoras a las instrucciones; el usuario las aprueba antes de aplicarlas.
-"""
+""".replace("@@REPOS@@", lines)
 
 
 # `.ide/prompts/tickets-y-prs.md`: la principal arranca sin prompt; la UI lo pega a pedido.
