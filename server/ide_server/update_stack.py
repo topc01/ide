@@ -149,12 +149,29 @@ def resume(wt: Path, session_dir: Path, repo: str, out: TextIO) -> int | None:
 def _invalid(wt: Path, st: dict) -> str | None:
     """El archivo de avance vive en la carpeta de la sesión (la sesión lo puede editar): antes de seguir se vuelve a
     verificar todo lo que llega a un push forzado o a un `pr edit`. Devuelve el motivo si no vale."""
-    branches, i = st["branches"], int(st["i"])
-    if not isinstance(branches, list) or not branches or not 0 <= i < len(branches) or st["top"] not in branches:
+    import re
+    branches, i = st["branches"], st["i"]
+    if (not isinstance(branches, list) or not branches or not isinstance(i, int) or not 0 <= i < len(branches)
+            or st["top"] not in branches or len(set(branches)) != len(branches)):
         return "estructura inválida"
+    sha = re.compile(r"[0-9a-f]{40}([0-9a-f]{24})?")
+    for key in ("olds", "news", "leases"):
+        d = st[key]
+        if not isinstance(d, dict) or set(d) - set(branches) or any(not isinstance(v, str) or not sha.fullmatch(v) for v in d.values()):
+            return f"{key} inválido"
+    if set(st["olds"]) != set(branches) or set(st["leases"]) != set(branches):
+        return "estructura inválida"
+    first = st["first"]
+    onto, up = first.get("onto"), first.get("upstream")
+    if not (isinstance(onto, str) and (sha.fullmatch(onto) or re.fullmatch(r"origin/[A-Za-z0-9][A-Za-z0-9._/-]{0,200}", onto))
+            and ".." not in onto) or (up is not None and not (isinstance(up, str) and sha.fullmatch(up))):
+        return "plan inválido"
+    for v in [*st["olds"].values(), *st["news"].values(), onto, *([up] if up else [])]:
+        if _git(wt, "rev-parse", "--verify", "--quiet", f"{v}^{{commit}}").returncode != 0:
+            return f"{v} no es un commit"
     default = _default_branch(wt)
     me = _gh(wt, "api", "user", "--jq", ".login").stdout.strip()
-    for b in branches:
+    for idx, b in enumerate(branches):
         if not isinstance(b, str) or b in PROTECTED or b == default:
             return f"{b!r} es una rama principal"
         r = _gh(wt, "pr", "view", b, "--json", "state,author,headRefName")
@@ -162,12 +179,14 @@ def _invalid(wt: Path, st: dict) -> str | None:
         if not me or pr.get("state") != "OPEN" or pr.get("headRefName") != b or (pr.get("author") or {}).get("login") != me:
             return f"{b} no es la rama de una PR tuya abierta"
         # lo que todavía no se subió tiene que seguir como estaba en origin (la protección del push forzado)
-        if branches.index(b) >= i and st["leases"][b] != _git(wt, "rev-parse", f"refs/remotes/origin/{b}").stdout.strip():
+        if idx >= i and st["leases"][b] != _git(wt, "rev-parse", f"refs/remotes/origin/{b}").stdout.strip():
             return f"origin/{b} no coincide con lo guardado"
-    for b, m in (st.get("parent") or {}).items():
-        if b not in branches or m not in branches:
+    parent = st.get("parent") or {}
+    if not isinstance(parent, dict) or set(branches[1:]) - set(parent):
+        return "madres inválidas"
+    for b, m in parent.items():         # cada madre en la lista y antes que su hija
+        if b not in branches or m not in branches or branches.index(m) >= branches.index(b):
             return "madres inválidas"
-    first = st["first"]
     if first.get("new_base") or first.get("pr"):
         r = _gh(wt, "pr", "view", branches[0], "--json", "number")
         if r.returncode != 0 or json.loads(r.stdout).get("number") != (first.get("pr") or {}).get("number"):
