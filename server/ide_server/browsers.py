@@ -28,19 +28,24 @@ PLAYWRIGHT_VERSION = "1.64.1"   # el CLI `playwright open` del login
 LOCALHOST = re.compile(r"^https?://(([a-z0-9-]+\.)*localhost|127\.0\.0\.1|\[::1\])(:\d+)?(/|$)", re.I)
 
 
+_HOST = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+
+
 def test_hosts(root: Path) -> list[str]:
-    """Los sitios de prueba de `[browsers] test_hosts` (hosts exactos, p.ej. `staging.miempresa.com`)."""
+    """Los sitios de prueba de `[browsers] test_hosts` (hosts exactos, p.ej. `staging.miempresa.com`); lo que no
+    es un host válido se ignora."""
     from ide_server.config import load_workspace_config
     raw = load_workspace_config(root).get("browsers", {}).get("test_hosts") or []
-    return [str(h).strip().lower() for h in raw if str(h).strip()]
+    return [h for h in (str(x).strip().lower() for x in raw) if _HOST.match(h)]
 
 
 def is_local(root: Path, url: str) -> bool:
-    """localhost o uno de los sitios de prueba (`test_hosts`), por http(s)."""
+    """localhost o uno de los sitios de prueba (`test_hosts`). Con un regex anclado, igual que LOCALHOST, y no con
+    urlparse: `https://otro.com\\@<host de prueba>/` para urlparse es el host de prueba y para Chrome es otro.com."""
     if LOCALHOST.match(url):
         return True
-    u = urlparse(url)
-    return u.scheme in ("http", "https") and (u.hostname or "").lower() in test_hosts(root)
+    hosts = test_hosts(root)
+    return bool(hosts) and bool(re.match(rf"^https?://({'|'.join(map(re.escape, hosts))})(:\d+)?(/|$)", url, re.I))
 
 
 # siempre está (sin perfil ni cuenta): el navegador de las sesiones para probar en localhost. Es un Chrome
@@ -72,8 +77,10 @@ def list_profiles(root: Path) -> list[dict]:
         if (d / "profile.toml").is_file():
             data = read_toml(d / "profile.toml")
             url = str(data.get("url") or "")
-            out.append({"name": d.name, "url": url, "note": str(data.get("note") or ""),
-                        "local": is_local(root, url), "logged": _logged(d / "state.json"),
+            # `local` queda fijado al crear el perfil (lo crea el usuario): una sesión que edite config.toml no
+            # puede volver local un perfil con una cuenta real. Perfiles sin la marca: solo localhost
+            local = data["local"] is True if "local" in data else bool(LOCALHOST.match(url))
+            out.append({"name": d.name, "url": url, "note": str(data.get("note") or ""), "local": local, "logged": _logged(d / "state.json"),
                         "server": f"browser-{d.name}"})
     return out
 
@@ -97,7 +104,7 @@ def new(root: Path, name: str, url: str, note: str = "") -> dict:
     base(root).mkdir(parents=True, exist_ok=True, mode=0o700)
     base(root).chmod(0o700)
     d.mkdir(mode=0o700)
-    write_toml(d / "profile.toml", {"url": url, "note": note})
+    write_toml(d / "profile.toml", {"url": url, "note": note, "local": is_local(root, url)})
     fd = os.open(d / "state.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     os.write(fd, b'{"cookies": [], "origins": []}\n')
     os.close(fd)
