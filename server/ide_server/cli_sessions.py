@@ -91,7 +91,7 @@ def _parser() -> argparse.ArgumentParser:
     prs_.add_parser("stop", help="corta un servidor o contenedores del IDE por su id de `ide procs`").add_argument("id")
     br = sub.add_parser("browser", help="perfiles de navegador del workspace: uno por cuenta, todos abiertos a la vez").add_subparsers(dest="cmd", required=True)
     br.add_parser("ls")
-    bn = br.add_parser("new"); bn.add_argument("name"); bn.add_argument("url", help="donde inicia sesión (p.ej. http://localhost:5173 o https://tech.finnecto.com)")
+    bn = br.add_parser("new"); bn.add_argument("name"); bn.add_argument("url", help="donde inicia sesión (p.ej. http://localhost:5173 o https://staging.miempresa.com)")
     bn.add_argument("--note", default="", help="qué cuenta es (p.ej. 'aprobador de Acme, usuario juan@…')")
     br.add_parser("rm").add_argument("name")
     bl = br.add_parser("login", help="abre la ventana para iniciar sesión; al cerrarla se guarda (`local`: la de localhost, para todos los puertos)")
@@ -1186,14 +1186,14 @@ def _review_cmd(a, root: Path, cwd: Path, out: TextIO, env: dict, url: str | Non
         out.write(f"review publicada: {r['state']} {r['url'] or ''}\n")
         try:                                     # el veredicto queda registrado en el IDE (pedir cambios)
             _post(http, url, "/api/reviews/verdict", {"id": sid, "pr": a.pr, "verdict": "request-changes",
-                                                      "body": r["body"], "sha": r["sha"] or rp.head_sha(a.pr)})
+                                                      "body": r["body"], "sha": r["sha"] or rp.head_sha(root, a.pr)})
         except SessionError as exc:
             out.write(f"aviso: no pude registrar el veredicto en el IDE ({exc}); córrelo con `ide review verdict`\n")
     elif a.cmd == "verdict":
         body = sys.stdin.read() if a.file == "-" else Path(a.file).read_text(encoding="utf-8")
         _post(http, url, "/api/reviews/verdict", {"id": sid, "pr": a.pr, "why": a.why or "", "body": body,
                                                   "verdict": "approve" if a.verdict == "approve" else "request-changes",
-                                                  "sha": rp.head_sha(a.pr)})
+                                                  "sha": rp.head_sha(root, a.pr)})
         out.write(f"veredicto registrado: {'aprobar' if a.verdict == 'approve' else 'pedir cambios'}"
                   f"{' (apruébala tú desde la card)' if a.verdict == 'approve' else ''}\n")
     elif a.cmd == "reply":

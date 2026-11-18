@@ -1,6 +1,6 @@
 """`ide review`: las escrituras de una sesión de revisión en GitHub (publicar la review, responder un hilo,
 resolverlo, pedir revisor), validadas antes de llamar a `gh`. Existe para que el permiso de las sesiones
-cubra solo esto (`Bash(ide review:*)`) y no `gh api` en general: solo la org Finnecto, solo desde una
+cubra solo esto (`Bash(ide review:*)`) y no `gh api` en general: solo la org del workspace, solo desde una
 sesión de revisión y solo sobre sus propias PRs. Responder, resolver y pedir revisión también desde una de
 ticket, sobre las PRs de su desarrollo."""
 from __future__ import annotations
@@ -8,9 +8,8 @@ import json
 import re
 import subprocess
 from pathlib import Path
+from ide_server.config import reviews_config
 from ide_server.sessions_fs import SessionError, read_session
-
-ORG = "Finnecto"
 _PR_RE = re.compile(r"^https://github\.com/([^/]+)/([^/]+)/pull/(\d+)/?$")
 _REF_RE = re.compile(r"^([A-Za-z0-9_.-]+)#(\d+)$")
 # solo pedir cambios: aprobar lo hace el usuario desde la card (una PR maliciosa podría pedirle a la sesión que
@@ -28,19 +27,32 @@ def _gh(args: list[str], stdin: str | None = None) -> str:
     return out.stdout
 
 
-def _pr(ref: str) -> tuple[str, int, str]:
-    """`https://github.com/Finnecto/<repo>/pull/<n>` o `<repo>#<n>` → (repo, n, url). Solo la org."""
+def org(root: Path) -> str:
+    """La org donde escribe `ide review`: `[reviews] github_org`, o la única dueña de los `origin` del workspace."""
+    if o := reviews_config(root).get("github_org"):
+        return o
+    from ide_server.gh_reviews import workspace_orgs
+    orgs = workspace_orgs(root)
+    if len(orgs) != 1:
+        raise SessionError("bad_request", "no sé en qué org de GitHub escribir: configura [reviews] github_org"
+                           + (f" (los repos son de {', '.join(orgs)})" if orgs else ""))
+    return orgs[0]
+
+
+def _pr(root: Path, ref: str) -> tuple[str, int, str]:
+    """`https://github.com/<org>/<repo>/pull/<n>` o `<repo>#<n>` → (repo, n, url). Solo la org del workspace."""
+    o = org(root)
     if m := _PR_RE.match(ref.strip()):
         owner, repo, n = m.groups()
-        if owner.lower() != ORG.lower():
-            raise SessionError("forbidden", f"solo PRs de {ORG} (esta es de {owner})")
+        if owner.lower() != o.lower():
+            raise SessionError("forbidden", f"solo PRs de {o} (esta es de {owner})")
     elif m := _REF_RE.match(ref.strip()):
         repo, n = m.groups()
         if not repo.lower().startswith("finnecto-"):     # `embed#3176` = finnecto-embed#3176 (como en el inbox)
             repo = f"finnecto-{repo}"
     else:
         raise SessionError("bad_request", f"PR inválida: {ref!r} (usa la URL o <repo>#<n>)")
-    return repo, int(n), f"https://github.com/{ORG}/{repo}/pull/{n}"
+    return repo, int(n), f"https://github.com/{o}/{repo}/pull/{n}"
 
 
 def _own_pr(root: Path, sid: str, ref: str, dev_prs: set[str] | None = None) -> tuple[str, int, str]:
@@ -48,13 +60,13 @@ def _own_pr(root: Path, sid: str, ref: str, dev_prs: set[str] | None = None) -> 
     de su desarrollo (`dev_prs`, las URLs que da el IDE) — para responder, resolver y pedir revisión."""
     s = read_session(root, sid)
     if s.get("kind") != "review":
-        repo, n, url = _pr(ref)
+        repo, n, url = _pr(root, ref)
         if dev_prs is None:
             raise SessionError("forbidden", f"`ide review publish` es solo para sesiones de revisión ({sid} es {s.get('kind')})")
         if url.lower() not in {u.rstrip("/").lower() for u in dev_prs}:
             raise SessionError("forbidden", f"{repo}#{n} no es una PR de tu desarrollo ({sid}): mira `ide review inbox`")
         return repo, n, url
-    repo, n, url = _pr(ref)
+    repo, n, url = _pr(root, ref)
     mine = {u.rstrip("/").lower() for u in [s.get("prUrl"), *(s.get("stackPrs") or [])] if u}
     if url.lower() not in mine:
         raise SessionError("forbidden", f"{repo}#{n} no es una PR de esta revisión ({sid})")
@@ -79,15 +91,15 @@ def publish(root: Path, sid: str, ref: str, file: str) -> dict:
         if not isinstance(c, dict) or set(c) - _COMMENT_KEYS or not c.get("path") or not c.get("body"):
             raise SessionError("bad_request", f"comentario inválido (path y body obligatorios; campos: "
                                               f"{', '.join(sorted(_COMMENT_KEYS))})")
-    res = json.loads(_gh(["api", f"repos/{ORG}/{repo}/pulls/{n}/reviews", "--method", "POST", "--input", "-"],
+    res = json.loads(_gh(["api", f"repos/{org(root)}/{repo}/pulls/{n}/reviews", "--method", "POST", "--input", "-"],
                          json.dumps(data)) or "{}")
     return {"id": res.get("id"), "state": res.get("state"), "url": res.get("html_url"),
             "body": data.get("body") or "", "sha": data.get("commit_id") or res.get("commit_id")}
 
 
-def head_sha(ref: str) -> str | None:
+def head_sha(root: Path, ref: str) -> str | None:
     """El head actual de la PR (lo que la sesión acaba de revisar)."""
-    _, _, url = _pr(ref)
+    _, _, url = _pr(root, ref)
     try:
         return json.loads(_gh(["pr", "view", url, "--json", "headRefOid"])).get("headRefOid")
     except (SessionError, ValueError):
@@ -99,7 +111,7 @@ def reply(root: Path, sid: str, ref: str, comment_id: int, body: str, dev_prs: s
     repo, n, _ = _own_pr(root, sid, ref, dev_prs)
     if not body.strip():
         raise SessionError("bad_request", "falta el texto de la respuesta")
-    res = json.loads(_gh(["api", f"repos/{ORG}/{repo}/pulls/{n}/comments/{int(comment_id)}/replies",
+    res = json.loads(_gh(["api", f"repos/{org(root)}/{repo}/pulls/{n}/comments/{int(comment_id)}/replies",
                           "--method", "POST", "-f", f"body={body}"]) or "{}")
     return {"id": res.get("id"), "url": res.get("html_url")}
 

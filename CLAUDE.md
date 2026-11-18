@@ -85,8 +85,8 @@ Un IDE aparte en otro puerto, **contra una copia de la base** (si no, escribe en
 dos versiones distintas del IDE se pisan los estados):
 
 ```bash
-cp /Users/topc/finnecto/.ide/ide.db /tmp/ide-copia.db
-cd server && IDE_DB_PATH=/tmp/ide-copia.db uv run ide run --cwd /Users/topc/finnecto --port 8799 --no-browser --no-supervise
+cp <workspace>/.ide/ide.db /tmp/ide-copia.db
+cd server && IDE_DB_PATH=/tmp/ide-copia.db uv run ide run --cwd <workspace> --port 8799 --no-browser --no-supervise
 ```
 
 Ojo: igual comparte los worktrees, los servidores y las sesiones reales. Antes de elegir una sesión en

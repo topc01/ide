@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import secrets
 import shutil
 import subprocess
@@ -17,15 +16,16 @@ from pathlib import Path
 
 PLAYWRIGHT_CORE = "1.64.1"
 MAX_STEPS = 30
-_LOCAL = re.compile(r"^https?://(([a-z0-9-]+\.)*localhost|127\.0\.0\.1|tech\.finnecto\.com)(:\d+)?(/\S*)?$", re.I)
 
 
 def runtime_dir() -> Path:
     return Path.home() / ".cache" / "ide-tour"
 
 
-def validate(raw) -> list[dict]:
-    """Los pasos: [{url (localhost o tech.finnecto.com), text, selector?}]. ValueError si algo no sirve."""
+def validate(raw, root: Path) -> list[dict]:
+    """Los pasos: [{url (localhost o un sitio de prueba de `[browsers] test_hosts`), text, selector?}].
+    ValueError si algo no sirve."""
+    from ide_server.browsers import is_local
     if not isinstance(raw, list) or not raw:
         raise ValueError("el recorrido necesita al menos un paso: [{\"url\": …, \"text\": …}]")
     if len(raw) > MAX_STEPS:
@@ -35,8 +35,9 @@ def validate(raw) -> list[dict]:
         if not isinstance(s, dict):
             raise ValueError(f"paso {i}: tiene que ser un objeto {{url, text, selector?}}")
         url, text = str(s.get("url") or "").strip(), str(s.get("text") or "").strip()
-        if not _LOCAL.match(url):
-            raise ValueError(f"paso {i}: la url tiene que ser de localhost (o tech.finnecto.com): {url[:120]!r}")
+        if any(c.isspace() for c in url) or not is_local(root, url):
+            raise ValueError(f"paso {i}: la url tiene que ser de localhost (o de un sitio de prueba de "
+                             f"[browsers] test_hosts): {url[:120]!r}")
         if not text:
             raise ValueError(f"paso {i}: falta `text` (qué tiene que mirar el usuario)")
         sel = s.get("selector")

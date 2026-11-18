@@ -18,6 +18,9 @@ github_interval = 120             # revisiones pendientes / con cambios pedidos 
 
 [ui]
 modules = ["sessions", "terminal", "prompts", "stack", "review", "deps", "config"]
+
+# [browsers]
+# test_hosts = ["staging.miempresa.com"]   # sitios de prueba que las sesiones usan como localhost (ver `ide docs`)
 """
 
 
@@ -368,6 +371,10 @@ description: Usar en la sesión principal del IDE cuando el usuario pide "/backl
 
 No modifiques nada en Notion: solo se lee.
 
+**Configuración:** completa abajo `<id de la base Desarrollo>` y `<id de la vista Todos>` (en
+`.ide/skills/backlog/SKILL.md`). Si siguen sin completar, busca la base con `notion-search`, muéstrale
+al usuario cuál encontraste y pídele que deje los ids en este archivo.
+
 ## 1. Quién soy
 `notion-get-self` → tu uuid de Notion (`<uuid>`).
 
@@ -375,14 +382,14 @@ No modifiques nada en Notion: solo se lee.
 Con `notion-query-data-sources`:
 ```sql
 SELECT "Tarea", "Status", "Priority", "Size", "Type", "Cliente", "Order", "Asignee", "Células", url
-FROM "collection://09c1d0bc-d451-45fe-a6ac-a8c9ed587eae"
+FROM "collection://<id de la base Desarrollo>"
 WHERE "Status" = 'Backlog'
   AND ("Asignee" LIKE '%<uuid>%' OR "Células" LIKE '%<uuid>%')
 ORDER BY ("Order" IS NULL), "Order" ASC
 ```
 `Asignee` y `Células` son campos de personas: el ticket es tuyo si estás en cualquiera de los dos.
 Si la cuota está agotada (`entitlement_required`), usa `notion-query-database-view` sobre la vista
-"Todos" (`view://20d67263-6146-8020-b55e-000c484e6cae`), pagina todo seguido y filtra en local
+"Todos" (`view://<id de la vista Todos>`), pagina todo seguido y filtra en local
 con las mismas reglas.
 
 ## 3. Tabla y OK

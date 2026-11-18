@@ -22,9 +22,25 @@ from ide_server.sessions_fs import SessionError, read_toml, write_toml
 MCP_VERSION = "0.0.83"          # @playwright/mcp
 PLAYWRIGHT_VERSION = "1.64.1"   # el CLI `playwright open` del login
 # "local": localhost (con sus subdominios: el embed elige la sociedad por ellos, p.ej. demo-cl.localhost)
-# y tech.finnecto.com (ahí el usuario deja hacer cualquier cosa): las sesiones lo usan sin pedir permiso,
-# también las `full`. El resto es REAL: pide permiso por acción y las `full` no lo tienen.
-LOCAL = re.compile(r"^https?://(([a-z0-9-]+\.)*localhost|127\.0\.0\.1|\[::1\]|tech\.finnecto\.com)(:\d+)?(/|$)", re.I)
+# y los sitios de prueba de `[browsers] test_hosts` en config.toml (ahí el usuario deja hacer cualquier cosa):
+# las sesiones lo usan sin pedir permiso, también las `full`. El resto es REAL: pide permiso por acción y las
+# `full` no lo tienen.
+LOCALHOST = re.compile(r"^https?://(([a-z0-9-]+\.)*localhost|127\.0\.0\.1|\[::1\])(:\d+)?(/|$)", re.I)
+
+
+def test_hosts(root: Path) -> list[str]:
+    """Los sitios de prueba de `[browsers] test_hosts` (hosts exactos, p.ej. `staging.miempresa.com`)."""
+    from ide_server.config import load_workspace_config
+    raw = load_workspace_config(root).get("browsers", {}).get("test_hosts") or []
+    return [str(h).strip().lower() for h in raw if str(h).strip()]
+
+
+def is_local(root: Path, url: str) -> bool:
+    """localhost o uno de los sitios de prueba (`test_hosts`), por http(s)."""
+    if LOCALHOST.match(url):
+        return True
+    u = urlparse(url)
+    return u.scheme in ("http", "https") and (u.hostname or "").lower() in test_hosts(root)
 
 
 # siempre está (sin perfil ni cuenta): el navegador de las sesiones para probar en localhost. Es un Chrome
@@ -57,7 +73,7 @@ def list_profiles(root: Path) -> list[dict]:
             data = read_toml(d / "profile.toml")
             url = str(data.get("url") or "")
             out.append({"name": d.name, "url": url, "note": str(data.get("note") or ""),
-                        "local": bool(LOCAL.match(url)), "logged": _logged(d / "state.json"),
+                        "local": is_local(root, url), "logged": _logged(d / "state.json"),
                         "server": f"browser-{d.name}"})
     return out
 
@@ -110,7 +126,7 @@ def login(root: Path, name: str, url: str | None = None) -> int:
         d.mkdir(parents=True, exist_ok=True, mode=0o700)
         saved = (d / "url").read_text(encoding="utf-8").strip() if (d / "url").is_file() else ""
         url = url or saved
-        if not url or not LOCAL.match(url) or (urlparse(url).hostname or "") == "tech.finnecto.com":
+        if not url or not LOCALHOST.match(url):
             raise SessionError("bad_url", "`ide browser login local --url http://localhost:<puerto>`: la url de un "
                                           "front local corriendo (mira `ide server ls`)")
         (d / "url").write_text(url + "\n", encoding="utf-8")
@@ -154,12 +170,12 @@ def write_cookies_txt(state: Path, out: Path) -> None:
 
 def _keep_own_site(state: Path, url: str) -> None:
     """Deja en `state.json` solo la sesión del sitio exacto del perfil: fuera las cookies de otros
-    dominios y las del dominio padre (`.finnecto.com` serviría en `acme.finnecto.com`, el prod de un
+    dominios y las del dominio padre (`.miempresa.com` serviría en `acme.miempresa.com`, el prod de un
     cliente) y el localStorage de otros orígenes. Así un perfil sin permisos que navegue a otro sitio
     llega sin sesión. Las cookies no distinguen puerto: en local vale cualquier `localhost` (y sus
     subdominios, p.ej. `demo-cl.localhost`)."""
     host = (urlparse(url).hostname or "").lower()
-    local = bool(LOCAL.match(url)) and host != "tech.finnecto.com"
+    local = bool(LOCALHOST.match(url))
 
     def ok(h: str) -> bool:
         h = h.lstrip(".").lower()
@@ -170,9 +186,9 @@ def _keep_own_site(state: Path, url: str) -> None:
         data = json.loads(state.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
-    # la cookie del dominio padre trae el punto adelante (`.finnecto.com`): solo vale el host exacto, sin punto
+    # la cookie del dominio padre trae el punto adelante (`.miempresa.com`): solo vale el host exacto, sin punto
     # el perfil en `www.<sitio>`: las cookies de `.<sitio>` son del mismo sitio (Instagram guarda ahí la sesión), no de
-    # un dominio padre compartido con otros clientes como `.finnecto.com`
+    # un dominio padre compartido con otros clientes como `.miempresa.com`
     same = {host, "." + host} | ({"." + host[4:], host[4:]} if host.startswith("www.") else set())
     data["cookies"] = [c for c in data.get("cookies") or []
                        if ok(str(c.get("domain") or "")) and (local or str(c.get("domain") or "") in same)]

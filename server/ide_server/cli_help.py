@@ -202,7 +202,7 @@ ejemplo:
    {"url": "http://localhost:3004/payments/19", "text": "El botón Liberar pago (solo super admin)"}]
   EOF
   ide tour show
-urls de tu front local (o tech.finnecto.com); `selector` (css, opcional) resalta un elemento. Los datos de cada paso
+urls de tu front local (o de un sitio de prueba de [browsers] test_hosts); `selector` (css, opcional) resalta un elemento. Los datos de cada paso
 tienen que existir en tu base. Si cambian las pantallas, vuelve a correr `ide tour set`."""),
     "server": ("Servidores de tu desarrollo, por bloque (un bloque por stack de cada repo), igual que el módulo "
                "Servidores. Corren aparte del IDE.", """\
@@ -258,10 +258,10 @@ para qué sirve cada uno:
   - browser-local (mcp__browser-local__browser_*): para probar; en localhost entra con la sesión local compartida del
     usuario en cualquier puerto. Si el front te manda al login, pídele `ide browser login local --url <tu front>` (o
     entra con los usuarios de prueba del seed). Nunca un perfil nuevo ni un login por puerto.
-  - Otro perfil = otra cuenta a la vez (solicitante y aprobador, tech.finnecto.com): cada uno es el servidor MCP
+  - Otro perfil = otra cuenta a la vez (p.ej. solicitante y aprobador en staging): cada uno es el servidor MCP
     browser-<nombre> (mcp__browser-<nombre>__browser_*) con su cuenta ya iniciada; puedes usar varios a la vez.
     Si falta uno o su sesión expiró, pídele al usuario el comando exacto (new/login): el login lo hace él.
-  - Los `local` (localhost y tech.finnecto.com) se usan libremente; los REAL son la cuenta real del usuario.
+  - Los `local` (localhost y los sitios de [browsers] test_hosts) se usan libremente; los REAL son la cuenta real del usuario.
   - Tamaño de pantalla: browser_resize del MCP (solo cambia esa ventana). Al terminar, browser_close."""),
     "artifact": ("Los artefactos (páginas de claude.ai) del desarrollo: los que publica su claude se suman solos.",
                  "ejemplos:\n  ide artifact ls\n  ide artifact add https://claude.ai/artifact/abc --title \"…\"\n"

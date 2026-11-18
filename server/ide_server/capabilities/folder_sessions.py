@@ -287,8 +287,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             db.delete(key)
             _tell_dev(f"s:{sid}", "Evidencias en staging",
                       "[Aviso del IDE] El último merge del desarrollo ya está desplegado en staging (su ticket está en Live "
-                      "Staging). Ahora toca **sacar las evidencias en staging**: prueba el flujo en tech.finnecto.com "
-                      "(perfiles `browser-tech-…`, `ide browser ls`), carga las fotos en el bloque Evidencias del ticket y "
+                      "Staging). Ahora toca **sacar las evidencias en staging**: prueba el flujo en el sitio de staging "
+                      "(sus perfiles de navegador, `ide browser ls`), carga las fotos en el bloque Evidencias del ticket y "
                       "pásalo a Completed Staging. Cuéntale al usuario en una línea qué cargaste." + (f" {note}" if note else ""))
 
     if merger is not None and hasattr(merger, "all"):
@@ -397,7 +397,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         sid = _resolve(p["id"])
         _own_or_user(p, sid, "el recorrido")
         try:
-            steps = tour_mod.validate(p.get("steps"))
+            steps = tour_mod.validate(p.get("steps"), root)
         except ValueError as exc:
             raise SessionError("bad_tour", str(exc)) from exc
         title = str(p.get("title") or "").strip()[:120] or None
@@ -1596,7 +1596,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         lines = [f"- El desarrollo {lab(sid)} " + REL_TEXT[r["kind"]].format(o=f"desarrollo {lab(r['dev'])}", pr=r.get("pr", ""))
                  for sid, r in new]
         _tell_manager("[Aviso del IDE] Un desarrollo quedó colgado de otro:\n" + "\n".join(lines)
-                      + "\nSi es el mismo trabajo, confírmalo con Tomás y júntalos con `ide dev link` "
+                      + "\nSi es el mismo trabajo, confírmalo con el usuario y júntalos con `ide dev link` "
                         "(y archiva el que sobra); si es aparte, no hagas nada.", "Un desarrollo quedó colgado de otro")
 
     if merger is not None and hasattr(merger, "all"):

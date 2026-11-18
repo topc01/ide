@@ -55,8 +55,7 @@ git-branch, pencil (edit), clock (tokens), paper-plane (send), plus. En la UI us
 
 ## 2. Dominio — finnecto-ide como referencia
 
-Repo de referencia: `/Users/topc/Finnecto/finnecto-ide` (rama `v2`) — o el worktree
-`.../conductor/workspaces/finnecto-ide/krakow`. **No se copia código Node**; se estudia
+Repo de referencia: `finnecto-ide` (rama `v2`, privado). **No se copia código Node**; se estudia
 la lógica y se reescribe en Python. Su capa de dominio está desacoplada de la TUI (solo
 importa built-ins de Node), así que se lee como una librería.
 

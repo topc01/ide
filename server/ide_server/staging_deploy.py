@@ -1,8 +1,8 @@
 # server/ide_server/staging_deploy.py
-"""¿Ya llegó a staging (tech.finnecto.com) el merge de una PR? Para avisarle a la sesión que saque las
+"""¿Ya llegó a staging el merge de una PR? Para avisarle a la sesión que saque las
 evidencias recién cuando el cambio está desplegado, no apenas se mergea.
 
-Cada repo se despliega distinto (`[staging.repos.<repo>]` en config.toml; los de abajo son el default):
+Cada repo se despliega distinto (`[staging.repos.<repo>]` en config.toml; sin configurar, vale la regla de horario):
 - `github_env`: la api se despliega en las horas pares (hora de Chile) y deja un deployment de GitHub en
   ese environment: está cuando el último deployment exitoso contiene el commit del merge.
 - `amplify_app` (+ `amplify_branch`): el embed lo construye Amplify en cada push a develop (~7 min): está
@@ -17,10 +17,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from ide_server.config import load_workspace_config
 
-DEFAULT_REPOS = {
-    "finnecto-api": {"github_env": "staging"},
-    "finnecto-embed": {"amplify_app": "dfvghz9wvit1m", "amplify_branch": "develop"},
-}
+DEFAULT_REPOS: dict[str, dict] = {}
 GIVE_UP = timedelta(hours=12)   # sin verlo desplegado en este tiempo: se avisa igual, diciendo que no se confirmó
 
 

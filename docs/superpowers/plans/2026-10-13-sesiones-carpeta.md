@@ -4516,9 +4516,9 @@ Expected: todo verde y build OK (tsc sin errores).
 
 ```bash
 cd server && uv run ide build && cd ..
-W=$(mktemp -d) && git clone -q . $W/ide-copy && cd $W && uv run --project /Users/topc/dev/ide/server ide init
+W=$(mktemp -d) && git clone -q . $W/ide-copy && cd $W && uv run --project <repo-del-ide>/server ide init
 mkdir -p .ide/scripts/ide-copy && printf '#!/bin/sh\necho setup en $PWD puerto $IDE_PORT\n' > .ide/scripts/ide-copy/setup && chmod +x .ide/scripts/ide-copy/setup
-uv run --project /Users/topc/dev/ide/server ide run --cwd $W
+uv run --project <repo-del-ide>/server ide run --cwd $W
 ```
 
 Checklist (anotar ✅/❌ en el commit):
