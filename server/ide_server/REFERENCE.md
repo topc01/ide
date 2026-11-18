@@ -446,7 +446,7 @@ later ls --mine` las lista con su id). La card muestra **«? N»** (con quién, 
 módulo) y la barra de abajo **«N decisiones»**. Los **avisos del IDE** (evidencias en staging, CI que falló,
 un merge detenido, PRs sumadas a una revisión) ya no van acá: si la sesión está parada, el IDE **la lanza con el
 aviso** y trabaja en segundo plano, como con un mensaje de la manager; si no hay lugar (`max_running`) espera en la cola con el aviso; pausada, queda guardado y
-le llega al retomarla (`kv notices:<sesión>`; pausada: al retomarla); los que había abiertos pasaron así a sus sesiones. La sesión sigue con lo que
+le llega al retomarla (`kv pausedmsgs:<sesión>`; los guardados de antes, en `kv notices:<sesión>`, al abrirla); los que había abiertos pasaron así a sus sesiones. La sesión sigue con lo que
 pueda; si ya no puede avanzar pasa a `blocked -m "pendiente: …"`. La manager los ve con **`ide later
 ls`** (`--all` incluye cerrados, `--json`) y en el material de la revisión semanal de feedback (recuerda los de
 más de 7 días). Base: `kv` `later:<id>` = `{id, key, text, context, actor, created, status
