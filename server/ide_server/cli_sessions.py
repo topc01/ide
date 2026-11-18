@@ -632,7 +632,15 @@ def _hook(url: str | None, http, env: dict) -> int:
             # trampas conocidas (ide db combinado, gh api para reviews, git push, …): se frena y se le dice el
             # comando correcto, en vez de chocar con el clasificador o quedar esperando un permiso
             from ide_server.cmd_guard import advise
-            tip = advise(cmd) if ev.get("tool_name") == "Bash" else None
+            kind = None
+            if sid:
+                try:
+                    from ide_server.sessions_fs import read_session
+                    ws = Path(env["IDE_WORKSPACE"]) if env.get("IDE_WORKSPACE") else find_workspace_root(Path.cwd())
+                    kind = read_session(ws, sid).get("kind") if ws else None
+                except Exception:  # noqa: BLE001
+                    pass
+            tip = advise(cmd, kind) if ev.get("tool_name") == "Bash" else None
             if tip:
                 sys.stdout.write(json.dumps({"hookSpecificOutput": {
                     "hookEventName": "PreToolUse", "permissionDecision": tip[0],

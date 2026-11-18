@@ -69,7 +69,9 @@ def _head(words: list[str]) -> list[str]:
     return w
 
 
-def advise(cmd: str) -> tuple[str, str] | None:
+def advise(cmd: str, kind: str | None = None) -> tuple[str, str] | None:
+    """`kind`: el tipo de la sesión. Responder o resolver hilos con `gh api` se frena solo en las de revisión
+    (`ide review` es solo para ellas); en una de ticket es la forma de contestar en las PRs propias."""
     toks = _tokens(cmd)
     cmds = [_head(c) for c in _commands(toks)]
     cmds = [c for c in cmds if c]
@@ -86,9 +88,9 @@ def advise(cmd: str) -> tuple[str, str] | None:
                 or bool(re.search(r"(-X|--method)[ =]*(POST|PUT|PATCH)", " ".join(w), re.I))
             if re.search(r"/pulls/\d+/reviews/?$", path) and writes:
                 return "deny", REVIEW_PUBLISH
-            if re.search(r"/pulls/(\d+/)?comments/\d+/replies/?$", path) and writes:
+            if kind == "review" and re.search(r"/pulls/(\d+/)?comments/\d+/replies/?$", path) and writes:
                 return "deny", REVIEW_REPLY
-            if path == "graphql" and re.search(r"(un)?resolveReviewThread", " ".join(w), re.I):
+            if kind == "review" and path == "graphql" and re.search(r"(un)?resolveReviewThread", " ".join(w), re.I):
                 return "deny", REVIEW_RESOLVE
         if w[:3] == ["gh", "pr", "review"] and any(x in ("--request-changes", "-r", "--comment", "-c") for x in w[3:]):
             return "deny", REVIEW_PUBLISH
