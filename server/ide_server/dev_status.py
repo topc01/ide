@@ -55,7 +55,7 @@ def render(dev: dict, root: Path, sid: str, out: TextIO, *, fetch: bool = False)
         bits = [f"rama {w['branch'] or '(detached)'}"]
         bits.append(f"{w['dirty']} archivo(s) sin commitear" if w["dirty"] else "limpio")
         if not w["remote"]:
-            bits.append("sin subir nunca (`ide push`)")
+            bits.append("sin rama en origin (sin subir, o ya mergeada y borrada)")
         elif w["unpushed"]:
             bits.append(f"{w['unpushed']} commit(s) sin subir")
         if w["behind_base"]:
