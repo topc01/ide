@@ -469,6 +469,11 @@ def split_parallel(root: Path, db: Db, sessions: list[dict], gh: dict) -> list[s
             extra = any(e.get("name") == c["repo"] and e.get("branch") == c.get("head")
                         for c in prs for e in s.get("extra") or [])
             if together or pair or extra:
+                # es de este desarrollo: se vincula (si no, `_on_branch` la ve paralela y queda suelta como
+                # un desarrollo sin sesión, p.ej. el backport de `ide backport` en `<repo>-develop`)
+                for c in prs:
+                    db.link_pr(c["url"], s["id"])
+                    links[c["url"]] = {"sid": s["id"]}
                 continue
             top = prs[-1]
             nums = " → ".join(f"{c['repo']}#{c['number']}" for c in prs)
