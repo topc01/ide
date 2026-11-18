@@ -46,7 +46,7 @@ def chain(wt: Path, branch: str) -> list[str]:
     return out
 
 
-def tree(wt: Path, root: str, top: str) -> tuple[list[str], dict[str, str]]:
+def tree(wt: Path, root: str, top: str | None) -> tuple[list[str], dict[str, str]]:
     """`root` y todas las ramas apiladas encima (PRs abiertas cuya base es una de ellas, también hermanas en otros
     worktrees), madres antes que hijas, y la madre de cada una. `top` (la del worktree) siempre va."""
     order, parent, queue = [root], {}, [root]
@@ -59,7 +59,7 @@ def tree(wt: Path, root: str, top: str) -> tuple[list[str], dict[str, str]]:
                 parent[h] = b
                 order.append(h)
                 queue.append(h)
-    if top not in order:
+    if top is not None and top not in order:
         raise RuntimeError(f"{top} no quedó en el stack de {root}")
     return order, parent
 
@@ -79,12 +79,14 @@ def _state_file(session_dir: Path, repo: str) -> Path:
     return session_dir / f".update-{repo}.json"
 
 
-def start(wt: Path, session_dir: Path, repo: str, line: list[str], k: int, first: dict, out: TextIO) -> int:
+def start(wt: Path, session_dir: Path, repo: str, line: list[str], k: int, first: dict, out: TextIO,
+          *, home: str | None = None) -> int:
     """Arranca el update del stack desde `line[k]` (que tiene el plan `first`): ella y todo lo apilado encima
-    (la línea hasta la del worktree y las hermanas)."""
-    top = line[-1]
+    (la línea hasta la del worktree y las hermanas). `home`: la rama del worktree, si no está en lo que se
+    actualiza (las hijas de la rama del worktree): al terminar el worktree vuelve a ella."""
+    top = home or line[-1]
     try:
-        order, parent = tree(wt, line[k], top)
+        order, parent = tree(wt, line[k], None if home else top)
     except RuntimeError:
         order, parent = line[k:], {b: line[i + k] for i, b in enumerate(line[k + 1:])}
     branches = order
@@ -152,8 +154,10 @@ def _invalid(wt: Path, st: dict) -> str | None:
     import re
     branches, i = st["branches"], st["i"]
     if (not isinstance(branches, list) or not branches or not isinstance(i, int) or not 0 <= i < len(branches)
-            or st["top"] not in branches or len(set(branches)) != len(branches)):
+            or len(set(branches)) != len(branches) or not isinstance(st["top"], str)):
         return "estructura inválida"
+    if st["top"] not in branches and _git(wt, "rev-parse", "--verify", "--quiet", f"refs/heads/{st['top']}").returncode != 0:
+        return "rama del worktree inválida"
     sha = re.compile(r"[0-9a-f]{40}([0-9a-f]{24})?")
     for key in ("olds", "news", "leases"):
         d = st[key]
@@ -179,8 +183,14 @@ def _invalid(wt: Path, st: dict) -> str | None:
         if not me or pr.get("state") != "OPEN" or pr.get("headRefName") != b or (pr.get("author") or {}).get("login") != me:
             return f"{b} no es la rama de una PR tuya abierta"
         # lo que todavía no se subió tiene que seguir como estaba en origin (la protección del push forzado)
-        if idx >= i and st["leases"][b] != _git(wt, "rev-parse", f"refs/remotes/origin/{b}").stdout.strip():
+        origin = _git(wt, "rev-parse", f"refs/remotes/origin/{b}").stdout.strip()
+        if idx >= i and st["leases"][b] != origin:
             return f"origin/{b} no coincide con lo guardado"
+        if idx < i and st["news"].get(b) not in (origin, st["olds"][b]):   # lo ya subido es lo que está en origin
+            return f"origin/{b} no coincide con lo subido"
+        # de dónde partía: lo que había en origin o algo encima (commits locales sin subir), nunca otra historia
+        if _git(wt, "merge-base", "--is-ancestor", st["leases"][b], st["olds"][b]).returncode != 0:
+            return f"el punto de partida de {b} no sale de origin/{b}"
     parent = st.get("parent") or {}
     if not isinstance(parent, dict) or set(branches[1:]) - set(parent):
         return "madres inválidas"
@@ -247,8 +257,11 @@ def _run(wt: Path, session_dir: Path, repo: str, st: dict, out: TextIO) -> int:
             return 1
         st["i"] += 1
     top = st["top"]
-    _git(wt, "checkout", "--quiet", "-B", top, st["news"].get(top) or st["olds"][top])
-    _git(wt, "branch", "--quiet", "--set-upstream-to", f"origin/{top}", top)
+    if top in st["branches"]:
+        _git(wt, "checkout", "--quiet", "-B", top, st["news"].get(top) or st["olds"][top])
+        _git(wt, "branch", "--quiet", "--set-upstream-to", f"origin/{top}", top)
+    else:
+        _git(wt, "checkout", "--quiet", top)
     f.unlink(missing_ok=True)
     first = st["first"]
     if first.get("new_base") and first["new_base"] != first["pr"]["baseRefName"]:

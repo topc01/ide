@@ -63,8 +63,15 @@ def plan(wt: Path, branch: str, *, behind: bool = False) -> dict:
     ref = branch if _git(wt, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode == 0 else f"origin/{branch}"
     n = _git(wt, "rev-list", "--count", f"{ref}..origin/{base}").stdout.strip()
     if n.isdigit() and int(n) > 0 and (behind or not approved):
-        return {"pr": pr, "reason": f"le faltan {n} commit(s) de {base}" + (" (--behind)" if approved else " (sin aprobación)"),
-                "onto": f"origin/{base}"}
+        res = {"pr": pr, "reason": f"le faltan {n} commit(s) de {base}" + (" (--behind)" if approved else " (sin aprobación)"),
+               "onto": f"origin/{base}"}
+        if not main:
+            # la madre del stack se reescribió (rebaseada a mano): re-aplicar solo lo propio desde su punta vieja
+            # (el fork-point sale del reflog de origin/<madre>); un rebase simple re-aplicaría sus commits viejos
+            fp = _git(wt, "merge-base", "--fork-point", f"origin/{base}", ref).stdout.strip()
+            if fp and _git(wt, "merge-base", "--is-ancestor", fp, f"origin/{base}").returncode != 0:
+                res["upstream"] = fp
+        return res
     if behind and not (n.isdigit() and int(n) > 0):
         return {"pr": pr, "skip": f"ya está al día con origin/{base}"}
     why = ("está aprobada y solo está atrás de su base: no se rebasea (vuelve a correr el CI y puede descartar la "
@@ -109,6 +116,18 @@ def update(root: Path, sid: str, repo: str | None, *, dry_run: bool = False, beh
         p = plan(wt, branch, behind=behind)
         if "skip" in p:
             out.write(f"{name}: {branch}: {p['skip']}\n")
+            # las PRs apiladas encima de la del worktree (p.ej. después de rebasearla a mano) pueden haber quedado atrás
+            heads = json.loads(_gh(wt, "pr", "list", "--base", branch, "--state", "open", "--author", "@me",
+                                   "--json", "headRefName,number").stdout or "[]")
+            for kid in heads:
+                q = plan(wt, kid["headRefName"], behind=behind)
+                if "skip" in q:
+                    continue
+                if dry_run:
+                    out.write(f"{name}: #{kid['number']} (apilada encima) {q['reason']}: la re-apilaría sobre {q['onto']}"
+                              f" (y lo que cuelga de ella)\n")
+                else:
+                    failed += update_stack.start(wt, sdir, name, [kid["headRefName"]], 0, q, out, home=branch) != 0
             continue
         n = p["pr"]["number"]
         kids = json.loads(_gh(wt, "pr", "list", "--base", branch, "--state", "open", "--author", "@me",
@@ -149,15 +168,8 @@ def migrations_cmd(root: Path, sid: str, repo: str | None, *, fix: bool, out: Te
     if repo is not None and repo not in links:
         raise SessionError("unknown_repo", f"la sesión {sid} no tiene {repo} (tiene: {', '.join(links) or 'ninguno'})")
     failed = 0
-    from ide_server import update_stack
-    sdir = require_session(root, sid)
     for name in [repo] if repo else sorted(links):
         wt = links[name].resolve()
-        if not dry_run:                        # un update de stack a medias (rebase con conflicto): sigue desde ahí
-            r = update_stack.resume(wt, sdir, name, out)
-            if r is not None:
-                failed += r != 0
-                continue
         branch = _git(wt, "branch", "--show-current").stdout.strip()
         if not branch:
             out.write(f"{name}: sin rama, no reviso\n"); continue
