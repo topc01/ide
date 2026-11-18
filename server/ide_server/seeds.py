@@ -53,7 +53,7 @@ comando choca con una trampa conocida, el IDE lo frena y te dice el correcto.
 | poner al día tu rama | `ide update` | solo si GitHub marca conflicto o se mergeó la madre del stack |
 | revisar migraciones | `ide migrations check\\|renumber` | antes de pedir revisión; si chocan, renumera sin preguntar |
 | consultar prod o staging | `ide db` | solo lectura; va solo en la línea |
-| servidores para probar | `ide server` | levantar api y fronts |
+| servidores para probar | `ide server` | levantar api y fronts; `start … --wait` espera a que respondan (sin loops con sleep) |
 | un script que termina | `ide script` | build, test, … |
 | el estado del desarrollo | `ide status` | lo que es criterio tuyo (ver Convención de estado) |
 | bloqueantes | `ide later` | decisiones y pendientes (ver Bloqueantes) |
@@ -62,7 +62,7 @@ comando choca con una trampa conocida, el IDE lo frena y te dice el correcto.
 | el recorrido | `ide tour` | antes de declarar listo, si hay UI |
 | reviews en GitHub | `ide review` | qué te pidieron en las PRs del desarrollo (`ide review inbox`); responder, resolver y pedir revisión; publicar una review, solo en sesiones de revisión. En vez de `gh api` |
 | avisar por Telegram | `ide reply` | si el usuario te lo pide; nunca claves |
-| sesiones y desarrollos | `ide session`, `ide dev` | `ide session new --title "<qué>"` para trabajo aparte |
+| sesiones y desarrollos | `ide session`, `ide dev` | `ide dev status`: tu desarrollo en una tabla (ramas, sin commitear o sin subir, PRs con revisión y CI), en vez de recorrer repos y PRs; `ide session new --title "<qué>"` para trabajo aparte |
 
 Mergear (`ide merge`) lo hace el usuario; si él te pide explícito que mergees, hazlo con `ide merge` y verifica
 en GitHub que quedó mergeada.
@@ -322,6 +322,8 @@ Adjuntos. Cuando le menciones un archivo, escribe su ruta (`attachments/carpeta/
 
 - Para probar usa **`browser-local`** (`mcp__browser-local__browser_*`), no el Chrome del usuario; para otra
   cuenta a la vez, los perfiles del workspace (`ide browser --help`). Al terminar, ciérralo.
+- Las capturas del navegador (`browser_take_screenshot`), con ruta relativa a tu carpeta (`attachments/x.png`):
+  en tu scratchpad (`/private/tmp/…`) el navegador no puede escribir.
 - **No uses Claude in Chrome** (`mcp__claude-in-chrome__*`, el Chrome del usuario) salvo que te lo pida. Si te lo
   pide: una ventana propia (`tabs_context_mcp` con `createIfEmpty: true`), sin tocar sus tabs, **nunca**
   `resize_window`, y al terminar cierra tus tabs.

@@ -87,6 +87,11 @@ ejemplos:
   ide status blocked -m "definiciones de producto"
   ide status unblock
 Nunca edites el `status:` de SESSION.md a mano."""),
+    "dev status": ("Tu desarrollo en una tabla: por repo de la sesión, la rama del worktree, si tiene cambios sin "
+                   "commitear o commits sin subir, y cuántos commits le faltan de su base; debajo, sus PRs abiertas "
+                   "con revisión, CI, draft y posición en el stack. En vez de recorrer repos con git y PRs con gh.",
+                   "ejemplos:\n  ide dev status\n  ide dev status --fetch      # trae origin antes (un fetch por repo)\n"
+                   "Lo que te pidieron en las PRs (cambios, hilos): `ide review inbox`."),
     "review": ("Reviews en GitHub, en vez de `gh api` (lo frena el clasificador). En una sesión de ticket: `inbox`, "
                "`reply`, `resolve` y `add-reviewer` sobre las PRs de tu desarrollo. En una de revisión: además "
                "`publish` y `verdict`, sobre sus PRs. Córrelo solo, como único comando de la línea. <pr> = URL o "
@@ -195,9 +200,9 @@ tienen que existir en tu base. Si cambian las pantallas, vuelve a correr `ide to
                "Servidores. Corren aparte del IDE.", """\
 ejemplos:
   ide server ls                             # bloques: PRs, rama, dónde corre, scripts y su estado (y URL)
-  ide server start api#4897 build
-  ide server start api#4897 run
-  ide server log api#4897 run -n 80         # ¿ya está arriba?
+  ide server start api#4897 build --wait    # espera a que termine; si falla, muestra el log
+  ide server start api#4897 run --wait      # espera a que su URL responda (--timeout 300): nada de loops con sleep
+  ide server log api#4897 run -n 80
   ide server start admin#98 run             # un front apunta solo a la api de la PR de la que depende
   ide server start embed run --api api#4897 # o a otra (--no-api: la de su .env.local)
   ide server stop api#4897 run

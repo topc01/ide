@@ -224,6 +224,9 @@ def _parser() -> argparse.ArgumentParser:
     ss.add_argument("block", help="una PR del bloque (api#4897) o el repo (admin) si tiene un solo bloque"); ss.add_argument("script")
     ss.add_argument("--api", help="front: el bloque de la api a la que apunta (default: la de su dependencia)")
     ss.add_argument("--no-api", action="store_true", help="front: la api de su .env.local")
+    ss.add_argument("--wait", action="store_true", help="espera a que quede listo (su URL responde, o el script termina) "
+                    "y dice cómo quedó, con el log si falló: no hagas loops con sleep")
+    ss.add_argument("--timeout", type=int, default=300, help="segundos de --wait (default 300)")
     st_ = sv.add_parser("stop", help="para un script de un bloque"); st_.add_argument("block"); st_.add_argument("script")
     sg = sv.add_parser("log", help="lo último del log de un script"); sg.add_argument("block"); sg.add_argument("script")
     sg.add_argument("-n", "--lines", type=int, default=60)
@@ -242,6 +245,8 @@ def _parser() -> argparse.ArgumentParser:
     dh = dv.add_parser("hide", help="saca un desarrollo del tablero (va a Ocultos; no toca GitHub ni la sesión)")
     dh.add_argument("id", help="#n"); dh.add_argument("--undo", action="store_true", help="lo vuelve a mostrar")
     dsh = dv.add_parser("show"); dsh.add_argument("id"); dsh.add_argument("--json", action="store_true")
+    dst = dv.add_parser("status", help="tu desarrollo en una tabla: por repo, rama, cambios sin commitear o sin subir y lo que le falta de la base; sus PRs con revisión y CI")
+    dst.add_argument("--session"); dst.add_argument("--fetch", action="store_true", help="trae origin antes (un fetch por repo)")
     for name, what in (("link", "asigna PRs a un desarrollo (pisa la asignación que tuvieran)"),
                        ("unlink", "saca PRs de un desarrollo (no vuelven por rama hasta un link)")):
         x = dv.add_parser(name, help=what)
@@ -546,9 +551,45 @@ def _server_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
         out.write(f"{d['block']}\t{a.script}\tcorriendo en {d['place']} (rama {d['branch'] or '?'})"
                   + (f"\tapi: {d['api']}" if d.get("api") else "") + "\n"
                   + f"log: ide server log {d['block']} {a.script}\n")
+        if a.wait:
+            return _server_wait(http, url, base, d["block"], a.script, a.timeout, out)
     else:
         out.write(f"{d['block']}\t{a.script}\t{(d.get('run') or {}).get('state')}\n")
     return 0
+
+
+def _server_wait(http, url: str | None, base: str, block: str, script: str, timeout: int, out: TextIO,
+                 *, sleep=None, clock=None) -> int:
+    """`ide server start … --wait`: hasta que el script quede listo (corriendo y su URL contesta HTTP, cualquier
+    código) o termine (exit 0 = listo; otro = falló, con el final del log). 0 = listo, 1 = falló o se acabó el tiempo."""
+    import time
+    sleep, clock = sleep or time.sleep, clock or time.monotonic
+    end = clock() + timeout
+    while True:
+        sc = next((x for b in _get(http, url, base)["blocks"] if b["name"] == block
+                   for x in b["scripts"] if x["name"] == script), None) or {}
+        st, urls = sc.get("state"), [u for u in sc.get("urls") or [] if u.startswith("http")]
+        if sc.get("error") or (st == "exited" and sc.get("exitCode") != 0):
+            log = _post(http, url, f"{base}/log", {"block": block, "name": script, "lines": 40})
+            why = sc.get("error") or f"exit {sc.get('exitCode')}"
+            out.write(f"falló: {why}\n{log['log']}\n")
+            return 1
+        if st == "exited":
+            out.write(f"listo: {script} terminó bien\n")
+            return 0
+        if st == "running" and urls:
+            try:
+                http.get(urls[0], timeout=5)
+                out.write(f"listo: {' '.join(urls)} responde\n")
+                return 0
+            except Exception:  # noqa: BLE001 — todavía no levanta
+                pass
+        if clock() >= end:
+            log = _post(http, url, f"{base}/log", {"block": block, "name": script, "lines": 40})
+            out.write(f"no quedó listo en {timeout}s (estado: {st or 'sin correr'}); sigue corriendo. Lo último del log:\n"
+                      f"{log['log']}\n")
+            return 1
+        sleep(3)
 
 
 def _dep_cmd(a, url: str | None, http, out: TextIO, env: dict) -> int:
@@ -1188,6 +1229,11 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "session":
             return _session(a, root, url, http, out, err, env)
         if a.group in ("status", "dev"):
+            if a.group == "dev" and a.cmd == "status":
+                from urllib.parse import quote as q_
+                from ide_server.dev_status import render
+                sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
+                return render(_get(http, url, f"/api/devs/{q_(sid, safe='')}")["dev"], root, sid, out, fetch=a.fetch)
             return _dev_cmd(a, url, http, out, env)
         if a.group == "server":
             return _server_cmd(a, url, http, out, env)
