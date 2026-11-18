@@ -1,7 +1,8 @@
 """`ide review`: las escrituras de una sesión de revisión en GitHub (publicar la review, responder un hilo,
 resolverlo, pedir revisor), validadas antes de llamar a `gh`. Existe para que el permiso de las sesiones
 cubra solo esto (`Bash(ide review:*)`) y no `gh api` en general: solo la org Finnecto, solo desde una
-sesión de revisión y solo sobre sus propias PRs."""
+sesión de revisión y solo sobre sus propias PRs. Responder, resolver y pedir revisión también desde una de
+ticket, sobre las PRs de su desarrollo."""
 from __future__ import annotations
 import json
 import re
@@ -40,11 +41,17 @@ def _pr(ref: str) -> tuple[str, int, str]:
     return repo, int(n), f"https://github.com/{ORG}/{repo}/pull/{n}"
 
 
-def _own_pr(root: Path, sid: str, ref: str) -> tuple[str, int, str]:
-    """La PR tiene que ser de esta sesión de revisión (su PR o una de su stack)."""
+def _own_pr(root: Path, sid: str, ref: str, dev_prs: set[str] | None = None) -> tuple[str, int, str]:
+    """La PR tiene que ser de esta sesión: en una de revisión, su PR o una de su stack; en otra (ticket), una PR
+    de su desarrollo (`dev_prs`, las URLs que da el IDE) — para responder, resolver y pedir revisión."""
     s = read_session(root, sid)
     if s.get("kind") != "review":
-        raise SessionError("forbidden", f"`ide review` es solo para sesiones de revisión ({sid} es {s.get('kind')})")
+        repo, n, url = _pr(ref)
+        if dev_prs is None:
+            raise SessionError("forbidden", f"`ide review publish` es solo para sesiones de revisión ({sid} es {s.get('kind')})")
+        if url.lower() not in {u.rstrip("/").lower() for u in dev_prs}:
+            raise SessionError("forbidden", f"{repo}#{n} no es una PR de tu desarrollo ({sid}): mira `ide review inbox`")
+        return repo, n, url
     repo, n, url = _pr(ref)
     mine = {u.rstrip("/").lower() for u in [s.get("prUrl"), *(s.get("stackPrs") or [])] if u}
     if url.lower() not in mine:
@@ -85,9 +92,9 @@ def head_sha(ref: str) -> str | None:
         return None
 
 
-def reply(root: Path, sid: str, ref: str, comment_id: int, body: str) -> dict:
+def reply(root: Path, sid: str, ref: str, comment_id: int, body: str, dev_prs: set[str] | None = None) -> dict:
     """Respuesta en un hilo existente: POST .../pulls/<n>/comments/<id>/replies."""
-    repo, n, _ = _own_pr(root, sid, ref)
+    repo, n, _ = _own_pr(root, sid, ref, dev_prs)
     if not body.strip():
         raise SessionError("bad_request", "falta el texto de la respuesta")
     res = json.loads(_gh(["api", f"repos/{ORG}/{repo}/pulls/{n}/comments/{int(comment_id)}/replies",
@@ -95,7 +102,7 @@ def reply(root: Path, sid: str, ref: str, comment_id: int, body: str) -> dict:
     return {"id": res.get("id"), "url": res.get("html_url")}
 
 
-def resolve(root: Path, sid: str, thread_id: str, *, undo: bool = False) -> dict:
+def resolve(root: Path, sid: str, thread_id: str, *, undo: bool = False, dev_prs: set[str] | None = None) -> dict:
     """Resuelve (o reabre) un hilo de review, después de verificar que es de una PR de esta revisión."""
     if not re.fullmatch(r"[A-Za-z0-9_=-]{4,100}", thread_id):
         raise SessionError("bad_request", f"id de hilo inválido: {thread_id!r}")
@@ -105,15 +112,15 @@ def resolve(root: Path, sid: str, thread_id: str, *, undo: bool = False) -> dict
     url = (node.get("pullRequest") or {}).get("url")
     if not url:
         raise SessionError("not_found", f"{thread_id} no es un hilo de review")
-    _own_pr(root, sid, url)
+    _own_pr(root, sid, url, dev_prs)
     op = "unresolveReviewThread" if undo else "resolveReviewThread"
     m = f"mutation($id: ID!) {{ {op}(input: {{threadId: $id}}) {{ thread {{ isResolved }} }} }}"
     res = json.loads(_gh(["api", "graphql", "-f", f"query={m}", "-f", f"id={thread_id}"]))
     return {"resolved": (((res.get("data") or {}).get(op) or {}).get("thread") or {}).get("isResolved")}
 
 
-def add_reviewer(root: Path, sid: str, ref: str, logins: list[str]) -> None:
-    _, _, url = _own_pr(root, sid, ref)
+def add_reviewer(root: Path, sid: str, ref: str, logins: list[str], dev_prs: set[str] | None = None) -> None:
+    _, _, url = _own_pr(root, sid, ref, dev_prs)
     bad = [x for x in logins if not _LOGIN_RE.match(x)]
     if bad or not logins:
         raise SessionError("bad_request", f"login inválido: {', '.join(bad) or '(ninguno)'}")

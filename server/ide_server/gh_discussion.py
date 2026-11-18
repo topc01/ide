@@ -19,9 +19,10 @@ QUERY = """query($owner: String!, $name: String!, $number: Int!) {
     reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }
     latestOpinionatedReviews(first: 20) { nodes { state %(a)s } }
     reviews(last: 50) { nodes { state body submittedAt url %(a)s } }
+    commits_last: commits(last: 1) { nodes { commit { committedDate } } }
     comments(last: 50) { nodes { body createdAt url %(a)s } }
-    reviewThreads(first: 100) { nodes { isResolved isOutdated path line
-      comments(first: 50) { nodes { body createdAt url %(a)s } } } }
+    reviewThreads(first: 100) { nodes { id isResolved isOutdated path line
+      comments(first: 50) { nodes { databaseId body createdAt url %(a)s } } } }
   } }
 }""" % {"a": _AUTHOR}
 
@@ -66,10 +67,10 @@ def parse(pr: dict) -> dict:
     convo += [{"kind": "comment", "author": _login(c), "state": None, "body": c.get("body") or "",
                "at": c.get("createdAt"), "url": c.get("url")} for c in pr["comments"]["nodes"]]
     convo.sort(key=lambda x: x["at"] or "")
-    threads = [{"resolved": t["isResolved"], "outdated": t["isOutdated"], "path": t.get("path"),
+    threads = [{"id": t.get("id"), "resolved": t["isResolved"], "outdated": t["isOutdated"], "path": t.get("path"),
                 "line": t.get("line"),
-                "comments": [{"author": _login(c), "body": c.get("body") or "", "at": c.get("createdAt"),
-                              "url": c.get("url")} for c in t["comments"]["nodes"]]}
+                "comments": [{"id": c.get("databaseId"), "author": _login(c), "body": c.get("body") or "",
+                              "at": c.get("createdAt"), "url": c.get("url")} for c in t["comments"]["nodes"]]}
                for t in pr["reviewThreads"]["nodes"]]
     threads.sort(key=lambda t: (t["resolved"], t["path"] or "", t["line"] or 0))
     return {"url": pr["url"], "title": pr["title"], "number": pr["number"], "state": pr["state"],
@@ -79,7 +80,8 @@ def parse(pr: dict) -> dict:
             {"SUCCESS": "success", "FAILURE": "failure", "ERROR": "failure", "PENDING": "pending",
              "EXPECTED": "pending"}.get(rollup.get("state", "")),
             "checks": checks, "reviewers": [{"login": k, "state": v} for k, v in reviewers.items()],
-            "conversation": convo, "threads": threads}
+            "conversation": convo, "threads": threads,
+            "pushed": ((((pr.get("commits_last") or {}).get("nodes") or [{}])[-1] or {}).get("commit") or {}).get("committedDate")}
 
 
 def fetch_discussion(url: str) -> dict:

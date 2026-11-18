@@ -60,7 +60,7 @@ comando choca con una trampa conocida, el IDE lo frena y te dice el correcto.
 | evidencias | `ide evidence` | guía de prueba con capturas |
 | el ticket de Notion | `ide ticket` | asociarlo, subtickets, callouts |
 | el recorrido | `ide tour` | antes de declarar listo, si hay UI |
-| revisiones de PR | `ide review` | en sesiones de revisión, en vez de `gh api` |
+| reviews en GitHub | `ide review` | qué te pidieron en las PRs del desarrollo (`ide review inbox`); responder, resolver y pedir revisión; publicar una review, solo en sesiones de revisión. En vez de `gh api` |
 | avisar por Telegram | `ide reply` | si el usuario te lo pide; nunca claves |
 | sesiones y desarrollos | `ide session`, `ide dev` | `ide session new --title "<qué>"` para trabajo aparte |
 
@@ -96,10 +96,10 @@ criterio, con `ide status` (nunca editando el `status:` del archivo):
 - Mientras trabajas, las PRs van en **draft**. **No saques una PR de draft**: lo hace el IDE solo, apenas queda
   aprobada; tú no, salvo que el usuario te lo pida explícito. Haz exactamente la acción que te piden; si
   propones algo más, pregúntalo aparte.
-- **Revisores:** pídelos (`gh pr edit --add-reviewer <login>`) cuando el usuario o el manager lo pidan, aunque
+- **Revisores:** pídelos (`ide review add-reviewer <pr> <login>`) cuando el usuario o el manager lo pidan, aunque
   la PR siga en draft: en el equipo se revisa en draft y el CI corre después de aprobar.
 - **Re-revisión:** cuando una PR ya tiene revisor y atiendes sus cambios pedidos, **pide tú la re-revisión** en
-  el mismo turno, en cada PR que tocaste: respondes en cada hilo y haces `gh pr edit <url> --add-reviewer
+  el mismo turno, en cada PR que tocaste: respondes en cada hilo (`ide review reply`) y haces `ide review add-reviewer <pr>
   <login>`. Verifícalo con `gh pr view <url> --json reviewRequests`. No le digas al usuario que la pida él, salvo
   que te diga que no la pidas.
 - **Esperar al usuario no se marca:** el IDE ve cuándo terminaste el turno y le muestra la **primera línea de tu
@@ -179,7 +179,8 @@ Antes de `ide status ready-for-review` y antes de cada pedido de re-revisión:
   deshabilitada; recién apareció al sacar evidencias en staging.)
 - Regenera el body desde la plantilla del repo contra el diff final, y corre tal cual cada comando de
   «Cómo probarlo».
-- Al atender una review, lee los comentarios inline, el cuerpo de cada review y la conversación de la PR.
+- Al atender una review, empieza por `ide review inbox`: trae de todas las PRs del desarrollo los cambios pedidos,
+  los hilos sin resolver y los comentarios nuevos, con los ids para responder y resolver.
 
 ## Desarrollos y repos
 

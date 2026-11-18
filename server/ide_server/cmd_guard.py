@@ -23,7 +23,8 @@ REVIEW_PUBLISH = ("Para publicar una review usa `ide review publish <pr> <review
                   "lo frena el clasificador; este lo cubre el permiso. Nunca una review solo de comentarios (COMMENT). "
                   "Ver `ide review --help`.")
 REVIEW_REPLY = ("Para responder en un hilo de review usa `ide review reply <pr> <comment_id> \"texto\"` (o `--file -`), "
-                "no `gh api`. Ver `ide review --help`.")
+                "no `gh api` (en una sesión de ticket, sobre las PRs de tu desarrollo; `ide review inbox` lista los "
+                "hilos con sus ids). Ver `ide review --help`.")
 REVIEW_RESOLVE = "Para resolver un hilo usa `ide review resolve <PRRT_…>` (`--undo` lo reabre), no `gh api graphql`."
 PUSH = ("Para subir la rama usa `ide push [<repo>]` (sin cd; `--force` = force-with-lease después de un rebase; "
         "`--branch <rama>` para otra rama local, p.ej. las de un stack). Ver `ide push --help`.")
@@ -69,9 +70,7 @@ def _head(words: list[str]) -> list[str]:
     return w
 
 
-def advise(cmd: str, kind: str | None = None) -> tuple[str, str] | None:
-    """`kind`: el tipo de la sesión. Responder o resolver hilos con `gh api` se frena solo en las de revisión
-    (`ide review` es solo para ellas); en una de ticket es la forma de contestar en las PRs propias."""
+def advise(cmd: str) -> tuple[str, str] | None:
     toks = _tokens(cmd)
     cmds = [_head(c) for c in _commands(toks)]
     cmds = [c for c in cmds if c]
@@ -88,9 +87,9 @@ def advise(cmd: str, kind: str | None = None) -> tuple[str, str] | None:
                 or bool(re.search(r"(-X|--method)[ =]*(POST|PUT|PATCH)", " ".join(w), re.I))
             if re.search(r"/pulls/\d+/reviews/?$", path) and writes:
                 return "deny", REVIEW_PUBLISH
-            if kind == "review" and re.search(r"/pulls/(\d+/)?comments/\d+/replies/?$", path) and writes:
+            if re.search(r"/pulls/(\d+/)?comments/\d+/replies/?$", path) and writes:
                 return "deny", REVIEW_REPLY
-            if kind == "review" and path == "graphql" and re.search(r"(un)?resolveReviewThread", " ".join(w), re.I):
+            if path == "graphql" and re.search(r"(un)?resolveReviewThread", " ".join(w), re.I):
                 return "deny", REVIEW_RESOLVE
         if w[:3] == ["gh", "pr", "review"] and any(x in ("--request-changes", "-r", "--comment", "-c") for x in w[3:]):
             return "deny", REVIEW_PUBLISH

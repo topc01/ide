@@ -87,9 +87,12 @@ ejemplos:
   ide status blocked -m "definiciones de producto"
   ide status unblock
 Nunca edites el `status:` de SESSION.md a mano."""),
-    "review": ("Publicar en GitHub desde una sesión de revisión (solo sus PRs). En vez de `gh api` (lo frena el "
-               "clasificador). Córrelo solo, como único comando de la línea. <pr> = URL o <repo>#<n>.", """\
+    "review": ("Reviews en GitHub, en vez de `gh api` (lo frena el clasificador). En una sesión de ticket: `inbox`, "
+               "`reply`, `resolve` y `add-reviewer` sobre las PRs de tu desarrollo. En una de revisión: además "
+               "`publish` y `verdict`, sobre sus PRs. Córrelo solo, como único comando de la línea. <pr> = URL o "
+               "<repo>#<n>.", """\
 ejemplos:
+  ide review inbox                          # qué te pidieron: cambios, hilos sin resolver, comentarios nuevos
   ide review publish api#5092 review.json   # pide cambios con comentarios en línea
   ide review verdict api#5092 approve --file comentario.md --why "una línea"   # aprobar: lo publica el usuario
   ide review reply api#5092 123456 "Listo, corregido"
@@ -111,6 +114,12 @@ ejemplos:
   ide review verdict api#5092 changes --file - --why "falta validar el tenant" <<'EOF'
   …
   EOF"""),
+    "review inbox": ("Lo que te pidieron en las PRs abiertas de tu desarrollo, en un solo comando: por PR, la última "
+                     "review que pide cambios de cada revisor (si es posterior a tu último commit), los hilos sin "
+                     "resolver donde la última palabra no es tuya (con el id del comentario para `reply` y el del hilo "
+                     "para `resolve`) y los comentarios generales de otros después de tu último commit. Lo que ya "
+                     "atendiste sale en una línea «esperando al revisor».",
+                     "ejemplos:\n  ide review inbox\n  ide review inbox --all      # también el detalle de las PRs sin pendientes"),
     "review reply": ("Responde en un hilo de review existente.",
                      "ejemplos:\n  ide review reply api#5092 123456 \"Hecho en abc123\"\n"
                      "  ide review reply api#5092 123456 --file - <<'EOF'\n  …\n  EOF"),

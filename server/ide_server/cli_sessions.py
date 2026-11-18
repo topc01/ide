@@ -145,7 +145,9 @@ def _parser() -> argparse.ArgumentParser:
     bp.add_argument("--session")
     st = sub.add_parser("status", help="cambia el estado de la sesión (queda en la base y en el historial)")
     st.add_argument("status"); st.add_argument("-m", "--note"); st.add_argument("--session")
-    rv = sub.add_parser("review", help="publicar en GitHub desde una sesión de revisión (solo sus PRs, org Finnecto)").add_subparsers(dest="cmd", required=True)
+    rv = sub.add_parser("review", help="reviews en GitHub: lo pendiente de tus PRs (inbox), responder, resolver, pedir revisión; publicar, solo desde una sesión de revisión").add_subparsers(dest="cmd", required=True)
+    ri = rv.add_parser("inbox", help="lo que te pidieron en las PRs abiertas de tu desarrollo: cambios pedidos, hilos sin resolver y comentarios nuevos, con los ids para responder y resolver")
+    ri.add_argument("--session"); ri.add_argument("--all", action="store_true", help="también el detalle de las PRs sin pendientes")
     rp = rv.add_parser("publish", help="publica una review que pide cambios (POST .../reviews) con el JSON: body, event REQUEST_CHANGES, commit_id, comments (aprobar lo hace el usuario desde la card)")
     rp.add_argument("pr", help="URL de la PR o <repo>#<n>"); rp.add_argument("file", help="JSON de la review")
     rr = rv.add_parser("reply", help="responde en un hilo existente (POST .../comments/<id>/replies)")
@@ -632,15 +634,7 @@ def _hook(url: str | None, http, env: dict) -> int:
             # trampas conocidas (ide db combinado, gh api para reviews, git push, …): se frena y se le dice el
             # comando correcto, en vez de chocar con el clasificador o quedar esperando un permiso
             from ide_server.cmd_guard import advise
-            kind = None
-            if sid:
-                try:
-                    from ide_server.sessions_fs import read_session
-                    ws = Path(env["IDE_WORKSPACE"]) if env.get("IDE_WORKSPACE") else find_workspace_root(Path.cwd())
-                    kind = read_session(ws, sid).get("kind") if ws else None
-                except Exception:  # noqa: BLE001
-                    pass
-            tip = advise(cmd, kind) if ev.get("tool_name") == "Bash" else None
+            tip = advise(cmd) if ev.get("tool_name") == "Bash" else None
             if tip:
                 sys.stdout.write(json.dumps({"hookSpecificOutput": {
                     "hookEventName": "PreToolUse", "permissionDecision": tip[0],
@@ -1127,7 +1121,18 @@ _OLD_EVIDENCE = {"set": "plan", "done": "check", "github": "publish"}
 
 def _review_cmd(a, root: Path, cwd: Path, out: TextIO, env: dict, url: str | None, http) -> int:
     from ide_server import review_publish as rp
-    sid = current_session(root, env=env, cwd=cwd)
+    sid = current_session(root, env=env, cwd=cwd, explicit=getattr(a, "session", None))
+
+    def dev_prs() -> list[str] | None:
+        """Las PRs abiertas del desarrollo de la sesión (None en una de revisión: valen su PR y su stack)."""
+        from ide_server.sessions_fs import read_session
+        if read_session(root, sid).get("kind") == "review" and a.cmd != "inbox":
+            return None
+        return [p["url"] for p in _get(http, url, f"/api/devs/{quote(sid, safe='')}")["dev"].get("prs") or []]
+
+    if a.cmd == "inbox":
+        from ide_server.review_inbox import inbox
+        return inbox(dev_prs() or [], out, show_all=a.all)
     if a.cmd == "publish":
         r = rp.publish(root, sid, a.pr, a.file)
         out.write(f"review publicada: {r['state']} {r['url'] or ''}\n")
@@ -1145,15 +1150,19 @@ def _review_cmd(a, root: Path, cwd: Path, out: TextIO, env: dict, url: str | Non
                   f"{' (apruébala tú desde la card)' if a.verdict == 'approve' else ''}\n")
     elif a.cmd == "reply":
         text = (sys.stdin.read() if a.file == "-" else Path(a.file).read_text(encoding="utf-8")) if a.file else (a.text or "")
-        r = rp.reply(root, sid, a.pr, a.comment_id, text)
+        r = rp.reply(root, sid, a.pr, a.comment_id, text, _set(dev_prs()))
         out.write(f"respuesta publicada: {r['url'] or r['id']}\n")
     elif a.cmd == "resolve":
-        r = rp.resolve(root, sid, a.thread_id, undo=a.undo)
+        r = rp.resolve(root, sid, a.thread_id, undo=a.undo, dev_prs=_set(dev_prs()))
         out.write(f"hilo {'resuelto' if r['resolved'] else 'abierto'}\n")
     elif a.cmd == "add-reviewer":
-        rp.add_reviewer(root, sid, a.pr, a.logins)
+        rp.add_reviewer(root, sid, a.pr, a.logins, _set(dev_prs()))
         out.write(f"revisión pedida a {', '.join(a.logins)}\n")
     return 0
+
+
+def _set(x: list[str] | None) -> set[str] | None:
+    return None if x is None else set(x)
 
 
 def _legacy(argv: list[str]) -> list[str]:
