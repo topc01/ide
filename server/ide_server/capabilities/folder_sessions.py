@@ -923,7 +923,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             how = "encolado"
         else:
             state = supervisor.start(sid, prompt=text)
-            how = "lanzada con el prompt"
+            how = ("en cola por el tope de sesiones (max_running): se lanza con el prompt apenas haya lugar"
+                   if state == "queued" else "lanzada con el prompt")
         if db is not None:
             db.event(datetime.now().isoformat(timespec="seconds"), actor, "prompt", dev=sid, data={"text": text[:300]})
         notify()
@@ -1539,8 +1540,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     def _tell_dev(key: str, title: str, text: str) -> None:
         """A la sesión de un desarrollo (`s:<id>`): a su claude si corre; si está parada, la lanza con el aviso (trabaja
-        en segundo plano, como con un mensaje de la manager); pausada, o sin lugar (max_running), queda guardado y
-        le llega al abrirla."""
+        en segundo plano, como con un mensaje de la manager; sin lugar por el tope, espera en la cola con el aviso);
+        pausada, queda guardado y le llega al retomarla."""
         sid = key[2:] if key.startswith("s:") else None
         if db is None or not sid or not session_path(root, sid).is_dir():
             return
@@ -1551,7 +1552,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             delivered = True
         elif state == "stopped" and not db.get(f"paused:{sid}"):
             try:
-                delivered = supervisor.start(sid, prompt=text) == "running"
+                delivered = supervisor.start(sid, prompt=text) in ("running", "queued")
             except SessionError as exc:
                 log.info("aviso para %s guardado: %s", sid, exc)
         if delivered:

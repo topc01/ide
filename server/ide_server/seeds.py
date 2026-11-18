@@ -7,7 +7,7 @@ name = "{name}"
 
 [sessions]
 default_permissions = "analyze"   # analyze | full | default
-# max_running = 5                 # tope de `claude` corriendo a la vez (omitido = sin tope)
+max_running = 6                   # tope de claudes de sesiones de trabajo abiertos a la vez (sin la manager, IDE, Recursos ni Plugins); al llegar, se cierra el que lleve 15 min o más sin trabajar; omitido = sin tope
 claude_command = "claude"
 
 [reviews]

@@ -84,7 +84,7 @@ name = "mi-workspace"
 
 [sessions]
 default_permissions = "analyze"   # analyze | full | default — perfil cuando no se pasa --permissions
-max_running = 5                   # tope de `claude` corriendo a la vez; omitido = sin tope; entero >= 1
+max_running = 6                   # tope de claudes de sesiones de trabajo abiertos a la vez; omitido = sin tope; entero >= 1
 claude_command = "claude"         # comando base (se le agregan flags); útil para wrappers
 
 [reviews]
@@ -105,6 +105,8 @@ cpu_alert = 150           # % de CPU sostenido (dos miradas seguidas) que avisa 
 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
+
+**Tope de sesiones (`max_running`):** cuentan los claudes abiertos de las sesiones de trabajo (no la manager, la IDE, Recursos ni Plugins). Al llegar al tope, para abrir otra (click en su card, un mensaje de la manager o un aviso del IDE) se cierra el claude que lleve más tiempo esperando, si lleva 15 min o más sin trabajar (`Supervisor.EVICT_IDLE`; nunca uno que trabaja, congelado o con el diálogo de confianza abierto): su conversación queda y se retoma al abrirla. Si no hay ninguno, la apertura espera en cola **con su prompt** (`queued`) y se revisa cada minuto. (Medido la semana del 11 al 18-11: 3 o menos trabajando el 90% del tiempo, más de 6 el 0,5%, máximo 9.)
 
 Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero) hacen
 fallar el arranque con un mensaje que nombra la clave.
@@ -217,7 +219,7 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
 ### Rutear a un desarrollo (`ide session send`)
 - `ide session send <id | #n> --prompt-file - | --prompt "…"`: encola un prompt a la sesión de un
   desarrollo (id de la sesión o su número `#8`). Si su `claude` corre, entra a su cola (lo toma al
-  terminar el turno; si se acaba de lanzar, espera unos segundos a que muestre su input, y si está preguntando si confías en la carpeta, a que respondas, hasta 10 min: tipeado antes se perdía); si está parada, se lanza con él; en cola por `max_running` → `queued`. Lo pueden la
+  terminar el turno; si se acaba de lanzar, espera unos segundos a que muestre su input, y si está preguntando si confías en la carpeta, a que respondas, hasta 10 min: tipeado antes se perdía); si está parada, se lanza con él; en cola por `max_running` → `queued`, con el prompt: se lanza con él apenas haya lugar. Lo pueden la
   **principal**, que lo prueba con `IDE_MANAGER_TOKEN` (el IDE se lo pasa solo a su `claude`; vive en
   memoria, nuevo en cada arranque del server; sin archivo), o **tú desde tu terminal** (por CLI sin
   `IDE_SESSION_ID`: llega con el encabezado `[Mensaje del usuario]`); otra sesión → `forbidden` (un `!` dentro
@@ -443,8 +445,8 @@ nada a la sesión. ✕ la descarta. La sesión cierra las suyas con **`ide later
 later ls --mine` las lista con su id). La card muestra **«? N»** (con quién, en el tooltip; click abre el
 módulo) y la barra de abajo **«N decisiones»**. Los **avisos del IDE** (evidencias en staging, CI que falló,
 un merge detenido, PRs sumadas a una revisión) ya no van acá: si la sesión está parada, el IDE **la lanza con el
-aviso** y trabaja en segundo plano, como con un mensaje de la manager; si no hay lugar (`max_running`) queda guardado y
-le llega al abrirla (`kv notices:<sesión>`; pausada: al retomarla); los que había abiertos pasaron así a sus sesiones. La sesión sigue con lo que
+aviso** y trabaja en segundo plano, como con un mensaje de la manager; si no hay lugar (`max_running`) espera en la cola con el aviso; pausada, queda guardado y
+le llega al retomarla (`kv notices:<sesión>`; pausada: al retomarla); los que había abiertos pasaron así a sus sesiones. La sesión sigue con lo que
 pueda; si ya no puede avanzar pasa a `blocked -m "pendiente: …"`. La manager los ve con **`ide later
 ls`** (`--all` incluye cerrados, `--json`) y en el material de la revisión semanal de feedback (recuerda los de
 más de 7 días). Base: `kv` `later:<id>` = `{id, key, text, context, actor, created, status

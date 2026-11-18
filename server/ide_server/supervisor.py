@@ -246,7 +246,9 @@ class Supervisor:
         self._running: dict[str, str] = {}
         self._launched_at: dict[str, float] = {}   # cuándo se lanzó su claude (send espera a que arranque)
         self._send_lock = threading.Lock()   # dos envíos a la vez no se intercalan letra a letra
-        self._queue: list[tuple[str, bool]] = []
+        # en cola por el tope (max_running): (sesión, resume, prompt con que se lanza)
+        self._queue: list[tuple[str, bool, str | None]] = []
+        self._queue_timer: threading.Timer | None = None
         self._errors: dict[str, str] = {}
         self._head: dict[str, bytes] = {}           # sid -> inicio de la salida del proceso
         self._tail: dict[str, bytes] = {}           # sid -> lo último impreso (para ver una interrupción)
@@ -257,12 +259,12 @@ class Supervisor:
     def state(self, sid: str) -> str:
         if sid in self._running:
             return "running"
-        if any(q == sid for q, _ in self._queue):
+        if any(q[0] == sid for q in self._queue):
             return "queued"
         return "stopped"
 
     def snapshot(self) -> dict[str, dict]:
-        sids = set(self._running) | {q for q, _ in self._queue} | set(self._errors)
+        sids = set(self._running) | {q[0] for q in self._queue} | set(self._errors)
         return {sid: {"process": self.state(sid), "terminalId": self._running.get(sid),
                       "launchError": self._errors.get(sid),
                       "attention": self._attention.get(sid),
@@ -285,11 +287,11 @@ class Supervisor:
             return self.state(sid)
         if resume is None:
             resume = has_history(session_cwd(self._root, sid), self._home)
-        if self._max is not None and len(self._running) >= self._max:
-            if prompt:
-                raise SessionError("queue_full", f"hay {self._max} sesiones corriendo (max_running): "
-                                                 f"no puedo lanzar {sid} con el prompt ahora")
-            self._queue.append((sid, resume))
+        if self._full() and not self._evict_one():
+            # sin lugar: espera en la cola con su prompt y entra apenas haya (se revisa cada minuto: una sesión
+            # que pasa a llevar EVICT_IDLE sin trabajar se cierra para hacerle lugar)
+            self._queue.append((sid, resume, prompt))
+            self._watch_queue()
             self._on_change()
             return "queued"
         self._launch(sid, resume, prompt)
@@ -323,19 +325,20 @@ class Supervisor:
                 self.freeze(sid, False)
             self._write(tid, b"\x1b")
 
-    def stop(self, sid: str) -> None:
+    def stop(self, sid: str, *, drain: bool = True) -> None:
         tid_ = self._running.get(sid)
         if tid_ is not None and sid in self._frozen and self._signal is not None:
             import signal as _sig               # congelado no muere con SIGTERM/SIGHUP hasta que se suelta
             self._signal(tid_, _sig.SIGCONT)
         self._frozen.pop(sid, None)
-        self._queue = [(q, r) for q, r in self._queue if q != sid]
+        self._queue = [q for q in self._queue if q[0] != sid]
         self._errors.pop(sid, None)
         tid = self._running.pop(sid, None)
         self._forget(sid)
         if tid is not None:
             self._kill(tid)
-            self._drain()
+            if drain:
+                self._drain()
         if self._agents is not None:     # matar el PTY deja viva la sesión en el daemon de claude
             threading.Thread(target=self._stop_background, args=(session_path(self._root, sid),),
                              daemon=True).start()
@@ -527,10 +530,64 @@ class Supervisor:
         self._drain()
         self._on_change()
 
-    def _drain(self) -> None:
-        while self._queue and (self._max is None or len(self._running) < self._max):
-            sid, resume = self._queue.pop(0)
+    # -- tope de claudes abiertos (max_running) ---------------------------------------------------------
+    # Cuentan las sesiones de trabajo (no la manager, la IDE, Recursos ni Plugins). Al llegar al tope, para abrir
+    # una se cierra el claude que lleve más tiempo esperando (EVICT_IDLE o más sin trabajar; nunca uno que trabaja
+    # ni uno congelado): su conversación queda y se retoma al abrirlo. Si no hay ninguno, la apertura espera en cola.
+    EVICT_IDLE = 15 * 60
+    FIXED_KINDS = ("main", "ide", "recursos", "plugins")
+
+    def _kind(self, sid: str) -> str | None:
+        try:
+            return read_toml(session_path(self._root, sid) / ".session.toml").get("kind")
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _counted(self) -> list[str]:
+        return [s for s in self._running if self._kind(s) not in self.FIXED_KINDS]
+
+    def _full(self) -> bool:
+        return self._max is not None and len(self._counted()) >= self._max
+
+    def _evict_one(self) -> str | None:
+        """Cierra el claude que más tiempo lleva sin trabajar (EVICT_IDLE o más). Devuelve cuál, o None."""
+        now, best = datetime.now(), None
+        for s in self._counted():
+            a = self._activity.get(s) or {}
+            if s in self._frozen or a.get("state") == "working" or s in self._attention:
+                continue
             try:
-                self._launch(sid, resume)
+                since = datetime.fromisoformat(a["since"]) if a.get("since") else \
+                    datetime.fromtimestamp(self._launched_at.get(s, time.time()))
+            except ValueError:
+                continue
+            if (now - since).total_seconds() >= self.EVICT_IDLE and (best is None or since < best[1]):
+                best = (s, since)
+        if best is None:
+            return None
+        log.info("tope de sesiones: cierro %s (sin trabajar desde %s) para hacer lugar", best[0], best[1])
+        self.stop(best[0], drain=False)
+        return best[0]
+
+    def _watch_queue(self) -> None:
+        if self._queue_timer is not None and self._queue_timer.is_alive():
+            return
+
+        def tick() -> None:
+            self._queue_timer = None
+            if self._queue:
+                self._drain()
+                self._on_change()
+                if self._queue:
+                    self._watch_queue()
+        self._queue_timer = threading.Timer(60, tick)
+        self._queue_timer.daemon = True
+        self._queue_timer.start()
+
+    def _drain(self) -> None:
+        while self._queue and (not self._full() or self._evict_one()):
+            sid, resume, prompt = self._queue.pop(0)
+            try:
+                self._launch(sid, resume, prompt)
             except Exception as exc:  # un fallo no debe trabar la cola ni quedar silencioso
                 self._errors[sid] = str(exc) or type(exc).__name__
