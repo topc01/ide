@@ -47,6 +47,8 @@ reglas (si no, el permiso no lo cubre y se frena):
   - Va SOLO, como único comando de la línea: sin pipes (| head), sin ;, sin &&, sin `cd … &&` delante, sin loops.
   - Sin comandos de psql (nada con \\). Filtra, ordena y limita en el SQL.
   - Una base por comando: prod y staging van en dos comandos.
+  - Antes de escribir el SQL, mira las columnas reales: `mcp__claude_ai_Finnecto_CX__describe_schema` (table=<tabla>;
+    sin table, la lista; environment=staging para staging). No adivines nombres de columnas ni de tablas.
 ejemplos:
   ide db prod "select id, name from companies_company where name ilike '%acme%' limit 20"
   ide db staging "select count(*) from invoices_invoice where status = 'paid'"

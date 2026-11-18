@@ -1154,6 +1154,11 @@ def _db_query(env_name: str, sql: str, home: Path, out: TextIO, err: TextIO, *, 
     else:
         out.write(r.stdout)
     err.write(r.stderr)
+    if r.returncode and re.search(r"(column|relation) .* does not exist", r.stderr or ""):
+        err.write("pista: mira las columnas reales antes de reintentar: `mcp__claude_ai_Finnecto_CX__describe_schema` "
+                  "(table=<tabla>; sin table, la lista de tablas; environment=staging para staging), o "
+                  "`ide db <env> \"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = "
+                  "'<tabla>'\"`\n")
     return r.returncode
 
 

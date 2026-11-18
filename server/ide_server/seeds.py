@@ -52,7 +52,7 @@ comando choca con una trampa conocida, el IDE lo frena y te dice el correcto.
 | backport de un hotfix | `ide backport` | el hotfix también va a develop |
 | poner al día tu rama | `ide update` | solo si GitHub marca conflicto o se mergeó la madre del stack |
 | revisar migraciones | `ide migrations check\\|renumber` | antes de pedir revisión; si chocan, renumera sin preguntar |
-| consultar prod o staging | `ide db` | solo lectura; va solo en la línea |
+| consultar prod o staging | `ide db` | solo lectura; va solo en la línea. Antes de escribir el SQL, mira las columnas reales con `mcp__claude_ai_Finnecto_CX__describe_schema` (`table`; `environment=staging`): no las adivines |
 | servidores para probar | `ide server` | levantar api y fronts; `start … --wait` espera a que respondan (sin loops con sleep) |
 | un script que termina | `ide script` | build, test, … |
 | el estado del desarrollo | `ide status` | lo que es criterio tuyo (ver Convención de estado) |
