@@ -60,7 +60,8 @@ def plan(wt: Path, branch: str, *, behind: bool = False) -> dict:
     # solo con --behind (vuelve a correr el CI y puede descartar la aprobación). mergeStateStatus no siempre dice
     # BEHIND (con el CI rojo dice UNSTABLE): se cuenta con git
     approved = pr.get("reviewDecision") == "APPROVED"
-    n = _git(wt, "rev-list", "--count", f"HEAD..origin/{base}").stdout.strip()
+    ref = branch if _git(wt, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode == 0 else f"origin/{branch}"
+    n = _git(wt, "rev-list", "--count", f"{ref}..origin/{base}").stdout.strip()
     if n.isdigit() and int(n) > 0 and (behind or not approved):
         return {"pr": pr, "reason": f"le faltan {n} commit(s) de {base}" + (" (--behind)" if approved else " (sin aprobación)"),
                 "onto": f"origin/{base}"}
@@ -79,21 +80,45 @@ def update(root: Path, sid: str, repo: str | None, *, dry_run: bool = False, beh
     if repo is not None and repo not in links:
         raise SessionError("unknown_repo", f"la sesión {sid} no tiene {repo} (tiene: {', '.join(links) or 'ninguno'})")
     failed = 0
+    from ide_server import update_stack
+    sdir = require_session(root, sid)
     for name in [repo] if repo else sorted(links):
         wt = links[name].resolve()
+        if not dry_run:                        # un update de stack a medias (rebase con conflicto): sigue desde ahí
+            r = update_stack.resume(wt, sdir, name, out)
+            if r is not None:
+                failed += r != 0
+                continue
         branch = _git(wt, "branch", "--show-current").stdout.strip()
         if not branch:
             out.write(f"{name}: sin rama (detached o rebase a medias), no hago nada\n"); failed += 1; continue
         if branch in PROTECTED or branch == _default_branch(wt):
             out.write(f"{name}: {branch} es una rama principal, no la toco\n"); failed += 1; continue
         _git(wt, "fetch", "origin", "--prune")
+        # stack: la que necesita ponerse al día puede ser una de abajo (la del worktree es la de arriba)
+        stack = update_stack.chain(wt, branch)
+        lower = next(((k, q) for k, b in enumerate(stack[:-1]) if "skip" not in (q := plan(wt, b, behind=behind))), None)
+        if lower:
+            k, q = lower
+            if dry_run:
+                out.write(f"{name}: #{q['pr']['number']} ({stack[k]}, abajo en el stack) {q['reason']}: rebasearía "
+                          f"sobre {q['onto']} y re-apilaría encima {', '.join(stack[k + 1:])}\n")
+            else:
+                failed += update_stack.start(wt, sdir, name, stack, k, q, out) != 0
+            continue
         p = plan(wt, branch, behind=behind)
         if "skip" in p:
             out.write(f"{name}: {branch}: {p['skip']}\n")
             continue
         n = p["pr"]["number"]
+        kids = json.loads(_gh(wt, "pr", "list", "--base", branch, "--state", "open", "--author", "@me",
+                              "--json", "number").stdout or "[]")
         if dry_run:
-            out.write(f"{name}: #{n} {p['reason']}: rebasearía sobre {p['onto']}\n")
+            out.write(f"{name}: #{n} {p['reason']}: rebasearía sobre {p['onto']}"
+                      + (f" y re-apilaría encima {', '.join(f'#{x['number']}' for x in kids)}" if kids else "") + "\n")
+            continue
+        if kids:                               # tiene PRs apiladas encima: se re-apilan después
+            failed += update_stack.start(wt, sdir, name, [branch], 0, p, out) != 0
             continue
         if _git(wt, "status", "--porcelain", "--untracked-files=no").stdout.strip():
             out.write(f"{name}: #{n} {p['reason']}, pero tienes cambios sin commitear: commitea o guárdalos antes\n")
@@ -124,8 +149,15 @@ def migrations_cmd(root: Path, sid: str, repo: str | None, *, fix: bool, out: Te
     if repo is not None and repo not in links:
         raise SessionError("unknown_repo", f"la sesión {sid} no tiene {repo} (tiene: {', '.join(links) or 'ninguno'})")
     failed = 0
+    from ide_server import update_stack
+    sdir = require_session(root, sid)
     for name in [repo] if repo else sorted(links):
         wt = links[name].resolve()
+        if not dry_run:                        # un update de stack a medias (rebase con conflicto): sigue desde ahí
+            r = update_stack.resume(wt, sdir, name, out)
+            if r is not None:
+                failed += r != 0
+                continue
         branch = _git(wt, "branch", "--show-current").stdout.strip()
         if not branch:
             out.write(f"{name}: sin rama, no reviso\n"); continue

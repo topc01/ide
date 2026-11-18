@@ -35,7 +35,10 @@ ejemplos:
   ide update --dry-run                      # dice qué haría
   ide update finnecto-api
   ide update finnecto-api --behind          # aprobada: el usuario pidió ponerla al día igual (no a mano)
-Si el rebase choca, queda a medias: resuelve, `git rebase --continue` y `ide push <repo> --force`."""),
+En un stack mira toda la línea: si la que necesita ponerse al día es una de abajo (o la tuya tiene PRs encima), la
+rebasea y re-apila encima todo lo que cuelga de ella, también las hermanas en otros worktrees.
+Si un rebase choca, queda a medias: resuelve, `git rebase --continue` y vuelve a correr `ide update <repo>` (sigue
+desde ahí y sube todo)."""),
     "migrations": ("Las migraciones de tu rama contra develop: cada nueva va después de la última de su app y depende "
                    "de ella.", """\
 ejemplos:

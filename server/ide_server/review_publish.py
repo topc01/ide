@@ -36,6 +36,8 @@ def _pr(ref: str) -> tuple[str, int, str]:
             raise SessionError("forbidden", f"solo PRs de {ORG} (esta es de {owner})")
     elif m := _REF_RE.match(ref.strip()):
         repo, n = m.groups()
+        if not repo.lower().startswith("finnecto-"):     # `embed#3176` = finnecto-embed#3176 (como en el inbox)
+            repo = f"finnecto-{repo}"
     else:
         raise SessionError("bad_request", f"PR inválida: {ref!r} (usa la URL o <repo>#<n>)")
     return repo, int(n), f"https://github.com/{ORG}/{repo}/pull/{n}"
