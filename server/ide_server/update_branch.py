@@ -3,7 +3,8 @@
 la PR está en conflicto con su base, o su madre del stack se mergeó (con squash). Que `develop` haya
 avanzado (BEHIND) no basta: rebasear por eso cambia los commits y vuelve a correr todo el CI (al mergear,
 si GitHub exige la rama al día, la pone al día el IDE). Rebasea en el mismo worktree; si choca, deja el
-rebase a medias para que la sesión resuelva y siga (`git rebase --continue` + `ide push --force`)."""
+rebase a medias para que la sesión resuelva y siga (`git rebase --continue` + `ide push --force`). `--behind`:
+rebasea también si solo está atrás, cuando el usuario lo pide."""
 from __future__ import annotations
 import json
 import re
@@ -29,7 +30,7 @@ def _slug(wt: Path) -> str | None:
     return re.sub(r"\.git$", "", re.split(r"github\.com[:/]", url)[-1]) if "github.com" in url else None
 
 
-def plan(wt: Path, branch: str) -> dict:
+def plan(wt: Path, branch: str, *, behind: bool = False) -> dict:
     """Qué haría (sin tocar nada): {pr, reason, onto, upstream, new_base} o {pr, skip: motivo}."""
     out = _gh(wt, "pr", "view", branch, "--json", "number,url,state,baseRefName,mergeable,mergeStateStatus")
     if out.returncode != 0:
@@ -56,13 +57,20 @@ def plan(wt: Path, branch: str) -> dict:
     if pr.get("mergeable") == "CONFLICTING":
         return {"pr": pr, "reason": f"está en conflicto con {base}", "onto": f"origin/{base}"}
     state = pr.get("mergeStateStatus") or pr.get("mergeable") or "?"
-    why = ("solo está atrás de su base (BEHIND): eso no basta, no se actualiza" if state == "BEHIND"
+    if behind:     # mergeStateStatus no siempre dice BEHIND (con el CI rojo dice UNSTABLE): se cuenta con git
+        n = _git(wt, "rev-list", "--count", f"HEAD..origin/{base}").stdout.strip()
+        if n.isdigit() and int(n) > 0:
+            return {"pr": pr, "reason": f"le faltan {n} commit(s) de {base} (--behind)", "onto": f"origin/{base}"}
+        return {"pr": pr, "skip": f"ya está al día con origin/{base}"}
+    why = ("solo está atrás de su base (BEHIND): eso no basta, no se actualiza (si el usuario lo pidió: `--behind`)"
+           if state == "BEHIND"
            else "GitHub todavía está calculando si tiene conflicto: prueba en un rato" if pr.get("mergeable") == "UNKNOWN"
            else f"no tiene conflicto ni madre mergeada ({state}): no hace falta")
     return {"pr": pr, "skip": why}
 
 
-def update(root: Path, sid: str, repo: str | None, *, dry_run: bool = False, out: TextIO) -> int:
+def update(root: Path, sid: str, repo: str | None, *, dry_run: bool = False, behind: bool = False,
+           out: TextIO) -> int:
     links = {p.name: p for p in repo_links(require_session(root, sid))}
     if repo is not None and repo not in links:
         raise SessionError("unknown_repo", f"la sesión {sid} no tiene {repo} (tiene: {', '.join(links) or 'ninguno'})")
@@ -75,7 +83,7 @@ def update(root: Path, sid: str, repo: str | None, *, dry_run: bool = False, out
         if branch in PROTECTED or branch == _default_branch(wt):
             out.write(f"{name}: {branch} es una rama principal, no la toco\n"); failed += 1; continue
         _git(wt, "fetch", "origin", "--prune")
-        p = plan(wt, branch)
+        p = plan(wt, branch, behind=behind)
         if "skip" in p:
             out.write(f"{name}: {branch}: {p['skip']}\n")
             continue

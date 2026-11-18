@@ -133,6 +133,8 @@ def _parser() -> argparse.ArgumentParser:
     up = sub.add_parser("update", help="pone al día tu rama sobre su base SOLO si hay conflicto o su madre del stack se mergeó")
     up.add_argument("repo", nargs="?", help="solo este repo (sin él: todos los de la sesión)")
     up.add_argument("--dry-run", action="store_true", help="solo dice qué haría")
+    up.add_argument("--behind", action="store_true", help="rebasea también si solo está atrás de su base (BEHIND): "
+                    "solo si el usuario lo pidió (rebasear vuelve a correr el CI)")
     up.add_argument("--session")
     pu = sub.add_parser("push", help="sube a origin la rama de cada worktree de la sesión (sin cd; nunca la principal)")
     pu.add_argument("repo", nargs="?", help="solo este repo (sin él: todos los de la sesión)")
@@ -1404,7 +1406,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return migrations_cmd(root, sid, a.repo, fix=a.cmd == "renumber", out=out)
         if a.group == "update":
             from ide_server.update_branch import update
-            return update(root, sid, a.repo, dry_run=a.dry_run, out=out)
+            return update(root, sid, a.repo, dry_run=a.dry_run, behind=a.behind, out=out)
         if a.group == "backport":
             from ide_server.backport import backport
             return backport(root, sid, a.repo, onto=a.onto, source=a.source, out=out)
