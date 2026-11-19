@@ -76,8 +76,8 @@ def items(db: Db, *, open_only: bool = True) -> list[dict]:
 
 
 def update(db: Db, item_id: str, *, text: str | None = None, artifact: str | None = None, with_: str | None = None,
-           kind: str | None = None, blocks: bool | None = None) -> dict:
-    """Editar una decisión abierta: la pregunta, el artefacto y con quién ("" los saca)."""
+           kind: str | None = None, blocks: bool | None = None, context: str | None = None) -> dict:
+    """Editar una decisión abierta: la pregunta, el contexto, el artefacto y con quién ("" los saca)."""
     from ide_server.artifacts import URL_RE
     item = get(db, item_id)
     if item is None or item.get("status") != "open":
@@ -94,6 +94,8 @@ def update(db: Db, item_id: str, *, text: str | None = None, artifact: str | Non
         item["artifact"] = artifact
     if with_ is not None:
         item["with"] = with_.strip()[:80] or None
+    if context is not None:
+        item["context"] = context.strip()[:MAX_TEXT * 4] or None
     if kind in KINDS:
         item["kind"] = kind
     if blocks is not None:

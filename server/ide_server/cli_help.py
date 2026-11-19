@@ -187,6 +187,11 @@ ejemplos:
   ide later done D3 -m "se decidió por fecha de pago"
 --blocks = ya no puedes avanzar en nada más: el desarrollo pasa a Bloqueado (y el ticket a Awaiting Client) hasta
 que se cierre. El texto, corto; el análisis va en un artefacto (--artifact <link>), no en -m."""),
+    "later edit": ("Edita un bloqueante abierto: solo cambia lo que pases. Una sesión, solo los de su desarrollo.",
+                   "ejemplos:\n  ide later edit D3 --text \"¿Se avisa también al aprobador?\"\n"
+                   "  ide later edit P4 --with \"Laura (CX)\" --no-blocks\n  ide later edit D3 -m \"\"          # le saca el contexto\n"
+                   "  ide later edit P4 --decision                # pasa a decisión del usuario\n"
+                   "El callout del ticket en Notion no cambia: si hace falta, edítalo allá."),
     "later add": ("Deja un bloqueante en el desarrollo de la sesión.", """\
 ejemplos:
   ide later add "¿Filtramos por fecha de factura o de pago?" --with "Sebastián (CX)"

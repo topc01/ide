@@ -218,6 +218,17 @@ def _parser() -> argparse.ArgumentParser:
     ll = lt.add_parser("ls", help="pendientes abiertos de todos los desarrollos")
     ll.add_argument("--json", action="store_true"); ll.add_argument("--all", action="store_true", help="también respondidos/descartados")
     ll.add_argument("--mine", action="store_true", help="solo los del desarrollo de esta sesión")
+    le = lt.add_parser("edit", help="edita un bloqueante abierto: solo cambia lo que pases")
+    le.add_argument("id", help="el código (D3, P4) o el id")
+    le.add_argument("--text", help="la pregunta, en una línea"); le.add_argument("-m", "--context", help="el contexto (\"\" lo saca)")
+    le.add_argument("--artifact", help="link del artefacto (\"\" lo saca)")
+    le.add_argument("--with", dest="with_", help="con quién (\"\" lo saca)")
+    lk = le.add_mutually_exclusive_group()
+    lk.add_argument("--pending", action="store_true", help="pasa a pendiente (algo que se espera de alguien)")
+    lk.add_argument("--decision", action="store_true", help="pasa a decisión del usuario")
+    lb = le.add_mutually_exclusive_group()
+    lb.add_argument("--blocks", action="store_true", help="bloquea el desarrollo")
+    lb.add_argument("--no-blocks", action="store_true", help="deja de bloquear el desarrollo")
     ld = lt.add_parser("done", help="marca un pendiente como resuelto (p.ej. se resolvió en el chat)")
     ld.add_argument("id", help="el código (D3, P4) o el id"); ld.add_argument("-m", "--note", help="cómo se resolvió")
     sv = sub.add_parser("server", help="servidores de tu desarrollo por bloque (stack de un repo), como el módulo Servidores").add_subparsers(dest="cmd", required=True)
@@ -777,6 +788,22 @@ def _later_cmd(a, url: str | None, http, out: TextIO, env: dict, root: Path | No
                    "actor": actor, "token": env.get("IDE_MANAGER_TOKEN", "")})
         out.write(f"{'pendiente' if it.get('kind') == 'pending' else 'decisión'} {'P' if it.get('kind') == 'pending' else 'D'}{it.get('num')} en {sid}"
                   f"{' (bloquea el desarrollo: pasa a Bloqueado)' if it.get('blocks') else ''}\n")
+        return 0
+    if a.cmd == "edit":
+        from urllib.parse import quote
+        body: dict = {k: v for k, v in {"text": a.text, "context": a.context, "artifact": a.artifact, "with": a.with_}.items()
+                      if v is not None}
+        if a.pending or a.decision:
+            body["kind"] = "pending" if a.pending else "decision"
+        if a.blocks or a.no_blocks:
+            body["blocks"] = bool(a.blocks)
+        if not body:
+            raise SessionError("bad_request", "no cambiaste nada: pasa --text, -m, --with, --artifact, --pending/--decision o --blocks/--no-blocks")
+        actor = f"claude:{env['IDE_SESSION_ID']}" if env.get("IDE_SESSION_ID") else "cli"
+        it = _post(http, url, f"/api/later/{quote(a.id, safe='')}/edit",
+                   {**body, "actor": actor, "token": env.get("IDE_MANAGER_TOKEN", "")})["item"]
+        code = f"{'P' if it.get('kind') == 'pending' else 'D'}{it.get('num')}"
+        out.write(f"{code}\teditado: {it['text'][:100]}" + (" (bloquea)" if it.get("blocks") else "") + "\n")
         return 0
     if a.cmd == "done":
         from urllib.parse import quote

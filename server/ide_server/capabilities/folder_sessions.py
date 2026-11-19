@@ -2673,12 +2673,22 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             log.exception("no pude pasar el callout al final")
 
     async def later_update(p: dict) -> dict:
-        """Editar una decisión (módulo Decisiones: pregunta, con quién, artefacto). Solo desde la UI."""
-        if p.get("_http") or db is None:
-            raise SessionError("forbidden", "se edita desde el módulo Decisiones")
+        """Editar un bloqueante abierto (pregunta, contexto, con quién, artefacto, tipo, si bloquea): desde la UI, o por
+        HTTP (`ide later edit`): una sesión solo los suyos; tú o la manager, cualquiera."""
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        if p.get("_http"):
+            cur = later_mod.get(db, str(p.get("id")))
+            if cur is None or cur.get("status") != "open":
+                raise SessionError("not_found", "ese bloqueante ya no está abierto")
+            if str(cur.get("key") or "").startswith("s:"):
+                _own_or_user(p, cur["key"][2:], "los bloqueantes")
+            elif _manager_or_terminal(p) is None:
+                raise SessionError("forbidden", "ese bloqueante no es de tu desarrollo")
         try:
             item = later_mod.update(db, str(p.get("id")), text=p.get("text"), artifact=p.get("artifact"), with_=p.get("with"),
-                                    kind=p.get("kind"), blocks=p.get("blocks") if "blocks" in p else None)
+                                    kind=p.get("kind"), blocks=p.get("blocks") if "blocks" in p else None,
+                                    context=p.get("context"))
         except KeyError:
             raise SessionError("not_found", "esa decisión ya no está abierta")
         except ValueError as exc:
