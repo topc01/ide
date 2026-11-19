@@ -293,7 +293,9 @@ class Supervisor:
             return self.state(sid)
         if resume is None:
             resume = has_history(session_cwd(self._root, sid), self._home)
-        if not force and self._full() and not self._evict_one():
+        # la manager, la IDE, Recursos y Plugins no cuentan para el tope y se abren siempre
+        fixed = self._kind(sid) in self.FIXED_KINDS
+        if not force and not fixed and self._full() and not self._evict_one():
             # sin lugar: espera en la cola con su prompt y entra apenas haya (se revisa cada minuto: una sesión
             # que pasa a llevar EVICT_IDLE sin trabajar se cierra para hacerle lugar)
             self._queue.append((sid, resume, prompt))
