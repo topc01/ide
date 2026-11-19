@@ -138,6 +138,7 @@ def _parser() -> argparse.ArgumentParser:
     mi = sub.add_parser("migrations", help="las migraciones de tu rama contra la base (develop): si chocan, renumerarlas").add_subparsers(dest="cmd", required=True)
     for c in ("check", "renumber"):
         x = mi.add_parser(c); x.add_argument("repo", nargs="?"); x.add_argument("--session")
+        x.add_argument("--base", help="contra esta base en vez de la de la PR en GitHub (p. ej. develop, si la vas a mover)")
     up = sub.add_parser("update", help="pone al día tu rama sobre su base SOLO si hay conflicto o su madre del stack se mergeó")
     up.add_argument("repo", nargs="?", help="solo este repo (sin él: todos los de la sesión)")
     up.add_argument("--dry-run", action="store_true", help="solo dice qué haría")
@@ -253,6 +254,11 @@ def _parser() -> argparse.ArgumentParser:
     sg.add_argument("-n", "--lines", type=int, default=60)
     for x in (sl, ss, st_, sg):
         x.add_argument("--dev", help="otro desarrollo (#n o id); default: el de tu sesión")
+    pm = sub.add_parser("pr", help="mover una PR tuya a otra base").add_subparsers(dest="cmd", required=True)
+    pmv = pm.add_parser("move", help="mueve una PR tuya de una base a otra (p. ej. sacarla del stack a su rama desde "
+                        "develop): re-aplica solo sus commits, renumera migraciones, sube y cambia la base; queda en tu desarrollo")
+    pmv.add_argument("pr", help="URL o repo#n (p. ej. api#5900)"); pmv.add_argument("--onto", required=True, help="la base nueva (p. ej. develop)")
+    pmv.add_argument("--session")
     dp = sub.add_parser("dep", help="dependencias entre PRs (además de la sección ## Dependencias)").add_subparsers(dest="cmd", required=True)
     da = dp.add_parser("add", help="la PR depende de estas"); da.add_argument("pr"); da.add_argument("deps", nargs="+")
     dr = dp.add_parser("rm", help="saca dependencias agregadas en el IDE")
@@ -1465,7 +1471,7 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             out.write(f"{a.pr}: merge armado ({data.get('state')}); el avance se ve en la card\n")
             return 0
         sid = current_session(root, env=env, cwd=cwd, explicit=getattr(a, "session", None))
-        if a.group in ("migrations", "update", "backport"):
+        if a.group in ("migrations", "update", "backport", "pr"):
             # una sesión solo toca sus ramas (como `ide push`)
             caller = env.get("IDE_SESSION_ID")
             if caller is None:
@@ -1477,10 +1483,18 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
                 raise SessionError("forbidden", f"desde la sesión {caller} no se tocan las ramas de {sid}")
         if a.group == "migrations":
             from ide_server.update_branch import migrations_cmd
-            return migrations_cmd(root, sid, a.repo, fix=a.cmd == "renumber", out=out)
+            return migrations_cmd(root, sid, a.repo, fix=a.cmd == "renumber", out=out, base=a.base)
         if a.group == "update":
             from ide_server.update_branch import update
             return update(root, sid, a.repo, dry_run=a.dry_run, behind=a.behind, out=out)
+        if a.group == "pr":
+            from ide_server.pr_move import move
+            from ide_server.review_publish import _pr
+            from urllib.parse import quote as q_
+            repo_, n_, url_ = _pr(root, a.pr)
+            # queda en este desarrollo: asignarla antes, si no una rama desde develop se separa sola en otro
+            _post(http, url, f"/api/devs/{q_(sid, safe='')}/keep", {"pr": url_})
+            return move(root, sid, repo_, n_, url_, onto=a.onto, out=out)
         if a.group == "backport":
             from ide_server.backport import backport
             return backport(root, sid, a.repo, onto=a.onto, source=a.source, out=out)

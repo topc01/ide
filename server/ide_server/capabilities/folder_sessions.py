@@ -2174,6 +2174,22 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         rm_repo(root, holder["id"], repo, out=io.StringIO())
         return f"liberé {head}: salió del worktree de {hl}. Para trabajarla desde {tl}, {take}"
 
+    async def dev_keep_pr(p: dict) -> dict:
+        """`ide pr move`: fija en su desarrollo una PR que **ya es de ese desarrollo**, antes de cambiarle la base (si
+        no, una rama que pasa a salir de develop se separa sola en otro). Una sesión solo para las suyas (por proceso)."""
+        if db is None:
+            raise SessionError("no_db", "sin base")
+        sid = _resolve(p.get("id"))
+        _own_or_user(p, sid, "fijar PRs")
+        url = _pr_url(p.get("pr") or "")
+        sessions = await _sessions_now()
+        owner = await asyncio.to_thread(_owner, url, sessions)
+        if owner != sid:
+            raise SessionError("forbidden", f"{url} no es de este desarrollo ({_dev_label(owner)}): muévela con `ide dev link` "
+                               f"(la manager o el usuario)")
+        db.link_pr(url, sid)
+        return {"ok": True}
+
     async def dev_link_pr(p: dict) -> dict:
         """Asigna PRs a un desarrollo (`ide dev link`, "mover a otro desarrollo…"): pisa la asignación
         que tuvieran (explícita > pegajosa > por rama > stack) y quedan pegajosas en el nuevo. Avisa si
@@ -3015,7 +3031,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
         "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "dev.ticketCallout": ticket_callout, "notifs.read": notifs_read, "sessions.tourSet": tour_set, "sessions.tourGet": tour_get, "sessions.tourStart": tour_start, "sessions.tourRequest": tour_request, "tour.done": tour_done, "ui.theme": ui_theme_set, "ui.themeGet": ui_theme_get, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
-        "sessions.stop": stop, "sessions.memory": memory, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
+        "sessions.stop": stop, "dev.keepPr": dev_keep_pr, "sessions.memory": memory, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
         "attachments.rename": attachments_rename, "attachments.mkdir": attachments_mkdir, "attachments.move": attachments_move, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status, "telegram.toggle": tg_toggle, "telegram.guard": tg_guard,
         "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.archived": archived, "sessions.unarchive": unarchive, "sessions.script": script,

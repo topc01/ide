@@ -160,10 +160,13 @@ def update(root: Path, sid: str, repo: str | None, *, dry_run: bool = False, beh
     return 1 if failed else 0
 
 
-def migrations_cmd(root: Path, sid: str, repo: str | None, *, fix: bool, out: TextIO) -> int:
+def migrations_cmd(root: Path, sid: str, repo: str | None, *, fix: bool, out: TextIO, base: str | None = None) -> int:
     """`ide migrations check|renumber`: las migraciones de la rama de cada worktree contra la base de su PR
     (o develop); `renumber` las corrige con un commit y sube la rama (sin --force)."""
     from ide_server import migrations
+    forced = base
+    if forced is not None and (not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,150}", forced) or ".." in forced):
+        raise SessionError("bad_ref", f"rama inválida: {forced!r}")
     links = {p.name: p for p in repo_links(require_session(root, sid))}
     if repo is not None and repo not in links:
         raise SessionError("unknown_repo", f"la sesión {sid} no tiene {repo} (tiene: {', '.join(links) or 'ninguno'})")
@@ -174,8 +177,12 @@ def migrations_cmd(root: Path, sid: str, repo: str | None, *, fix: bool, out: Te
         if not branch:
             out.write(f"{name}: sin rama, no reviso\n"); continue
         _git(wt, "fetch", "origin", "--prune")
-        pr = _gh(wt, "pr", "view", branch, "--json", "baseRefName")
-        base = json.loads(pr.stdout)["baseRefName"] if pr.returncode == 0 else "develop"
+        if forced:
+            base = forced
+            _git(wt, "fetch", "origin", f"+refs/heads/{base}:refs/remotes/origin/{base}")
+        else:
+            pr = _gh(wt, "pr", "view", branch, "--json", "baseRefName")
+            base = json.loads(pr.stdout)["baseRefName"] if pr.returncode == 0 else "develop"
         try:
             plan = migrations.plan(wt, f"origin/{base}", "HEAD")
         except RuntimeError as exc:

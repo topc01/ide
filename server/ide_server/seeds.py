@@ -56,6 +56,7 @@ comando choca con una trampa conocida, el IDE lo frena y te dice el correcto.
 | backport de un hotfix | `ide backport` | el hotfix también va a develop |
 | poner al día tu rama | `ide update` | solo si GitHub marca conflicto o se mergeó la madre del stack |
 | revisar migraciones | `ide migrations check\\|renumber` | antes de pedir revisión; si chocan, renumera sin preguntar |
+| mover una PR a otra base (p. ej. sacarla del stack a develop) | `ide pr move <pr> --onto <base>` | no lo hagas a mano con git; frena si la PR toca archivos que solo están en la base vieja |
 | consultar prod o staging | `ide db` | solo lectura; va solo en la línea. Antes de escribir el SQL, mira las columnas reales con `mcp__claude_ai_Finnecto_CX__describe_schema` (`table`; `environment=staging`): no las adivines |
 | chequeo de tipos o build de un front | `ide typecheck [<repo>] [--build]` | nunca `vue-tsc`, `npm run type-check` ni `npm run build` sueltos: va de a uno entre todas las sesiones, con tope de memoria |
 | servidores para probar | `ide server` | levantar api y fronts; `start … --wait` espera a que respondan (sin loops con sleep) |

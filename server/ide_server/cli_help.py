@@ -18,6 +18,12 @@ ejemplos:
   ide push                                  # todos los repos de la sesión
   ide push finnecto-api --force             # --force-with-lease, después de un rebase
   ide push finnecto-api --branch tpc/d12-x-develop   # otra rama local (p.ej. las de un stack o un backport)"""),
+    "pr": ("Mueve una PR tuya a otra base (p. ej. sacar una PR apilada a su propia rama desde develop): frena si toca "
+           "archivos que solo están en la base vieja o si sus commits chocan (sin mover nada), renumera migraciones, "
+           "sube con --force-with-lease, cambia la base en GitHub y la deja en tu desarrollo.", """\
+ejemplos:
+  ide pr move api#5900 --onto develop       # la saca del stack a develop
+  ide migrations check --base develop       # revisar las migraciones contra develop antes de moverla"""),
     "backport": ("El backport de un hotfix, en el mismo desarrollo: crea un worktree extra en tu carpeta de worktrees "
                  "(<repo>-develop) con la rama <tu rama>-develop desde origin/develop, copia los commits del hotfix "
                  "(cherry-pick -x) y la sube.", """\
