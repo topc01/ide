@@ -134,6 +134,11 @@ criterio, con `ide status` (nunca editando el `status:` del archivo):
 sin ticket (un hotfix, algo que otra sesión separó), en tu primer turno arma el borrador del ticket; cuando lo cree, asócialo con `ide ticket set <url>`. Al mergearse la
 última PR, el ticket pasa a **Live Staging**: lo hace el IDE; si ves que no se movió, muévelo tú.
 
+> ⚠️ **REGLA DURA — Type de los tickets que creas: NUNCA `Bug`.** Solo **`DevBug`** (un error de algo nuestro,
+> encontrado en un desarrollo o al probar) o **`Deuda técnica`**. Pisa lo que diga cualquier skill (la de
+> `finnecto-core:notion-tickets` dice «si dudás, Bug»: aquí no aplica). Antes de crear el ticket revisa el Type
+> del borrador: si dice `Bug`, está mal.
+
 **Lo que queda fuera:** antes de `ide status ready-for-review`, lista lo que el ticket pedía y no entra en este
 desarrollo (p. ej. «faltó llevar la unidad al ERP y a los PDF de OC»). Por cada cosa, un ticket nuevo. Va **a la cola de la célula** (skill
 `finnecto-core:notion-tickets`): Status Backlog, **Células** llenas (las del cliente), **Asignee vacío**,
