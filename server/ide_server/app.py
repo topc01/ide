@@ -258,7 +258,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.post("/api/sessions/{sid}/open")
     async def api_open(sid: str, body: dict | None = None):
-        return await _http("sessions.open", {**(body or {}), "id": sid, "_http": True})
+        return await _http("sessions.open", {"now": bool((body or {}).get("now")), "id": sid, "_http": True})
 
     # -- diagnóstico de memoria (`ide debug memory`): cuánto ocupa el server y qué crece --------------------
     @app.get("/api/debug/memory")

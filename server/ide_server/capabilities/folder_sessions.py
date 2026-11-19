@@ -581,7 +581,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return await tree_payload()
 
     async def new(p: dict) -> dict:
-        _away_check(p)
+        _away_check(p, dry_run_ok=True)          # un dry-run solo valida: no crea ni lanza nada
         p = {k: v for k, v in p.items() if k not in ("_http", "_peer")}
         res = await asyncio.to_thread(create_session, root, p)
         if res.get("dryRun") or res.get("existed"):
@@ -984,11 +984,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         main = find_main(root)
         return bool(main) and _calling_session(p) == main
 
-    def _away_check(p: dict) -> None:
+    def _away_check(p: dict, *, dry_run_ok: bool = False) -> None:
         """Lanzar trabajo en una sesión por HTTP mientras la manager responde un mensaje de Telegram (sin la ventana del
         código): la manager no (por su token o por proceso: alguien con tu Telegram la usaría para eso). Las demás
         sesiones siguen trabajando solas: no reciben nada de Telegram."""
-        if not p.get("_http") or guard is None or guard.manager_send_ok() or p.get("dry_run"):
+        if not p.get("_http") or guard is None or guard.manager_send_ok() or (dry_run_ok and p.get("dry_run")):
             return
         if _is_manager_call(p):
             raise SessionError("telegram_window", "respondes un mensaje de Telegram sin la ventana del código abierta: para lanzar trabajo en una "
