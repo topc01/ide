@@ -1066,17 +1066,21 @@ def _telegram(a, root: Path, url: str | None, http, out: TextIO) -> int:
     from ide_server import telegram_guard as tgg
     if a.cmd == "status":
         out.write(f"token en el llavero: {'sí' if get_token() else 'no'}\nchat vinculado: {'sí' if db.get('telegram:chat') else 'no'}\n"
-                  f"código de verificación (2FA): {'sí' if tgg.get_secret() else 'no (ide telegram 2fa)'}\n")
+                  f"código de verificación (2FA): {'sí' if tgg.configured() else 'no (ide telegram 2fa)'}\n")
         return 0
     # vincular el chat o cambiar la clave del código: solo tú, en tu terminal (nunca una sesión ni algo que lanzó)
     if any(os.environ.get(k) for k in ("IDE_SESSION_ID", "IDE_MANAGER_TOKEN", "IDE_PLUGINS_TOKEN")) or not sys.stdin.isatty():
         raise SessionError("forbidden", "esto se corre en tu terminal, no desde una sesión")
     if a.cmd == "2fa":
-        old = tgg.get_secret()
-        if old:
+        from ide_server import totpd
+        if tgg.configured():
+            # para cambiarla, el código actual (lo verifica el guardián: la clave no sale de él)
+            totpd.ensure()
             cur = getpass.getpass("Ya hay una clave. Código actual de tu app (6 dígitos): ").strip()
-            if not any(_secrets.compare_digest(tgg.totp(old, None, o)[1], cur) for o in (-1, 0, 1)):
-                raise SessionError("forbidden", "código incorrecto: la clave no cambió")
+            res = totpd.ask({"op": "verify", "code": cur}, timeout=30)
+            if not (res or {}).get("ok"):
+                raise SessionError("forbidden", "código incorrecto (o el guardián no tiene la clave cargada: acepta "
+                                                "«Permitir» en el aviso del llavero): la clave no cambió")
         new = tgg.new_secret()
         grouped = " ".join(new[i:i + 4] for i in range(0, len(new), 4))
         out.write("En tu app de autenticación (Google Authenticator, 1Password, …): agregar cuenta → «ingresar clave»:\n"
@@ -1088,7 +1092,12 @@ def _telegram(a, root: Path, url: str | None, http, out: TextIO) -> int:
             raise SessionError("bad_request", "código incorrecto: no guardé la clave (vuelve a correrlo)")
         tgg.set_secret(new)
         db.delete("telegram:laststep")
-        out.write("Listo: clave guardada en el llavero. Para actuar desde Telegram, mándale al bot el código del momento.\n")
+        totpd.ensure()
+        totpd.ask({"op": "reload"})
+        out.write("Listo: clave guardada en el llavero, con confirmación. Ahora la Mac te muestra un aviso del llavero:\n"
+                  "  apreta «Permitir» (NO «Permitir siempre»: así ninguna otra app la lee sin preguntarte).\n"
+                  "Ese aviso sale una vez por cada vez que prendes la Mac, no con cada reinicio del IDE.\n"
+                  "Para actuar desde Telegram, mándale al bot el código del momento.\n")
         return 0
     token = getpass.getpass("Token del bot (de @BotFather; no se muestra): ").strip()
     if not re.fullmatch(r"\d+:[A-Za-z0-9_-]{30,}", token):

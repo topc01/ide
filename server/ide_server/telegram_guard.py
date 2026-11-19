@@ -6,7 +6,9 @@
   (`ui.presence`, solo por el websocket de la UI: un comando de una sesión no la puede fingir). Con actividad en los
   últimos `PRESENT` segundos, un mensaje por Telegram no le llega a la manager.
 - **Código de verificación (2FA, TOTP de 6 dígitos)**: la clave se crea con `ide telegram 2fa` y vive en el llavero
-  (servicio `ide-telegram`, cuenta `totp`); la cargas en una app de autenticación. Mandarle al bot el código del
+  (servicio `ide-telegram`, cuenta `totp`) **con confirmación** (sin apps de confianza: leerla pregunta en la Mac); la
+  cargas en una app de autenticación. El IDE nunca la lee: la tiene en memoria el guardián `totpd.py`, que no se
+  reinicia con el IDE, y le pregunta si un código es correcto. Mandarle al bot el código del
   momento abre una **ventana** de `WINDOW` segundos: solo dentro de ella valen el «Sí» de una propuesta, un mensaje
   directo a Plugins y que la manager le mande trabajo directo a una sesión mientras no estás. `MAX_FAILS` códigos
   incorrectos bloquean `LOCK` segundos. Un código se acepta una sola vez."""
@@ -41,27 +43,35 @@ def new_secret() -> str:
     return base64.b32encode(secrets.token_bytes(20)).decode().rstrip("=")
 
 
-def get_secret() -> str | None:
+def configured() -> bool:
+    """¿Hay clave en el llavero? (solo los atributos: no la lee, no pregunta)."""
     if sys.platform != "darwin":
-        return None
-    out = subprocess.run(["security", "find-generic-password", "-s", SERVICE, "-a", "totp", "-w"],
-                         capture_output=True, text=True)
-    return out.stdout.strip() or None if out.returncode == 0 else None
+        return False
+    return subprocess.run(["security", "find-generic-password", "-s", SERVICE, "-a", "totp"],
+                          capture_output=True, text=True).returncode == 0
 
 
 def set_secret(secret: str) -> None:
+    """Al llavero sin apps de confianza (`-T ""`): leerla pregunta en la Mac. Se borra la anterior (su ACL quedaría)."""
     if not secret.isalnum():
         raise RuntimeError("clave inválida")
-    out = subprocess.run(["security", "-i"], input=f'add-generic-password -U -s {SERVICE} -a totp -w "{secret}"\n',
+    subprocess.run(["security", "delete-generic-password", "-s", SERVICE, "-a", "totp"], capture_output=True, text=True)
+    out = subprocess.run(["security", "-i"], input=f'add-generic-password -s {SERVICE} -a totp -T "" -w "{secret}"\n',
                          capture_output=True, text=True)
     if out.returncode != 0:
         raise RuntimeError(f"no pude guardar la clave en el llavero: {out.stderr.strip()}")
 
 
+def daemon_verify(code: str) -> dict | None:
+    from ide_server import totpd
+    return totpd.ask({"op": "verify", "code": code})
+
+
 class Guard:
-    def __init__(self, db, *, secret=get_secret, clock=time.time) -> None:
+    def __init__(self, db, *, verify=daemon_verify, has_secret=configured, clock=time.time) -> None:
         self.db = db
-        self._secret = secret
+        self._verify = verify
+        self._has = has_secret
         self._clock = clock
         self._seen = 0.0                       # última actividad tuya en la UI (en memoria: un reinicio = ausente)
 
@@ -104,7 +114,7 @@ class Guard:
     def status(self) -> dict:
         mode = ("off" if not self.on() else "ide" if self.present() else "window" if self.can_act() else "listening")
         return {"on": self.on(), "mode": mode, "windowUntil": self.window_until() or None,
-                "lockedUntil": self.locked_until() or None, "twoFactor": bool(self._secret()),
+                "lockedUntil": self.locked_until() or None, "twoFactor": self._has(),
                 "presentFor": PRESENT, "window": WINDOW}
 
     # -- código ---------------------------------------------------------------------------------------
@@ -113,20 +123,21 @@ class Guard:
         if self.locked_until():
             return False, "Demasiados códigos incorrectos: bloqueado hasta las " + time.strftime(
                 "%H:%M", time.localtime(self.locked_until())) + "."
-        secret = self._secret()
-        if not secret:
+        if not self._has():
             return False, "No hay código configurado: en tu Mac, `ide telegram 2fa`."
+        res = self._verify(code)
+        if res is None:
+            return False, ("El guardián del código no responde (¿se reinició la Mac? al arrancar, el llavero pide "
+                           "«Permitir» en la Mac). Hasta entonces no puedo abrir la ventana.")
         now = self._clock()
         last = int(self.db.get("telegram:laststep") or 0)
-        for off in (-1, 0, 1):
-            step, want = totp(secret, now, off)
-            if step > last and hmac.compare_digest(want, code):
-                self.db.set("telegram:laststep", step)       # un código no se reusa
-                self.db.delete("telegram:lock")
-                self.db.set("telegram:window", now + WINDOW)
-                return True, ("Código correcto: ventana abierta hasta las "
-                              + time.strftime("%H:%M", time.localtime(now + WINDOW))
-                              + ". Puedes aprobar propuestas y la manager puede mandarle trabajo a las sesiones.")
+        if res.get("ok") and int(res.get("step") or 0) > last:
+            self.db.set("telegram:laststep", int(res["step"]))       # un código no se reusa
+            self.db.delete("telegram:lock")
+            self.db.set("telegram:window", now + WINDOW)
+            return True, ("Código correcto: ventana abierta hasta las "
+                          + time.strftime("%H:%M", time.localtime(now + WINDOW))
+                          + ". Puedes aprobar propuestas y la manager puede mandarle trabajo a las sesiones.")
         lk = self.db.get("telegram:lock") or {}
         fails = int(lk.get("fails") or 0) + 1
         if fails >= MAX_FAILS:

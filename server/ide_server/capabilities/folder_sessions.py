@@ -1019,6 +1019,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     bridge = TelegramBridge(db, deliver=_tg_deliver, propose_ok=_tg_propose_ok, on_change=lambda: notify()) \
         if db is not None else None
     guard = bridge.guard if bridge is not None else None
+    if guard is not None and not os.environ.get("IDE_DB_PATH"):
+        # el guardián del código (aparte del IDE: sobrevive a sus reinicios; el llavero pregunta solo cuando arranca)
+        from ide_server import telegram_guard as _tgg, totpd as _totpd
+        if _tgg.configured():
+            threading.Thread(target=_totpd.ensure, daemon=True).start()
 
     def _calling_session(p: dict) -> str | None:
         """La sesión cuyo claude hizo la llamada HTTP (por proceso, no por lo que dice el comando)."""
@@ -1057,10 +1062,6 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         import unicodedata
         text = "".join(ch for ch in unicodedata.normalize("NFKC", text) if unicodedata.category(ch) != "Cf")
         # nunca una clave por Telegram (un texto armado desde un archivo o una página): se rechaza entero
-        from ide_server.telegram_guard import get_secret as _tg_secret
-        _sec = await asyncio.to_thread(_tg_secret)
-        if _sec and re.sub(r"[\s-]", "", _sec.upper()) in re.sub(r"[\s-]", "", text.upper()):
-            raise SessionError("secret", "el mensaje tiene la clave del código de verificación: no lo mando por Telegram")
         if _SECRET_RE.search(text):
             raise SessionError("secret", "el mensaje parece tener una clave (llave privada, token): no lo mando por Telegram")
         if prefix:

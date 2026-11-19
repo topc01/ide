@@ -270,15 +270,18 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
     la manager (el bot contesta que está en pausa). Al reiniciar el IDE cuenta como ausente hasta que toques la página.
   - **Código de verificación (2FA)**: `ide telegram 2fa` (solo en tu terminal: se niega desde una sesión o sin TTY;
     para cambiarla pide el código actual) crea una clave TOTP (6 dígitos, 30 s) en el llavero (`ide-telegram`/`totp`)
-    que cargas en una app de autenticación. Mandarle al bot el código del momento abre una **ventana de 30 min**;
+    **con confirmación** (`-T ""`: sin apps de confianza; leerla pregunta en la Mac) que cargas en una app de
+    autenticación. El IDE nunca la lee: la tiene en memoria el **guardián** (`totpd.py`, `python -m ide_server.totpd`),
+    un proceso aparte que el IDE arranca si no corre y que **no se reinicia con el IDE**; la lee del llavero al arrancar
+    (el aviso del llavero sale una vez por arranque: «Permitir», no «Permitir siempre») y contesta por un socket local
+    (`~/.ide-totp/sock`, solo tu usuario) si un código es correcto, con su propio tope (5 incorrectos en 10 min → 1 h). Mandarle al bot el código del momento abre una **ventana de 30 min**;
     un código no se reusa; 5 incorrectos seguidos bloquean 1 h.
   - **Qué pide la ventana** (solo mientras no estás en el IDE y Telegram escucha): el «Sí» de una propuesta (sin
     ventana, contesta que mandes el código; la propuesta queda), un mensaje directo a Plugins («plugin: …»), y que la
     manager (por su token o por proceso) le mande trabajo a una sesión (`ide session send`, `telegram_window`), lance
     una por HTTP (`sessions.new`, `sessions.open`, `reviews.startStack`: `_away_check`) o consulte la base (`ide db`:
     la CLI pregunta `GET /api/telegram/guard`, que mira el proceso; si el server no responde, se niega con la clave de
-    la manager). Las demás sesiones siguen trabajando solas (no reciben nada de Telegram). `ide reply` no manda un
-    texto que contenga la clave del código. Preguntarle a la manager
+    la manager). Las demás sesiones siguen trabajando solas (no reciben nada de Telegram). Preguntarle a la manager
     y que te conteste o proponga no la necesita. Estando en el IDE (o con Telegram apagado), nada de esto cambia.
   - El hook de las sesiones frena `ide telegram setup|2fa` y cualquier comando que nombre `ide-telegram` (el llavero).
 
