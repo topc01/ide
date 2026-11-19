@@ -274,8 +274,11 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
     un código no se reusa; 5 incorrectos seguidos bloquean 1 h.
   - **Qué pide la ventana** (solo mientras no estás en el IDE y Telegram escucha): el «Sí» de una propuesta (sin
     ventana, contesta que mandes el código; la propuesta queda), un mensaje directo a Plugins («plugin: …»), y que la
-    manager le mande trabajo a una sesión (`ide session send`, `telegram_window`), cree una con trabajo (`ide session
-    new`, por proceso) o consulte la base (`ide db`, por la CLI; `GET /api/telegram/guard`). Preguntarle a la manager
+    manager (por su token o por proceso) le mande trabajo a una sesión (`ide session send`, `telegram_window`), lance
+    una por HTTP (`sessions.new`, `sessions.open`, `reviews.startStack`: `_away_check`) o consulte la base (`ide db`:
+    la CLI pregunta `GET /api/telegram/guard`, que mira el proceso; si el server no responde, se niega con la clave de
+    la manager). Las demás sesiones siguen trabajando solas (no reciben nada de Telegram). `ide reply` no manda un
+    texto que contenga la clave del código. Preguntarle a la manager
     y que te conteste o proponga no la necesita. Estando en el IDE (o con Telegram apagado), nada de esto cambia.
   - El hook de las sesiones frena `ide telegram setup|2fa` y cualquier comando que nombre `ide-telegram` (el llavero).
 

@@ -1297,9 +1297,13 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "telegram":
             return _telegram(a, root, url, http, out)
         if a.group == "db":
-            if env.get("IDE_MANAGER_TOKEN") and not _get(http, url, "/api/telegram/guard").get("managerOk", True):
-                raise SessionError("telegram_window", "no estás en el IDE y Telegram está activo: la manager no consulta "
-                                   "la base hasta que el usuario abra la ventana con su código de 6 dígitos (o vuelva al IDE)")
+            try:                               # por proceso en el server; si no responde, falla cerrado dentro del IDE
+                guard_ok = _get(http, url, "/api/telegram/guard").get("managerOk") is True
+            except SessionError:
+                guard_ok = not env.get("IDE_MANAGER_TOKEN")
+            if not guard_ok:
+                raise SessionError("telegram_window", "no estás en el IDE y Telegram está activo: la manager no "
+                                   "consulta la base hasta que el usuario abra la ventana con su código de 6 dígitos (o vuelva al IDE)")
             return _db_query(a.env, a.sql, home, out, err, csv=a.csv, to=a.out, root=root, sid=env.get("IDE_SESSION_ID"))
         if a.group == "browser":
             return _browser(a, root, env, out)

@@ -255,7 +255,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.post("/api/sessions/{sid}/open")
     async def api_open(sid: str):
-        return await _http("sessions.open", {"id": sid})
+        return await _http("sessions.open", {"id": sid, "_http": True})
 
     # -- diagnóstico de memoria (`ide debug memory`): cuánto ocupa el server y qué crece --------------------
     @app.get("/api/debug/memory")
@@ -559,7 +559,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.get("/api/telegram/guard")
     async def api_tg_guard():
-        return await _http("telegram.guard", {})
+        return await _http("telegram.guard", {"_http": True})
 
     @app.post("/api/telegram/reply")
     async def api_tg_reply(body: dict):

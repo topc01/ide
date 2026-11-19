@@ -580,13 +580,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return await tree_payload()
 
     async def new(p: dict) -> dict:
-        # la manager (por proceso) crea una sesión que arranca a trabajar: mientras no estás y Telegram escucha, solo
-        # con la ventana del código abierta (si no, alguien con tu Telegram la usaría para lanzar trabajo)
-        if p.get("_http") and guard is not None and not guard.manager_send_ok() and not p.get("dry_run"):
-            sid_ = await asyncio.to_thread(_calling_session, p)
-            if sid_ and sid_ == find_main(root):
-                raise SessionError("telegram_window", "no estás en el IDE y Telegram está activo: para lanzar trabajo usa "
-                                   "`ide session propose` (el usuario lo aprueba con su código de 6 dígitos)")
+        _away_check(p)
         p = {k: v for k, v in p.items() if k not in ("_http", "_peer")}
         res = await asyncio.to_thread(create_session, root, p)
         if res.get("dryRun") or res.get("existed"):
@@ -597,6 +591,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     async def new_for_pr(p: dict) -> dict:
         """Sesión para seguir trabajando una PR propia (worktree en su rama) y lanzar su claude."""
+        _away_check(p)
         res = await asyncio.to_thread(create_pr_session, root, p["url"])
         sid = res["session"]["id"]
         if db is not None and gh_reviews is not None:      # la sesión hereda el número de la PR/stack
@@ -632,6 +627,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 later_mod.close(db, it["id"], "dismissed", "pasó a la sesión como aviso")
 
     async def open_(p: dict) -> dict:
+        _away_check(p)
         if db is not None and db.get(f"paused:{p['id']}"):
             return {"process": "paused"}        # pausada: no se relanza sola al entrar; se reanuda con el botón
         held = (db.get(f"notices:{p['id']}") or []) if db is not None else []
@@ -975,6 +971,23 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                             r"\bgithub_pat_[A-Za-z0-9_]{40,}|\bsk-ant-[A-Za-z0-9_-]{20,}|\bxox[abposr]-[A-Za-z0-9-]{10,}|"
                             r"\bsecret_[A-Za-z0-9]{40,}|\bntn_[A-Za-z0-9]{40,}")
 
+    def _is_manager_call(p: dict) -> bool:
+        """¿La llamada viene de la manager? Por su token, o por proceso (su claude o algo que lanzó), aunque no lo diga."""
+        if secrets.compare_digest(str(p.get("token") or ""), supervisor.manager_token):
+            return True
+        main = find_main(root)
+        return bool(main) and _calling_session(p) == main
+
+    def _away_check(p: dict) -> None:
+        """Lanzar trabajo en una sesión por HTTP mientras no estás en el IDE y Telegram escucha (sin la ventana del
+        código): la manager no (por su token o por proceso: alguien con tu Telegram la usaría para eso). Las demás
+        sesiones siguen trabajando solas: no reciben nada de Telegram."""
+        if not p.get("_http") or guard is None or guard.manager_send_ok() or p.get("dry_run"):
+            return
+        if _is_manager_call(p):
+            raise SessionError("telegram_window", "no estás en el IDE y Telegram está activo: para lanzar trabajo en una "
+                               "sesión usa `ide session propose` (el usuario lo aprueba con su código de 6 dígitos)")
+
     def _is_plugins(p: dict) -> bool:
         return bool(p.get("ptoken")) and secrets.compare_digest(str(p.get("ptoken")), supervisor.plugins_token)
 
@@ -1044,6 +1057,10 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         import unicodedata
         text = "".join(ch for ch in unicodedata.normalize("NFKC", text) if unicodedata.category(ch) != "Cf")
         # nunca una clave por Telegram (un texto armado desde un archivo o una página): se rechaza entero
+        from ide_server.telegram_guard import get_secret as _tg_secret
+        _sec = await asyncio.to_thread(_tg_secret)
+        if _sec and re.sub(r"[\s-]", "", _sec.upper()) in re.sub(r"[\s-]", "", text.upper()):
+            raise SessionError("secret", "el mensaje tiene la clave del código de verificación: no lo mando por Telegram")
         if _SECRET_RE.search(text):
             raise SessionError("secret", "el mensaje parece tener una clave (llave privada, token): no lo mando por Telegram")
         if prefix:
@@ -1081,9 +1098,12 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         st = await asyncio.to_thread(guard.status) if guard is not None else {}
         return {"token": bool(await asyncio.to_thread(get_token)), "chat": bool(db and db.get("telegram:chat")), **st}
 
-    async def tg_guard(_p: dict) -> dict:
-        """Para la CLI de la manager (`ide db`): ¿puede actuar ahora? (no estás + Telegram escucha + sin ventana = no)."""
-        return {"managerOk": guard.manager_send_ok() if guard is not None else True}
+    async def tg_guard(p: dict) -> dict:
+        """Para la CLI (`ide db`): ¿quien llama puede consultar ahora? Mientras no estás y Telegram escucha sin la
+        ventana del código, la manager no (por proceso, no por lo que dice el comando)."""
+        if guard is None or guard.manager_send_ok():
+            return {"managerOk": True}
+        return {"managerOk": not await asyncio.to_thread(_is_manager_call, p)}
 
     async def tg_toggle(p: dict) -> dict:
         """El interruptor de Telegram de la barra inferior: solo desde la UI (por HTTP, `forbidden`)."""
@@ -1424,6 +1444,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def fresh(p: dict) -> dict:
         """Nueva conversación en la misma sesión (misma carpeta, worktrees y SESSION.md): para cuando la
         conversación se alargó o se ensució. La anterior queda en su transcript."""
+        _away_check(p)
         sid = require_plain_name(p["id"], "sesión")
         require_session(root, sid)
         supervisor.stop(sid)
@@ -2826,6 +2847,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     async def review_start(p: dict) -> dict:
         """Botón de revisión: manda `.ide/prompts/review-pr.md` a la sesión del PR (la crea si falta)."""
+        _away_check(p)
         url = p["url"]
         repo, number = parse_pr_url(url)
         sid = normalize_id(f"pr-{repo}-{number}")
@@ -2863,6 +2885,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def review_restart(p: dict) -> dict:
         """«Revisar de nuevo» en la card de una revisión de varias PRs (stack): manda el prompt de
         re-revisión con las PRs que se indican (las que te volvieron a pedir) a esa sesión."""
+        _away_check(p)
         sid = p["id"]
         require_plain_name(sid, "sesión")
         s = await asyncio.to_thread(read_session, root, sid)
@@ -2895,6 +2918,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def review_start_stack(p: dict) -> dict:
         """"Revisar stack": una sola sesión para las PRs de un stack que te pidieron revisar (de abajo
         hacia arriba). Archiva las sesiones de revisión individuales de esas PRs."""
+        _away_check(p)
         # por HTTP (`ide session review-stack`): solo la principal, con el token que el IDE le pasa a SU
         # claude (en memoria); `_http` lo pone la ruta, no el cliente
         if p.get("_http") and _manager_or_terminal(p) is None:
