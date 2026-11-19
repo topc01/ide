@@ -12,4 +12,3 @@ defaults, los perfiles de permisos, plantillas y variables, scripts por repo y s
 comandos del CLI con flags y salidas, estados de sesión, problemas comunes, códigos de error y la
 API. Si cambias comportamiento del IDE, actualiza ese archivo en el mismo commit.
 
-Estado del desarrollo interno: `docs/superpowers/HANDOFF.md`.

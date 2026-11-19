@@ -80,9 +80,7 @@ Si algo falla, mira **«Problemas comunes»** en `ide docs` (§10).
 
 - **`ide docs`** (`server/ide_server/REFERENCE.md`) — referencia completa para agentes y
   humanos: layout de `.ide/`, `config.toml`, permisos, plantillas, scripts, CLI, estados y errores.
-- `docs/superpowers/HANDOFF.md` — estado vivo del desarrollo y próximos pasos.
 - `docs/design/` — identidad visual, roadmap y referencias de diseño.
-- `docs/superpowers/specs/` y `plans/` — specs y planes por rebanada.
 
 ## Desarrollar el IDE
 

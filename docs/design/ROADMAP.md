@@ -7,9 +7,8 @@ se apoya en la **Fundación (R0)** y en las anteriores.
 La lógica de dominio se **porta desde finnecto-ide como referencia** (ver
 `REFERENCES.md`), reescrita en Python — no se copia código Node.
 
-> **Estado vivo:** este documento es el plan original + su estado. El detalle de qué se
-> construyó y los próximos pasos concretos se mantienen en `docs/superpowers/HANDOFF.md`
-> (fuente de verdad para retomar).
+> **Histórico:** este documento es el plan original. Lo que el IDE hace hoy está en
+> `server/ide_server/REFERENCE.md` (`ide docs`).
 
 ## Plan original (R0–R6)
 

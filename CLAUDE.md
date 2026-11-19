@@ -20,8 +20,7 @@ como referencia de dominio**, no como base de código).
    tokens en `docs/design/REFERENCES.md`) implementada vía **shadcn/ui + Tailwind**:
    componentes con el look/pulido nativo de shadcn, **tematizados** a los tokens 1a. El
    mockup (`docs/design/handoff/`) es **referencia de layout/identidad**, no objetivo pixel.
-   La UI es prioridad del dueño del proyecto. (Cambiado 2026-07-09; ver
-   `docs/superpowers/specs/2026-07-09-ui-shadcn-design.md`.)
+   La UI es prioridad del dueño del proyecto. (Cambiado 2026-07-09.)
 2. **TDD.** Test que falla → implementación mínima → test que pasa → commit. El plan ya viene
    en pasos TDD; síguelos.
 3. **Rebanadas verticales.** Se construye por rebanadas (R0–R6, ver `docs/design/ROADMAP.md`),
@@ -46,13 +45,13 @@ como referencia de dominio**, no como base de código).
   server. Kinds `main/ticket/review`. Repos = worktrees en `.ide/worktrees/<id>/<repo>`
   enlazados por symlink; scripts por repo en `.ide/scripts/<repo>/` (`setup`, `run`, ...).
   CLI `ide session|repo|script`; despacho por plantilla, `max_running`, revisiones de PR
-  (`gh`) con polling. Spec: `docs/superpowers/specs/2026-10-13-sesiones-carpeta-design.md`.
+  (`gh`) con polling.
 - **Roles = presets funcionales** (`{model, system_prompt, read_only, tools}`) en
   `.ide/config.toml`, extensibles. **Permisos por sesión** (skip vs approve/deny inline),
   default desde el rol.
 
-Detalle completo en `docs/superpowers/specs/` (R0 foundation, R1 sessions aprobado, R2
-terminal, R3 chat).
+Cómo funciona hoy cada parte: `server/ide_server/REFERENCE.md` (`ide docs`). Las specs y planes viejos
+(`docs/superpowers/`) se borraron el 2026-11-19; siguen en la historia de git.
 
 ## Estructura del código
 
@@ -102,10 +101,8 @@ cd ui && npm test                  # frontend (vitest)
 
 ## Estado actual
 
-Diseño cerrado para R0–R3; **R4–R6** (diffs, graphite, tasks/notion/settings) por
-especificar. **Sesiones-carpeta hechas** (backend + UI; los módulos viejos quedan ocultos vía
-`[ui] modules` en `.ide/config.toml`). Próximo: chat propio sobre sesiones-carpeta y
-re-habilitar módulos ocultos; ver `docs/superpowers/HANDOFF.md`.
+El IDE está en uso diario sobre sesiones-carpeta (los módulos viejos quedan ocultos vía `[ui] modules` en
+`.ide/config.toml`). Lo que hace hoy está en `ide docs`; el historial de cambios, en `git log`.
 
 ## Documentación del IDE
 
