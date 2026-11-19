@@ -692,7 +692,7 @@ def _hook(url: str | None, http, env: dict) -> int:
         sid = env.get("IDE_SESSION_ID")
         ev = json.loads(sys.stdin.read() or "{}")
         if ev.get("hook_event_name") == "PreToolUse":
-            from ide_server.test_guard import ASK_FULL, ASK_REASON, full_suite, is_test_command
+            from ide_server.test_guard import DENY_REASON, is_test_command
             cmd = str((ev.get("tool_input") or {}).get("command") or "")
             # trampas conocidas (ide db combinado, gh api para reviews, git push, …): se frena y se le dice el
             # comando correcto, en vez de chocar con el clasificador o quedar esperando un permiso
@@ -709,22 +709,11 @@ def _hook(url: str | None, http, env: dict) -> int:
                     except Exception:  # noqa: BLE001
                         pass
                 return 0
-            # solo la suite entera pide permiso (los puntuales corren sin preguntar: pedirlo en cada uno cansaba)
-            whole = ev.get("tool_name") == "Bash" and is_test_command(cmd) and full_suite(cmd)
-            if whole:
+            # ningún test corre en la Mac (19-11: se llenaba la memoria): se frena siempre, sin preguntar
+            if ev.get("tool_name") == "Bash" and is_test_command(cmd):
                 sys.stdout.write(json.dumps({"hookSpecificOutput": {
-                    "hookEventName": "PreToolUse", "permissionDecision": "ask",
-                    "permissionDecisionReason": (ASK_FULL if whole else "") + ASK_REASON}}) + "\n")
-                sid = env.get("IDE_SESSION_ID")
-                if sid and url and not env.get("IDE_CONSULT"):
-                    # claude no avisa (Notification) cuando el permiso lo pide un hook: la card pasaría por «trabajando»
-                    try:
-                        http.post(f"{url}/api/sessions/{quote(sid, safe='')}/activity", timeout=3, json={
-                            "event": "Notification", "notification_type": "permission_prompt",
-                            "message": "Pide permiso para correr la SUITE ENTERA de tests" if whole
-                            else "Pide permiso para correr tests"})
-                    except Exception:  # noqa: BLE001
-                        pass
+                    "hookEventName": "PreToolUse", "permissionDecision": "deny",
+                    "permissionDecisionReason": DENY_REASON}}) + "\n")
             return 0
         if ev.get("hook_event_name") == "UserPromptSubmit":
             # lo que imprime este hook le llega a claude como contexto: Claude Code le da la fecha pero

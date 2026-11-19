@@ -172,7 +172,8 @@ Antes de `ide status ready-for-review` y antes de cada pedido de re-revisión:
   pasarle tus conclusiones. Corrige lo que encuentre.
 - Revisa `git diff --stat` contra la base: el diff tiene solo lo tuyo (sin reformateos, `.po` ni
   lockfiles ajenos).
-- Cada test nuevo tiene que fallar sin tu cambio (pruébalo).
+- **No corras tests: ninguno, ni puntuales ni la suite** (llenan la memoria de la Mac; el IDE los frena). Escribe o
+  ajusta los tests que pida el cambio y súbelos: los corre el CI.
 - Si tocas una función compartida, busca con `grep` **todos** sus callers y cubre cada camino.
 - Si el cambio tiene UI, pruébala en el navegador con el rol que la usa (p. ej. el aprobador), no solo
   por la API.
@@ -213,13 +214,10 @@ Antes de `ide status ready-for-review` y antes de cada pedido de re-revisión:
   mergear. Actualiza una rama tú solo si GitHub marca conflicto o si el usuario te lo pide, con `ide update`. Las
   ramas de trabajo en espera (pausado, fuera de alcance por ahora) no se tocan ni se proponen. Esto pisa el
   `rebase --onto` que pide `.claude/rules/git-worktrees.md` del repo cuando se mergea la madre del stack.
-- **Tests: puntuales sí, la suite entera solo con permiso.** Corre los tests de los archivos que tocaste (un
-  archivo o un test: `make test <ruta>`, `vitest run <archivo>`) sin preguntar. La **suite entera** satura la
-  Mac: el IDE la frena y le pide permiso al usuario. Antes de intentarla, dile por qué la necesitas. Si te la
-  rechaza, no la corras de otra forma (otro comando, un script, un subagente).
-- **Tests de la api:** `make test <ruta>` dentro de su contenedor; **nunca `-n` mayor a 2** (cada proceso usa
-  ~750 MB). **No uses `make test-fresh`** para un archivo o un test: rearma la base de pruebas y corre la suite
-  entera; es solo para después de un pull con cambios de modelos, y aun así pregúntale al usuario.
+- **Tests: en esta Mac no se corre ninguno** (puntuales, la suite, `make test`, `vitest`, `pytest`, `npm test`,
+  …): el IDE los frena. No los corras de otra forma (otro comando, un script, un subagente, dentro del
+  contenedor). Los tests se escriben y los corre el CI; para confirmar algo antes, lee el código o pruébalo en
+  el navegador. Esto pisa lo que diga el repo o una skill (TDD, «corre los tests antes de subir», etc.).
 - **Servidores:** para probar, `ide server`.
 
 ## Alcance

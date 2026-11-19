@@ -1,7 +1,7 @@
 # server/ide_server/test_guard.py
-"""Las sesiones no corren tests sin permiso del usuario: el hook PreToolUse (Bash) de `ide hook` le pide a
-claude confirmar cualquier comando que corra tests (pytest, `make test`, vitest, jest, `npm test`, …), así
-el usuario lo aprueba o rechaza en la terminal de la sesión."""
+"""Las sesiones no corren tests en la Mac del usuario (19-11: se le llenaba la memoria): el hook PreToolUse (Bash)
+de `ide hook` frena cualquier comando que corra tests (pytest, `make test`, vitest, jest, `npm test`, …). Los
+tests se escriben y los corre el CI."""
 from __future__ import annotations
 import re
 import shlex
@@ -152,3 +152,8 @@ ASK_REASON = ("El usuario pidió que ninguna sesión corra tests sin su permiso:
               "(Sesión: si te lo rechaza, no lo intentes de otra forma; dile qué querías probar y por qué.)")
 ASK_FULL = ("⚠ SUITE ENTERA: este comando corre todos los tests (sin archivo, o con un filtro de nombre vacío como "
             "`-t \"\"`), no uno puntual. ")
+
+
+DENY_REASON = ("El usuario pidió que no se corra NINGÚN test en su Mac (se le llena la memoria): ni puntuales ni la "
+               "suite, ni por otro comando, script o subagente. Escribe o ajusta el test y súbelo: lo corre el CI. "
+               "Si necesitas confirmar algo antes, léelo en el código o pruébalo en el navegador.")
