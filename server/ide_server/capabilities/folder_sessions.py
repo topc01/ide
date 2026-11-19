@@ -1025,10 +1025,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         no lo que diga la sesión) empieza con «[Mensaje de Telegram». Si no se puede leer, se asume que sí (falla cerrado)."""
         main = find_main(root)
         if not main:
-            return False
+            return False                        # sin manager no hay a quién pedirle nada
         path = _transcript(main)
-        if not path:
-            return False
+        base = (Path.home() / ".claude" / "projects").resolve()
+        if not path or not Path(path).resolve().is_relative_to(base):
+            return True                         # no se puede ver: falla cerrado
         try:
             with open(path, "rb") as fh:
                 fh.seek(0, 2)
@@ -1049,7 +1050,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             if text is None:                    # un tool_result: no es un prompt
                 continue
             return text.lstrip().startswith("[Mensaje de Telegram")
-        return False
+        return True                             # sin un prompt en lo que se leyó (p.ej. salidas enormes): falla cerrado
 
     if guard is not None:
         guard.tg_turn = _manager_tg_turn
