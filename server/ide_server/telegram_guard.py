@@ -131,7 +131,8 @@ class Guard:
                            "«Permitir» en la Mac). Hasta entonces no puedo abrir la ventana.")
         now = self._clock()
         last = int(self.db.get("telegram:laststep") or 0)
-        if res.get("ok") and int(res.get("step") or 0) > last:
+        step_now = int(now // 30)
+        if res.get("ok") and int(res.get("step") or 0) > last and abs(int(res["step"]) - step_now) <= 1:
             self.db.set("telegram:laststep", int(res["step"]))       # un código no se reusa
             self.db.delete("telegram:lock")
             self.db.set("telegram:window", now + WINDOW)

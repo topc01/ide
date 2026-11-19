@@ -274,7 +274,7 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
     autenticación. El IDE nunca la lee: la tiene en memoria el **guardián** (`totpd.py`, `python -m ide_server.totpd`),
     un proceso aparte que el IDE arranca si no corre y que **no se reinicia con el IDE**; la lee del llavero al arrancar
     (el aviso del llavero sale una vez por arranque: «Permitir», no «Permitir siempre») y contesta por un socket local
-    (`~/.ide-totp/sock`, solo tu usuario) si un código es correcto, con su propio tope (5 incorrectos en 10 min → 1 h). Mandarle al bot el código del momento abre una **ventana de 30 min**;
+    (`~/.ide-totp/sock`, solo tu usuario) si un código es correcto, con su propio tope (5 incorrectos en 10 min → 1 h). Se lanza con `-I` y `cwd=/` (sin código ajeno en el camino de módulos); el IDE solo le cree si el proceso dueño del socket (`LOCAL_PEERPID`) es `python -I -m ide_server.totpd`, y solo acepta un paso de tiempo dentro de ±30 s. Contra otro programa de tu mismo usuario no hay protección completa (podría bloquear el guardián con códigos malos o reemplazar el paquete instalado): el límite es el del usuario de macOS. Mandarle al bot el código del momento abre una **ventana de 30 min**;
     un código no se reusa; 5 incorrectos seguidos bloquean 1 h.
   - **Qué pide la ventana** (solo mientras no estás en el IDE y Telegram escucha): el «Sí» de una propuesta (sin
     ventana, contesta que mandes el código; la propuesta queda), un mensaje directo a Plugins («plugin: …»), y que la

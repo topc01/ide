@@ -101,11 +101,26 @@ def serve() -> None:
 
 
 # -- cliente -------------------------------------------------------------------------------------------------
+def _peer_is_guardian(c: socket.socket) -> bool:
+    """Del otro lado del socket tiene que estar el guardián (este módulo, con el python del IDE), no algo que se puso en
+    su lugar: se mira el proceso dueño de la conexión (LOCAL_PEERPID) y su línea de comando."""
+    try:
+        pid = c.getsockopt(0, 0x002, 4)          # SOL_LOCAL, LOCAL_PEERPID (macOS)
+        pid = int.from_bytes(pid, sys.byteorder) if isinstance(pid, bytes) else int(pid)
+        cmd = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True).stdout.split()
+    except (OSError, ValueError):
+        return False
+    # el python del framework de macOS se re-ejecuta como …/Python.app/…/Python: se mira que sea un python
+    return len(cmd) >= 4 and Path(cmd[0]).name.lower().startswith("python") and cmd[1:4] == ["-I", "-m", "ide_server.totpd"]
+
+
 def ask(req: dict, timeout: float = 5) -> dict | None:
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as c:
             c.settimeout(timeout)
             c.connect(str(SOCK))
+            if sys.platform == "darwin" and not _peer_is_guardian(c):
+                return None
             c.sendall(json.dumps(req).encode() + b"\n")
             data = b""
             while not data.endswith(b"\n"):
@@ -122,8 +137,9 @@ def ensure() -> None:
     """Lo arranca si no corre (aparte del IDE: sobrevive a sus reinicios)."""
     if ask({"op": "status"}, timeout=1) is not None:
         return
-    subprocess.Popen([sys.executable, "-m", "ide_server.totpd"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True)
+    # -I: sin el directorio actual ni variables PYTHON* en el camino de módulos (no carga código ajeno con acceso al llavero)
+    subprocess.Popen([sys.executable, "-I", "-m", "ide_server.totpd"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True, cwd="/")
 
 
 if __name__ == "__main__":
