@@ -94,11 +94,12 @@ export function StatusBar() {
           <Sep />
           <Window label="semana" w={lim?.weekly ?? null} now={now} />
           <Sep />
-          <TelegramSwitch />
           <WorkingNow />
           <WaitingForYou />
           <FinishedNow />
+          <Sep />
           <Decisions />
+          <TelegramSwitch />
           <FeedbackPending />
           {update?.pending && (
             <span className="flex items-center gap-1.5 text-sky-400"
@@ -348,53 +349,44 @@ function Decisions() {
       {n} {n === 1 ? "bloqueante" : "bloqueantes"}</button>);
 }
 
-type TgStatus = { token: boolean; chat: boolean; on?: boolean; mode?: "off" | "ide" | "listening" | "window";
-  windowUntil?: number | null; lockedUntil?: number | null; twoFactor?: boolean; presentFor?: number; window?: number };
+type TgStatus = { token: boolean; chat: boolean; on?: boolean; mode?: "off" | "on" | "window";
+  windowUntil?: number | null; lockedUntil?: number | null; twoFactor?: boolean; window?: number };
 
 const hhmm = (t: number) => new Date(t * 1000).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
 
-/** Telegram (la manager por Telegram): interruptor y estado. Mientras usas el IDE (click o tecla en la página en los
- *  últimos 10 min) Telegram está en pausa; afuera, escucha, y el código de 6 dígitos abre una ventana de 30 min para
- *  que las sesiones puedan actuar. La página avisa tu actividad (`ui.presence`, cada 30 s como mucho). */
+/** Telegram (la manager por Telegram): un switch activado/desactivado. El tooltip dice si la ventana del código está
+ *  abierta o los códigos bloqueados. */
 function TelegramSwitch() {
   const [st, setSt] = useState<TgStatus | null>(null);
-  const last = useRef(0);
   useEffect(() => {
-    const ws = getWs();
-    const load = () => ws.request("telegram.status", {}).then((x: any) => setSt(x)).catch(() => {});
-    const seen = () => {
-      const now = Date.now();
-      if (now - last.current < 30_000) return;
-      last.current = now;
-      ws.request("ui.presence", {}).then(load).catch(() => {});
-    };
-    seen();
-    window.addEventListener("pointerdown", seen, true);
-    window.addEventListener("keydown", seen, true);
+    const load = () => getWs().request("telegram.status", {}).then((x: any) => setSt(x)).catch(() => {});
+    load();
     const t = setInterval(load, 15_000);
-    return () => { window.removeEventListener("pointerdown", seen, true); window.removeEventListener("keydown", seen, true); clearInterval(t); };
+    return () => clearInterval(t);
   }, []);
-  if (!st?.token || !st.chat || st.mode === undefined) return null;
+  if (!st?.token || !st.chat || st.on === undefined) return null;
   const toggle = () => getWs().request("telegram.toggle", { on: !st.on }).then((x: any) => setSt(x)).catch(() => {});
-  const mins = Math.round((st.presentFor ?? 600) / 60);
-  const [label, cls, why] =
-    st.mode === "off" ? ["telegram: apagado", "text-muted-foreground border-border",
-      "Telegram apagado: el IDE ignora lo que llegue por Telegram. Click = encenderlo."]
-    : st.lockedUntil ? [`telegram: bloqueado hasta ${hhmm(st.lockedUntil)}`, "text-red-300 border-red-400/70",
-      "Hubo 5 códigos incorrectos seguidos: no acepta más hasta esa hora. Si no fuiste tú, apágalo y revisa tus sesiones de Telegram. Click = apagarlo."]
-    : st.mode === "ide" ? ["telegram: en pausa (usas el IDE)", "text-muted-foreground border-border",
-      `Mientras usas el IDE, lo que llegue por Telegram no le llega a la manager. Se activa solo tras ${mins} min sin tocar el IDE. Click = apagarlo del todo.`]
-    : st.mode === "window" ? [`telegram: ventana abierta hasta ${hhmm(st.windowUntil!)}`, "text-emerald-300 border-emerald-400/70",
-      "Con el código de 6 dígitos: hasta esa hora se pueden aprobar propuestas y la manager puede mandarle trabajo a las sesiones. Click = apagarlo (cierra la ventana)."]
-    : [`telegram: activo${st.twoFactor ? "" : " · sin código"}`, st.twoFactor ? "text-amber-300 border-amber-400/70" : "text-red-300 border-red-400/70",
-      st.twoFactor ? "Activo porque no estás en el IDE: la manager te contesta y propone, pero ninguna sesión actúa hasta que mandes el código de 6 dígitos (abre una ventana de 30 min). Click = apagarlo."
-        : "Activo sin código de verificación: nadie puede abrir la ventana para actuar. Configúralo en tu terminal con `ide telegram 2fa`. Click = apagarlo."];
+  const why = !st.on ? "Telegram desactivado: el IDE ignora lo que llegue por Telegram. Click = activarlo."
+    : [
+      "Telegram activado: la manager recibe tus mensajes. Ninguna sesión actúa por Telegram sin el código de 6 dígitos (abre una ventana de 30 min).",
+      st.windowUntil ? `Ventana abierta hasta las ${hhmm(st.windowUntil)}.` : "",
+      st.lockedUntil ? `Códigos bloqueados hasta las ${hhmm(st.lockedUntil)} (5 incorrectos seguidos).` : "",
+      st.twoFactor ? "" : "Falta configurar el código: `ide telegram 2fa` en tu terminal.",
+      "Click = desactivarlo.",
+    ].filter(Boolean).join(" ");
   return (
-    <button onClick={toggle} title={why} aria-pressed={st.on}
-      className={cn("flex items-center gap-1 rounded border px-1.5 hover:bg-foreground/5", cls)}>
-      <span className={cn("inline-block h-2 w-3.5 rounded-full border border-current", st.on && "bg-current/40")} />
-      {label}
-    </button>);
+    <>
+      <Sep />
+      <button role="switch" aria-checked={!!st.on} onClick={toggle} title={why}
+        className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+        telegram
+        <span className={cn("relative inline-flex h-3.5 w-6 items-center rounded-full border transition-colors",
+          st.on ? "border-primary/70 bg-primary/40" : "border-border bg-muted")}>
+          <span className={cn("absolute h-2.5 w-2.5 rounded-full transition-all",
+            st.on ? "left-[11px] bg-primary" : "left-[1px] bg-muted-foreground")} />
+        </span>
+      </button>
+    </>);
 }
 
 /** La revisión semanal dejó un plan de feedback sin revisar: click = ir a la sesión principal. */
@@ -403,11 +395,12 @@ function FeedbackPending() {
   const main = useFolders((s) => s.tree.sessions.find((x) => x.kind === "main"));
   const setActive = useFolders((s) => s.setActive);
   if (!plans?.length || !main) return null;
-  return (
+  return (<>
+    <Sep />
     <button onClick={() => setActive(main.id)}
       title={`La sesión manager dejó ${plans.length === 1 ? "un plan" : `${plans.length} planes`} de feedback para revisar (${plans.join(", ")}): pídele que te lo muestre y dile qué aplicar`}
       className="rounded border border-primary/60 px-1 text-primary hover:bg-primary/10">
-      plan de feedback pendiente</button>);
+      plan de feedback pendiente</button></>);
 }
 
 /** «Reiniciar ahora»: si hay sesiones trabajando, reiniciar les corta el turno a medias (lo que estaban

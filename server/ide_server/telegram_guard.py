@@ -2,15 +2,15 @@
 """Protección del puente Telegram (si alguien se queda con tu Telegram, no puede hacer actuar a las sesiones).
 
 - **Interruptor** (barra inferior del IDE, `kv telegram:on`; default encendido): apagado, el IDE ignora Telegram.
-- **Mientras usas el IDE, Telegram está apagado**: la UI avisa cada vez que haces click o escribes en ella
-  (`ui.presence`, solo por el websocket de la UI: un comando de una sesión no la puede fingir). Con actividad en los
-  últimos `PRESENT` segundos, un mensaje por Telegram no le llega a la manager.
+- **Lo que viene de Telegram pide el código**: mientras la manager responde un mensaje que llegó por Telegram (su
+  último prompt en su transcript empieza con `[Mensaje de Telegram`: lo escribe claude, no lo dice la sesión), mandarle
+  trabajo a una sesión, abrir o crear una, o consultar la base necesita la ventana. Lo que le pides desde el IDE, no.
 - **Código de verificación (2FA, TOTP de 6 dígitos)**: la clave se crea con `ide telegram 2fa` y vive en el llavero
   (servicio `ide-telegram`, cuenta `totp`) **con confirmación** (sin apps de confianza: leerla pregunta en la Mac); la
   cargas en una app de autenticación. El IDE nunca la lee: la tiene en memoria el guardián `totpd.py`, que no se
   reinicia con el IDE, y le pregunta si un código es correcto. Mandarle al bot el código del
   momento abre una **ventana** de `WINDOW` segundos: solo dentro de ella valen el «Sí» de una propuesta, un mensaje
-  directo a Plugins y que la manager le mande trabajo directo a una sesión mientras no estás. `MAX_FAILS` códigos
+  directo a Plugins y lo que la manager haga respondiendo un mensaje de Telegram. `MAX_FAILS` códigos
   incorrectos bloquean `LOCK` segundos. Un código se acepta una sola vez."""
 from __future__ import annotations
 import base64
@@ -23,7 +23,6 @@ import sys
 import time
 
 SERVICE = "ide-telegram"
-PRESENT = 10 * 60          # «usando el IDE»: actividad en los últimos 10 min
 WINDOW = 30 * 60           # la ventana que abre el código
 MAX_FAILS = 5
 LOCK = 60 * 60
@@ -68,20 +67,15 @@ def daemon_verify(code: str) -> dict | None:
 
 
 class Guard:
-    def __init__(self, db, *, verify=daemon_verify, has_secret=configured, clock=time.time) -> None:
+    def __init__(self, db, *, verify=daemon_verify, has_secret=configured, clock=time.time, tg_turn=None) -> None:
         self.db = db
         self._verify = verify
         self._has = has_secret
         self._clock = clock
-        self._seen = 0.0                       # última actividad tuya en la UI (en memoria: un reinicio = ausente)
+        # ¿la manager está respondiendo un mensaje de Telegram? (lo fija folder_sessions: mira su transcript)
+        self.tg_turn = tg_turn or (lambda: False)
 
     # -- estado ---------------------------------------------------------------------------------------
-    def touch(self) -> None:
-        self._seen = self._clock()
-
-    def present(self) -> bool:
-        return self._clock() - self._seen < PRESENT
-
     def on(self) -> bool:
         return self.db.get("telegram:on", True) is not False
 
@@ -98,24 +92,20 @@ class Guard:
         lk = self.db.get("telegram:lock") or {}
         return float(lk.get("until") or 0) if float(lk.get("until") or 0) > self._clock() else 0.0
 
-    def listening(self) -> bool:
-        """¿Un mensaje de Telegram le llega a la manager ahora?"""
-        return self.on() and not self.present()
-
     def can_act(self) -> bool:
         """¿Se puede hacer actuar a una sesión desde Telegram (o la manager, mientras no estás)?"""
         return self.window_until() > 0
 
     def manager_send_ok(self) -> bool:
-        """La manager le manda trabajo directo a una sesión: sí si estás en el IDE o con Telegram apagado; mientras
-        no estás y Telegram escucha, solo con la ventana abierta."""
-        return not self.listening() or self.can_act()
+        """La manager actúa sobre las sesiones (mandar trabajo, abrir o crear una, consultar la base): sí, salvo que esté
+        respondiendo un mensaje de Telegram (con Telegram activado) sin la ventana del código abierta."""
+        return not self.on() or self.can_act() or not self.tg_turn()
 
     def status(self) -> dict:
-        mode = ("off" if not self.on() else "ide" if self.present() else "window" if self.can_act() else "listening")
+        mode = "off" if not self.on() else "window" if self.can_act() else "on"
         return {"on": self.on(), "mode": mode, "windowUntil": self.window_until() or None,
                 "lockedUntil": self.locked_until() or None, "twoFactor": self._has(),
-                "presentFor": PRESENT, "window": WINDOW}
+                "window": WINDOW}
 
     # -- código ---------------------------------------------------------------------------------------
     def check_code(self, code: str) -> tuple[bool, str]:

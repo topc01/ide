@@ -96,7 +96,7 @@ class TelegramBridge:
         if action == "ok" and prop and (not self.guard.on() or not self.guard.can_act()):
             # el «Sí» vale solo con la ventana abierta (el código de 6 dígitos): quien tenga tu Telegram no lo tiene.
             # La propuesta queda: después de mandar el código, vuelve a apretar «Sí»
-            answer = ("Telegram está apagado en el IDE." if not self.guard.on() else
+            answer = ("Telegram está desactivado en el IDE." if not self.guard.on() else
                       "Primero mándame el código de 6 dígitos de tu app de autenticación; después vuelve a apretar «Sí».")
             await self._call(client, "answerCallbackQuery", callback_query_id=cq["id"], text=answer[:190])
             await self._call(client, "sendMessage", chat_id=chat, text=answer)
@@ -133,17 +133,13 @@ class TelegramBridge:
             return                              # otro chat: ni respuesta
         g = self.guard
         if not g.on():
-            await self._call(client, "sendMessage", chat_id=chat_id, text="(Telegram está apagado en el IDE: no le llegó a la manager.)")
+            await self._call(client, "sendMessage", chat_id=chat_id, text="(Telegram está desactivado en el IDE: no le llegó a la manager.)")
             return
         import re as _re
         if _re.fullmatch(r"\d{6}", text):          # el código de verificación: abre la ventana para actuar
             ok, answer = g.check_code(text)
             self._on_change()
             await self._call(client, "sendMessage", chat_id=chat_id, text=answer)
-            return
-        if g.present():
-            await self._call(client, "sendMessage", chat_id=chat_id,
-                             text="(Telegram está desactivado mientras usas el IDE: no le llegó a la manager.)")
             return
         try:
             how = await self._deliver(text)
