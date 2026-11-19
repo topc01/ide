@@ -255,7 +255,7 @@ class Supervisor:
         # actividad de su claude (por los hooks): {state: working|waiting, since, note, reason}
         self._activity: dict[str, dict] = {}
         self._attention: dict[str, str] = {}        # sid -> "trust"
-        # avisados cuando tú escribes en la terminal de un claude (solo llega de la UI, por websocket): (sid) -> None
+        # avisados cuando tú mandas algo (Enter) en la terminal de un claude (solo llega de la UI, por websocket)
         self.input_listeners: list[Callable[[str], None]] = []
 
     def state(self, sid: str) -> str:
@@ -454,7 +454,7 @@ class Supervisor:
         tid = self._spawn(cwd, argv, env,
                           lambda: self._on_exit(sid, holder.get("tid")),
                           on_output=lambda data: self._on_output(sid, holder.get("tid"), data),
-                          on_input=lambda: self._on_input(sid, holder.get("tid")),
+                          on_input=lambda submit=False: self._on_input(sid, holder.get("tid"), submit),
                           persist_key=f"claude-{sid}")   # su pantalla sobrevive a un reinicio del server
         holder["tid"] = tid
         self._launched_at[sid] = time.time()
@@ -511,9 +511,9 @@ class Supervisor:
             self._attention[sid] = "trust"
             self._on_change()
 
-    def _on_input(self, sid: str, tid: str | None) -> None:
+    def _on_input(self, sid: str, tid: str | None, submit: bool = False) -> None:
         """El usuario escribió en la terminal: asumimos que respondió el diálogo (o el permiso)."""
-        if tid is not None and self._running.get(sid) == tid:
+        if submit and tid is not None and self._running.get(sid) == tid:
             for fn in list(self.input_listeners):
                 try:
                     fn(sid)

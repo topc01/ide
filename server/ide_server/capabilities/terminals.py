@@ -135,12 +135,20 @@ def register(registry: Registry, root: Path, manager, pty: PtyManager | None = N
                for tid, t in terms.items() if t["sessionId"] == sid]
         return {"terminals": out}
 
+    def _submits(data: bytes) -> bool:
+        """¿Es un Enter tuyo? Un \\r que no viene dentro de una respuesta automática de la terminal (reportes de foco
+        `ESC[I`/`ESC[O`, de cursor `ESC[…R`, de dispositivo `ESC[?…c`, OSC `ESC]…`): esas las manda xterm, no tú."""
+        import re as _re
+        clean = _re.sub(rb"\x1b\[[IO]|\x1b\[[\d;?]*[Rc]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)", b"", data)
+        return b"\r" in clean
+
     async def write_(payload: dict) -> dict:
-        pty.write(payload["id"], base64.b64decode(payload["data"]))
+        data = base64.b64decode(payload["data"])
+        pty.write(payload["id"], data)
         state["last_input"] = time.time()
         on_input = terms.get(payload["id"], {}).get("on_input")
         if on_input is not None:
-            on_input()
+            on_input(_submits(data))
         return {"ok": True}
 
     async def replay_(payload: dict) -> dict:

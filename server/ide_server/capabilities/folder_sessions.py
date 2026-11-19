@@ -1022,11 +1022,15 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     guard = bridge.guard if bridge is not None else None
 
     # ¿la manager está respondiendo un mensaje de Telegram? Lo lleva el IDE, no un archivo: se marca al entregarle uno
-    # (`_tg_deliver`) y se borra solo cuando tú le escribes en su terminal desde el IDE (llega por el websocket de la
-    # UI; una sesión no lo puede fingir) o le respondes desde la barra (`attentionReply`).
+    # (`_tg_deliver`) y se borra solo cuando tú le mandas algo (Enter) en su terminal desde el IDE con ella quieta (llega
+    # por el websocket de la UI; una sesión no lo puede fingir) o le respondes con texto desde la barra (`attentionReply`).
     def _tg_turn_clear(sid: str) -> None:
-        if db is not None and sid == find_main(root):
-            db.delete("telegram:turn")
+        # solo con la manager quieta: si está trabajando, lo de Telegram puede seguir en su cola detrás de lo tuyo
+        if db is None or sid != find_main(root):
+            return
+        if (supervisor.snapshot().get(sid, {}).get("activity") or {}).get("state") == "working":
+            return
+        db.delete("telegram:turn")
 
     supervisor.input_listeners.append(_tg_turn_clear)
     if guard is not None:
@@ -1792,7 +1796,6 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         sid = require_plain_name(p["id"], "sesión")
         if supervisor.state(sid) != "running":
             raise SessionError("not_running", f"la sesión {sid} no está corriendo")
-        _tg_turn_clear(sid)                     # le respondes tú desde el IDE: lo que siga no viene de Telegram
         action = p.get("action")
         cur = await asyncio.to_thread(_attention_of, sid)
         act, pend = cur["activity"], cur.get("pending")
@@ -1835,6 +1838,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             # con un permiso o una pregunta abiertos, el texto no entra al input: Esc primero (= «no, haz esto»)
             blocked = act.get("state") == "waiting" and (act.get("reason") == "permission" or (pend or {}).get("tool") == "AskUserQuestion")
             supervisor.send(sid, text, escape_first=blocked)
+            _tg_turn_clear(sid)                 # tu mensaje ya entró: lo que siga no viene de Telegram
             what = "enviado"
         else:
             raise SessionError("bad_request", f"acción desconocida: {action!r}")

@@ -2,7 +2,7 @@
 """`ide review inbox`: lo que te pidieron en las PRs abiertas de tu desarrollo, en un solo comando. Por PR: los
 cambios pedidos (la última review de cada revisor que pide cambios, con su texto), los hilos sin resolver donde
 la última palabra no es tuya (con el id del comentario para responder y el del hilo para resolver) y los
-comentarios generales de otros después de tu último commit. Sin tener que recorrer PR por PR con `gh`."""
+comentarios generales de otros después de tu última palabra en la PR. Sin tener que recorrer PR por PR con `gh`."""
 from __future__ import annotations
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
@@ -34,21 +34,26 @@ def _indent(text: str, pad: str = "      ") -> str:
 
 def pending(d: dict, me: str | None) -> dict:
     """Lo pendiente de una PR (ya parseada por `gh_discussion.parse`): lo que te toca (`reviews`, `threads`,
-    `comments`) y lo que ya atendiste y espera al revisor (`answered`: cambios pedidos con un commit tuyo después;
-    `waiting`: hilos sin resolver donde la última palabra es tuya)."""
-    pushed = d.get("pushed") or ""
+    `comments`) y lo que ya atendiste y espera al revisor (`answered`: cambios pedidos de un revisor al que **le
+    volviste a pedir la revisión**; `waiting`: hilos sin resolver donde la última palabra es tuya). Un commit después de
+    la review no cuenta como respuesta (puede ser un rebase o un re-apilado que no toca nada de lo pedido)."""
     last: dict[str, dict] = {}
     for c in d["conversation"]:          # el último veredicto de cada revisor (por fecha)
         if c["kind"] == "review" and c["state"] in ("APPROVED", "CHANGES_REQUESTED") and c["author"] != me:
             last[c["author"]] = c
     asked = [r for r in last.values() if r["state"] == "CHANGES_REQUESTED"]
+    rerequested = {r["login"] for r in d["reviewers"] if r["state"] == "requested"}
     open_t = [t for t in d["threads"] if not t["resolved"] and t["comments"]]
-    return {"reviews": [r for r in asked if (r["at"] or "") > pushed],
-            "answered": [r for r in asked if (r["at"] or "") <= pushed],
+    # mi última palabra en la PR (comentario o respuesta en un hilo): los comentarios de otros después, te tocan
+    mine = [c["at"] or "" for c in d["conversation"] if c["author"] == me] + \
+           [c["at"] or "" for t in d["threads"] for c in t["comments"] if c["author"] == me]
+    my_last = max(mine, default="")
+    return {"reviews": [r for r in asked if r["author"] not in rerequested],
+            "answered": [r for r in asked if r["author"] in rerequested],
             "threads": [t for t in open_t if not me or t["comments"][-1]["author"] != me],
             "waiting": [t for t in open_t if me and t["comments"][-1]["author"] == me],
             "comments": [c for c in d["conversation"] if c["kind"] == "comment" and c["author"] != me
-                         and not c["author"].endswith("[bot]") and (c["at"] or "") > pushed]}
+                         and not c["author"].endswith("[bot]") and (c["at"] or "") > my_last]}
 
 
 def todo(p: dict) -> int:
@@ -62,7 +67,7 @@ def render(d: dict, p: dict, out: TextIO, *, full: bool = True) -> None:
     n = todo(p)
     out.write(f"{repo}#{d['number']}  {d['title']}\n  {' '.join(flags)}  · "
               f"{f'{n} pendiente(s)' if n else 'nada pendiente'}  {d['url']}\n")
-    wait = [f"cambios de @{r['author']} ({_when(r['at'])}) con un commit tuyo después" for r in p["answered"]]
+    wait = [f"cambios de @{r['author']} ({_when(r['at'])}): ya le volviste a pedir la revisión" for r in p["answered"]]
     if p["waiting"]:
         wait.append(f"{len(p['waiting'])} hilo(s) sin resolver con tu respuesta")
     if wait:
@@ -70,7 +75,7 @@ def render(d: dict, p: dict, out: TextIO, *, full: bool = True) -> None:
     if not full:
         return
     for r in p["reviews"]:
-        out.write(f"  ▸ cambios pedidos por @{r['author']} ({_when(r['at'])}, después de tu último commit) "
+        out.write(f"  ▸ cambios pedidos por @{r['author']} ({_when(r['at'])}; atiéndelos y vuelve a pedirle la revisión) "
                   f"{r['url']}\n{_indent(r['body'])}\n")
     for t in p["threads"]:
         first = t["comments"][0]
