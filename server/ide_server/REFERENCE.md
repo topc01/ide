@@ -265,7 +265,7 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
   - **Switch** «telegram» en la barra inferior (entre «bloqueantes» y «plan de feedback pendiente»; `kv telegram:on`,
     canal `telegram.toggle`, solo desde la UI): activado o desactivado. Desactivado, el IDE ignora Telegram (contesta
     que está desactivado). El tooltip dice si la ventana del código está abierta, si los códigos están bloqueados o si
-    falta configurar el código. Activado también mientras usas el IDE.
+    falta configurar el código. Con la ventana abierta, al lado del switch va lo que le queda (mm:ss, en verde). Activado también mientras usas el IDE.
   - **Código de verificación (2FA)**: `ide telegram 2fa` (solo en tu terminal: se niega desde una sesión o sin TTY;
     para cambiarla pide el código actual) crea una clave TOTP (6 dígitos, 30 s) en el llavero (`ide-telegram`/`totp`)
     **con confirmación** (`-T ""`: sin apps de confianza; leerla pregunta en la Mac) que cargas en una app de

@@ -358,8 +358,8 @@ const hhmm = (t: number) => new Date(t * 1000).toLocaleTimeString("es-CL", { hou
  *  abierta o los códigos bloqueados. */
 function TelegramSwitch() {
   const [st, setSt] = useState<TgStatus | null>(null);
+  const load = () => getWs().request("telegram.status", {}).then((x: any) => setSt(x)).catch(() => {});
   useEffect(() => {
-    const load = () => getWs().request("telegram.status", {}).then((x: any) => setSt(x)).catch(() => {});
     load();
     const t = setInterval(load, 15_000);
     return () => clearInterval(t);
@@ -380,6 +380,7 @@ function TelegramSwitch() {
       <button role="switch" aria-checked={!!st.on} onClick={toggle} title={why}
         className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
         telegram
+        {st.on && st.windowUntil ? <WindowLeft until={st.windowUntil} onEnd={load} /> : null}
         <span className={cn("relative inline-flex h-3.5 w-6 items-center rounded-full border transition-colors",
           st.on ? "border-primary/70 bg-primary/40" : "border-border bg-muted")}>
           <span className={cn("absolute h-2.5 w-2.5 rounded-full transition-all",
@@ -387,6 +388,18 @@ function TelegramSwitch() {
         </span>
       </button>
     </>);
+}
+
+/** Lo que le queda a la ventana del código (mm:ss), al lado del switch; al terminar, vuelve a leer el estado. */
+function WindowLeft({ until, onEnd }: { until: number; onEnd: () => void }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const left = Math.max(0, Math.round(until - now / 1000));
+  useEffect(() => { if (left === 0) onEnd(); }, [left === 0]);
+  if (!left) return null;
+  const m = Math.floor(left / 60), sec = left % 60;
+  return <span className="tabular-nums text-emerald-300" title={`Ventana del código abierta hasta las ${hhmm(until)}`}>
+    {m}:{String(sec).padStart(2, "0")}</span>;
 }
 
 /** La revisión semanal dejó un plan de feedback sin revisar: click = ir a la sesión principal. */
