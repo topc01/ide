@@ -47,8 +47,12 @@ def set_token(token: str) -> None:
 
 class TelegramBridge:
     def __init__(self, db: Db, *, deliver: Callable[[str], Awaitable[str]],
-                 propose_ok: Callable[[str, str], Awaitable[str]]) -> None:
+                 propose_ok: Callable[[str, str], Awaitable[str]], guard=None,
+                 on_change: Callable[[], None] | None = None) -> None:
+        from ide_server.telegram_guard import Guard
         self.db = db
+        self.guard = guard or Guard(db)
+        self._on_change = on_change or (lambda: None)
         self._deliver = deliver                 # texto → a la principal
         self._propose_ok = propose_ok           # (sesión, texto) → encolar (tras el Sí)
         self._token: str | None = None
@@ -89,6 +93,14 @@ class TelegramBridge:
             return                              # solo tu chat (y tú) aprueba
         action, _, pid = (cq.get("data") or "").partition(":")
         prop = self.db.get(f"telegram:prop:{pid}")
+        if action == "ok" and prop and (not self.guard.on() or not self.guard.can_act()):
+            # el «Sí» vale solo con la ventana abierta (el código de 6 dígitos): quien tenga tu Telegram no lo tiene.
+            # La propuesta queda: después de mandar el código, vuelve a apretar «Sí»
+            answer = ("Telegram está apagado en el IDE." if not self.guard.on() else
+                      "Primero mándame el código de 6 dígitos de tu app de autenticación; después vuelve a apretar «Sí».")
+            await self._call(client, "answerCallbackQuery", callback_query_id=cq["id"], text=answer[:190])
+            await self._call(client, "sendMessage", chat_id=chat, text=answer)
+            return
         self.db.delete(f"telegram:prop:{pid}")
         if not prop or time.time() - prop.get("at", 0) > 86400:
             answer = "Esa propuesta ya no existe (o venció)."
@@ -119,6 +131,20 @@ class TelegramBridge:
             return
         if chat_id != self.db.get("telegram:chat"):
             return                              # otro chat: ni respuesta
+        g = self.guard
+        if not g.on():
+            await self._call(client, "sendMessage", chat_id=chat_id, text="(Telegram está apagado en el IDE: no le llegó a la manager.)")
+            return
+        import re as _re
+        if _re.fullmatch(r"\d{6}", text):          # el código de verificación: abre la ventana para actuar
+            ok, answer = g.check_code(text)
+            self._on_change()
+            await self._call(client, "sendMessage", chat_id=chat_id, text=answer)
+            return
+        if g.present():
+            await self._call(client, "sendMessage", chat_id=chat_id,
+                             text="(Telegram está desactivado mientras usas el IDE: no le llegó a la manager.)")
+            return
         try:
             how = await self._deliver(text)
         except Exception as exc:  # noqa: BLE001

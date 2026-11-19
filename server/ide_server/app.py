@@ -251,7 +251,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.post("/api/sessions")
     async def api_new(body: dict):
-        return await _http("sessions.new", body)
+        return await _http("sessions.new", {**body, "_http": True})
 
     @app.post("/api/sessions/{sid}/open")
     async def api_open(sid: str):
@@ -556,6 +556,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     @app.post("/api/sessions/{sid}/propose")
     async def api_propose(sid: str, body: dict):
         return await _http("sessions.propose", {**body, "id": sid})
+
+    @app.get("/api/telegram/guard")
+    async def api_tg_guard():
+        return await _http("telegram.guard", {})
 
     @app.post("/api/telegram/reply")
     async def api_tg_reply(body: dict):

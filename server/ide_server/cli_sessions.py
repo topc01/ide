@@ -273,6 +273,7 @@ def _parser() -> argparse.ArgumentParser:
     tg = sub.add_parser("telegram", help="conectar Telegram con la sesión manager").add_subparsers(dest="cmd", required=True)
     tg.add_parser("setup", help="guarda el token del bot en el llavero y da el código para vincular tu chat")
     tg.add_parser("status")
+    tg.add_parser("2fa", help="crea (o cambia) la clave del código de verificación de 6 dígitos: la cargas en una app de autenticación")
     fb = sub.add_parser("feedback", help="revisión de feedback (sesión manager)").add_subparsers(dest="cmd", required=True)
     fc = fb.add_parser("collect", help="correcciones anotadas + mensajes del usuario de cada sesión desde --since")
     fc.add_argument("--since", help="ISO (AAAA-MM-DD[THH:MM]); default: hace 7 días"); fc.add_argument("--json", action="store_true")
@@ -1056,13 +1057,38 @@ def _notion_cmd(a, env, out: TextIO) -> int:
 
 def _telegram(a, root: Path, url: str | None, http, out: TextIO) -> int:
     import getpass
+    import os
     import secrets as _secrets
     import time as _time
     from ide_server.db import Db
     from ide_server.telegram import get_token, set_token
     db = Db(root)
+    from ide_server import telegram_guard as tgg
     if a.cmd == "status":
-        out.write(f"token en el llavero: {'sí' if get_token() else 'no'}\nchat vinculado: {'sí' if db.get('telegram:chat') else 'no'}\n")
+        out.write(f"token en el llavero: {'sí' if get_token() else 'no'}\nchat vinculado: {'sí' if db.get('telegram:chat') else 'no'}\n"
+                  f"código de verificación (2FA): {'sí' if tgg.get_secret() else 'no (ide telegram 2fa)'}\n")
+        return 0
+    # vincular el chat o cambiar la clave del código: solo tú, en tu terminal (nunca una sesión ni algo que lanzó)
+    if any(os.environ.get(k) for k in ("IDE_SESSION_ID", "IDE_MANAGER_TOKEN", "IDE_PLUGINS_TOKEN")) or not sys.stdin.isatty():
+        raise SessionError("forbidden", "esto se corre en tu terminal, no desde una sesión")
+    if a.cmd == "2fa":
+        old = tgg.get_secret()
+        if old:
+            cur = getpass.getpass("Ya hay una clave. Código actual de tu app (6 dígitos): ").strip()
+            if not any(_secrets.compare_digest(tgg.totp(old, None, o)[1], cur) for o in (-1, 0, 1)):
+                raise SessionError("forbidden", "código incorrecto: la clave no cambió")
+        new = tgg.new_secret()
+        grouped = " ".join(new[i:i + 4] for i in range(0, len(new), 4))
+        out.write("En tu app de autenticación (Google Authenticator, 1Password, …): agregar cuenta → «ingresar clave»:\n"
+                  f"  cuenta: IDE Telegram\n  clave:  {grouped}\n  (basada en tiempo, 6 dígitos)\n"
+                  f"o el enlace: otpauth://totp/IDE%20Telegram?secret={new}&issuer=IDE\n")
+        out.flush()
+        code = getpass.getpass("Para confirmar, el código que te muestra la app: ").strip()
+        if not any(_secrets.compare_digest(tgg.totp(new, None, o)[1], code) for o in (-1, 0, 1)):
+            raise SessionError("bad_request", "código incorrecto: no guardé la clave (vuelve a correrlo)")
+        tgg.set_secret(new)
+        db.delete("telegram:laststep")
+        out.write("Listo: clave guardada en el llavero. Para actuar desde Telegram, mándale al bot el código del momento.\n")
         return 0
     token = getpass.getpass("Token del bot (de @BotFather; no se muestra): ").strip()
     if not re.fullmatch(r"\d+:[A-Za-z0-9_-]{30,}", token):
@@ -1271,6 +1297,9 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
         if a.group == "telegram":
             return _telegram(a, root, url, http, out)
         if a.group == "db":
+            if env.get("IDE_MANAGER_TOKEN") and not _get(http, url, "/api/telegram/guard").get("managerOk", True):
+                raise SessionError("telegram_window", "no estás en el IDE y Telegram está activo: la manager no consulta "
+                                   "la base hasta que el usuario abra la ventana con su código de 6 dígitos (o vuelva al IDE)")
             return _db_query(a.env, a.sql, home, out, err, csv=a.csv, to=a.out, root=root, sid=env.get("IDE_SESSION_ID"))
         if a.group == "browser":
             return _browser(a, root, env, out)

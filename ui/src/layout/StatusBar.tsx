@@ -99,6 +99,7 @@ export function StatusBar() {
           <FinishedNow />
           <Decisions />
           <FeedbackPending />
+          <TelegramSwitch />
           {update?.pending && (
             <span className="flex items-center gap-1.5 text-sky-400"
               title={`Se reinicia solo cuando nadie tecleó en una terminal por ${update.idleBefore} s; las conversaciones de claude siguen.`}>
@@ -345,6 +346,55 @@ function Decisions() {
     <button disabled={!n} onClick={() => { if (activePanel !== "later") setActivePanel("later"); if (!innerSidebarOpen) toggleInnerSidebar(); }}
       className="rounded border border-red-400/70 px-1.5 font-semibold text-red-300 hover:bg-red-400/10 disabled:border-border disabled:font-normal disabled:cursor-default disabled:text-muted-foreground disabled:opacity-60 disabled:hover:bg-transparent">
       {n} {n === 1 ? "bloqueante" : "bloqueantes"}</button>);
+}
+
+type TgStatus = { token: boolean; chat: boolean; on?: boolean; mode?: "off" | "ide" | "listening" | "window";
+  windowUntil?: number | null; lockedUntil?: number | null; twoFactor?: boolean; presentFor?: number; window?: number };
+
+const hhmm = (t: number) => new Date(t * 1000).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+
+/** Telegram (la manager por Telegram): interruptor y estado. Mientras usas el IDE (click o tecla en la página en los
+ *  últimos 10 min) Telegram está en pausa; afuera, escucha, y el código de 6 dígitos abre una ventana de 30 min para
+ *  que las sesiones puedan actuar. La página avisa tu actividad (`ui.presence`, cada 30 s como mucho). */
+function TelegramSwitch() {
+  const [st, setSt] = useState<TgStatus | null>(null);
+  const last = useRef(0);
+  useEffect(() => {
+    const ws = getWs();
+    const load = () => ws.request("telegram.status", {}).then((x: any) => setSt(x)).catch(() => {});
+    const seen = () => {
+      const now = Date.now();
+      if (now - last.current < 30_000) return;
+      last.current = now;
+      ws.request("ui.presence", {}).then(load).catch(() => {});
+    };
+    seen();
+    window.addEventListener("pointerdown", seen, true);
+    window.addEventListener("keydown", seen, true);
+    const t = setInterval(load, 15_000);
+    return () => { window.removeEventListener("pointerdown", seen, true); window.removeEventListener("keydown", seen, true); clearInterval(t); };
+  }, []);
+  if (!st?.token || !st.chat || st.mode === undefined) return null;
+  const toggle = () => getWs().request("telegram.toggle", { on: !st.on }).then((x: any) => setSt(x)).catch(() => {});
+  const mins = Math.round((st.presentFor ?? 600) / 60);
+  const [label, cls, why] =
+    st.mode === "off" ? ["telegram: apagado", "text-muted-foreground border-border",
+      "Telegram apagado: el IDE ignora lo que llegue por Telegram. Click = encenderlo."]
+    : st.lockedUntil ? [`telegram: bloqueado hasta ${hhmm(st.lockedUntil)}`, "text-red-300 border-red-400/70",
+      "Hubo 5 códigos incorrectos seguidos: no acepta más hasta esa hora. Si no fuiste tú, apágalo y revisa tus sesiones de Telegram. Click = apagarlo."]
+    : st.mode === "ide" ? ["telegram: en pausa (usas el IDE)", "text-muted-foreground border-border",
+      `Mientras usas el IDE, lo que llegue por Telegram no le llega a la manager. Se activa solo tras ${mins} min sin tocar el IDE. Click = apagarlo del todo.`]
+    : st.mode === "window" ? [`telegram: ventana abierta hasta ${hhmm(st.windowUntil!)}`, "text-emerald-300 border-emerald-400/70",
+      "Con el código de 6 dígitos: hasta esa hora se pueden aprobar propuestas y la manager puede mandarle trabajo a las sesiones. Click = apagarlo (cierra la ventana)."]
+    : [`telegram: activo${st.twoFactor ? "" : " · sin código"}`, st.twoFactor ? "text-amber-300 border-amber-400/70" : "text-red-300 border-red-400/70",
+      st.twoFactor ? "Activo porque no estás en el IDE: la manager te contesta y propone, pero ninguna sesión actúa hasta que mandes el código de 6 dígitos (abre una ventana de 30 min). Click = apagarlo."
+        : "Activo sin código de verificación: nadie puede abrir la ventana para actuar. Configúralo en tu terminal con `ide telegram 2fa`. Click = apagarlo."];
+  return (
+    <button onClick={toggle} title={why} aria-pressed={st.on}
+      className={cn("flex items-center gap-1 rounded border px-1.5 hover:bg-foreground/5", cls)}>
+      <span className={cn("inline-block h-2 w-3.5 rounded-full border border-current", st.on && "bg-current/40")} />
+      {label}
+    </button>);
 }
 
 /** La revisión semanal dejó un plan de feedback sin revisar: click = ir a la sesión principal. */

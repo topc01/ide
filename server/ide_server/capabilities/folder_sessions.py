@@ -580,6 +580,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return await tree_payload()
 
     async def new(p: dict) -> dict:
+        # la manager (por proceso) crea una sesión que arranca a trabajar: mientras no estás y Telegram escucha, solo
+        # con la ventana del código abierta (si no, alguien con tu Telegram la usaría para lanzar trabajo)
+        if p.get("_http") and guard is not None and not guard.manager_send_ok() and not p.get("dry_run"):
+            sid_ = await asyncio.to_thread(_calling_session, p)
+            if sid_ and sid_ == find_main(root):
+                raise SessionError("telegram_window", "no estás en el IDE y Telegram está activo: para lanzar trabajo usa "
+                                   "`ide session propose` (el usuario lo aprueba con su código de 6 dígitos)")
+        p = {k: v for k, v in p.items() if k not in ("_http", "_peer")}
         res = await asyncio.to_thread(create_session, root, p)
         if res.get("dryRun") or res.get("existed"):
             return {**res, "process": supervisor.state(res["session"]["id"])}
@@ -903,6 +911,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         # sesión sabe de quién viene
         text = {"manager": "[Mensaje de la sesión manager]\n", "plugins": "[Mensaje de la sesión Plugins]\n"}.get(
             caller, "[Mensaje del usuario]\n") + text.strip()
+        if caller == "manager" and guard is not None and not guard.manager_send_ok():
+            raise SessionError("telegram_window", "no estás en el IDE y Telegram está activo: para mandarle trabajo a una "
+                               "sesión usa `ide session propose` (el usuario lo aprueba en Telegram con su código de 6 dígitos)")
         state, how = _deliver_to(sid, text, caller)
         return {"id": sid, "process": state, "delivered": how}
 
@@ -976,6 +987,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         # «plugin: …»: directo a la sesión Plugins (herramientas, plugins, skills, MCP, hooks), sin pasar por la manager
         m = re.match(r"\s*plugins?\s*:\s*", text, re.IGNORECASE)
         if m and session_path(root, PLUGINS).is_dir():
+            if guard is not None and not guard.can_act():   # directo a una sesión: solo con la ventana abierta
+                return "para mandarle algo directo a Plugins, primero mándame el código de 6 dígitos"
             _, how = _deliver_to(PLUGINS, "[Mensaje de Telegram del usuario] (respóndele con `ide reply`: una línea por "
                                  "herramienta)\n" + text[m.end():], "telegram")
             return how
@@ -990,7 +1003,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         _, how = _deliver_to(sid, "[Mensaje de la sesión manager]\n" + text, "telegram")
         return f"Mandado a {sid} ({how})."
 
-    bridge = TelegramBridge(db, deliver=_tg_deliver, propose_ok=_tg_propose_ok) if db is not None else None
+    bridge = TelegramBridge(db, deliver=_tg_deliver, propose_ok=_tg_propose_ok, on_change=lambda: notify()) \
+        if db is not None else None
+    guard = bridge.guard if bridge is not None else None
 
     def _calling_session(p: dict) -> str | None:
         """La sesión cuyo claude hizo la llamada HTTP (por proceso, no por lo que dice el comando)."""
@@ -1063,7 +1078,30 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"id": sid, "proposal": pid}
 
     async def tg_status(_p: dict) -> dict:
-        return {"token": bool(await asyncio.to_thread(get_token)), "chat": bool(db and db.get("telegram:chat"))}
+        st = await asyncio.to_thread(guard.status) if guard is not None else {}
+        return {"token": bool(await asyncio.to_thread(get_token)), "chat": bool(db and db.get("telegram:chat")), **st}
+
+    async def tg_guard(_p: dict) -> dict:
+        """Para la CLI de la manager (`ide db`): ¿puede actuar ahora? (no estás + Telegram escucha + sin ventana = no)."""
+        return {"managerOk": guard.manager_send_ok() if guard is not None else True}
+
+    async def tg_toggle(p: dict) -> dict:
+        """El interruptor de Telegram de la barra inferior: solo desde la UI (por HTTP, `forbidden`)."""
+        if p.get("_http"):
+            raise SessionError("forbidden", "el interruptor de Telegram se cambia desde la barra del IDE")
+        if guard is None:
+            raise SessionError("no_db", "sin base")
+        guard.set_on(bool(p.get("on")))
+        db.event(datetime.now().isoformat(timespec="seconds"), "usuario", "telegram", data={"on": bool(p.get("on"))})
+        return await tg_status({})
+
+    async def ui_presence(p: dict) -> dict:
+        """La UI avisa que estás usándola (click o tecla): mientras tanto, Telegram no le pasa nada a la manager."""
+        if p.get("_http"):
+            raise SessionError("forbidden", "la presencia la avisa la UI")
+        if guard is not None:
+            guard.touch()
+        return {"ok": True}
 
     nightly_state = {"running": False}
 
@@ -2921,7 +2959,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
         "sessions.stop": stop, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
-        "attachments.rename": attachments_rename, "attachments.mkdir": attachments_mkdir, "attachments.move": attachments_move, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status,
+        "attachments.rename": attachments_rename, "attachments.mkdir": attachments_mkdir, "attachments.move": attachments_move, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status, "telegram.toggle": tg_toggle, "telegram.guard": tg_guard, "ui.presence": ui_presence,
         "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.archived": archived, "sessions.unarchive": unarchive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,

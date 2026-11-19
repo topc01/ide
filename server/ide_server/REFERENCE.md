@@ -261,6 +261,23 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
   puede autoaprobarse). Ambos solo para la principal (token) y permitidos sin preguntar.
   Canales `telegram.reply`, `sessions.propose`, `telegram.status`; HTTP `POST /api/telegram/reply`,
   `POST /api/sessions/{id}/propose`.
+- **Protección (`telegram_guard.py`)** — si alguien se queda con tu Telegram, no puede hacer actuar a las sesiones:
+  - **Interruptor** en la barra inferior («telegram: …»; `kv telegram:on`, canal `telegram.toggle`, solo desde la UI):
+    apagado, el IDE ignora Telegram (contesta «apagado»). El botón dice el estado: **apagado**, **en pausa (usas el
+    IDE)**, **activo** (rojo «sin código» si falta la 2FA), **ventana abierta hasta HH:MM** o **bloqueado hasta HH:MM**.
+  - **Mientras usas el IDE, Telegram está en pausa**: la página avisa cada click o tecla (`ui.presence`, cada 30 s como
+    mucho; solo por el websocket de la UI). Con actividad en los últimos 10 min, un mensaje de Telegram no le llega a
+    la manager (el bot contesta que está en pausa). Al reiniciar el IDE cuenta como ausente hasta que toques la página.
+  - **Código de verificación (2FA)**: `ide telegram 2fa` (solo en tu terminal: se niega desde una sesión o sin TTY;
+    para cambiarla pide el código actual) crea una clave TOTP (6 dígitos, 30 s) en el llavero (`ide-telegram`/`totp`)
+    que cargas en una app de autenticación. Mandarle al bot el código del momento abre una **ventana de 30 min**;
+    un código no se reusa; 5 incorrectos seguidos bloquean 1 h.
+  - **Qué pide la ventana** (solo mientras no estás en el IDE y Telegram escucha): el «Sí» de una propuesta (sin
+    ventana, contesta que mandes el código; la propuesta queda), un mensaje directo a Plugins («plugin: …»), y que la
+    manager le mande trabajo a una sesión (`ide session send`, `telegram_window`), cree una con trabajo (`ide session
+    new`, por proceso) o consulte la base (`ide db`, por la CLI; `GET /api/telegram/guard`). Preguntarle a la manager
+    y que te conteste o proponga no la necesita. Estando en el IDE (o con Telegram apagado), nada de esto cambia.
+  - El hook de las sesiones frena `ide telegram setup|2fa` y cualquier comando que nombre `ide-telegram` (el llavero).
 
 ### Traspaso desde Conductor (`ide handoff`)
 - `ide handoff --from <worktree> [--notion <id|url>] [--status <estado>] [--title t] [--session id] --summary-file <f|->`:
