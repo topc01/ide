@@ -94,12 +94,12 @@ export function StatusBar() {
           <Sep />
           <Window label="semana" w={lim?.weekly ?? null} now={now} />
           <Sep />
+          <TelegramSwitch />
           <WorkingNow />
           <WaitingForYou />
           <FinishedNow />
           <Decisions />
           <FeedbackPending />
-          <TelegramSwitch />
           {update?.pending && (
             <span className="flex items-center gap-1.5 text-sky-400"
               title={`Se reinicia solo cuando nadie tecleó en una terminal por ${update.idleBefore} s; las conversaciones de claude siguen.`}>
