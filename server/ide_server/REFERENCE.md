@@ -275,9 +275,10 @@ Salida: `<id>\t<running|queued|existe>\t<ruta>`; con `--dry-run`: `<id>\tdry-run
     (`~/.ide-totp/sock`, solo tu usuario) si un código es correcto, con su propio tope (5 incorrectos en 10 min → 1 h). Se lanza con `-I` y `cwd=/` (sin código ajeno en el camino de módulos); el IDE solo le cree si el proceso dueño del socket (`LOCAL_PEERPID`) corre el mismo python que el IDE (ruta real del ejecutable, del kernel con `proc_pidpath`, no la línea de comando) con `-I -m ide_server.totpd`, y solo acepta un paso de tiempo dentro de ±30 s. Contra otro programa de tu mismo usuario no hay protección completa (podría bloquear el guardián con códigos malos o reemplazar el paquete instalado): el límite es el del usuario de macOS. Mandarle al bot el código del momento abre una **ventana de 30 min**;
     un código no se reusa; 5 incorrectos seguidos bloquean 1 h.
   - **Qué pide la ventana**: el «Sí» de una propuesta (sin ventana, contesta que mandes el código; la propuesta queda),
-    un mensaje directo a Plugins («plugin: …»), y lo que la manager haga **respondiendo un mensaje de Telegram** (su
-    último prompt en su transcript empieza con `[Mensaje de Telegram`; lo escribe claude, no lo dice la sesión; si no se
-    puede leer, cuenta como de Telegram): mandarle trabajo a una sesión (`ide session send`, `telegram_window`), lanzar
+    un mensaje directo a Plugins («plugin: …»), y lo que la manager haga **respondiendo un mensaje de Telegram** (lo
+    lleva el IDE, no un archivo: `kv telegram:turn` se marca al entregarle un mensaje de Telegram y se borra solo cuando
+    tú le escribes en su terminal desde el IDE —llega por el websocket de la UI, `Supervisor.input_listeners`— o le
+    respondes desde la barra, `sessions.attentionReply`): mandarle trabajo a una sesión (`ide session send`, `telegram_window`), lanzar
     una por HTTP (`sessions.new`, `sessions.open`, `reviews.startStack`: `_away_check`) o consultar la base (`ide db`:
     la CLI pregunta `GET /api/telegram/guard`, que mira el proceso; si el server no responde, se niega con la clave de
     la manager). Lo que le pides desde el IDE no pide código. Las demás sesiones siguen trabajando solas.

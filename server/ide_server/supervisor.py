@@ -255,6 +255,8 @@ class Supervisor:
         # actividad de su claude (por los hooks): {state: working|waiting, since, note, reason}
         self._activity: dict[str, dict] = {}
         self._attention: dict[str, str] = {}        # sid -> "trust"
+        # avisados cuando tú escribes en la terminal de un claude (solo llega de la UI, por websocket): (sid) -> None
+        self.input_listeners: list[Callable[[str], None]] = []
 
     def state(self, sid: str) -> str:
         if sid in self._running:
@@ -511,6 +513,12 @@ class Supervisor:
 
     def _on_input(self, sid: str, tid: str | None) -> None:
         """El usuario escribió en la terminal: asumimos que respondió el diálogo (o el permiso)."""
+        if tid is not None and self._running.get(sid) == tid:
+            for fn in list(self.input_listeners):
+                try:
+                    fn(sid)
+                except Exception:  # noqa: BLE001
+                    log.exception("input listener")
         if (self._activity.get(sid) or {}).get("reason") == "permission":
             self.set_activity(sid, "working")
         if tid is not None and self._running.get(sid) == tid and \

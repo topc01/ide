@@ -1008,6 +1008,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         main = await asyncio.to_thread(find_main, root)
         if main is None:
             raise SessionError("no_main", "no hay sesión principal")
+        db.set("telegram:turn", datetime.now().isoformat(timespec="seconds"))   # lo que haga ahora pide la ventana
         _, how = _deliver_to(main, "[Mensaje de Telegram del usuario] (respóndele con `ide reply`; para mandar algo a "
                              "una sesión usa `ide session propose`)\n" + text, "telegram")
         return how
@@ -1020,40 +1021,16 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if db is not None else None
     guard = bridge.guard if bridge is not None else None
 
-    def _manager_tg_turn() -> bool:
-        """¿La manager está respondiendo un mensaje de Telegram? Su último prompt (el que escribió claude en su transcript,
-        no lo que diga la sesión) empieza con «[Mensaje de Telegram». Si no se puede leer, se asume que sí (falla cerrado)."""
-        main = find_main(root)
-        if not main:
-            return False                        # sin manager no hay a quién pedirle nada
-        path = _transcript(main)
-        base = (Path.home() / ".claude" / "projects").resolve()
-        if not path or not Path(path).resolve().is_relative_to(base):
-            return True                         # no se puede ver: falla cerrado
-        try:
-            with open(path, "rb") as fh:
-                fh.seek(0, 2)
-                size = fh.seek(max(0, fh.tell() - 4_000_000))
-                lines = fh.read().splitlines()[1 if size else 0:]
-        except OSError:
-            return True
-        for raw in reversed(lines):
-            try:
-                e = json.loads(raw)
-            except ValueError:
-                continue
-            if e.get("type") != "user" or e.get("isMeta"):
-                continue
-            c = (e.get("message") or {}).get("content")
-            text = c if isinstance(c, str) else next((x.get("text") for x in c or [] if isinstance(x, dict)
-                                                      and x.get("type") == "text"), None)
-            if text is None:                    # un tool_result: no es un prompt
-                continue
-            return text.lstrip().startswith("[Mensaje de Telegram")
-        return True                             # sin un prompt en lo que se leyó (p.ej. salidas enormes): falla cerrado
+    # ¿la manager está respondiendo un mensaje de Telegram? Lo lleva el IDE, no un archivo: se marca al entregarle uno
+    # (`_tg_deliver`) y se borra solo cuando tú le escribes en su terminal desde el IDE (llega por el websocket de la
+    # UI; una sesión no lo puede fingir) o le respondes desde la barra (`attentionReply`).
+    def _tg_turn_clear(sid: str) -> None:
+        if db is not None and sid == find_main(root):
+            db.delete("telegram:turn")
 
+    supervisor.input_listeners.append(_tg_turn_clear)
     if guard is not None:
-        guard.tg_turn = _manager_tg_turn
+        guard.tg_turn = lambda: bool(db.get("telegram:turn"))
     if guard is not None and not os.environ.get("IDE_DB_PATH"):
         # el guardián del código (aparte del IDE: sobrevive a sus reinicios; el llavero pregunta solo cuando arranca)
         from ide_server import telegram_guard as _tgg, totpd as _totpd
@@ -1815,6 +1792,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         sid = require_plain_name(p["id"], "sesión")
         if supervisor.state(sid) != "running":
             raise SessionError("not_running", f"la sesión {sid} no está corriendo")
+        _tg_turn_clear(sid)                     # le respondes tú desde el IDE: lo que siga no viene de Telegram
         action = p.get("action")
         cur = await asyncio.to_thread(_attention_of, sid)
         act, pend = cur["activity"], cur.get("pending")
