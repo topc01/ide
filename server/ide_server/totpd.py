@@ -101,17 +101,40 @@ def serve() -> None:
 
 
 # -- cliente -------------------------------------------------------------------------------------------------
-def _peer_is_guardian(c: socket.socket) -> bool:
-    """Del otro lado del socket tiene que estar el guardián (este módulo, con el python del IDE), no algo que se puso en
-    su lugar: se mira el proceso dueño de la conexión (LOCAL_PEERPID) y su línea de comando."""
+def _exe_of(pid: int) -> str | None:
+    """La ruta real del ejecutable de un proceso, del kernel (proc_pidpath): no se falsea como la línea de comando."""
+    import ctypes
+    import ctypes.util
     try:
-        pid = c.getsockopt(0, 0x002, 4)          # SOL_LOCAL, LOCAL_PEERPID (macOS)
-        pid = int.from_bytes(pid, sys.byteorder) if isinstance(pid, bytes) else int(pid)
+        lib = ctypes.CDLL(ctypes.util.find_library("proc") or "/usr/lib/libproc.dylib")
+        buf = ctypes.create_string_buffer(4096)
+        n = lib.proc_pidpath(pid, buf, ctypes.sizeof(buf))
+        return os.path.realpath(buf.raw[:n].decode()) if n > 0 else None
+    except (OSError, AttributeError, UnicodeDecodeError):
+        return None
+
+
+def _python_exes() -> set[str]:
+    """Los ejecutables que puede ser el python del IDE (el framework de macOS se re-ejecuta como …/Python.app/…/Python)."""
+    real = os.path.realpath(sys.executable)
+    out = {real}
+    base = Path(sys.base_prefix)
+    out.add(os.path.realpath(base / "Resources" / "Python.app" / "Contents" / "MacOS" / "Python"))
+    return out
+
+
+def _peer_is_guardian(c: socket.socket) -> bool:
+    """Del otro lado del socket tiene que estar el guardián: el proceso dueño de la conexión (LOCAL_PEERPID) corre el
+    mismo python que el IDE (ruta real, del kernel) con `-I -m ide_server.totpd`. Límite: otro programa de tu usuario
+    que modifique los archivos instalados del IDE no se puede frenar desde acá (es el límite del usuario de macOS)."""
+    try:
+        raw = c.getsockopt(0, 0x002, 4)          # SOL_LOCAL, LOCAL_PEERPID (macOS)
+        pid = int.from_bytes(raw, sys.byteorder) if isinstance(raw, bytes) else int(raw)
         cmd = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True).stdout.split()
     except (OSError, ValueError):
         return False
-    # el python del framework de macOS se re-ejecuta como …/Python.app/…/Python: se mira que sea un python
-    return len(cmd) >= 4 and Path(cmd[0]).name.lower().startswith("python") and cmd[1:4] == ["-I", "-m", "ide_server.totpd"]
+    exe = _exe_of(pid)
+    return bool(exe) and exe in _python_exes() and cmd[1:4] == ["-I", "-m", "ide_server.totpd"]
 
 
 def ask(req: dict, timeout: float = 5) -> dict | None:
