@@ -7,7 +7,8 @@ name = "{name}"
 
 [sessions]
 default_permissions = "analyze"   # analyze | full | default
-max_running = 6                   # tope de claudes de sesiones de trabajo abiertos a la vez (sin la manager, IDE, Recursos ni Plugins); al llegar, se cierra el que lleve 15 min o más sin trabajar; omitido = sin tope
+min_free_memory = 20            # aviso en la barra inferior cuando la Mac tiene menos de este % de memoria libre: las sesiones se abren igual y tú eliges cuál detener; omitido = sin aviso
+# max_running = 6               # (opcional) tope fijo de sesiones de trabajo abiertas a la vez: al llegar, cierra la que lleve 15 min sin trabajar o deja la nueva en cola
 claude_command = "claude"
 
 [reviews]

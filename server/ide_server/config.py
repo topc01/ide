@@ -19,7 +19,7 @@ def load_workspace_config(root: Path) -> dict:
     return tomllib.loads(path.read_text())
 
 
-SESSION_DEFAULTS = {"default_permissions": "analyze", "max_running": None,
+SESSION_DEFAULTS = {"default_permissions": "analyze", "max_running": None, "min_free_memory": None,
                     "claude_command": "claude"}
 
 
@@ -31,6 +31,9 @@ def sessions_config(root: Path) -> dict:
     mr = cfg["max_running"]
     if mr is not None and (not isinstance(mr, int) or isinstance(mr, bool) or mr < 1):
         raise ValueError(f"[sessions] max_running inválido: {mr!r} (entero >= 1, u omitido)")
+    mf = cfg["min_free_memory"]
+    if mf is not None and (not isinstance(mf, int) or isinstance(mf, bool) or not 1 <= mf <= 90):
+        raise ValueError(f"[sessions] min_free_memory inválido: {mf!r} (porcentaje entero de 1 a 90, u omitido)")
     return cfg
 
 

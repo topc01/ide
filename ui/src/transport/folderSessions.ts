@@ -21,6 +21,7 @@ export interface FolderSession {
     /** te esperaba, pero después pasó algo en sus PRs (aprobaste, se mergeó…): su mensaje quedó viejo */
     outdated?: { what: string; at: string } } | null;
   frozen?: string | null;         // congelada (SIGSTOP) desde
+  freedAt?: string | null;        // la detuviste desde el aviso de memoria (grupo «frenadas» de la barra)
   paused?: { at: string } | null; // pausada: su claude se cerró y nada lo relanza solo
   consult?: { terminalId: string; at: string } | null;   // claude de consulta abierto (solo lectura)
 }
@@ -154,6 +155,13 @@ export const fetchPrBody = (ws: WsClient, url: string): Promise<{ body: string; 
 export const savePrBody = (ws: WsClient, url: string, body: string) => ws.request("pr.bodySave", { url, body });
 export const openSession = (ws: WsClient, id: string) => ws.request("sessions.open", { id });
 export const stopSession = (ws: WsClient, id: string) => ws.request("sessions.stop", { id });
+/** Detenerla desde el aviso de memoria: cierra su claude (libera su memoria) y queda en «frenadas». */
+export const stopForMemory = (ws: WsClient, id: string) => ws.request("sessions.stop", { id, memory: true });
+export interface MemoryReport {
+  free: number | null; min: number | null; low: boolean;
+  sessions: { id: string; mb: number | null; state: string | null; since: string | null }[];
+}
+export const fetchMemory = (ws: WsClient): Promise<MemoryReport> => ws.request("sessions.memory", {});
 /** Congelar / soltar su claude (SIGSTOP/SIGCONT): sigue donde estaba; no libera memoria. */
 export const freezeSession = (ws: WsClient, id: string, on: boolean) => ws.request("sessions.freeze", { id, on });
 /** Pausar: corta el turno, cierra su claude (libera memoria) y nada lo relanza solo. Reanudar lo relanza. */

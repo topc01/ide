@@ -218,11 +218,23 @@ def build_argv(root: Path, sid: str, *, command: str, resume: bool,
     return argv
 
 
+def _free_memory_pct() -> int | None:
+    """El % de memoria libre de la Mac (`memory_pressure -Q`, el mismo número que usa macOS para la presión)."""
+    try:
+        out = subprocess.run(["memory_pressure", "-Q"], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    m = re.search(r"free percentage:\s*(\d+)%", out)
+    return int(m.group(1)) if m else None
+
+
 class Supervisor:
     """Dueño único de los procesos `claude` de las sesiones-carpeta."""
 
     def __init__(self, root: Path, *, spawn: SpawnFn, kill: KillFn, server_url: str,
                  command: str = "claude", max_running: int | None = None,
+                 min_free_memory: int | None = None, free_memory: Callable[[], int | None] | None = None,
+                 pid_of: Callable[[str], int | None] | None = None,
                  home: Path | None = None, on_change: Callable[[], None] | None = None,
                  which: Callable[[str], str | None] = shutil.which,
                  agents: ClaudeAgents | None = None,
@@ -236,6 +248,10 @@ class Supervisor:
         self.plugins_token = secrets.token_urlsafe(32)
         self._root, self._spawn, self._kill = root, spawn, kill
         self._url, self._command, self._max = server_url, command, max_running
+        self._min_free = min_free_memory
+        self._free_memory = free_memory or _free_memory_pct
+        self._pid_of = pid_of
+        self._freed: dict[str, str] = {}            # sid -> cuándo la detuviste desde el aviso de memoria
         self._home = home or Path.home()
         self._on_change = on_change or (lambda: None)
         self._which = which
@@ -267,14 +283,15 @@ class Supervisor:
         return "stopped"
 
     def snapshot(self) -> dict[str, dict]:
-        sids = set(self._running) | {q[0] for q in self._queue} | set(self._errors) | set(self._evicted)
+        sids = set(self._running) | {q[0] for q in self._queue} | set(self._errors) | set(self._evicted) | set(self._freed)
         return {sid: {"process": self.state(sid), "terminalId": self._running.get(sid),
                       "launchError": self._errors.get(sid),
                       "attention": self._attention.get(sid),
                       "activity": self._activity.get(sid) if sid in self._running else None,
                       "frozen": self._frozen.get(sid) if sid in self._running else None,
                       "queuedPrompt": next(((q[2] or "")[:200] for q in self._queue if q[0] == sid), None),
-                      "evictedAt": self._evicted.get(sid) if sid not in self._running else None} for sid in sids}
+                      "evictedAt": self._evicted.get(sid) if sid not in self._running else None,
+                      "freedAt": self._freed.get(sid) if sid not in self._running else None} for sid in sids}
 
     def set_activity(self, sid: str, state: str, note: str | None = None, reason: str | None = None) -> str | None:
         """Devuelve el estado anterior."""
@@ -416,6 +433,7 @@ class Supervisor:
 
     def _launch(self, sid: str, resume: bool, prompt: str | None = None) -> None:
         self._evicted.pop(sid, None)
+        self._freed.pop(sid, None)
         path = session_path(self._root, sid)
         # Cada sesión fija su conversación de claude (`claude_session` en .session.toml): nueva
         # con --session-id, retomada con --resume <id>. Las viejas adoptan la más reciente.
@@ -563,6 +581,52 @@ class Supervisor:
 
     def _full(self) -> bool:
         return self._max is not None and len(self._counted()) >= self._max
+
+    # -- memoria (min_free_memory): nunca frena ni cierra nada; la barra inferior avisa y tú eliges cuál detener ------
+    def memory_report(self) -> dict:
+        """El % de memoria libre de la Mac, el mínimo configurado y lo que usa cada sesión de trabajo abierta (su
+        claude y todo lo que lanzó, sin los contenedores de Docker)."""
+        free = self._free_memory()
+        rss: dict[int, int] = {}
+        kids: dict[int, list[int]] = {}
+        try:
+            out = subprocess.run(["ps", "-axo", "pid=,ppid=,rss="], capture_output=True, text=True, timeout=5).stdout
+            for line in out.splitlines():
+                parts = line.split()
+                if len(parts) == 3 and all(x.isdigit() for x in parts):
+                    pid, ppid, kb = map(int, parts)
+                    rss[pid] = kb
+                    kids.setdefault(ppid, []).append(pid)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+        def tree_kb(pid: int) -> int:
+            total, stack, seen = 0, [pid], set()
+            while stack:
+                x = stack.pop()
+                if x in seen:
+                    continue
+                seen.add(x)
+                total += rss.get(x, 0)
+                stack.extend(kids.get(x, []))
+            return total
+
+        rows = []
+        for sid in self._counted():
+            pid = self._pid_of(self._running[sid]) if self._pid_of else None
+            a = self._activity.get(sid) or {}
+            rows.append({"id": sid, "mb": round(tree_kb(pid) / 1024) if pid else None,
+                         "state": "frozen" if sid in self._frozen else a.get("state"), "since": a.get("since")})
+        rows.sort(key=lambda r: -(r["mb"] or 0))
+        return {"free": free, "min": self._min_free,
+                "low": free is not None and self._min_free is not None and free < self._min_free, "sessions": rows}
+
+    def stop_for_memory(self, sid: str) -> None:
+        """La detienes desde el aviso de memoria: queda en «frenadas» (barra inferior) hasta que se vuelve a abrir."""
+        if sid not in self._running:
+            raise SessionError("not_running", f"la sesión {sid} no está corriendo")
+        self._freed[sid] = datetime.now().isoformat(timespec="seconds")
+        self.stop(sid)
 
     def _evict_one(self) -> str | None:
         """Cierra el claude que más tiempo lleva sin trabajar (EVICT_IDLE o más). Devuelve cuál, o None."""

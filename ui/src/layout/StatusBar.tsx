@@ -6,7 +6,7 @@ import { useFolders } from "../state/folders";
 import { useStore } from "../state/store";
 import { activeBlockers } from "../modules/later/focus";
 import { isWaiting, waitTime } from "../modules/sessions/activity";
-import { fetchUsage, type Usage, type UsageWindow } from "../transport/folderSessions";
+import { fetchMemory, fetchUsage, stopForMemory, type MemoryReport, type Usage, type UsageWindow } from "../transport/folderSessions";
 import { getWs } from "../transport/wsClient";
 import { cn } from "../lib/utils";
 import { AttentionDetail } from "./AttentionDetail";
@@ -94,9 +94,11 @@ export function StatusBar() {
           <Sep />
           <Window label="semana" w={lim?.weekly ?? null} now={now} />
           <Sep />
+          <LowMemory />
           <WorkingNow />
           <WaitingForYou />
           <FinishedNow />
+          <FreedNow />
           <Sep />
           <Decisions />
           <TelegramSwitch />
@@ -126,6 +128,7 @@ const WAIT_REASON: Record<string, [string, string]> = {
   interrupt: ["interrumpida", "border-violet-400/60 text-violet-300"],
   idle: ["inactiva", "border-border text-muted-foreground"],
   launch: ["recién abierta", "border-border text-muted-foreground"],
+  freed: ["por memoria", "border-amber-400/70 text-amber-300"],
 };
 const SKIP_KINDS = ["main", "ide", "recursos", "plugins"];
 
@@ -156,6 +159,87 @@ function FinishedNow() {
   return <SessionCounter items={useWaiting().finished} one="terminó" many="terminaron" what="terminaron" />;
 }
 
+/** Las que detuviste desde el aviso de memoria (cuarto grupo, al lado de «terminaron»): click abre la sesión y
+ *  vuelve a lanzar su claude, que retoma su conversación. */
+function FreedNow() {
+  const sessions = useFolders((s) => s.tree.sessions);
+  const items = sessions.filter((x) => x.process === "stopped" && x.freedAt)
+    .map((x) => [`s:${x.id}`, { note: null, reason: "freed" }] as const);
+  return <SessionCounter items={items} one="frenada" many="frenadas" what="frenadas" />;
+}
+
+/** Aviso de memoria: si la Mac tiene menos memoria libre que `min_free_memory`, sale «⚠ memoria: N% libre».
+ *  Nada se frena ni se cierra solo: click = la lista de sesiones abiertas con lo que usa cada una y «detener». */
+function LowMemory() {
+  const [rep, setRep] = useState<MemoryReport | null>(null);
+  const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const sessions = useFolders((s) => s.tree.sessions);
+  const idx = useFolders((s) => s.tree.devIndex);
+  const names = useFolders((s) => s.tree.devNames);
+  const running = sessions.filter((x) => x.process === "running").length;
+  const load = () => fetchMemory(getWs()).then(setRep).catch(() => { /* server viejo */ });
+  useEffect(() => { load(); const t = setInterval(load, 15_000); return () => clearInterval(t); }, []);
+  useEffect(() => { const t = setTimeout(load, 3000); return () => clearTimeout(t); }, [running]);
+  useEffect(() => {
+    if (!open) return;
+    load();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+  if (!rep?.low) return null;
+  const label = (id: string) => names?.[`s:${id}`] ?? sessions.find((x) => x.id === id)?.title ?? id;
+  const ago = (iso: string | null) => iso ? new Date(iso).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }) : null;
+  const stop = (id: string) => { setConfirm(null); stopForMemory(getWs(), id).then(load).catch(() => {}); };
+  const at = open ? btn.current?.getBoundingClientRect() : null;
+  return (<>
+    <button ref={btn} onClick={() => setOpen((o) => !o)}
+      title={`La Mac tiene ${rep.free}% de memoria libre (el mínimo es ${rep.min}%). Las sesiones se siguen abriendo igual: click = ver cuánto usa cada una y detener alguna para liberar memoria.`}
+      className="rounded border border-amber-400/70 px-1.5 font-semibold text-amber-300 hover:bg-amber-400/10">
+      ⚠ memoria: {rep.free}% libre</button>
+    {at && createPortal(
+      <div style={{ left: Math.max(8, Math.min(at.left, window.innerWidth - 428)), bottom: window.innerHeight - at.top }}
+        className="fixed z-50 w-[420px] pb-1 font-mono text-xs">
+        <div className="max-h-[70vh] overflow-y-auto rounded-md border border-border bg-popover p-1.5 shadow-xl">
+          <div className="flex items-center px-1 pb-1.5 pt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <span className="flex-1">memoria: {rep.free}% libre (mínimo {rep.min}%) · detener libera la de su claude · Esc cierra</span>
+            <button title="Cerrar" onClick={() => setOpen(false)} className="px-1 hover:text-foreground">✕</button>
+          </div>
+          {!rep.sessions.length && <div className="px-2 py-1.5 text-muted-foreground">no hay sesiones de trabajo abiertas</div>}
+          <div className="flex flex-col gap-1">
+            {rep.sessions.map((r) => {
+              const n = idx?.[`s:${r.id}`];
+              const busy = r.state === "working";
+              return (
+                <div key={r.id} className="flex items-center gap-2 rounded border border-border bg-background/40 px-2 py-1.5">
+                  {n && <span className="shrink-0 font-semibold text-amber-300">#{n}</span>}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{label(r.id)}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {busy ? "trabajando" : r.state === "frozen" ? "congelada" : `sin trabajar desde ${ago(r.since) ?? "?"}`}</span>
+                  </span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">{r.mb != null ? `${(r.mb / 1024).toFixed(1)} GB` : "—"}</span>
+                  {confirm === r.id ? (
+                    <span className="flex shrink-0 items-center gap-1 text-destructive">
+                      ¿cortar su turno?
+                      <button title="Sí, detenerla igual" onClick={() => stop(r.id)} className="rounded border border-destructive/70 px-1 hover:bg-destructive/10">sí</button>
+                      <button title="No detenerla" onClick={() => setConfirm(null)} className="px-1 text-muted-foreground hover:text-foreground">no</button>
+                    </span>
+                  ) : (
+                    <button title={busy ? "Está trabajando: detenerla corta su turno a medias. Pide confirmar." : "Cierra su claude y libera su memoria; queda en «frenadas» y al abrirla retoma su conversación"}
+                      onClick={() => busy ? setConfirm(r.id) : stop(r.id)}
+                      className={cn("shrink-0 rounded border px-1", busy ? "border-destructive/70 text-destructive hover:bg-destructive/10" : "border-amber-400/70 text-amber-300 hover:bg-amber-400/10")}>
+                      detener</button>)}
+                </div>);
+            })}
+          </div>
+        </div>
+      </div>, document.body)}
+  </>);
+}
+
 /** Cuántas sesiones tienen su claude trabajando ahora (a la izquierda de «te esperan», igual por dentro). */
 function WorkingNow() {
   const sessions = useFolders((s) => s.tree.sessions);
@@ -183,7 +267,7 @@ const useOpenLists = create<{ spans: Record<string, [number, number]>; set: (k: 
  *  click = el detalle queda fijo y ↑/↓ lo cambia a la sesión de arriba/abajo. Enter (o «ir a la sesión») abre la
  *  sesión. Esc cierra todo (dentro del campo para responder, primero sale del campo). */
 function SessionCounter({ items, one, many, what }:
-  { items: Listed[]; one: string; many: string; what: "te esperan" | "trabajando" | "terminaron"; tone?: string; bg?: string;
+  { items: Listed[]; one: string; many: string; what: "te esperan" | "trabajando" | "terminaron" | "frenadas"; tone?: string; bg?: string;
     dot?: [string, string]; time?: (s?: any) => string | null }) {
   const names = useFolders((s) => s.tree.devNames);
   const sessions = useFolders((s) => s.tree.sessions);
@@ -192,9 +276,10 @@ function SessionCounter({ items, one, many, what }:
   const activePrUrl = useFolders((s) => s.activePrUrl);
   const waiting = items;
   const working = what === "trabajando";
-  const tone = working ? "text-sky-300" : what === "terminaron" ? "text-muted-foreground" : "text-orange-300";
-  const bg = working ? "bg-sky-400/15" : what === "terminaron" ? "bg-muted" : "bg-orange-400/15";
-  const border = working ? "border-sky-400/60" : what === "terminaron" ? "border-border" : "border-orange-400/70";
+  const freed = what === "frenadas";
+  const tone = working ? "text-sky-300" : freed ? "text-amber-300" : what === "terminaron" ? "text-muted-foreground" : "text-orange-300";
+  const bg = working ? "bg-sky-400/15" : freed ? "bg-amber-400/15" : what === "terminaron" ? "bg-muted" : "bg-orange-400/15";
+  const border = working ? "border-sky-400/60" : freed ? "border-amber-400/70" : what === "terminaron" ? "border-border" : "border-orange-400/70";
   const label = (k: string) => names?.[k] ?? (k.startsWith("s:") ? sessions.find((x) => x.id === k.slice(2))?.title ?? k.slice(2) : k.slice(2));
   const [at, setAt] = useState<DOMRect | null>(null);
   const [pinned, setPinned] = useState(false);            // la lista, fija (click en el contador)
@@ -278,7 +363,8 @@ function SessionCounter({ items, one, many, what }:
     : [...others.map(([, b]) => b + 8), ...others.map(([a]) => a - 8 - blockW)].filter(fits)
       .sort((x, y) => Math.abs(x - start) - Math.abs(y - start))[0] ?? start;
   const detailLeft = listLeft + 368;
-  const shownSid = shown?.startsWith("s:") ? shown.slice(2) : null;
+  // una frenada no tiene claude abierto: sin detalle (click la abre)
+  const shownSid = !freed && shown?.startsWith("s:") ? shown.slice(2) : null;
   spanRef.current = at ? [listLeft, listLeft + blockW] : null;
   return (<>
     <button ref={trigger} onMouseEnter={show} onMouseLeave={hide}

@@ -66,7 +66,7 @@ def _parser() -> argparse.ArgumentParser:
     mo = s.add_parser("model", help="cambia el modelo de claude de una sesión (vale desde que su claude se relanza)")
     mo.add_argument("id"); mo.add_argument("model", help="sonnet, opus, haiku, un id, o `default` (el de siempre)")
     so = s.add_parser("open", help="lanza (o retoma) el claude de una sesión parada; si se llegó al tope de sesiones "
-                      "(max_running) queda en cola y entra sola cuando haya lugar")
+                      "(max_running, si está configurado) queda en cola y entra sola cuando haya lugar")
     so.add_argument("id")
     so.add_argument("--now", action="store_true", help="lánzala ya aunque se haya llegado al tope (también una que está "
                     "en cola: sale de la cola con su prompt)")
@@ -1618,8 +1618,8 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
         try:
             tree = http.get(f"{url}/api/sessions", timeout=10).json()
             procs = {s["id"]: s.get("process", "?") for s in tree.get("sessions", [])}
-            extra = {s["id"]: {"queuedPrompt": s.get("queuedPrompt"), "evictedAt": s.get("evictedAt")}
-                     for s in tree.get("sessions", [])}
+            extra = {s["id"]: {"queuedPrompt": s.get("queuedPrompt"), "evictedAt": s.get("evictedAt"),
+                                 "freedAt": s.get("freedAt")} for s in tree.get("sessions", [])}
         except (httpx.HTTPError, ValueError, AttributeError) as exc:
             err.write(f"aviso: no se pudo consultar el server: {exc}\n")
             procs = {}
@@ -1637,6 +1637,8 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
             proc = "en cola (tope)" + (f" con prompt: «{first[0][:60]}»" if first else ", sin prompt")
         elif proc == "stopped" and s.get("evictedAt"):
             proc = f"cerrada por el tope a las {s['evictedAt'][11:16]}"
+        elif proc == "stopped" and s.get("freedAt"):
+            proc = f"detenida para liberar memoria a las {s['freedAt'][11:16]}"
         out.write(f"{s['id']}\t{s['kind']}\t{s['status'] or '-'}\t{proc}\t{s.get('model') or '-'}\t"
                   f"{s['title'] or ''}\t{repos}{'  ⚠ ' + s['error'] if s['error'] else ''}\n")
     return 0

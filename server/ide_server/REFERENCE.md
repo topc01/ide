@@ -84,7 +84,8 @@ name = "mi-workspace"
 
 [sessions]
 default_permissions = "analyze"   # analyze | full | default — perfil cuando no se pasa --permissions
-max_running = 6                   # tope de claudes de sesiones de trabajo abiertos a la vez; omitido = sin tope; entero >= 1
+min_free_memory = 20            # aviso de memoria baja (% libre) en la barra inferior; nunca frena ni cierra; omitido = sin aviso; entero 1-90
+# max_running = 6               # (opcional) tope fijo de sesiones de trabajo; omitido = sin tope; entero >= 1
 claude_command = "claude"         # comando base (se le agregan flags); útil para wrappers
 
 [reviews]
@@ -110,9 +111,11 @@ github_env = "staging"    # o amplify_app = "<id de la app>" + amplify_branch = 
 # [mlx] …                         # modelos locales (opcional; panel Settings → Modelos)
 ```
 
-**Tope de sesiones (`max_running`):** cuentan los claudes abiertos de las sesiones de trabajo (no la manager, la IDE, Recursos ni Plugins, que se abren siempre: nunca quedan en cola por el tope). Al llegar al tope, para abrir otra (click en su card, un mensaje de la manager o un aviso del IDE) se cierra el claude que lleve más tiempo esperando, si lleva 15 min o más sin trabajar (`Supervisor.EVICT_IDLE`; nunca uno que trabaja, congelado o con el diálogo de confianza abierto): su conversación queda y se retoma al abrirla. Si no hay ninguno, la apertura espera en cola **con su prompt** (`queued`) y se revisa cada minuto. Nunca se cierra una que trabaja, congelada, o que te espera con algo abierto (un permiso, una pregunta con opciones o un login): solo una que terminó su turno. **Ver la cola desde la CLI:** `ide session ls` dice «en cola (tope) con prompt: «…»» o «cerrada por el tope a las HH:MM» (`--json`: `queuedPrompt`, `evictedAt`); **`ide session open <id> --now`** la lanza ya aunque se haya llegado al tope (una en cola sale de la cola con su prompt). **El reinicio automático del IDE** (versión nueva) espera, además de 60 s sin teclas, a que **ninguna sesión esté trabajando**: antes les cortaba el turno a medias; «reiniciar ahora» sigue pudiendo forzarlo. (Medido la semana del 11 al 18-11: 3 o menos trabajando el 90% del tiempo, más de 6 el 0,5%, máximo 9.)
+**Memoria (`min_free_memory`):** las sesiones se abren siempre, sin importar cuántas haya ni la memoria. Si la Mac tiene menos de `min_free_memory` % de memoria libre (`memory_pressure -Q`, el mismo número que usa macOS), la barra inferior muestra «⚠ memoria: N% libre» (canal `sessions.memory`, cada 15 s y al abrirse o cerrarse una sesión); click = la lista de sesiones de trabajo abiertas, de la que más usa a la que menos (su claude y todo lo que lanzó, sin los contenedores de Docker), con desde cuándo no trabajan y «detener» (una que trabaja pide confirmar: corta su turno). Detenida así (`sessions.stop` con `memory: true`) cierra su claude, libera su memoria y queda en el grupo **«frenadas»** de la barra, al lado de «terminaron» (`freedAt`; `ide session ls`: «detenida para liberar memoria a las HH:MM»); click la abre y su claude retoma la conversación. Nada se cierra ni queda en cola por la memoria.
 
-Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero) hacen
+**Tope fijo opcional (`max_running`, comentado por defecto):** cuentan los claudes abiertos de las sesiones de trabajo (no la manager, la IDE, Recursos ni Plugins, que se abren siempre: nunca quedan en cola por el tope). Al llegar al tope, para abrir otra (click en su card, un mensaje de la manager o un aviso del IDE) se cierra el claude que lleve más tiempo esperando, si lleva 15 min o más sin trabajar (`Supervisor.EVICT_IDLE`; nunca uno que trabaja, congelado o con el diálogo de confianza abierto): su conversación queda y se retoma al abrirla. Si no hay ninguno, la apertura espera en cola **con su prompt** (`queued`) y se revisa cada minuto. Nunca se cierra una que trabaja, congelada, o que te espera con algo abierto (un permiso, una pregunta con opciones o un login): solo una que terminó su turno. **Ver la cola desde la CLI:** `ide session ls` dice «en cola (tope) con prompt: «…»» o «cerrada por el tope a las HH:MM» (`--json`: `queuedPrompt`, `evictedAt`); **`ide session open <id> --now`** la lanza ya aunque se haya llegado al tope (una en cola sale de la cola con su prompt). **El reinicio automático del IDE** (versión nueva) espera, además de 60 s sin teclas, a que **ninguna sesión esté trabajando**: antes les cortaba el turno a medias; «reiniciar ahora» sigue pudiendo forzarlo. (Medido la semana del 11 al 18-11: 3 o menos trabajando el 90% del tiempo, más de 6 el 0,5%, máximo 9.)
+
+Valores inválidos (`default_permissions` fuera de la lista, `max_running` < 1 o no entero, `min_free_memory` fuera de 1-90) hacen
 fallar el arranque con un mensaje que nombra la clave.
 
 `[ui] modules`: ids disponibles `dev`, `terminal`, `prompts`, `stack`, `review`, `deps`, `servers`, `db`, `attachments`, `explorer`, `config`, `files`, `search`, `changes`, `graphite`, `tasks`,
@@ -169,7 +172,7 @@ Los comandos marcados **[server]** necesitan `ide run` activo (lo encuentran por
 Salida: código 0 = ok, 1 = error con `error: <mensaje>` en stderr (scripts: su propio exit code).
 
 ### `ide session new` [server]
-Crea la carpeta y lanza `claude` en ella (o la encola si se llegó a `max_running`).
+Crea la carpeta y lanza `claude` en ella (o la encola si se llegó a `max_running`, cuando está configurado).
 
 | Flag | Efecto |
 |---|---|

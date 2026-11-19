@@ -125,7 +125,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             s.update(process=p.get("process", "stopped"), terminalId=p.get("terminalId"),
                      launchError=p.get("launchError"), attention=p.get("attention"), activity=p.get("activity"),
                      frozen=p.get("frozen"), paused=(db.get(f"paused:{s['id']}") if db else None),
-                     queuedPrompt=p.get("queuedPrompt"), evictedAt=p.get("evictedAt"),
+                     queuedPrompt=p.get("queuedPrompt"), evictedAt=p.get("evictedAt"), freedAt=p.get("freedAt"),
                      consult=({"terminalId": consults[s["id"]]["tid"], "at": consults[s["id"]]["at"]}
                               if s["id"] in consults else None))
             if s["kind"] == "review":
@@ -816,8 +816,15 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         return {"process": state}
 
     async def stop(p: dict) -> dict:
-        supervisor.stop(p["id"])
+        if p.get("memory"):      # desde el aviso de memoria de la barra: queda en «frenadas»
+            supervisor.stop_for_memory(p["id"])
+        else:
+            supervisor.stop(p["id"])
+        notify()
         return {"ok": True}
+
+    async def memory(p: dict) -> dict:
+        return await asyncio.to_thread(supervisor.memory_report)
 
     async def rm(p: dict) -> dict:
         force = bool(p.get("force"))
@@ -930,13 +937,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             return "paused", "guardado: la sesión está pausada y le llega al reanudarla"
         state = supervisor.state(sid)
         if state == "queued":
-            raise SessionError("queued", f"{sid} está en cola (max_running): espera a que arranque")
+            raise SessionError("queued", f"{sid} está en cola (tope de sesiones, max_running): espera a que arranque")
         if state == "running":
             supervisor.send(sid, text)
             how = "encolado"
         else:
             state = supervisor.start(sid, prompt=text)
-            how = ("en cola por el tope de sesiones (max_running): se lanza con el prompt apenas haya lugar"
+            how = ("en cola (tope de sesiones, max_running): se lanza con el prompt apenas haya lugar"
                    if state == "queued" else "lanzada con el prompt")
         if db is not None:
             db.event(datetime.now().isoformat(timespec="seconds"), actor, "prompt", dev=sid, data={"text": text[:300]})
@@ -3008,7 +3015,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "dev.mergeAllStop": merge_all_stop, "merges.list": merges_list, "reviews.openPrs": open_prs, "admin.migrateIds": migrate_ids, "dev.mergeAllDismiss": merge_all_dismiss,
         "dev.ticketSet": ticket_set, "dev.ticketPending": ticket_pending, "dev.ticketSub": ticket_sub, "dev.ticketSubCard": ticket_sub_card, "dev.artifacts": dev_artifacts, "dev.ticketCallout": ticket_callout, "notifs.read": notifs_read, "sessions.tourSet": tour_set, "sessions.tourGet": tour_get, "sessions.tourStart": tour_start, "sessions.tourRequest": tour_request, "tour.done": tour_done, "ui.theme": ui_theme_set, "ui.themeGet": ui_theme_get, "dev.artifact": dev_artifact, "dev.artifactCard": dev_artifact_card, "dev.notionPage": notion_page, "usage.get": usage,
         "sessions.tree": tree, "sessions.new": new, "sessions.newForPr": new_for_pr, "sessions.open": open_,
-        "sessions.stop": stop, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
+        "sessions.stop": stop, "sessions.memory": memory, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
         "attachments.rename": attachments_rename, "attachments.mkdir": attachments_mkdir, "attachments.move": attachments_move, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status, "telegram.toggle": tg_toggle, "telegram.guard": tg_guard,
         "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.archived": archived, "sessions.unarchive": unarchive, "sessions.script": script,
