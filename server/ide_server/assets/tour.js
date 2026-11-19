@@ -157,6 +157,10 @@ const WIDGET = (state) => `(() => {
     return null;
   });
   browser.on("disconnected", async () => { await report("closed"); process.exit(0); });
+  // cerrar la ventana no cierra Chrome en macOS (queda en el Dock): al cerrarse la página del recorrido, se cierra todo
+  page.on("close", async () => { await report("closed"); await browser.close().catch(() => {}); process.exit(0); });
+  // un recorrido olvidado no queda abierto para siempre
+  setTimeout(async () => { await report("timeout"); await browser.close().catch(() => {}); process.exit(0); }, 6 * 3600 * 1000).unref();
   await page.bringToFront();
   await show();
 })().catch(async (e) => { console.error(e); await report("error: " + e.message); process.exit(1); });

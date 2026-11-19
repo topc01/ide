@@ -88,7 +88,7 @@ def _parser() -> argparse.ArgumentParser:
     pr_ = sub.add_parser("procs", help="qué consume el computador y de qué desarrollo es (servidores, contenedores, claude)")
     pr_.add_argument("--json", action="store_true")
     prs_ = pr_.add_subparsers(dest="cmd")
-    prs_.add_parser("stop", help="corta un servidor o contenedores del IDE por su id de `ide procs`").add_argument("id")
+    prs_.add_parser("stop", help="corta un servidor, contenedores o un recorrido del IDE por su id de `ide procs`").add_argument("id")
     br = sub.add_parser("browser", help="perfiles de navegador del workspace: uno por cuenta, todos abiertos a la vez").add_subparsers(dest="cmd", required=True)
     br.add_parser("ls")
     bn = br.add_parser("new"); bn.add_argument("name"); bn.add_argument("url", help="donde inicia sesión (p.ej. http://localhost:5173 o https://staging.miempresa.com)")
@@ -938,7 +938,7 @@ def _procs(a, root: Path, env, out: TextIO) -> int:
         if caller and caller != procs.RECURSOS:
             raise SessionError("forbidden", "solo la sesión Recursos (o el usuario desde su terminal) corta procesos")
         snap = procs.snapshot(root)
-        row = next((r for r in snap["servers"] + snap["docker"] if r["id"] == a.id), None)
+        row = next((r for r in snap["servers"] + snap["docker"] + snap.get("tours", []) if r["id"] == a.id), None)
         if row is None:
             raise SessionError("unknown", f"{a.id} no está en `ide procs`")
         if caller and not row["abandoned"]:     # la sesión Recursos: solo lo abandonado
@@ -963,6 +963,10 @@ def _procs(a, root: Path, env, out: TextIO) -> int:
         where = f"{r['place']}/{r['repo']}" if r["place"] else "compartido (no es de una sesión)"
         out.write(f"{r['id']}\t{r['name']}\t{r['cpu']}% {r['mb']}MB\t{where}\t"
                   f"{'ABANDONADO: ' + r['abandoned'] if r['abandoned'] else 'en uso' if r['place'] else ''}\n")
+    out.write("\nRECORRIDOS ABIERTOS (su Chrome; abandonado = abierto hace 2 h o más)\n")
+    for r in snap.get("tours", []):
+        out.write(f"{r['id']}\tsesión {r['sid']}\t{r['mb']}MB\t{'-' if r['hours'] is None else str(r['hours']) + 'h'}\t"
+                  f"{'ABANDONADO: ' + r['abandoned'] if r['abandoned'] else 'en uso'}\n")
     out.write("\nOTROS PROCESOS (≥5% CPU)\n")
     for p in snap["top"]:
         out.write(f"{p['pid']}\t{p['cpu']}% {p['mb']}MB\t{p['etime']}\t{p['command'][:100]}\n")

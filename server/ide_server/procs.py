@@ -167,7 +167,28 @@ def snapshot(root: Path, *, home: Path | None = None, with_docker: bool = True) 
             docker.append(row)
     claude = [p for p in procs if re.match(r"(\S*/)?claude(\s|$)", p["command"])]
     others = sorted((p for p in procs if p["cpu"] >= 5 and p["pgid"] not in server_pgids), key=lambda p: -p["cpu"])[:15]
-    return {"battery": battery(), "config": cfg, "servers": servers, "docker": docker,
+    # recorridos abiertos (node + su Chrome): la memoria es la de su node y todo lo que lanzó
+    from ide_server import tour as tour_mod
+    kids: dict[int, list[int]] = {}
+    for line in _run(["ps", "-Ao", "pid=,ppid="]).splitlines():
+        a, _, b = line.strip().partition(" ")
+        if a.isdigit() and b.strip().isdigit():
+            kids.setdefault(int(b), []).append(int(a))
+    mb_of = {p["pid"]: p["mb"] for p in procs}
+    tours = []
+    for t in tour_mod.open_tours():
+        tree, todo = set(), [t["pid"]]
+        while todo:
+            x = todo.pop()
+            if x not in tree:
+                tree.add(x)
+                todo += kids.get(x, [])
+        age = _hours(t["started"])
+        tours.append({"id": f"tour:{t['pid']}", "pid": t["pid"], "sid": t["sid"], "hours": age,
+                      "mb": sum(mb_of.get(x, 0) for x in tree),
+                      "abandoned": None if age is not None and age < 2 else
+                      (f"abierto hace {age} h" if age is not None else "de antes: sin registro de cuándo se abrió")})
+    return {"battery": battery(), "config": cfg, "servers": servers, "docker": docker, "tours": tours,
             "claude": {"count": len(claude), "cpu": round(sum(p["cpu"] for p in claude), 1),
                        "mb": sum(p["mb"] for p in claude)},
             "top": others, "places": {k: {**v, "lastClaude": _hours(v["lastClaude"])} for k, v in infos.items()}}
@@ -190,7 +211,14 @@ def stop(root: Path, rid: str) -> str:
         if r.returncode != 0:
             raise SessionError("docker_failed", r.stderr.strip() or f"docker compose -p {rest} stop falló")
         return f"contenedores de {rest} parados"
-    raise SessionError("bad_request", f"id inválido: {rid} (los de `ide procs`: run:… o docker:…)")
+    if kind == "tour" and rest.isdigit():
+        from ide_server import tour as tour_mod
+        try:
+            tour_mod.stop_tour(int(rest))
+        except ValueError as exc:
+            raise SessionError("unknown", str(exc)) from exc
+        return f"recorrido {rest} cerrado (y su Chrome)"
+    raise SessionError("bad_request", f"id inválido: {rid} (los de `ide procs`: run:…, docker:… o tour:…)")
 
 
 def snapshot_json(root: Path) -> str:

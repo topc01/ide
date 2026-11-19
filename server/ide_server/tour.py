@@ -11,6 +11,7 @@ import secrets
 import shutil
 import subprocess
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -74,10 +75,59 @@ def launch(root: Path, sid: str, tour: dict, ide_url: str, theme: str = "dark") 
         json.dump(cfg, fh)
     os.chmod(path, 0o600)
     script = Path(__file__).parent / "assets" / "tour.js"
+    stop_open(sid)                                   # un recorrido por sesión: el anterior se cierra
     log = open(runtime_dir() / f"{sid}.log", "w")
-    subprocess.Popen([shutil.which("node") or "node", str(script), path], cwd=d, stdout=log, stderr=subprocess.STDOUT,
-                     start_new_session=True, env={**os.environ, "NODE_PATH": str(d / "node_modules")})
+    proc = subprocess.Popen([shutil.which("node") or "node", str(script), path], cwd=d, stdout=log, stderr=subprocess.STDOUT,
+                            start_new_session=True, env={**os.environ, "NODE_PATH": str(d / "node_modules")})
+    reg = runtime_dir() / "procs"
+    reg.mkdir(exist_ok=True)
+    (reg / f"{proc.pid}.json").write_text(json.dumps({"sid": sid, "started": time.time()}), encoding="utf-8")
     return token
+
+
+def _is_tour(pid: int) -> bool:
+    out = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True).stdout
+    return "ide_server/assets/tour.js" in out
+
+
+def open_tours() -> list[dict]:
+    """Los recorridos abiertos (su node y su Chrome, en un grupo de procesos): [{pid, sid, started}]. También los de
+    antes de este registro (sesión «?»)."""
+    reg = runtime_dir() / "procs"
+    known = {}
+    for f in (reg.glob("*.json") if reg.is_dir() else []):
+        try:
+            known[int(f.stem)] = json.loads(f.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            f.unlink(missing_ok=True)
+    out = []
+    ps = subprocess.run(["ps", "-Ao", "pid=,command="], capture_output=True, text=True).stdout
+    for line in ps.splitlines():
+        pid_s, _, cmd = line.strip().partition(" ")
+        if "ide_server/assets/tour.js" in cmd and pid_s.isdigit():
+            info = known.pop(int(pid_s), {})
+            out.append({"pid": int(pid_s), "sid": info.get("sid") or "?", "started": info.get("started")})
+    for pid in known:                                 # ya terminaron
+        (reg / f"{pid}.json").unlink(missing_ok=True)
+    return out
+
+
+def stop_tour(pid: int) -> None:
+    """Cierra un recorrido: su node y su Chrome (el grupo de procesos que abrió)."""
+    import signal
+    if not _is_tour(pid):
+        raise ValueError(f"{pid} no es un recorrido")
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    (runtime_dir() / "procs" / f"{pid}.json").unlink(missing_ok=True)
+
+
+def stop_open(sid: str) -> None:
+    for t in open_tours():
+        if t["sid"] == sid:
+            stop_tour(t["pid"])
 
 
 def feedback_text(tour: dict, notes: list[dict], reason: str, seen: int, total: int) -> str:

@@ -1129,7 +1129,12 @@ recorrido abierto: la UI se lo avisa al server, canal `ui.theme`, y el recuadro 
 **arrastra** desde su barra de arriba: queda donde lo dejaste en los pasos y recorridos siguientes
 (`~/.cache/ide-tour/widget-pos.json`). Al terminar (o al cerrar la ventana) los comentarios le llegan **juntos** a la sesión
 como un mensaje «[Recorrido]» (paso, pantalla y texto); si está pausada, al retomarla. `ide tour show`
-muestra los pasos y si ya lo viste (`kv tour:<sesión>`).
+muestra los pasos y si ya lo viste (`kv tour:<sesión>`). **Su Chrome se cierra** al terminar, al cerrar la pestaña o la
+ventana del recorrido (en macOS cerrar la ventana no cierra Chrome: se cierra al cerrarse la página) y, si quedó
+olvidado, a las 6 h. Un recorrido por sesión: abrir otro cierra el anterior. Cada uno queda registrado en
+`~/.cache/ide-tour/procs/<pid>.json` y **`ide procs`** los lista en «RECORRIDOS ABIERTOS» (`tour:<pid>`, su sesión, la
+memoria de su node y su Chrome; abandonado = abierto hace 2 h o más, o de antes del registro); `ide procs stop
+tour:<pid>` lo cierra (SIGTERM al node, que cierra su Chrome).
 
 ## 9d-quinquies. Notificaciones (la campana)
 
