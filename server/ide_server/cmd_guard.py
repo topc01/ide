@@ -28,6 +28,9 @@ REVIEW_REPLY = ("Para responder en un hilo de review usa `ide review reply <pr> 
 REVIEW_RESOLVE = "Para resolver un hilo usa `ide review resolve <PRRT_…>` (`--undo` lo reabre), no `gh api graphql`."
 PUSH = ("Para subir la rama usa `ide push [<repo>]` (sin cd; `--force` = force-with-lease después de un rebase; "
         "`--branch <rama>` para otra rama local, p.ej. las de un stack). Ver `ide push --help`.")
+TYPECHECK = ("El chequeo de tipos del proyecto entero (vue-tsc, `npm run type-check`, `npm run build`) va con "
+             "`ide typecheck [<repo>]` (`--build` para el build): uno a la vez entre todas las sesiones y con tope de "
+             "memoria. Dos a la vez llenaron la memoria de la Mac. Ver `ide typecheck --help`.")
 TELEGRAM = ("La conexión de Telegram (su token, el chat y la clave del código de verificación) la maneja solo el usuario "
             "en su terminal: una sesión no la lee ni la cambia.")
 DRAFT = ("Las PRs se abren en draft mientras están en desarrollo: agrega `--draft` (`gh pr create --draft …`). Pasa a "
@@ -79,6 +82,10 @@ def advise(cmd: str) -> tuple[str, str] | None:
             return "deny", DB_ALONE
         if (w[:2] == ["ide", "telegram"] and w[2:3] and w[2] in ("setup", "2fa")) or "ide-telegram" in cmd:
             return "deny", TELEGRAM
+        runners = ("npm", "pnpm", "yarn", "bun")
+        if any(x == "vue-tsc" or x.endswith("/vue-tsc") for x in w) \
+                or (w[:1] and w[0] in runners and any(x in ("type-check", "build", "typecheck") for x in w[1:4])):
+            return "deny", TYPECHECK
         if w[:2] == ["git", "push"] or (w[:1] == ["git"] and "push" in w[1:4] and w[1] in ("-C", "-c")):
             return "deny", PUSH
         if w[:2] == ["gh", "api"]:

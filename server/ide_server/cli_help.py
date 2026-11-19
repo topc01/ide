@@ -187,6 +187,12 @@ ejemplos:
   ide later done D3 -m "se decidió por fecha de pago"
 --blocks = ya no puedes avanzar en nada más: el desarrollo pasa a Bloqueado (y el ticket a Awaiting Client) hasta
 que se cierre. El texto, corto; el análisis va en un artefacto (--artifact <link>), no en -m."""),
+    "typecheck": ("Chequeo de tipos del proyecto entero (`npm run type-check` = vue-tsc) o build (`--build`) de un front, "
+                  "de a uno entre todas las sesiones (si hay otro corriendo, espera) y con tope de 4 GB de memoria "
+                  "(NODE_OPTIONS se reemplaza: no se puede subir). Cada uno se come varios GB: dos a la vez llenaron la "
+                  "memoria de la Mac. El hook frena vue-tsc, `npm run type-check` y `npm run build` sueltos.",
+                  "ejemplos:\n  ide typecheck                 # el único front de la sesión\n  ide typecheck finnecto-embed\n"
+                  "  ide typecheck finnecto-embed --build"),
     "later edit": ("Edita un bloqueante abierto: solo cambia lo que pases. Una sesión, solo los de su desarrollo.",
                    "ejemplos:\n  ide later edit D3 --text \"¿Se avisa también al aprobador?\"\n"
                    "  ide later edit P4 --with \"Laura (CX)\" --no-blocks\n  ide later edit D3 -m \"\"          # le saca el contexto\n"

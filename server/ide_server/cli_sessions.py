@@ -85,6 +85,10 @@ def _parser() -> argparse.ArgumentParser:
     db.add_argument("env", choices=("prod", "staging")); db.add_argument("sql", help="la consulta SQL (sin comandos de psql: nada con \\\\)")
     db.add_argument("--csv", action="store_true", help="salida en CSV (con encabezados)")
     db.add_argument("--out", help="guarda el resultado en ese archivo (en vez de mostrarlo): procésalo después en otro comando")
+    tc = sub.add_parser("typecheck", help="chequeo de tipos (vue-tsc) o build de un front, de a uno entre todas las sesiones y con tope de memoria")
+    tc.add_argument("repo", nargs="?", help="el repo (sin él: el único de la sesión con el script)")
+    tc.add_argument("--build", action="store_true", help="`npm run build` (vite + vue-tsc) en vez de `npm run type-check`")
+    tc.add_argument("--session")
     pr_ = sub.add_parser("procs", help="qué consume el computador y de qué desarrollo es (servidores, contenedores, claude)")
     pr_.add_argument("--json", action="store_true")
     prs_ = pr_.add_subparsers(dest="cmd")
@@ -1456,6 +1460,10 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             return 0
         if a.group == "instagram":
             return _instagram(a, root, env, cwd, out)
+        if a.group == "typecheck":
+            from ide_server.typecheck import run as tc_run
+            sid = current_session(root, env=env, cwd=cwd, explicit=a.session)
+            return tc_run(root, sid, a.repo, build=a.build, out=out)
         if a.group == "procs":
             return _procs(a, root, env, out)
         if a.group == "merge":                  # no necesita sesión: la PR dice cuál es
