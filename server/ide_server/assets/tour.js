@@ -13,7 +13,11 @@ const steps = cfg.steps;
 // se recorre puede ver la función __ideTour, pero no inventar comentarios ni terminar el recorrido
 const NONCE = require("crypto").randomBytes(18).toString("hex");
 let idx = 0;
-const notes = [];                         // {step, text}
+const notes = [];                         // {step, url, text, images}
+let pending = [];                         // fotos arrastradas o pegadas que van con el próximo comentario
+let shots = 0;
+const EXT = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp", "image/heic": "heic" };
+const flush = (url) => { if (pending.length) { notes.push({ step: idx + 1, url, text: "", images: pending }); pending = []; } };
 let finished = false;
 let theme = cfg.theme === "light" ? "light" : "dark";
 const readPos = () => { try { const p = JSON.parse(fs.readFileSync(cfg.pos_file, "utf8")); return Number.isFinite(p.x) && Number.isFinite(p.y) ? { x: p.x, y: p.y } : null; } catch { return null; } };
@@ -29,7 +33,7 @@ async function report(reason) {
   try {
     await fetch(`${cfg.ide}/api/tour/${encodeURIComponent(cfg.sid)}/done`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: cfg.token, notes, reason, seen: idx + 1, total: steps.length }),
+      body: JSON.stringify({ token: cfg.token, notes: (pending.length ? [...notes, { step: idx + 1, url: "", text: "", images: pending }] : notes), reason, seen: idx + 1, total: steps.length }),
     });
   } catch (e) { console.error("no pude avisarle al IDE:", e.message); }
 }
@@ -57,12 +61,15 @@ const WIDGET = (state) => `(() => {
         .end{border-color:var(--ac);color:var(--ac2)}
         .n{font-size:11px;color:var(--mu);margin-top:6px}
         .min{flex:0;padding:0 6px;border:none;background:none;color:var(--mu)}
+        .w.drag{outline:2px dashed var(--ac);outline-offset:3px}
+        .ph{font-size:11px;color:var(--ac2);margin-top:4px}
       </style>
       <div class="w">
         <div class="h" title="Arrastra para moverlo"><span class="hd"></span><button class="min" title="Minimizar">–</button></div>
         <div class="body">
           <div class="t"></div>
-          <textarea placeholder="Comentario sobre esta pantalla (Enter lo guarda; le llegan todos juntos al terminar)"></textarea>
+          <textarea placeholder="Comentario sobre esta pantalla (Enter lo guarda; le llegan todos juntos al terminar). Arrastra o pega fotos aquí"></textarea>
+          <div class="ph"></div>
           <div class="b"><button class="prev">◀ Anterior</button><button class="next">Siguiente ▶</button></div>
           <div class="b"><button class="end">Terminar y mandar comentarios</button></div>
           <div class="n"></div>
@@ -76,13 +83,36 @@ const WIDGET = (state) => `(() => {
     r.querySelector(".prev").disabled = S.i === 0;
     r.querySelector(".next").disabled = S.i >= S.n - 1;
     const ta = r.querySelector("textarea");
-    const save = async () => { const v = ta.value.trim(); if (!v) return; ta.value = ""; S.count = await window.__ideTour({ op: "note", text: v, k: S.k }); note(); };
+    const w = r.querySelector(".w");
+    const ph = () => r.querySelector(".ph").textContent = S.pending ? "📎 " + S.pending + " foto(s): van con el próximo comentario (o solas al cambiar de paso)" : "";
+    ph();
+    const save = async () => { const v = ta.value.trim(); if (!v && !S.pending) return; ta.value = ""; S.count = await window.__ideTour({ op: "note", text: v, k: S.k }); S.pending = 0; ph(); note(); };
+    // fotos: arrastradas al recuadro (o a la página, si la página no las usa) o pegadas en el campo
+    const addFiles = async (files) => {
+      for (const f of Array.from(files || [])) {
+        if (!f.type.startsWith("image/")) continue;
+        if (f.size > 15 * 1024 * 1024) { r.querySelector(".ph").textContent = "⚠ " + f.name + " pesa más de 15 MB"; continue; }
+        const data = await new Promise((ok, ko) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = ko; fr.readAsDataURL(f); });
+        const n = await window.__ideTour({ op: "image", type: f.type, data, k: S.k });
+        if (typeof n === "number") { S.pending = n; ph(); } else if (typeof n === "string") r.querySelector(".ph").textContent = "⚠ " + n;
+      }
+    };
+    const hasFiles = (e) => Array.from(e.dataTransfer?.types || []).includes("Files");
+    w.addEventListener("dragover", (e) => { if (!hasFiles(e)) return; e.preventDefault(); e.stopPropagation(); w.classList.add("drag"); });
+    w.addEventListener("dragleave", () => w.classList.remove("drag"));
+    w.addEventListener("drop", (e) => { if (!hasFiles(e)) return; e.preventDefault(); e.stopPropagation(); w.classList.remove("drag"); addFiles(e.dataTransfer.files); });
+    ta.addEventListener("paste", (e) => { const fs_ = e.clipboardData?.files; if (fs_ && fs_.length) { e.preventDefault(); addFiles(fs_); } });
+    // soltada fuera del recuadro: si la página no la usó (un campo para subir archivos), no se abre en la pestaña: va al recorrido
+    if (!window.__ideTourDrop) {
+      window.__ideTourDrop = true;
+      window.addEventListener("dragover", (e) => { if (hasFiles(e) && !e.defaultPrevented) e.preventDefault(); });
+      window.addEventListener("drop", (e) => { if (hasFiles(e) && !e.defaultPrevented) { e.preventDefault(); addFiles(e.dataTransfer.files); } });
+    }
     ta.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } });
     r.querySelector(".prev").onclick = async () => { await save(); window.__ideTour({ op: "go", d: -1, k: S.k }); };
     r.querySelector(".next").onclick = async () => { await save(); window.__ideTour({ op: "go", d: 1, k: S.k }); };
     r.querySelector(".end").onclick = async () => { await save(); window.__ideTour({ op: "end", k: S.k }); };
     r.querySelector(".min").onclick = () => { const b = r.querySelector(".body"); b.style.display = b.style.display === "none" ? "" : "none"; };
-    const w = r.querySelector(".w");
     const setTheme = (t) => w.classList.toggle("light", t === "light");
     setTheme(S.theme);
     // posición: la que dejó el usuario (esquina sup. izq.), dentro de la ventana; si no hay, abajo a la derecha
@@ -132,7 +162,7 @@ const WIDGET = (state) => `(() => {
   let shown = false;
   // se arma en el momento: posición, tema y comentarios al día (también al navegar dentro del paso)
   const widget = () => { const s = steps[idx]; return WIDGET({ k: NONCE, i: idx, n: steps.length, text: s.text, selector: s.selector || null,
-    title: cfg.title, count: notes.length, theme, pos }); };
+    title: cfg.title, count: notes.length, pending: pending.length, theme, pos }); };
   const show = async () => {
     shown = true;
     await page.goto(steps[idx].url, { waitUntil: "domcontentloaded" }).catch(() => {});
@@ -142,8 +172,22 @@ const WIDGET = (state) => `(() => {
   page.on("domcontentloaded", () => { if (shown) page.evaluate(widget()).catch(() => {}); });
   await ctx.exposeBinding("__ideTour", async (src, msg) => {
     if (!msg || msg.k !== NONCE || src.frame !== page.mainFrame()) return null;
-    if (msg.op === "note") { notes.push({ step: idx + 1, url: page.url(), text: String(msg.text).slice(0, 2000) }); return notes.length; }
-    if (msg.op === "go") { idx = Math.max(0, Math.min(steps.length - 1, idx + msg.d)); setTimeout(show, 0); return idx; }
+    if (msg.op === "note") { notes.push({ step: idx + 1, url: page.url(), text: String(msg.text || "").slice(0, 2000), images: pending }); pending = []; return notes.length; }
+    if (msg.op === "image") {
+      const m = /^data:(image\/[a-z]+);base64,(.+)$/.exec(String(msg.data || ""));
+      const ext = m && EXT[m[1]];
+      if (!ext) return "solo fotos (png, jpg, gif, webp, heic)";
+      const buf = Buffer.from(m[2], "base64");
+      if (buf.length > 15 * 1024 * 1024) return "la foto pesa más de 15 MB";
+      if (shots >= 60) return "ya van 60 fotos en este recorrido";
+      shots += 1;
+      const name = `paso${idx + 1}-${shots}.${ext}`;
+      try { fs.mkdirSync(cfg.attach_dir, { recursive: true }); fs.writeFileSync(require("path").join(cfg.attach_dir, name), buf); }
+      catch (e) { return "no pude guardarla: " + e.message; }
+      pending.push(`${cfg.attach_rel}/${name}`);
+      return pending.length;
+    }
+    if (msg.op === "go") { flush(page.url()); idx = Math.max(0, Math.min(steps.length - 1, idx + msg.d)); setTimeout(show, 0); return idx; }
     if (msg.op === "theme") return theme;
     if (msg.op === "pos") {
       const x = Math.round(Number(msg.x)), y = Math.round(Number(msg.y));
@@ -153,7 +197,7 @@ const WIDGET = (state) => `(() => {
       }
       return null;
     }
-    if (msg.op === "end") { await report("end"); setTimeout(() => browser.close().catch(() => {}), 300); }
+    if (msg.op === "end") { flush(page.url()); await report("end"); setTimeout(() => browser.close().catch(() => {}), 300); }
     return null;
   });
   browser.on("disconnected", async () => { await report("closed"); process.exit(0); });

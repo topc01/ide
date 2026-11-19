@@ -455,7 +455,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             raise SessionError("forbidden", "token de recorrido inválido")
         tour_tokens.pop(sid, None)
         t = db.get(f"tour:{sid}") or {}
-        notes = [n for n in (p.get("notes") or []) if isinstance(n, dict) and str(n.get("text") or "").strip()][:200]
+        notes = [n for n in (p.get("notes") or []) if isinstance(n, dict)
+                 and (str(n.get("text") or "").strip() or n.get("images"))][:200]
         text = tour_mod.feedback_text(t, notes, str(p.get("reason") or ""), int(p.get("seen") or 0), int(p.get("total") or 0))
         db.set(f"tour:{sid}", {**t, "status": "done", "ended": tour_mod.now(), "notes": len(notes)})
         state, how = _deliver_to(sid, text, "usuario")

@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 import time
 from datetime import datetime
+from ide_server.sessions_fs import session_path
 from pathlib import Path
 
 PLAYWRIGHT_CORE = "1.64.1"
@@ -69,7 +70,10 @@ def launch(root: Path, sid: str, tour: dict, ide_url: str, theme: str = "dark") 
     token = secrets.token_urlsafe(24)
     cfg = {"steps": tour["steps"], "sid": sid, "ide": ide_url, "token": token, "cookies": str(cookies),
            "login": str(login), "title": tour.get("title") or sid,
-           "theme": theme, "pos_file": str(runtime_dir() / "widget-pos.json")}
+           "theme": theme, "pos_file": str(runtime_dir() / "widget-pos.json"),
+           # las fotos que el usuario arrastra o pega en el recuadro (la sesión las lee de ahí)
+           "attach_rel": f"attachments/recorrido-{datetime.now():%Y%m%d-%H%M%S}"}
+    cfg["attach_dir"] = str(session_path(root, sid) / cfg["attach_rel"])
     fd, path = tempfile.mkstemp(prefix="tour-", suffix=".json")
     with os.fdopen(fd, "w") as fh:
         json.dump(cfg, fh)
@@ -139,7 +143,10 @@ def feedback_text(tour: dict, notes: list[dict], reason: str, seen: int, total: 
     lines = [head, "", "Sus comentarios (atiéndelos; si alguno es una pregunta, contéstala):"]
     for n in notes:
         st = steps[n["step"] - 1] if 0 < n.get("step", 0) <= len(steps) else {}
-        lines.append(f"- Paso {n['step']} ({st.get('text', '')[:80]}; {n.get('url', '')}): {n['text']}")
+        imgs = [str(x) for x in (n.get("images") or []) if isinstance(x, str)][:30]
+        text = n["text"] or "(solo fotos)"
+        lines.append(f"- Paso {n['step']} ({st.get('text', '')[:80]}; {n.get('url', '')}): {text}"
+                     + (f"\n  fotos (míralas con Read): {', '.join(imgs)}" if imgs else ""))
     return "\n".join(lines)
 
 

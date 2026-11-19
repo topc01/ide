@@ -1135,7 +1135,7 @@ el recuadro sigue ahí. El recuadro sigue el **tema del IDE** (claro u oscuro, t
 recorrido abierto: la UI se lo avisa al server, canal `ui.theme`, y el recuadro lo lee de `GET /api/ui/theme`) y se
 **arrastra** desde su barra de arriba: queda donde lo dejaste en los pasos y recorridos siguientes
 (`~/.cache/ide-tour/widget-pos.json`). Al terminar (o al cerrar la ventana) los comentarios le llegan **juntos** a la sesión
-como un mensaje «[Recorrido]» (paso, pantalla y texto); si está pausada, al retomarla. `ide tour show`
+como un mensaje «[Recorrido]» (paso, pantalla y texto); si está pausada, al retomarla. **Fotos:** arrastradas al recuadro, pegadas en el campo o soltadas en la página (si la página no las usa, p. ej. un campo para subir archivos: antes se abrían en la pestaña) se guardan en `attachments/recorrido-<fecha>/paso<n>-<k>.<ext>` de la sesión (png, jpg, gif, webp o heic; hasta 15 MB cada una y 60 por recorrido) y van con el próximo comentario (o solas al cambiar de paso o terminar); el mensaje lista sus rutas para que la sesión las mire con Read. `ide tour show`
 muestra los pasos y si ya lo viste (`kv tour:<sesión>`). **Su Chrome se cierra** al terminar, al cerrar la pestaña o la
 ventana del recorrido (en macOS cerrar la ventana no cierra Chrome: se cierra al cerrarse la página) y, si quedó
 olvidado, a las 6 h. Un recorrido por sesión: abrir otro cierra el anterior. Cada uno queda registrado en
