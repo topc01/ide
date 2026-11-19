@@ -65,8 +65,12 @@ def _parser() -> argparse.ArgumentParser:
     ls = s.add_parser("ls"); ls.add_argument("--json", action="store_true")
     mo = s.add_parser("model", help="cambia el modelo de claude de una sesión (vale desde que su claude se relanza)")
     mo.add_argument("id"); mo.add_argument("model", help="sonnet, opus, haiku, un id, o `default` (el de siempre)")
-    for name in ("open", "stop"):
-        s.add_parser(name).add_argument("id")
+    so = s.add_parser("open", help="lanza (o retoma) el claude de una sesión parada; si se llegó al tope de sesiones "
+                      "(max_running) queda en cola y entra sola cuando haya lugar")
+    so.add_argument("id")
+    so.add_argument("--now", action="store_true", help="lánzala ya aunque se haya llegado al tope (también una que está "
+                    "en cola: sale de la cola con su prompt)")
+    s.add_parser("stop", help="cierra el claude de una sesión (su conversación queda)").add_argument("id")
     rm = s.add_parser("rm"); rm.add_argument("id"); rm.add_argument("--force", action="store_true")
     sa = s.add_parser("archive", help="archiva una sesión (lo mismo que Archivar en la card; se reabre con unarchive); la manager o tu terminal")
     sa.add_argument("id", help="#n o id"); sa.add_argument("--force", action="store_true", help="aunque tenga cambios sin commitear (se conservan)")
@@ -1612,7 +1616,7 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
     if a.cmd in ("open", "stop", "rm"):
         a.id = normalize_id(a.id)
     if a.cmd in ("open", "stop"):
-        data = _post(http, url, f"/api/sessions/{a.id}/{a.cmd}")
+        data = _post(http, url, f"/api/sessions/{a.id}/{a.cmd}", {"now": True} if getattr(a, "now", False) else None)
         out.write(f"{a.id}\t{data.get('process', 'stopped')}\n")
         return 0
     if a.cmd == "rm":
@@ -1620,20 +1624,30 @@ def _session(a, root: Path, url: str | None, http, out: TextIO, err: TextIO,
         return 0
     sessions = list_sessions(root)
     procs: dict[str, str] = {}
+    extra: dict[str, dict] = {}
     if url is not None:
         try:
             tree = http.get(f"{url}/api/sessions", timeout=10).json()
             procs = {s["id"]: s.get("process", "?") for s in tree.get("sessions", [])}
+            extra = {s["id"]: {"queuedPrompt": s.get("queuedPrompt"), "evictedAt": s.get("evictedAt")}
+                     for s in tree.get("sessions", [])}
         except (httpx.HTTPError, ValueError, AttributeError) as exc:
             err.write(f"aviso: no se pudo consultar el server: {exc}\n")
             procs = {}
     for s in sessions:
         s["process"] = procs.get(s["id"], "?")
+        s.update(extra.get(s["id"]) or {})
     if a.json:
         out.write(json.dumps(sessions, ensure_ascii=False, indent=2) + "\n")
         return 0
     for s in sessions:
         repos = ",".join(r["name"] for r in s["repos"]) or "-"
-        out.write(f"{s['id']}\t{s['kind']}\t{s['status'] or '-'}\t{s['process']}\t{s.get('model') or '-'}\t"
+        proc = s["process"]
+        if proc == "queued":
+            first = (s.get("queuedPrompt") or "").strip().splitlines()[:1]
+            proc = "en cola (tope)" + (f" con prompt: «{first[0][:60]}»" if first else ", sin prompt")
+        elif proc == "stopped" and s.get("evictedAt"):
+            proc = f"cerrada por el tope a las {s['evictedAt'][11:16]}"
+        out.write(f"{s['id']}\t{s['kind']}\t{s['status'] or '-'}\t{proc}\t{s.get('model') or '-'}\t"
                   f"{s['title'] or ''}\t{repos}{'  ⚠ ' + s['error'] if s['error'] else ''}\n")
     return 0

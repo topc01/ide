@@ -125,6 +125,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             s.update(process=p.get("process", "stopped"), terminalId=p.get("terminalId"),
                      launchError=p.get("launchError"), attention=p.get("attention"), activity=p.get("activity"),
                      frozen=p.get("frozen"), paused=(db.get(f"paused:{s['id']}") if db else None),
+                     queuedPrompt=p.get("queuedPrompt"), evictedAt=p.get("evictedAt"),
                      consult=({"terminalId": consults[s["id"]]["tid"], "at": consults[s["id"]]["at"]}
                               if s["id"] in consults else None))
             if s["kind"] == "review":
@@ -634,7 +635,12 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if held and supervisor.state(p["id"]) not in ("running", "queued"):
             db.delete(f"notices:{p['id']}")
             return {"process": supervisor.start(p["id"], prompt="\n\n---\n\n".join(held))}
-        return {"process": supervisor.start(p["id"])}
+        # `now` (`ide session open --now`): sacarla de la cola y lanzarla ya, aunque se haya llegado al tope
+        if p.get("now") and supervisor.state(p["id"]) == "queued":
+            q = next((x for x in supervisor._queue if x[0] == p["id"]), None)
+            supervisor._queue = [x for x in supervisor._queue if x[0] != p["id"]]
+            return {"process": supervisor.start(p["id"], resume=q[1] if q else None, prompt=q[2] if q else None, force=True)}
+        return {"process": supervisor.start(p["id"], force=bool(p.get("now")))}
 
     # -- claude de consulta: una bifurcación de la conversación de la sesión, en modo plan (solo lectura) ----
     consults: dict[str, dict] = {}              # sid -> {tid, fork, cwd, at}

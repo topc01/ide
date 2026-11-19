@@ -249,6 +249,7 @@ class Supervisor:
         # en cola por el tope (max_running): (sesión, resume, prompt con que se lanza)
         self._queue: list[tuple[str, bool, str | None]] = []
         self._queue_timer: threading.Timer | None = None
+        self._evicted: dict[str, str] = {}          # sid -> cuándo se cerró por el tope (lo muestran la card y la CLI)
         self._errors: dict[str, str] = {}
         self._head: dict[str, bytes] = {}           # sid -> inicio de la salida del proceso
         self._tail: dict[str, bytes] = {}           # sid -> lo último impreso (para ver una interrupción)
@@ -266,12 +267,14 @@ class Supervisor:
         return "stopped"
 
     def snapshot(self) -> dict[str, dict]:
-        sids = set(self._running) | {q[0] for q in self._queue} | set(self._errors)
+        sids = set(self._running) | {q[0] for q in self._queue} | set(self._errors) | set(self._evicted)
         return {sid: {"process": self.state(sid), "terminalId": self._running.get(sid),
                       "launchError": self._errors.get(sid),
                       "attention": self._attention.get(sid),
                       "activity": self._activity.get(sid) if sid in self._running else None,
-                      "frozen": self._frozen.get(sid) if sid in self._running else None} for sid in sids}
+                      "frozen": self._frozen.get(sid) if sid in self._running else None,
+                      "queuedPrompt": next(((q[2] or "")[:200] for q in self._queue if q[0] == sid), None),
+                      "evictedAt": self._evicted.get(sid) if sid not in self._running else None} for sid in sids}
 
     def set_activity(self, sid: str, state: str, note: str | None = None, reason: str | None = None) -> str | None:
         """Devuelve el estado anterior."""
@@ -281,7 +284,8 @@ class Supervisor:
         self._on_change()
         return prev
 
-    def start(self, sid: str, *, resume: bool | None = None, prompt: str | None = None) -> str:
+    def start(self, sid: str, *, resume: bool | None = None, prompt: str | None = None, force: bool = False) -> str:
+        """`force`: la lanza aunque se haya llegado al tope (la sacas de la cola a mano: `ide session open --now`)."""
         path = session_path(self._root, sid)
         if not (path / ".session.toml").is_file():
             raise SessionError("unknown_session", f"no existe la sesión {sid}")
@@ -289,7 +293,7 @@ class Supervisor:
             return self.state(sid)
         if resume is None:
             resume = has_history(session_cwd(self._root, sid), self._home)
-        if self._full() and not self._evict_one():
+        if not force and self._full() and not self._evict_one():
             # sin lugar: espera en la cola con su prompt y entra apenas haya (se revisa cada minuto: una sesión
             # que pasa a llevar EVICT_IDLE sin trabajar se cierra para hacerle lugar)
             self._queue.append((sid, resume, prompt))
@@ -409,6 +413,7 @@ class Supervisor:
         self._write(tid, b"\x1b[200~" + clean.encode() + b"\x1b[201~")
 
     def _launch(self, sid: str, resume: bool, prompt: str | None = None) -> None:
+        self._evicted.pop(sid, None)
         path = session_path(self._root, sid)
         # Cada sesión fija su conversación de claude (`claude_session` en .session.toml): nueva
         # con --session-id, retomada con --resume <id>. Las viejas adoptan la más reciente.
@@ -562,7 +567,10 @@ class Supervisor:
         now, best = datetime.now(), None
         for s in self._counted():
             a = self._activity.get(s) or {}
-            if s in self._frozen or a.get("state") == "working" or s in self._attention:
+            # nunca una que trabaja, congelada, o que te espera con algo abierto (un permiso, una pregunta, un login):
+            # cerrarla cortaría eso a medias. Una que terminó su turno, sí
+            if s in self._frozen or a.get("state") == "working" or s in self._attention \
+                    or a.get("reason") in ("permission", "question", "login"):
                 continue
             try:
                 since = datetime.fromisoformat(a["since"]) if a.get("since") else \
@@ -574,6 +582,7 @@ class Supervisor:
         if best is None:
             return None
         log.info("tope de sesiones: cierro %s (sin trabajar desde %s) para hacer lugar", best[0], best[1])
+        self._evicted[best[0]] = now.isoformat(timespec="seconds")
         self.stop(best[0], drain=False)
         return best[0]
 

@@ -1,7 +1,8 @@
 # server/ide_server/updater.py
 """Auto-actualización bajo el supervisor de `ide run`: el server vigila su propio código instalado
 y, cuando cambia (p.ej. `uv tool install --reinstall`), avisa a la UI y se reinicia cuando no hay
-nadie escribiendo en una terminal (o cuando lo piden). Sale con `RESTART_CODE` y el supervisor lo
+nadie escribiendo en una terminal **y ninguna sesión está trabajando** (reiniciar les cortaba el turno a medias), o
+cuando lo piden («reiniciar ahora»). Sale con `RESTART_CODE` y el supervisor lo
 relanza en el mismo puerto. Sin supervisor (`IDE_SUPERVISED` ausente) no hace nada."""
 from __future__ import annotations
 import asyncio
@@ -40,8 +41,9 @@ def fingerprint(pkg: Path = PKG_DIR) -> str:
 
 class Updater:
     def __init__(self, *, last_input: Callable[[], float], before_restart: Callable[[], None],
-                 notify: Callable[[dict], Awaitable[None]]) -> None:
+                 notify: Callable[[dict], Awaitable[None]], busy: Callable[[], int] | None = None) -> None:
         self._last_input, self._before, self._notify = last_input, before_restart, notify
+        self._busy = busy or (lambda: 0)       # sesiones trabajando: reiniciar les corta el turno
         self._initial = fingerprint()
         self.pending = False
         self.restart_requested = False
@@ -78,6 +80,6 @@ class Updater:
                 self.pending = True
                 log.info("hay una versión nueva del IDE: se reinicia cuando no haya nadie escribiendo")
                 await self._notify(self.status())
-            if self.pending and time.time() - self._last_input() >= IDLE_BEFORE:
+            if self.pending and time.time() - self._last_input() >= IDLE_BEFORE and not self._busy():
                 self.restart_now()
                 return

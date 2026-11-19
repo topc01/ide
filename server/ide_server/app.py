@@ -107,7 +107,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     models_fit_cap.register(registry, root)
 
     updater = Updater(last_input=hooks.last_input, before_restart=hooks.save_history,
-                      notify=lambda st: manager.broadcast("server.update", st))
+                      notify=lambda st: manager.broadcast("server.update", st),
+                      busy=lambda: sum(1 for v in supervisor.snapshot().values()
+                                       if v.get("process") == "running" and not v.get("frozen")
+                                       and (v.get("activity") or {}).get("state") == "working"))
 
     async def server_status(_p: dict) -> dict:
         return updater.status()
@@ -254,8 +257,8 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
         return await _http("sessions.new", {**body, "_http": True})
 
     @app.post("/api/sessions/{sid}/open")
-    async def api_open(sid: str):
-        return await _http("sessions.open", {"id": sid, "_http": True})
+    async def api_open(sid: str, body: dict | None = None):
+        return await _http("sessions.open", {**(body or {}), "id": sid, "_http": True})
 
     # -- diagnóstico de memoria (`ide debug memory`): cuánto ocupa el server y qué crece --------------------
     @app.get("/api/debug/memory")
