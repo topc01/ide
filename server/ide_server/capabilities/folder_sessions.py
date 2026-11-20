@@ -962,7 +962,12 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         # le escribiste tú a Plugins desde el IDE, con ella quieta: la estás mirando; lo que siga es tuyo
         if db is None or sid != "plugins":
             return
-        if (supervisor.snapshot().get(sid, {}).get("activity") or {}).get("state") == "working":
+        snap = supervisor.snapshot().get(sid, {})
+        act = snap.get("activity") or {}
+        # solo con su prompt libre (terminó su turno o recién abierta): un Enter que contesta un permiso, una pregunta
+        # o el diálogo de confianza no es «le escribiste tú»
+        if act.get("state") != "waiting" or act.get("reason") not in ("turn", "idle", "launch", "interrupt") \
+                or snap.get("attention"):
             return
         db.delete("plugins:telegram")
 
