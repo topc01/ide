@@ -1797,7 +1797,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         # por CLI: tú o la manager, cualquier PR tuya; una sesión, solo las PRs de su propio desarrollo
         if p.get("_http") and _manager_or_terminal(p) is None:
             caller = _calling_session(p)
-            if not caller or _owner(url, list_sessions(root)) != caller:
+            link = (db.dev_prs() if db else {}).get(url) or {}      # el vínculo guardado (el primero gana), no la rama de hoy
+            if not caller or link.get("out") or link.get("sid") != caller:
                 raise SessionError("forbidden", "una sesión solo mergea las PRs de su propio desarrollo")
         return await asyncio.to_thread(lambda: merger.merge(url, renumber=bool(p.get("renumber"))))
 
