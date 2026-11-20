@@ -93,6 +93,8 @@ poll_interval = 300               # segundos entre polls de PRs con `gh`; 0 = de
 github_interval = 120             # segundos entre polls de revisiones en GitHub (sección Revisiones); 0 = off
 # github_org = "MiOrg"            # org donde buscar; omitido = owners de los `origin` de los repos
 # plugins = ["mi-plugin@mi-marketplace"]  # plugins de Claude Code habilitados solo en revisiones
+auto_approve_minutes = 5          # la sesión de revisión aprueba una PR de bajo riesgo: el IDE la aprueba en GitHub a los N min salvo que la frenes; 0 = nunca sola
+auto_approve_max_lines = 300      # tope de líneas cambiadas para que cuente como bajo riesgo
 
 [ui]
 modules = ["sessions", "dev", "terminal", "prompts", "stack", "review", "deps", "servers", "db", "later", "evidence", "attachments", "explorer", "config"]   # módulos visibles en el menú de acciones; ver abajo
@@ -786,6 +788,8 @@ Sin revisores, En revisión, Cambios pedidos, Aprobada) y el CI; los revisores c
 (aprobó, pidió cambios, pendiente). En tus PRs: **+ revisor** (busca entre los miembros de la org y le
 pide revisión), **×** en un revisor pendiente (lo saca) — `gh pr edit --add-reviewer/--remove-reviewer`,
 canal `pr.reviewers {url, add, remove}` — y, si está en draft, **Mandar a revisión** (`gh pr ready`).
+**Aprobación con plazo (`auto_approve.py`):** cuando la sesión de revisión registra «aprobar» (`ide review verdict <pr> approve`; por HTTP solo la sesión de revisión de esa PR, por proceso), el IDE mira la PR (`gh pr view`): es de **bajo riesgo** si es una re-revisión (tu última review ahí pidió cambios), cambia menos de `auto_approve_max_lines` (300) líneas, no toca rutas sensibles (migraciones, infra, `.github`, Dockerfile, settings, permisos, auth, pagos, dependencias y lockfiles) y la sesión no dejó dudas (`--doubt "…"`). Bajo riesgo: queda en `kv autoapprove:<url>` y la barra inferior muestra «aprobando api#n 4:59 · frenar»; Telegram avisa con «Frenar» (sin código) y «Aprobar ya» (con la ventana del código). Al vencer `auto_approve_minutes` (5; 0 = nunca sola) se publica `gh pr review --approve` con el comentario del veredicto, solo si el veredicto es el mismo y la PR no cambió (mismo head); si no, no la aprueba y avisa. Frenar (barra, canal `review.autoHold`, solo UI; o Telegram) la deja para tu click en la card. Si no es de bajo riesgo, Telegram avisa por qué con «Aprobar» (con la ventana del código) y «Después». «Pedir cambios» nunca pasa por acá. Publicar tu review (`review.submit`) es solo desde la UI.
+
 **Estado optimista:** lo que el IDE acaba de cambiar en GitHub se ve al instante, sin esperar el poll: pedir revisión (UI o `ide review add-reviewer`, que se lo avisa al IDE por `POST /api/pr/optimistic`, canal `pr.optimistic`), Mandar a revisión (sale de draft), aprobar o pedir cambios. Se pide un poll enseguida y lo optimista **se sostiene** en los polls siguientes mientras GitHub todavía no lo muestre (su búsqueda tarda en verlo; antes un poll de inmediato lo deshacía), hasta 5 min (`OPT_TTL`); si GitHub dice otra cosa de ese revisor (p. ej. ya aprobó), gana GitHub.
 
 **Descripción de la PR (resumen):** el resumen de cada PR muestra su descripción, pedida fresca a

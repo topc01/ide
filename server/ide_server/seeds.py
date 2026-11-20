@@ -16,6 +16,8 @@ poll_interval = 300               # segundos; 0 = sin polling de PRs
 github_interval = 120             # revisiones pendientes / con cambios pedidos en GitHub; 0 = off
 # github_org = "MiOrg"            # omitido = owners de los `origin` de los repos del workspace
 # plugins = ["mi-plugin@mi-marketplace"]   # plugins de Claude Code habilitados solo en revisiones
+auto_approve_minutes = 5          # la sesión de revisión aprueba una PR de bajo riesgo: el IDE la aprueba en GitHub a los N min salvo que la frenes; 0 = nunca sola
+auto_approve_max_lines = 300      # tope de líneas cambiadas para que cuente como bajo riesgo
 
 [ui]
 modules = ["sessions", "terminal", "prompts", "stack", "review", "deps", "config"]
@@ -81,8 +83,11 @@ publicas aprobaciones ni comentarios sueltos):
   OK. Con el OK, publícala con `ide review publish`.
 - **Pedir cambios solo por menores o nits:** dile el resumen (cada hallazgo en una línea, con su severidad) y
   publícala directo con `ide review publish`.
-- **Aprobar:** no la publiques: la aprueba el usuario desde la card. Registra el veredicto con `ide review verdict
-  <pr> approve` y díselo con el resumen. Si el usuario te pide explícito que la apruebes tú, apruébala con `gh pr
+- **Aprobar:** no la publiques tú. Registra el veredicto con `ide review verdict <pr> approve --file <comentario.md>
+  --why "una línea"` y díselo con el resumen. Si es de bajo riesgo (re-revisión de cambios que él pidió, menos de 300
+  líneas, nada de migraciones, infra, permisos, pagos ni dependencias), el IDE la aprueba solo en 5 min salvo que la
+  frene; si no, le llega un aviso para aprobarla. **Si te queda alguna duda, agrega `--doubt "cuál"`**: así no se
+  aprueba sola. Si el usuario te pide explícito que la apruebes tú, apruébala con `gh pr
   review <pr> --approve --body-file <comentario.md>` y verifica con `gh pr view` que `reviewDecision` quedó en
   APPROVED.
 - El veredicto que ve el usuario sale **solo** de lo que registras con `ide review`, no de SESSION.md. Cada ronda
@@ -430,7 +435,7 @@ REVIEW_CLOSE = """
 **Cierre (pisa lo que digan la skill o lo de arriba sobre publicar o pedir OK):** por cada PR, apenas tengas su veredicto, ciérrala así; sin eso el usuario no lo ve en la card:
 - **Pedir cambios con algún hallazgo importante** (un bug, comportamiento incorrecto, datos, seguridad, o algo de arquitectura que cambia el diseño): **no publiques**. Muéstrale al usuario los hallazgos (uno por línea, con su severidad) en un mensaje que empiece con «Necesito tu OK para pedir cambios en <pr>» y espera su OK. Con el OK, publícala con `ide review publish <pr> <review.json>` (deja el veredicto registrado).
 - **Pedir cambios solo por menores o nits:** dile el resumen (uno por línea, con su severidad) y publícala directo con `ide review publish <pr> <review.json>`.
-- **Aprobar:** no la publiques. Registra `ide review verdict <pr> approve --file <comentario.md> --why "una línea"` y dile que la apruebe desde la card.
+- **Aprobar:** no la publiques tú. Registra `ide review verdict <pr> approve --file <comentario.md> --why "una línea"` (si te queda alguna duda, agrega `--doubt "cuál"`: así no se aprueba sola). Si es de bajo riesgo el IDE la aprueba solo en 5 min salvo que el usuario la frene; si no, le avisa para que la apruebe.
 """
 
 # `.ide/prompts/rereview-pr.md`: el botón de revisión cuando la sesión ya existe (re-review).

@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 from ide_server.claude_usage import LimitsPoller, session_context
-from ide_server.config import ide_config, manager_config, sessions_config, ui_modules
+from ide_server.config import ide_config, manager_config, reviews_config, sessions_config, ui_modules
 from ide_server.feedback import as_markdown, collect, pending_plans
 from ide_server.telegram import TelegramBridge, get_token
 from ide_server.gh_discussion import fetch_body, fetch_discussion, save_body
@@ -160,6 +160,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 "verdicts": {u: {"verdict": v.get("verdict"), "at": v.get("at"), "sha": v.get("sha")}
                              for u, v in (db.with_prefix("verdict:") if db else {}).items()},
                 "feedbackPending": pending_plans(root),
+                "autoApprovals": [{"url": k[len("autoapprove:"):], "due": v.get("due"), "title": v.get("title")}
+                                  for k, v in (db.with_prefix("autoapprove:").items() if db is not None else [])
+                                  if isinstance(v, dict)],
                 "scripts": {r["id"]: list_scripts(root, r["id"]) for r in repos}}
 
     def _later_with_dev(items: list[dict]) -> list[dict]:
@@ -1088,8 +1091,8 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         _, how = _deliver_to(sid, "[Mensaje de la sesión manager]\n" + text, "telegram")
         return f"Mandado a {sid} ({how})."
 
-    bridge = TelegramBridge(db, deliver=_tg_deliver, propose_ok=_tg_propose_ok, on_change=lambda: notify()) \
-        if db is not None else None
+    bridge = TelegramBridge(db, deliver=_tg_deliver, propose_ok=_tg_propose_ok, on_change=lambda: notify(),
+                            on_action=lambda a, pr: _tg_action(a, pr)) if db is not None else None
     guard = bridge.guard if bridge is not None else None
 
     # ¿la manager está respondiendo un mensaje de Telegram? Lo lleva el IDE, no un archivo: se marca al entregarle uno
@@ -1313,15 +1316,141 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         body = (p.get("body") or "").strip()
         if not body:
             raise SessionError("bad_request", "falta el comentario para GitHub")
+        _own_or_user(p, sid, "el veredicto")    # por HTTP: solo la sesión de revisión de esa PR (por proceso)
         _, _, url = await asyncio.to_thread(review_publish._own_pr, root, sid, p.get("pr") or "")
         if db is None:
             raise SessionError("no_db", "sin base")
         rec = {"sid": sid, "verdict": verdict, "body": body, "why": (p.get("why") or "").strip(),
+               "doubt": (p.get("doubt") or "").strip()[:500] or None,
                "sha": p.get("sha"), "at": datetime.now().isoformat(timespec="seconds")}
+        _auto_cancel(url)                       # una ronda nueva pisa la aprobación con plazo que hubiera
         db.set(f"verdict:{url}", rec)
         db.event(rec["at"], f"claude:{sid}", "review-verdict", dev=sid, pr_url=url, data={"verdict": verdict, "sha": rec["sha"]})
+        how = None
+        if verdict == "approve":
+            how = await _route_approval(url, rec)
         notify()
-        return {"ok": True, "url": url}
+        return {"ok": True, "url": url, "auto": how}
+
+    # -- aprobación con plazo (auto_approve.py) -----------------------------------------------------------------
+    def _auto_cfg() -> tuple[int, int]:
+        c = reviews_config(root)
+        return int(c.get("auto_approve_minutes", 5)), int(c.get("auto_approve_max_lines", 300))
+
+    def _auto_cancel(url: str) -> None:
+        ent = db.get(f"autoapprove:{url}") if db is not None else None
+        if ent:
+            db.delete(f"autoapprove:{url}")
+            if bridge is not None:
+                bridge.forget(ent.get("pid"))
+
+    def _pr_label(url: str, title: str | None = None) -> str:
+        m = re.search(r"/([\w.-]+)/pull/(\d+)", url)
+        short = f"{m.group(1).removeprefix('finnecto-')}#{m.group(2)}" if m else url
+        return f"{short} «{title[:60]}»" if title else short
+
+    async def _route_approval(url: str, rec: dict) -> str:
+        """Bajo riesgo: la aprueba sola en N min salvo que la frenes. Si no: aviso por Telegram con «Aprobar»."""
+        from ide_server import auto_approve as aa
+        minutes, max_lines = _auto_cfg()
+        me = (gh_reviews.state if gh_reviews else {}).get("me")
+        try:
+            facts = await asyncio.to_thread(aa.pr_facts, url)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("aprobación con plazo %s: %s", url, exc)
+            return f"no pude leer la PR ({exc}): apruébala desde la card"
+        low, why = aa.classify(facts, me, max_lines=max_lines, doubt=rec.get("doubt"))
+        if rec.get("sha") and facts.get("headRefOid") and rec["sha"] != facts["headRefOid"]:
+            low, why = False, ["la PR cambió después de la revisión"]
+        label = _pr_label(url, facts.get("title"))
+        if low and minutes > 0:
+            due = time.time() + minutes * 60
+            ent = {"due": due, "sid": rec["sid"], "sha": facts.get("headRefOid"), "verdictAt": rec["at"],
+                   "title": facts.get("title"), "pid": None}
+            db.set(f"autoapprove:{url}", ent)
+            if bridge is not None:
+                try:
+                    ent["pid"] = await bridge.offer(
+                        f"Apruebo {label} en {minutes} min salvo que lo frenes (re-revisión, cambio chico).\n{url}\n\n"
+                        f"{rec.get('why') or ''}".strip(),
+                        {"kind": "autoapprove", "url": url}, [("Frenar", "no"), ("Aprobar ya", "ok")])
+                    db.set(f"autoapprove:{url}", ent)
+                except Exception as exc:  # noqa: BLE001 — sin Telegram igual se ve en la barra
+                    log.info("aviso de aprobación con plazo por Telegram: %s", exc)
+            return f"se aprueba sola en {minutes} min salvo que el usuario la frene"
+        if bridge is not None:
+            try:
+                await bridge.offer(f"La sesión de revisión aprueba {label}, pero espera tu OK: {'; '.join(why)}.\n{url}",
+                                   {"kind": "approve", "url": url}, [("Aprobar", "ok"), ("Después", "no")])
+            except Exception as exc:  # noqa: BLE001
+                log.info("aviso de aprobación por Telegram: %s", exc)
+        return "espera al usuario: " + "; ".join(why)
+
+    async def _approve_from_verdict(url: str, *, expect_sha: str | None = None, verdict_at: str | None = None) -> str:
+        """Publica la aprobación con el comentario del veredicto, si sigue siendo el mismo y la PR no cambió."""
+        from ide_server import auto_approve as aa
+        rec = db.get(f"verdict:{url}") if db is not None else None
+        if not rec or rec.get("verdict") != "approve" or (verdict_at and rec.get("at") != verdict_at):
+            return "el veredicto cambió: no la apruebo"
+        facts = await asyncio.to_thread(aa.pr_facts, url)
+        if facts.get("state") != "OPEN":
+            return "la PR ya no está abierta"
+        sha = expect_sha or rec.get("sha")
+        if sha and facts.get("headRefOid") != sha:
+            return "la PR cambió después de la revisión: no la apruebo sola (revísala de nuevo)"
+        await _submit_review(url, "approve", rec.get("body") or "")
+        return f"Aprobada {_pr_label(url, facts.get('title'))}."
+
+    async def _tg_action(action: str, prop: dict) -> str:
+        url = prop.get("url") or ""
+        if prop.get("kind") == "autoapprove":
+            ent = db.get(f"autoapprove:{url}")
+            if action == "no":
+                _auto_cancel(url); notify()
+                return "Frenada: queda para que la apruebes tú desde el IDE."
+            if not ent:
+                return "Ya no está pendiente."
+            _auto_cancel(url)
+            out = await _approve_from_verdict(url, expect_sha=ent.get("sha"), verdict_at=ent.get("verdictAt"))
+            notify()
+            return out
+        if prop.get("kind") == "approve":
+            if action == "no":
+                return "Queda para el IDE."
+            out = await _approve_from_verdict(url)
+            notify()
+            return out
+        return "No sé qué es eso."
+
+    async def review_auto_hold(p: dict) -> dict:
+        """«Frenar» de la barra inferior: no la aprueba sola; queda para tu click en la card. Solo desde la UI."""
+        if p.get("_http"):
+            raise SessionError("forbidden", "se frena desde el IDE o Telegram")
+        _auto_cancel(str(p.get("url") or ""))
+        notify()
+        return {"ok": True}
+
+    async def auto_approve_tick() -> None:
+        """Las aprobaciones con plazo que vencieron: se publican (si el veredicto y la PR siguen iguales)."""
+        if db is None:
+            return
+        for key, ent in list(db.with_prefix("autoapprove:").items()):
+            if not isinstance(ent, dict) or ent.get("due", 0) > time.time():
+                continue
+            url = key[len("autoapprove:"):]
+            _auto_cancel(url)
+            try:
+                out = await _approve_from_verdict(url, expect_sha=ent.get("sha"), verdict_at=ent.get("verdictAt"))
+            except Exception as exc:  # noqa: BLE001
+                out = f"no pude aprobarla: {exc}"
+            db.event(datetime.now().isoformat(timespec="seconds"), "ide", "auto-approve", dev=ent.get("sid"), pr_url=url,
+                     data={"result": out})
+            if bridge is not None:
+                try:
+                    await bridge.send(f"{_pr_label(url, ent.get('title'))}: {out}" if not out.startswith("Aprobada") else out)
+                except Exception:  # noqa: BLE001
+                    pass
+            notify()
 
     async def review_draft(p: dict) -> dict:
         """El veredicto de la sesión de revisión y el review listo para publicar: el que dejó con `ide review
@@ -1358,7 +1487,14 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
 
     async def review_submit(p: dict) -> dict:
         """Publica TU review (botones Aprobar / Pedir cambios): `gh pr review`. La sesión solo sugiere."""
+        if p.get("_http"):
+            raise SessionError("forbidden", "tu review se publica desde el IDE")
         url, event, body = p.get("url"), p.get("event"), (p.get("body") or "").strip()
+        _auto_cancel(str(url or ""))
+        await _submit_review(url, event, body)
+        return {"ok": True}
+
+    async def _submit_review(url, event, body: str) -> None:
         if event not in ("approve", "request-changes"):
             raise SessionError("bad_request", "event: approve | request-changes")
         if event == "request-changes" and not body:
@@ -1390,7 +1526,6 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             asyncio.get_running_loop().create_task(gh_reviews.poll_once())
         asyncio.get_running_loop().create_task(poller.poll_once())   # y el de la sesión, con el dato real
         notify()
-        return {"ok": True}
 
     async def attach(p: dict) -> dict:
         """Adjuntar un archivo a la conversación: se guarda en `attachments/` de la sesión (su claude lo
@@ -3115,7 +3250,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "sessions.stop": stop, "dev.keepPr": dev_keep_pr, "sessions.memory": memory, "sessions.freeze": freeze, "sessions.consult": consult, "sessions.consultLast": consult_last,
         "sessions.consultSend": consult_send, "sessions.consultClose": consult_close, "sessions.pause": pause, "sessions.resume": resume, "sessions.send": send, "sessions.attach": attach, "attachments.list": attachments_list,
         "attachments.rename": attachments_rename, "attachments.mkdir": attachments_mkdir, "attachments.move": attachments_move, "attachments.link": attachments_link, "attachments.delete": attachments_delete, "sessions.propose": propose, "telegram.reply": tg_reply, "telegram.status": tg_status, "telegram.toggle": tg_toggle, "telegram.guard": tg_guard,
-        "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.archived": archived, "sessions.unarchive": unarchive, "sessions.script": script,
+        "sessions.fresh": fresh, "review.draft": review_draft, "review.submit": review_submit, "review.autoHold": review_auto_hold, "manager.nightly": nightly, "sessions.rm": rm, "sessions.archive": archive, "sessions.archived": archived, "sessions.unarchive": unarchive, "sessions.script": script,
         "sessions.doc": doc, "sessions.refreshReview": refresh, "sessions.repoRm": repo_rm,
         "ui.config": ui_config, "prompts.list": prompts,
     }.items():
@@ -3135,6 +3270,16 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     log.exception("Live Staging")
                 try:
                     await asyncio.wait_for(stop.wait(), notion.TTL)
+                except asyncio.TimeoutError:
+                    pass
+        async def tick_auto_approve() -> None:
+            while not stop.is_set():
+                try:
+                    await auto_approve_tick()
+                except Exception:  # noqa: BLE001
+                    log.exception("aprobaciones con plazo")
+                try:
+                    await asyncio.wait_for(stop.wait(), 15)
                 except asyncio.TimeoutError:
                     pass
         async def tick_reviews() -> None:
@@ -3204,7 +3349,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                     await asyncio.wait_for(stop.wait(), 180)
                 except asyncio.TimeoutError:
                     pass
-        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live(), tick_staging(), tick_review(), tick_agents(), tick_blocks(), tick_reviews())
+        await asyncio.gather(notion.refresh_loop(db, ticket_urls, stop, notify), tick_live(), tick_staging(), tick_review(), tick_agents(), tick_blocks(), tick_reviews(), tick_auto_approve())
 
     notify.notion_loop = notion_loop        # type: ignore[attr-defined]
     notify.telegram = bridge                # type: ignore[attr-defined]

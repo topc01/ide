@@ -300,7 +300,7 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
 
     @app.post("/api/reviews/verdict")
     async def api_review_verdict(body: dict):
-        return await _http("review.verdict", body)
+        return await _http("review.verdict", {**(body or {}), "_http": True})
 
     @app.post("/api/reviews/stack")
     async def api_review_stack(body: dict):

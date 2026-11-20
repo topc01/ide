@@ -34,6 +34,7 @@ export interface SessionsTree {
   devIndex?: Record<string, number>;    // número de cada desarrollo (#12), por clave
   devStates?: Record<string, { phase?: string | null; block?: string | null; note?: string | null; since?: string | null }>;   // fase + bloqueo
   feedbackPending?: string[];            // planes de feedback de la manager sin revisar
+  autoApprovals?: { url: string; due: number; title: string | null }[];   // aprobaciones con plazo (se aprueban solas)
   later?: LaterItem[];                  // pendientes para después, abiertos
   // ticket de Notion de cada desarrollo de ticket (`s:<id>`): url (null = sin ticket), Status de la caché, pendientes
   devTickets?: Record<string, { url: string | null; status: string | null; error: string | null; title?: string | null;

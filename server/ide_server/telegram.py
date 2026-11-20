@@ -48,13 +48,15 @@ def set_token(token: str) -> None:
 class TelegramBridge:
     def __init__(self, db: Db, *, deliver: Callable[[str], Awaitable[str]],
                  propose_ok: Callable[[str, str], Awaitable[str]], guard=None,
-                 on_change: Callable[[], None] | None = None) -> None:
+                 on_change: Callable[[], None] | None = None,
+                 on_action: Callable[[str, dict], Awaitable[str]] | None = None) -> None:
         from ide_server.telegram_guard import Guard
         self.db = db
         self.guard = guard or Guard(db)
         self._on_change = on_change or (lambda: None)
         self._deliver = deliver                 # texto → a la principal
         self._propose_ok = propose_ok           # (sesión, texto) → encolar (tras el Sí)
+        self.on_action = on_action              # (ok|no, propuesta con `kind`) → otras propuestas (aprobar una PR)
         self._token: str | None = None
 
     # -- API de Telegram -------------------------------------------------------------------------
@@ -86,6 +88,18 @@ class TelegramBridge:
                                   {"text": "No", "callback_data": f"no:{pid}"}]])
         return pid
 
+    async def offer(self, text: str, prop: dict, buttons: list[tuple[str, str]]) -> str:
+        """Un aviso con botones para otra cosa que mandarle algo a una sesión (`prop["kind"]`): «ok» pide la ventana
+        del código, como el «Sí» de una propuesta; «no» (frenar, dejar para después) no la pide."""
+        pid = secrets.token_hex(6)
+        self.db.set(f"telegram:prop:{pid}", {**prop, "at": time.time()})
+        await self.send(text, buttons=[[{"text": label, "callback_data": f"{action}:{pid}"} for label, action in buttons]])
+        return pid
+
+    def forget(self, pid: str | None) -> None:
+        if pid:
+            self.db.delete(f"telegram:prop:{pid}")
+
     async def _callback(self, client: httpx.AsyncClient, cq: dict) -> None:
         chat = self.db.get("telegram:chat")
         msg_chat = ((cq.get("message") or {}).get("chat") or {}).get("id")
@@ -104,6 +118,11 @@ class TelegramBridge:
         self.db.delete(f"telegram:prop:{pid}")
         if not prop or time.time() - prop.get("at", 0) > 86400:
             answer = "Esa propuesta ya no existe (o venció)."
+        elif prop.get("kind") and self.on_action is not None:
+            try:
+                answer = await self.on_action(action, prop)
+            except Exception as exc:  # noqa: BLE001
+                answer = f"No se pudo: {exc}"
         elif action == "ok":
             try:
                 answer = await self._propose_ok(prop["sid"], prop["text"])

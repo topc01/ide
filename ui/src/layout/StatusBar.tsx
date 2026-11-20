@@ -101,6 +101,7 @@ export function StatusBar() {
           <FreedNow />
           <Sep />
           <Decisions />
+          <AutoApprovals />
           <TelegramSwitch />
           <FeedbackPending />
           {update?.pending && (
@@ -486,6 +487,31 @@ function WindowLeft({ until, onEnd }: { until: number; onEnd: () => void }) {
   const m = Math.floor(left / 60), sec = left % 60;
   return <span className="tabular-nums text-emerald-300" title={`Ventana del código abierta hasta las ${hhmm(until)}`}>
     {m}:{String(sec).padStart(2, "0")}</span>;
+}
+
+/** Aprobaciones con plazo: la sesión de revisión aprobó una PR de bajo riesgo y el IDE la aprueba sola al vencer el
+ *  plazo. Cada una con su cuenta regresiva y «frenar» (queda para tu click en la card). */
+function AutoApprovals() {
+  const items = useFolders((s) => s.tree.autoApprovals) ?? [];
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { if (!items.length) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [items.length]);
+  if (!items.length) return null;
+  const short = (url: string) => { const m = url.match(/\/([\w.-]+)\/pull\/(\d+)/); return m ? `${m[1].replace(/^finnecto-/, "")}#${m[2]}` : url; };
+  return (<>
+    <Sep />
+    {items.map((a) => {
+      const left = Math.max(0, Math.round(a.due - now / 1000));
+      return (
+        <span key={a.url} className="flex items-center gap-1.5 text-emerald-300"
+          title={`La sesión de revisión la aprobó y es de bajo riesgo (re-revisión, cambio chico, nada sensible): el IDE la aprueba en GitHub al llegar a 0. ${a.title ?? ""}`}>
+          <a href={a.url} target="_blank" rel="noreferrer" className="hover:underline">aprobando {short(a.url)}</a>
+          <span className="tabular-nums">{left ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` : "ahora"}</span>
+          <button title="No aprobarla sola: queda para que la apruebes tú desde la card"
+            onClick={() => getWs().request("review.autoHold", { url: a.url }).catch(() => {})}
+            className="rounded border border-emerald-400/60 px-1 hover:bg-emerald-400/10">frenar</button>
+        </span>);
+    })}
+  </>);
 }
 
 /** La revisión semanal dejó un plan de feedback sin revisar: click = ir a la sesión principal. */
