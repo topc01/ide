@@ -361,8 +361,13 @@ class BrowserServers:
             if f.stem not in specs:
                 info = json.loads(f.read_text(encoding="utf-8"))
                 port = (info.get("args") or [None])[-1]
-                # con sesiones todavía conectadas (lanzadas antes del cambio) sigue vivo hasta que se relancen
-                if self._alive(info.get("pid")) and str(port).isdigit() and _connected(int(port)):
+                # un perfil de staging que dejó de compartirse (20-11): con sesiones todavía conectadas (lanzadas antes
+                # del cambio) sigue vivo hasta que se relancen, solo si el perfil sigue igual (existe, es local y con el
+                # mismo archivo de sesión). Un perfil borrado o cambiado se para siempre
+                prof = next((p for p in list_profiles(self.root) if p["server"] == f.stem), None)
+                same = prof is not None and prof["local"] and (info.get("args") or [])[:2] == \
+                    ["--storage-state", str(base(self.root) / prof["name"] / "state.json")]
+                if same and self._alive(info.get("pid")) and str(port).isdigit() and _connected(int(port)):
                     continue
                 if self._alive(info.get("pid")):
                     os.killpg(info["pid"], signal.SIGTERM)
