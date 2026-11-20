@@ -237,9 +237,16 @@ def _specs(root: Path) -> dict[str, list[str]]:
     cookies, script = _shared_local(root)
     out = {LOCAL_SERVER: ["--storage-state", str(cookies), "--init-script", str(script)]}
     for p in list_profiles(root):
-        if p["local"]:      # los de cuentas REAL no se comparten por un puerto sin clave (ver write_mcp_config)
+        if _shared(p):      # los de cuentas REAL no se comparten por un puerto sin clave (ver write_mcp_config)
             out[p["server"]] = ["--storage-state", str(base(root) / p["name"] / "state.json")]
     return out
+
+
+def _shared(p: dict) -> bool:
+    """Un servidor compartido entre sesiones solo para los perfiles de localhost. Los de staging (sitios de prueba,
+    `local` pero no localhost) van uno por sesión: compartido, todas usaban **un mismo Chrome** y, si se caía (falta de
+    memoria), las sesiones conectadas quedaban con «el navegador dejó de responder» hasta relanzar su claude (20-11)."""
+    return bool(p["local"]) and bool(LOCALHOST.match(p.get("url") or ""))
 
 
 def _ports(root: Path, names) -> dict[str, int]:
@@ -263,6 +270,12 @@ def _listeners(port: int) -> set[int]:
     """Los pids que escuchan en ese puerto (lsof)."""
     out = subprocess.run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"], capture_output=True, text=True).stdout
     return {int(x) for x in out.split() if x.isdigit()}
+
+
+def _connected(port: int) -> bool:
+    """¿Alguna sesión tiene una conexión abierta con el servidor de ese puerto?"""
+    out = subprocess.run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:ESTABLISHED", "-t"], capture_output=True, text=True).stdout
+    return bool(out.split())
 
 
 def _pgid(pid: int) -> int | None:
@@ -290,14 +303,14 @@ def write_mcp_config(root: Path, *, local_only: bool = False) -> Path:
     ports = _ports(root, specs)                 # (ensure pudo mover alguno a otro puerto)
     servers = {n: {"type": "http", "url": f"http://localhost:{ports[n]}/mcp"}
                for n in specs if not _foreign(ports[n], bs.pid(n))}
-    if not local_only:
-        # una cuenta REAL (prod) no va en un servidor compartido (cualquier proceso local podría usarla): un
-        # Playwright MCP propio por sesión, solo en las que pueden (nunca las `full`)
-        for p in list_profiles(root):
-            if not p["local"]:
-                servers[p["server"]] = {"command": "npx", "args": [
-                    "-y", f"@playwright/mcp@{MCP_VERSION}", "--isolated", "--browser", "chrome",
-                    "--storage-state", str(base(root) / p["name"] / "state.json")]}
+    # un Playwright MCP propio por sesión (su propio Chrome, que se abre cuando lo usa): los perfiles de staging (si se
+    # cae el de una sesión, las demás siguen) y los de cuentas REAL (no van en un servidor compartido: cualquier proceso
+    # local podría usarlos), estos solo en las sesiones que pueden (nunca las `full`)
+    for p in list_profiles(root):
+        if not _shared(p) and (p["local"] or not local_only):
+            servers[p["server"]] = {"command": "npx", "args": [
+                "-y", f"@playwright/mcp@{MCP_VERSION}", "--isolated", "--browser", "chrome",
+                "--storage-state", str(base(root) / p["name"] / "state.json")]}
     text = json.dumps({"mcpServers": servers}, indent=2) + "\n"
     if not f.is_file() or f.read_text(encoding="utf-8") != text:
         f.write_text(text, encoding="utf-8")
@@ -344,9 +357,13 @@ class BrowserServers:
         import signal
         specs = _specs(self.root)
         ports = _ports(self.root, specs)
-        for f in self._dir().glob("*.json"):            # perfiles que ya no están
+        for f in self._dir().glob("*.json"):            # perfiles que ya no están (o que ya no se comparten)
             if f.stem not in specs:
                 info = json.loads(f.read_text(encoding="utf-8"))
+                port = (info.get("args") or [None])[-1]
+                # con sesiones todavía conectadas (lanzadas antes del cambio) sigue vivo hasta que se relancen
+                if self._alive(info.get("pid")) and str(port).isdigit() and _connected(int(port)):
+                    continue
                 if self._alive(info.get("pid")):
                     os.killpg(info["pid"], signal.SIGTERM)
                 f.unlink()
