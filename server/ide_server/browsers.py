@@ -146,6 +146,10 @@ def login(root: Path, name: str, url: str | None = None) -> int:
     argv = ["npx", "-y", f"playwright@{PLAYWRIGHT_VERSION}", "open", "--channel", "chrome",
             *(["--load-storage", str(state)] if _logged(state) else []), "--save-storage", str(state), url]
     rc = subprocess.run(argv).returncode
+    if state.is_file() and name != "local":
+        new_url = _offer_other_site(root, d, state, url)
+        if new_url:
+            url = new_url
     if state.is_file():
         _keep_own_site(state, url)
         state.chmod(0o600)      # Playwright lo reescribe con los permisos por defecto
@@ -153,6 +157,55 @@ def login(root: Path, name: str, url: str | None = None) -> int:
             write_cookies_txt(state, d / "cookies.txt")
     write_mcp_config(root)
     return rc
+
+
+def _other_sites(state: Path, url: str) -> list[str]:
+    """Los sitios del mismo dominio que el perfil (p. ej. `*.finnecto.com`) donde quedó una sesión (localStorage o
+    cookies) y que no son el del perfil: el login terminó en otro (un Magic Login que redirige a otro subdominio)."""
+    host = (urlparse(url).hostname or "").lower()
+    parent = ".".join(host.split(".")[-2:])
+    try:
+        data = json.loads(state.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    seen: list[str] = []
+    hosts = [urlparse(str(o.get("origin") or "")).hostname or "" for o in data.get("origins") or [] if o.get("localStorage")]
+    hosts += [str(c.get("domain") or "").lstrip(".") for c in data.get("cookies") or []]
+    for h in (x.lower() for x in hosts):
+        if h and h != host and h != parent and h.endswith("." + parent) and _HOST.match(h) and h not in seen:
+            seen.append(h)
+    return seen
+
+
+def _offer_other_site(root: Path, d: Path, state: Path, url: str) -> str | None:
+    """Al cerrar la ventana del login: si la sesión quedó en otro sitio del mismo dominio, avisa (antes se guardaba
+    en silencio solo la del sitio del perfil, vacía) y ofrece cambiar el sitio del perfil. Al cambiarlo, el perfil
+    vuelve a decidir si es de pruebas con `[browsers] test_hosts` (si el sitio nuevo no está, queda REAL)."""
+    import sys
+    others = _other_sites(state, url)
+    if not others:
+        return None
+    host = urlparse(url).hostname
+    print(f"\nOjo: la sesión quedó en {', '.join(others)}, pero el perfil es de {host}: de ese sitio no se guarda nada.")
+    if not sys.stdin.isatty():
+        print(f"Para cambiar el sitio del perfil, vuelve a correr `ide browser login {d.name}` en tu terminal.")
+        return None
+    if len(others) == 1:
+        ans = input(f"¿Cambio el sitio del perfil a {others[0]} y guardo esa sesión? [s/N] ").strip().lower()
+        pick = others[0] if ans in ("s", "si", "sí", "y", "yes") else None
+    else:
+        for i, h in enumerate(others, 1):
+            print(f"  {i}. {h}")
+        ans = input("¿A cuál cambio el sitio del perfil? (número; Enter = no cambiar) ").strip()
+        pick = others[int(ans) - 1] if ans.isdigit() and 1 <= int(ans) <= len(others) else None
+    if not pick:
+        return None
+    new_url = f"https://{pick}"
+    data = read_toml(d / "profile.toml")
+    local = is_local(root, new_url)
+    write_toml(d / "profile.toml", {**data, "url": new_url, "local": local})
+    print(f"Perfil {d.name}: sitio {new_url} ({'local: las sesiones lo usan sin pedir permiso' if local else 'REAL: las sesiones piden permiso en cada acción (si es de pruebas, agrégalo a [browsers] test_hosts y vuelve a crearlo)'}).")
+    return new_url
 
 
 def write_cookies_txt(state: Path, out: Path) -> None:
