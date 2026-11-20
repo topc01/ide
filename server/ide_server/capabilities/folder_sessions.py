@@ -922,10 +922,52 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         text = {"manager": "[Mensaje de la sesión manager]\n", "plugins": "[Mensaje de la sesión Plugins]\n"}.get(
             caller, "[Mensaje del usuario]\n") + text.strip()
         if caller == "manager" and guard is not None and not guard.manager_send_ok():
-            raise SessionError("telegram_window", "respondes un mensaje de Telegram sin la ventana del código abierta: para mandarle trabajo a una "
-                               "sesión usa `ide session propose` (el usuario lo aprueba en Telegram con su código de 6 dígitos)")
+            # excepción: links a la sesión Plugins (solo URLs). Lo que Plugins le mande después a la IDE queda retenido
+            # hasta que lo apruebes en el IDE: sin el código, Telegram no llega a la IDE pasando por Plugins
+            if not (_kind_of(sid) == "plugins" and _only_links(str(p.get("text") or ""))):
+                raise SessionError("telegram_window", "respondes un mensaje de Telegram sin la ventana del código abierta: para mandarle trabajo a una "
+                                   "sesión usa `ide session propose` (el usuario lo aprueba en Telegram con su código de 6 dígitos); "
+                                   "a la sesión Plugins sí puedes mandarle links sin el código, pero solo los links (sin otro texto)")
+            if db is not None:
+                db.set("plugins:telegram", datetime.now().isoformat(timespec="seconds"))
+        if caller == "plugins" and _plugins_tainted():
+            item = _hold_plugins(sid, text)
+            return {"id": sid, "process": supervisor.state(sid), "delivered":
+                    f"retenido: viene de un link de Telegram sin el código; le llega cuando el usuario lo apruebe en el IDE "
+                    f"(bloqueante {later_mod.code(item)})"}
         state, how = _deliver_to(sid, text, caller)
         return {"id": sid, "process": state, "delivered": how}
+
+    PLUGINS_TAINT = 6 * 3600
+
+    def _kind_of(sid: str) -> str | None:
+        try:
+            return read_toml(session_path(root, sid) / ".session.toml").get("kind")
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _only_links(text: str) -> bool:
+        words = text.split()
+        return 0 < len(words) <= 10 and len(text) <= 2000 and all(re.fullmatch(r"https?://[^\s<>\"'`]+", w) for w in words)
+
+    def _plugins_tainted() -> bool:
+        """¿Plugins recibió un link por Telegram sin el código en las últimas PLUGINS_TAINT horas?"""
+        at = db.get("plugins:telegram") if db is not None else None
+        try:
+            return bool(at) and (datetime.now() - datetime.fromisoformat(at)).total_seconds() < PLUGINS_TAINT
+        except ValueError:
+            return True
+
+    def _hold_plugins(sid: str, text: str) -> dict:
+        """Un bloqueante de la sesión destino con el mensaje entero: responderlo «sí» desde el IDE se lo manda."""
+        item = later_mod.add(db, f"s:{sid}", "Plugins quiere mandarle un mensaje a esta sesión a partir de un link que llegó por "
+                             "Telegram sin el código. Respóndelo «sí» para que le llegue (cualquier otra respuesta lo descarta)",
+                             text[:1900], "plugins")
+        item["held"] = {"to": sid, "text": text}
+        db.set(f"later:{item['id']}", item)
+        db.event(datetime.now().isoformat(timespec="seconds"), "plugins", "prompt", dev=sid, data={"text": text[:300], "held": True})
+        notify()
+        return item
 
     def _deliver_to(sid: str, text: str, actor: str) -> tuple[str, str]:
         """Al claude de una sesión: a su cola si corre; si está parada, la lanza con el texto; si está pausada,
@@ -2721,6 +2763,19 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             raise SessionError("bad_request", "falta la respuesta")
         how = "anotada"
         sid = item["key"][2:] if item["key"].startswith("s:") else None
+        held = item.get("held")
+        if held and not p.get("_http"):
+            # un mensaje de Plugins retenido (venía de Telegram sin el código): solo tu «sí» desde el IDE lo manda
+            if re.fullmatch(r"(s[ií]|yes|ok|dale)[.!]*", answer.lower()):
+                _, how = _deliver_to(held["to"], held["text"] + "\n(Aprobado por el usuario en el IDE.)", "usuario")
+            else:
+                how = "descartado: no le llegó a la sesión"
+            later_mod.close(db, item["id"], "answered", answer)
+            await asyncio.to_thread(_sync_block, item["key"])
+            notify()
+            return {"ok": True, "delivered": how}
+        if held:
+            raise SessionError("forbidden", "ese mensaje retenido se aprueba desde el IDE")
         if sid and session_path(root, sid).is_dir():
             # con encabezado: nunca empieza con "!" o "/", y la sesión sabe qué es
             text = ("[Respuesta del usuario a un pendiente que quedó para después]\n"

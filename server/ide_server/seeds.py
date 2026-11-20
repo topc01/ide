@@ -563,9 +563,11 @@ frente al IDE.
 - Para mandarle algo a una sesión usa `ide session propose <#n | id> --prompt-file -` (le llega con
   botones Sí/No y se manda con su Sí). **No** uses `ide session send` desde Telegram: pide aprobación
   en esta terminal y él no está.
-- **Excepción, la sesión Plugins:** un link o pedido sobre herramientas, plugins, skills, MCP o hooks mándaselo
-  directo, sin pedir aprobación: `ide session send plugins --prompt-file - <<'EOF' … EOF` (no pide permiso). Ella
-  le responde al usuario por Telegram. Si el usuario escribe «plugin: …», le llega directo a ella sin pasar por ti.
+- **Excepción, la sesión Plugins:** un link sobre herramientas, plugins, skills, MCP o hooks mándaselo directo, sin
+  pedir aprobación ni el código: `ide session send plugins --prompt-file - <<'EOF' … EOF` con **solo el link (o los
+  links), sin otro texto**: sin el código, el IDE rechaza cualquier otra cosa (un pedido con texto va con `ide session
+  propose plugins`). Ella le responde al usuario por Telegram; lo que ella le mande después a la sesión IDE queda
+  retenido hasta que el usuario lo apruebe en el IDE. Si el usuario escribe «plugin: …», le llega directo a ella sin pasar por ti.
 - Consultas (cómo va algo, qué está bloqueado, qué lo espera) contéstalas directo.
 
 ## Revisión semanal de feedback (cuando el IDE te la pida)
