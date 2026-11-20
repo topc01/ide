@@ -786,6 +786,7 @@ Sin revisores, En revisión, Cambios pedidos, Aprobada) y el CI; los revisores c
 (aprobó, pidió cambios, pendiente). En tus PRs: **+ revisor** (busca entre los miembros de la org y le
 pide revisión), **×** en un revisor pendiente (lo saca) — `gh pr edit --add-reviewer/--remove-reviewer`,
 canal `pr.reviewers {url, add, remove}` — y, si está en draft, **Mandar a revisión** (`gh pr ready`).
+**Estado optimista:** lo que el IDE acaba de cambiar en GitHub se ve al instante, sin esperar el poll: pedir revisión (UI o `ide review add-reviewer`, que se lo avisa al IDE por `POST /api/pr/optimistic`, canal `pr.optimistic`), Mandar a revisión (sale de draft), aprobar o pedir cambios. Se pide un poll enseguida y lo optimista **se sostiene** en los polls siguientes mientras GitHub todavía no lo muestre (su búsqueda tarda en verlo; antes un poll de inmediato lo deshacía), hasta 5 min (`OPT_TTL`); si GitHub dice otra cosa de ese revisor (p. ej. ya aprobó), gana GitHub.
 
 **Descripción de la PR (resumen):** el resumen de cada PR muestra su descripción, pedida fresca a
 GitHub al abrirlo (canal `pr.body {url}` → `{body, state}`), **Renderizado** (markdown GFM: tablas,

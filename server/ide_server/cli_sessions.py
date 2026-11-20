@@ -1274,6 +1274,10 @@ def _review_cmd(a, root: Path, cwd: Path, out: TextIO, env: dict, url: str | Non
         out.write(f"hilo {'resuelto' if r['resolved'] else 'abierto'}\n")
     elif a.cmd == "add-reviewer":
         undrafted = rp.add_reviewer(root, sid, a.pr, a.logins, _set(dev_prs()))
+        try:                     # el IDE lo muestra ya (estado optimista), sin esperar su próximo poll a GitHub
+            _post(http, url, "/api/pr/optimistic", {"url": rp._pr(root, a.pr)[2], "requested": a.logins, "ready": undrafted})
+        except Exception:  # noqa: BLE001
+            pass
         out.write(f"revisión pedida a {', '.join(a.logins)}" + ("; salió de draft (lista para revisión)" if undrafted else "") + "\n")
     return 0
 

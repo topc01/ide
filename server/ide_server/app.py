@@ -610,6 +610,11 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_dev_link(sid: str, body: dict):
         return await _http("dev.linkPr", {**body, "id": sid, "_http": True})
 
+    @app.post("/api/pr/optimistic")
+    async def api_pr_optimistic(body: dict):
+        b = body or {}
+        return await _http("pr.optimistic", {"url": b.get("url"), "requested": b.get("requested"), "ready": b.get("ready"), "_http": True})
+
     @app.post("/api/devs/{sid}/keep")
     async def api_dev_keep(sid: str, body: dict):
         return await _http("dev.keepPr", {"pr": (body or {}).get("pr"), "id": sid, "_http": True})

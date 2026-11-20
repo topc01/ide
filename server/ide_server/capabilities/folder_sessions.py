@@ -2333,11 +2333,22 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
                 errors.append(f"{u}: {out.stderr.strip() or out.returncode}")
             else:
                 done.append(u)
+                gh_reviews.optimistic(u, ready=True)     # la card cambia ya, no en el próximo poll
                 if db is not None:
                     db.event(datetime.now().isoformat(timespec="seconds"), "ide", "pr-ready", pr_url=u)
         if errors and not done:
             raise SessionError("gh_failed", "; ".join(errors))
         return {"ready": done, "errors": errors}
+
+    async def pr_optimistic(p: dict) -> dict:
+        """La CLI acaba de cambiar una PR en GitHub (`ide review add-reviewer`: pidió revisión y quizá la sacó de draft):
+        el IDE lo muestra ya, sin esperar el próximo poll (que lo confirma o lo corrige). Solo cambia lo que se ve."""
+        if gh_reviews is None:
+            return {"ok": False}
+        url = _pr_url(p.get("url") or "")
+        logins = [l for l in (p.get("requested") or []) if isinstance(l, str) and re.fullmatch(r"[A-Za-z0-9-]{1,39}(/[A-Za-z0-9_.-]+)?", l)]
+        gh_reviews.optimistic(url, requested=logins, ready=bool(p.get("ready")))
+        return {"ok": True}
 
     def _pr_card(url: str) -> dict:
         st = gh_reviews.state if gh_reviews else {}
@@ -2375,8 +2386,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             db.event(datetime.now().isoformat(timespec="seconds"), "ide", "reviewers", pr_url=p["url"],
                      data={"add": p.get("add") or [], "remove": p.get("remove") or []})
         if gh_reviews is not None:
-            gh_reviews.optimistic(p["url"], requested=p.get("add") or [])   # el punto cambia ya
-            asyncio.get_running_loop().create_task(gh_reviews.poll_once())
+            gh_reviews.optimistic(p["url"], requested=p.get("add") or [])   # el punto cambia ya (y pide el poll)
         return {"ok": True}
 
     def _dev_key(key) -> str:
@@ -3095,7 +3105,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         "sessions.attentionReply": session_attention_reply,
         "tools.add": tools_add, "tools.set": tools_set, "tools.list": tools_list, "tools.show": tools_show,
         "later.add": later_add, "later.update": later_update, "later.list": later_list, "later.answer": later_answer, "later.dismiss": later_dismiss, "later.resolve": later_resolve,
-        "dev.state": dev_state, "prs.ready": prs_ready, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "servers.blocks": servers_blocks, "servers.start": servers_start,
+        "dev.state": dev_state, "prs.ready": prs_ready, "pr.optimistic": pr_optimistic, "dev.unlinkPr": dev_unlink_pr, "dev.linkPr": dev_link_pr, "servers.blocks": servers_blocks, "servers.start": servers_start,
         "servers.stop": servers_stop, "servers.log": servers_log, "dep.list": dep_list, "dep.add": dep_add, "dep.rm": dep_rm, "dev.list": dev_list, "dev.show": dev_show,
         "reviews.merge": merge, "reviews.mergeDismiss": merge_dismiss, "reviews.mergeCancel": merge_cancel, "reviews.discussion": discussion,
         "pr.body": pr_body, "pr.bodySave": pr_body_save, "reviews.mergeRetry": merge_retry, "dev.mergeAll": merge_all_start, "dev.mergeAllResume": merge_all_resume,

@@ -609,20 +609,51 @@ class GithubReviews:
                 self._db.event(at, "github", "conflict", pr_url=url)
         self._db.put_pr_snaps(snaps)
 
-    def optimistic(self, url: str, *, requested: list[str] = (), verdict: tuple[str, str] | None = None) -> None:
-        """Lo que el IDE acaba de hacer, sin esperar el próximo poll (que lo corrige si GitHub dice
-        otra cosa): `requested` = a quiénes se les pidió (re)review → esperando; `verdict` = (login,
-        approved|changes) de un review publicado."""
+    OPT_TTL = 300   # s: lo optimista se sostiene hasta que GitHub lo confirma (su búsqueda tarda en verlo) o hasta esto
+
+    def optimistic(self, url: str, *, requested: list[str] = (), verdict: tuple[str, str] | None = None,
+                   ready: bool = False) -> None:
+        """Lo que el IDE acaba de hacer, sin esperar el próximo poll: `requested` = a quiénes se les pidió (re)review →
+        esperando; `verdict` = (login, approved|changes) de un review publicado; `ready` = salió de draft. Se sostiene
+        en los polls siguientes hasta que GitHub lo muestra (su búsqueda tarda en ver los cambios: un poll de
+        inmediato lo deshacía) o pasan OPT_TTL s; si GitHub dice otra cosa de ese revisor, gana GitHub."""
+        opt = self.__dict__.setdefault("_opt", {})
+        cur = opt.get(url) or {"requested": set(), "verdict": None, "ready": False}
+        opt[url] = {"at": self._clock(), "requested": set(cur["requested"]) | set(requested),
+                    "verdict": verdict or cur["verdict"], "ready": ready or cur["ready"]}
+        if self._apply_opt(url, opt[url], force=True):
+            self._on_change()
+        try:                                             # y lo confirma GitHub enseguida, sin esperar el poll
+            asyncio.get_running_loop().create_task(self.poll_once())
+        except RuntimeError:
+            pass
+
+    def _apply_opt(self, url: str, o: dict, *, force: bool = False) -> bool:
+        """Aplica lo optimista de `url` a sus cards. Sin `force` (después de un poll), solo lo que GitHub todavía no
+        muestra; devuelve si alguna card cambió. Lo ya confirmado sale de `o`."""
         st = self.state or {}
         cards = [c for lst in [st.get("pending") or [], st.get("changesRequested") or [],
                                *(st.get("mine") or {}).values(), *(st.get("stacks") or {}).values()]
                  for c in lst if c.get("url") == url]
+        changed = False
         for c in cards:
+            if o["ready"]:
+                if c.get("draft"):
+                    c["draft"] = False; changed = True
+                elif not force:
+                    o["ready"] = False                   # GitHub ya la ve fuera de draft
             revs = {r["login"]: r["state"] for r in c.get("reviewers") or []}
-            for login in requested:
-                revs[login] = "requested"
-            if verdict:
-                revs[verdict[0]] = verdict[1]
+            for login in list(o["requested"]):
+                if login in revs and not force:
+                    o["requested"].discard(login)        # GitHub ya lo tiene (pedido o con su veredicto)
+                elif revs.get(login) != "requested":
+                    revs[login] = "requested"; changed = True
+            if o["verdict"]:
+                who, v = o["verdict"]
+                if revs.get(who) == v and not force:
+                    o["verdict"] = None
+                elif revs.get(who) != v:
+                    revs[who] = v; changed = True
             c["reviewers"] = [{"login": k, "state": v} for k, v in revs.items()]
             states = set(revs.values())
             # como `review_state`: un revisor con cambios pedidos manda (al que se le re-pidió ya está en requested)
@@ -636,8 +667,19 @@ class GithubReviews:
                 if to and to != g:
                     lst.remove(c)
                     mine.setdefault(to, []).append(c)
-        if cards:
-            self._on_change()
+                    changed = True
+        return changed or (force and bool(cards))
+
+    def _reapply_opt(self) -> None:
+        """Después de un poll: lo optimista que GitHub todavía no muestra se vuelve a poner (hasta OPT_TTL)."""
+        opt = self.__dict__.get("_opt") or {}
+        now = self._clock()
+        for url, o in list(opt.items()):
+            if now - o["at"] > self.OPT_TTL:
+                del opt[url]; continue
+            self._apply_opt(url, o)
+            if not o["ready"] and not o["requested"] and not o["verdict"]:
+                del opt[url]
 
     async def set_selection(self, logins: list[str]) -> None:
         self._db.set("reviewers", sorted({str(x) for x in logins}, key=str.lower))
@@ -724,6 +766,7 @@ class GithubReviews:
                 self.state = {**res, "members": members, "selected": self._db.get("reviewers"),
                               "error": None, "lastOk": _iso(self._clock()), "orgs": orgs,
                               "sync": self._db.get("last_sync")}
+                self._reapply_opt()
             except RuntimeError as exc:
                 self.state = {**prev, "error": str(exc)}
             except Exception as exc:  # noqa: BLE001 — queda marcado, nunca silencioso
