@@ -1793,12 +1793,13 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
     async def merge(p: dict) -> dict:
         if merger is None:
             raise SessionError("github_off", "merge desactivado")
-        # por CLI, mergear es tuyo (o de la manager): una sesión no mergea
+        url = _pr_url(p.get("url") or p.get("pr"))
+        # por CLI: tú o la manager, cualquier PR tuya; una sesión, solo las PRs de su propio desarrollo
         if p.get("_http") and _manager_or_terminal(p) is None:
-            raise SessionError("forbidden", "mergear lo hace el usuario (o la manager), no una sesión: si sus "
-                                            "migraciones chocan, arréglalas con `ide migrations renumber`")
-        return await asyncio.to_thread(lambda: merger.merge(_pr_url(p.get("url") or p.get("pr")),
-                                                            renumber=bool(p.get("renumber"))))
+            caller = _calling_session(p)
+            if not caller or _owner(url, list_sessions(root)) != caller:
+                raise SessionError("forbidden", "una sesión solo mergea las PRs de su propio desarrollo")
+        return await asyncio.to_thread(lambda: merger.merge(url, renumber=bool(p.get("renumber"))))
 
     def _merge_problem(job: dict, msg: str) -> None:
         """El merge no pudo seguir solo (conflicto al rebasear, migraciones): a la sesión del desarrollo."""
@@ -2190,10 +2191,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if not m:
             raise SessionError("bad_request", f"PR inválida: {raw!r} (URL o repo#n)")
         repo, n = m.group(1), int(m.group(2))
+        short = lambda r: re.sub(r"^finnecto-", "", r or "")   # noqa: E731
         st = gh_reviews.state if gh_reviews else {}
         known = [c for lst in [*(st.get("mine") or {}).values(), *(st.get("stacks") or {}).values(),
                                st.get("pending") or [], st.get("changesRequested") or [], st.get("closed") or []]
-                 for c in lst if c.get("repo") == repo and c.get("number") == n]
+                 for c in lst if short(c.get("repo")) == short(repo) and c.get("number") == n]   # middleware#1 = finnecto-middleware#1
         if known:
             return known[0]["url"]
         if not st.get("orgs"):
