@@ -22,7 +22,7 @@ SENSITIVE = re.compile(
 
 
 def pr_facts(url: str) -> dict:
-    r = subprocess.run(["gh", "pr", "view", url, "--json", "files,additions,deletions,headRefOid,state,reviews,author,title"],
+    r = subprocess.run(["gh", "pr", "view", url, "--json", "files,changedFiles,additions,deletions,headRefOid,state,reviews,author,title"],
                        capture_output=True, text=True, timeout=60)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip()[-200:] or "gh pr view falló")
@@ -39,6 +39,9 @@ def classify(facts: dict, me: str | None, *, max_lines: int, doubt: str | None =
     lines = int(facts.get("additions") or 0) + int(facts.get("deletions") or 0)
     if lines >= max_lines:
         why.append(f"cambia {lines} líneas (el tope es {max_lines})")
+    files = facts.get("files") or []
+    if int(facts.get("changedFiles") or 0) != len(files):     # gh lista hasta 100: sin la lista entera, no se sabe
+        why.append(f"no pude ver todos sus archivos ({len(files)} de {facts.get('changedFiles')})")
     touchy = sorted({f["path"] for f in facts.get("files") or [] if SENSITIVE.search(f.get("path") or "")})
     if touchy:
         why.append("toca " + ", ".join(touchy[:4]) + (f" y {len(touchy) - 4} más" if len(touchy) > 4 else ""))
