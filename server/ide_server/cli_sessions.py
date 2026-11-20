@@ -1263,7 +1263,7 @@ def _review_cmd(a, root: Path, cwd: Path, out: TextIO, env: dict, url: str | Non
         body = sys.stdin.read() if a.file == "-" else Path(a.file).read_text(encoding="utf-8")
         res = _post(http, url, "/api/reviews/verdict", {"id": sid, "pr": a.pr, "why": a.why or "", "body": body,
                                                         "verdict": "approve" if a.verdict == "approve" else "request-changes",
-                                                        "doubt": a.doubt or "", "sha": rp.head_sha(root, a.pr)})
+                                                        "doubt": a.doubt or "", "sha": _reviewed_sha(root, sid, a.pr)})
         out.write(f"veredicto registrado: {'aprobar' if a.verdict == 'approve' else 'pedir cambios'}"
                   + (f" ({res.get('auto')})" if a.verdict == "approve" and res.get("auto") else "") + "\n")
     elif a.cmd == "reply":
@@ -1281,6 +1281,24 @@ def _review_cmd(a, root: Path, cwd: Path, out: TextIO, env: dict, url: str | Non
             pass
         out.write(f"revisión pedida a {', '.join(a.logins)}" + ("; salió de draft (lista para revisión)" if undrafted else "") + "\n")
     return 0
+
+
+def _reviewed_sha(root: Path, sid: str, ref: str) -> str | None:
+    """El commit que la sesión revisó: el HEAD de su worktree del repo de la PR (no el de GitHub ahora: si subieron
+    algo después, la aprobación no debe cubrirlo). Sin worktree, el head de GitHub."""
+    import subprocess
+    from ide_server import review_publish as rp
+    from ide_server.repos_fs import require_session
+    try:
+        repo = rp._pr(root, ref)[0]
+        wt = require_session(root, sid) / repo
+        if wt.exists():
+            r = subprocess.run(["git", "-C", str(wt), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10)
+            if r.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", r.stdout.strip()):
+                return r.stdout.strip()
+    except Exception:  # noqa: BLE001
+        pass
+    return rp.head_sha(root, ref)
 
 
 def _set(x: list[str] | None) -> set[str] | None:

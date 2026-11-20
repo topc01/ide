@@ -1360,7 +1360,9 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             log.warning("aprobación con plazo %s: %s", url, exc)
             return f"no pude leer la PR ({exc}): apruébala desde la card"
         low, why = aa.classify(facts, me, max_lines=max_lines, doubt=rec.get("doubt"))
-        if rec.get("sha") and facts.get("headRefOid") and rec["sha"] != facts["headRefOid"]:
+        if not rec.get("sha"):
+            low, why = False, ["no sé qué commit revisó la sesión"]
+        elif rec["sha"] != facts.get("headRefOid"):
             low, why = False, ["la PR cambió después de la revisión"]
         label = _pr_label(url, facts.get("title"))
         if low and minutes > 0:
@@ -1396,9 +1398,11 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if facts.get("state") != "OPEN":
             return "la PR ya no está abierta"
         sha = expect_sha or rec.get("sha")
-        if sha and facts.get("headRefOid") != sha:
+        if not sha:
+            return "no sé qué commit revisó la sesión: apruébala desde la card"
+        if facts.get("headRefOid") != sha or (rec.get("sha") and rec["sha"] != sha):
             return "la PR cambió después de la revisión: no la apruebo sola (revísala de nuevo)"
-        await _submit_review(url, "approve", rec.get("body") or "")
+        await _submit_review(url, "approve", rec.get("body") or "", commit=sha)
         return f"Aprobada {_pr_label(url, facts.get('title'))}."
 
     async def _tg_action(action: str, prop: dict) -> str:
@@ -1494,7 +1498,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         await _submit_review(url, event, body)
         return {"ok": True}
 
-    async def _submit_review(url, event, body: str) -> None:
+    async def _submit_review(url, event, body: str, commit: str | None = None) -> None:
         if event not in ("approve", "request-changes"):
             raise SessionError("bad_request", "event: approve | request-changes")
         if event == "request-changes" and not body:
@@ -1504,8 +1508,16 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         sid = await asyncio.to_thread(_review_session, url)
         if url not in mine_to_review and sid is None:
             raise SessionError("forbidden", "solo PRs que te pidieron revisar (o con sesión de revisión)")
-        out = await asyncio.to_thread(subprocess.run, ["gh", "pr", "review", url, f"--{event}", "--body-file", "-"],
-                                      input=body, capture_output=True, text=True, timeout=60)
+        m = re.match(r"^https://github\.com/([\w.-]+)/([\w.-]+)/pull/(\d+)$", str(url or ""))
+        if commit and m and event == "approve":
+            # atada al commit revisado: si la PR cambió, GitHub la deja como aprobación de un commit viejo
+            out = await asyncio.to_thread(subprocess.run, [
+                "gh", "api", "-X", "POST", f"repos/{m.group(1)}/{m.group(2)}/pulls/{m.group(3)}/reviews",
+                "-f", "event=APPROVE", "-f", f"commit_id={commit}", "-F", "body=@-"],
+                input=body, capture_output=True, text=True, timeout=60)
+        else:
+            out = await asyncio.to_thread(subprocess.run, ["gh", "pr", "review", url, f"--{event}", "--body-file", "-"],
+                                          input=body, capture_output=True, text=True, timeout=60)
         if out.returncode != 0:
             raise SessionError("gh_failed", f"gh pr review: {out.stderr.strip() or out.returncode}")
         stack = sid is not None and (await asyncio.to_thread(read_session, root, sid)).get("stackPrs")
