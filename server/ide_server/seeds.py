@@ -565,7 +565,7 @@ frente al IDE.
   en esta terminal y él no está.
 - **Excepción, la sesión Plugins:** un link sobre herramientas, plugins, skills, MCP o hooks mándaselo directo, sin
   pedir aprobación ni el código: `ide session send plugins --prompt-file - <<'EOF' … EOF` con **solo el link (o los
-  links), sin otro texto**: sin el código, el IDE rechaza cualquier otra cosa (un pedido con texto va con `ide session
+  links, hasta 5), sin otro texto**: sin el código, el IDE rechaza cualquier otra cosa (un pedido con texto va con `ide session
   propose plugins`). Ella le responde al usuario por Telegram; lo que ella le mande después a la sesión IDE queda
   retenido hasta que el usuario lo apruebe en el IDE. Si el usuario escribe «plugin: …», le llega directo a ella sin pasar por ti.
 - Consultas (cómo va algo, qué está bloqueado, qué lo espera) contéstalas directo.

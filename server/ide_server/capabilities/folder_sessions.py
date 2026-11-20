@@ -924,7 +924,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         if caller == "manager" and guard is not None and not guard.manager_send_ok():
             # excepción: links a la sesión Plugins (solo URLs). Lo que Plugins le mande después a la IDE queda retenido
             # hasta que lo apruebes en el IDE: sin el código, Telegram no llega a la IDE pasando por Plugins
-            if not (_kind_of(sid) == "plugins" and _only_links(str(p.get("text") or ""))):
+            if not (sid == "plugins" and _only_links(str(p.get("text") or ""))):
                 raise SessionError("telegram_window", "respondes un mensaje de Telegram sin la ventana del código abierta: para mandarle trabajo a una "
                                    "sesión usa `ide session propose` (el usuario lo aprueba en Telegram con su código de 6 dígitos); "
                                    "a la sesión Plugins sí puedes mandarle links sin el código, pero solo los links (sin otro texto)")
@@ -938,25 +938,35 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
         state, how = _deliver_to(sid, text, caller)
         return {"id": sid, "process": state, "delivered": how}
 
-    PLUGINS_TAINT = 6 * 3600
-
-    def _kind_of(sid: str) -> str | None:
-        try:
-            return read_toml(session_path(root, sid) / ".session.toml").get("kind")
-        except Exception:  # noqa: BLE001
-            return None
-
     def _only_links(text: str) -> bool:
+        """Solo links cortos y bien formados (http/https, con host válido, sin usuario@): nada de texto libre."""
+        from urllib.parse import urlsplit
         words = text.split()
-        return 0 < len(words) <= 10 and len(text) <= 2000 and all(re.fullmatch(r"https?://[^\s<>\"'`]+", w) for w in words)
+        if not 0 < len(words) <= 5:
+            return False
+        for w in words:
+            if len(w) > 300 or not re.fullmatch(r"https?://[A-Za-z0-9.\-]+(:\d+)?(/[A-Za-z0-9._~%!$&()*+,;=:@/\-]*)?(\?[A-Za-z0-9._~%!$&()*+,;=:@/?\-]*)?(#[A-Za-z0-9._~%!$&()*+,;=:@/?\-]*)?", w):
+                return False
+            u = urlsplit(w)
+            if u.scheme not in ("http", "https") or "@" in u.netloc or not u.hostname \
+                    or not re.fullmatch(r"([a-z0-9-]+\.)+[a-z]{2,}", u.hostname):
+                return False
+        return True
 
     def _plugins_tainted() -> bool:
-        """¿Plugins recibió un link por Telegram sin el código en las últimas PLUGINS_TAINT horas?"""
-        at = db.get("plugins:telegram") if db is not None else None
-        try:
-            return bool(at) and (datetime.now() - datetime.fromisoformat(at)).total_seconds() < PLUGINS_TAINT
-        except ValueError:
-            return True
+        """Plugins recibió un link por Telegram sin el código y desde entonces no le escribiste tú en su terminal del
+        IDE: lo que le mande a la IDE queda retenido. No vence con el tiempo (el link sigue en su conversación)."""
+        return bool(db is not None and db.get("plugins:telegram"))
+
+    def _plugins_untaint(sid: str) -> None:
+        # le escribiste tú a Plugins desde el IDE, con ella quieta: la estás mirando; lo que siga es tuyo
+        if db is None or sid != "plugins":
+            return
+        if (supervisor.snapshot().get(sid, {}).get("activity") or {}).get("state") == "working":
+            return
+        db.delete("plugins:telegram")
+
+    supervisor.input_listeners.append(_plugins_untaint)
 
     def _hold_plugins(sid: str, text: str) -> dict:
         """Un bloqueante de la sesión destino con el mensaje entero: responderlo «sí» desde el IDE se lo manda."""
