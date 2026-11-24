@@ -297,6 +297,8 @@ def _parser() -> argparse.ArgumentParser:
                     help="instala la skill /ide-handoff en ~/.claude/skills (para las sesiones de Conductor)")
     rp = sub.add_parser("reply", help="le escribe al usuario por Telegram (cualquier sesión; va con «[#n nombre]» adelante)")
     rp.add_argument("text", nargs="?"); rp.add_argument("--prompt-file", help="'-' = stdin")
+    rep = sub.add_parser("report", help="le reporta a la sesión IDE (#93) un problema del IDE (cualquier sesión; va con su número)")
+    rep.add_argument("text", nargs="?"); rep.add_argument("--prompt-file", help="'-' = stdin")
     tg = sub.add_parser("telegram", help="conectar Telegram con la sesión manager").add_subparsers(dest="cmd", required=True)
     tg.add_parser("setup", help="guarda el token del bot en el llavero y da el código para vincular tu chat")
     tg.add_parser("status")
@@ -1360,6 +1362,13 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
             _post(http, url, "/api/telegram/reply", {"text": text, "token": env.get("IDE_MANAGER_TOKEN", ""),
                                                       "ptoken": env.get("IDE_PLUGINS_TOKEN", "")})
             out.write("enviado por Telegram\n")
+            return 0
+        if a.group == "report":
+            text = _text_in(a.prompt_file, env, root) if a.prompt_file else a.text
+            if not text or not text.strip():
+                raise SessionError("bad_request", "falta el texto (argumento o --prompt-file -)")
+            d = _post(http, url, "/api/ide/report", {"text": text})
+            out.write(f"reporte a la sesión IDE: {d.get('delivered')}\n")
             return 0
         if a.group == "telegram":
             return _telegram(a, root, url, http, out)

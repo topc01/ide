@@ -257,6 +257,12 @@ ejemplos:
   ide dev show 12                           # detalle e historial
   ide dev link 12 api#5092                  # asigna PRs a un desarrollo
   ide dev hide 12 [--undo]"""),
+    "report": ("Le reporta a la sesión IDE (#93) un problema del IDE: le llega con tu número, como información.", """\
+ejemplos:
+  ide report "ide push subió una rama ya mergeada"
+  ide report --prompt-file - <<'EOF'
+  ...
+  EOF"""),
     "reply": ("Le escribe al usuario por Telegram (va con «[#n nombre]» adelante). Nunca claves ni datos sensibles.",
               """\
 ejemplos:

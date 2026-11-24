@@ -394,6 +394,10 @@ def create_app(root: Path, web_dir: Path | None = None, *, server_url: str | Non
     async def api_merges():
         return await _http("merges.list", {})
 
+    @app.post("/api/ide/report")
+    async def api_ide_report(body: dict):
+        return await _http("ide.report", {**body, "_http": True})
+
     @app.post("/api/merge")
     async def api_merge(body: dict):
         return await _http("reviews.merge", {**body, "_http": True})

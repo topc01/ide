@@ -70,6 +70,7 @@ comando choca con una trampa conocida, el IDE lo frena y te dice el correcto.
 | el recorrido | `ide tour` | antes de declarar listo, si hay UI |
 | reviews en GitHub | `ide review` | qué te pidieron en las PRs del desarrollo (`ide review inbox`); responder, resolver y pedir revisión; publicar una review, solo en sesiones de revisión. En vez de `gh api` |
 | avisar por Telegram | `ide reply` | si el usuario te lo pide; nunca claves |
+| reportar un problema del IDE (un comando que falla, una regla que estorba) | `ide report --prompt-file -` | le llega a la sesión IDE con tu número; cuéntale al usuario que lo reportaste |
 | sesiones y desarrollos | `ide session`, `ide dev` | `ide dev status`: tu desarrollo en una tabla (ramas, sin commitear o sin subir, PRs con revisión y CI), en vez de recorrer repos y PRs; `ide session new --title "<qué>"` para trabajo aparte |
 
 Mergear (`ide merge`) lo hace el usuario; si él te pide explícito que mergees, hazlo con `ide merge` y verifica
@@ -627,6 +628,8 @@ PERM_ANALYZE = {"permissions": {
         "Bash(ide ticket:*)",
         # escribirle al usuario por Telegram (va con «[#n nombre]» adelante; rechaza textos con claves)
         "Bash(ide reply:*)",
+        # contarle a la sesión IDE un problema del IDE (le llega como información, con el número de quien reporta)
+        "Bash(ide report:*)",
         # consultas de solo lectura a prod/staging: `ide db` deja pasar solo el SQL (sin comandos de psql)
         "Bash(ide db:*)",
         "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh search prs:*)",
