@@ -63,7 +63,7 @@ def _checked_out_elsewhere(wt: Path, mine: list[Path], scratch: str) -> dict[str
 def _prs_of(wt: Path, branch: str) -> list[dict]:
     """Las PRs (todas: abiertas, mergeadas, cerradas) cuya rama es `branch`, en el repo de `wt`."""
     import json
-    r = subprocess.run(["gh", "pr", "list", "--head", branch, "--state", "all", "--json", "number,state,url", "-L", "20"],
+    r = subprocess.run(["gh", "pr", "list", "--head", branch, "--state", "all", "--json", "number,state,url,headRefOid,isCrossRepository", "-L", "20"],
                        cwd=wt, capture_output=True, text=True, timeout=60)
     if r.returncode != 0:
         raise SessionError("gh_failed", f"no pude ver las PRs de {branch}: {r.stderr.strip()[-200:]}")
@@ -90,12 +90,24 @@ def delete_remote(root: Path, sid: str, repo: str | None, branch: str, *, out: T
     if not _remote_has(wt, branch):
         out.write(f"{repo}: {branch} no existe en origin, no hay nada que borrar\n")
         return 0
-    prs = _prs_of(wt, branch)
+    if _git(wt, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode != 0:
+        raise SessionError("forbidden", f"{branch} no es una rama local de {repo} en esta sesión: no se borra")
+    others = _checked_out_elsewhere(wt, _own_places(root, sid), _scratch_dir(root, sid))
+    if branch in others:
+        raise SessionError("forbidden", f"{branch} es de otro worktree ({others[branch]}): no se borra")
+    prs = [x for x in _prs_of(wt, branch) if not x.get("isCrossRepository")]
     if any(x["state"] == "OPEN" for x in prs):
         raise SessionError("forbidden", f"{branch} tiene una PR abierta ({next(x['url'] for x in prs if x['state'] == 'OPEN')}): no se borra")
     if not prs:
         raise SessionError("forbidden", f"{branch} no tiene PR mergeada ni cerrada: solo se borran ramas de PRs terminadas")
-    r = _git(wt, "push", "origin", "--delete", branch)
+    tip = _git(wt, "ls-remote", "--heads", "origin", f"refs/heads/{branch}").stdout.split()[0]
+    heads = {x.get("headRefOid") for x in prs} - {None}
+    _git(wt, "fetch", "-q", "origin", f"refs/heads/{branch}", *[f"refs/pull/{x['number']}/head" for x in prs])
+    # la punta es la de su PR, o una copia con el mismo contenido (la rama de antes de un rebase de la PR)
+    if tip not in heads and not any(_git(wt, "diff", "--quiet", tip, h).returncode == 0 for h in heads):
+        raise SessionError("forbidden", f"origin/{branch} tiene commits que no están en su PR terminada: no se borra")
+    # con lease: si alguien sube entre medio, el borrado falla en vez de llevarse esos commits
+    r = _git(wt, "push", f"--force-with-lease=refs/heads/{branch}:{tip}", "origin", "--delete", branch)
     msg = (r.stderr.strip() or r.stdout.strip()).splitlines()
     out.write(f"{repo}: {branch} {'borrada de origin' if r.returncode == 0 else 'NO se borró'}"
               f" (PR {', '.join('#' + str(x['number']) + ' ' + x['state'].lower() for x in prs)})"
