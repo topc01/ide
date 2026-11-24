@@ -957,7 +957,7 @@ def register(registry: Registry, root: Path, manager, *, hooks, supervisor: Supe
             raise SessionError("forbidden", "no reconozco qué sesión reporta")
         if who == "ide":
             raise SessionError("bad_request", "la sesión IDE no se reporta a sí misma")
-        if who == "manager" and guard is not None and not guard.manager_send_ok():
+        if (who == "manager" or _is_manager_call(p)) and guard is not None and not guard.manager_send_ok():
             # como `ide session send`: sin la ventana del código, lo que llegó por Telegram no pasa a la sesión IDE
             raise SessionError("telegram_window", "respondes un mensaje de Telegram sin la ventana del código abierta: "
                                "el reporte a la sesión IDE espera a que el usuario la abra")
