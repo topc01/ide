@@ -149,6 +149,7 @@ def _parser() -> argparse.ArgumentParser:
     pu.add_argument("repo", nargs="?", help="solo este repo (sin él: todos los de la sesión)")
     pu.add_argument("--branch", action="append", help="otra rama local del repo en vez de la actual (repetible; p.ej. las de un stack)")
     pu.add_argument("--force", action="store_true", help="--force-with-lease (después de un rebase)")
+    pu.add_argument("--delete", metavar="RAMA", help="borra esa rama en origin (solo si su PR ya está mergeada o cerrada)")
     pu.add_argument("--session")
     bp = sub.add_parser("backport", help="el backport de un hotfix: worktree extra con tu rama -develop y los commits del hotfix (cherry-pick), y lo sube")
     bp.add_argument("repo"); bp.add_argument("--onto", default="develop", help="a dónde va el backport (default: develop)")
@@ -1532,6 +1533,9 @@ def main(argv: list[str], *, cwd: Path, env: dict, home: Path, http=httpx,
                     caller = None
             if caller and sid != caller:
                 raise SessionError("forbidden", f"desde la sesión {caller} no se suben ramas de {sid}")
+            if a.delete:
+                from ide_server.push import delete_remote
+                return delete_remote(root, sid, a.repo, a.delete, out=out)
             return push(root, sid, a.repo, branches=a.branch, force=a.force, out=out)
         if a.group == "repo" and a.cmd == "add":
             info = add_repo(root, sid, a.repo, branch=a.branch, out=out)

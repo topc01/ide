@@ -17,7 +17,9 @@ Si el desarrollo toca varios repos, agrega cada uno: queda fullstack (una card, 
 ejemplos:
   ide push                                  # todos los repos de la sesión
   ide push finnecto-api --force             # --force-with-lease, después de un rebase
-  ide push finnecto-api --branch tpc/d12-x-develop   # otra rama local (p.ej. las de un stack o un backport)"""),
+  ide push finnecto-api --branch tpc/d12-x-develop   # otra rama local (p.ej. las de un stack o un backport)
+  ide push finnecto-embed --delete tpc/d12-x         # borra en origin una rama cuya PR ya se mergeó o cerró
+(una rama cuya PR ya está mergeada no se sube: avisa y sigue con los otros repos)"""),
     "pr": ("Mueve una PR tuya a otra base (p. ej. sacar una PR apilada a su propia rama desde develop): frena si toca "
            "archivos que solo están en la base vieja o si sus commits chocan (sin mover nada), renumera migraciones, "
            "sube con --force-with-lease, cambia la base en GitHub y la deja en tu desarrollo.", """\
